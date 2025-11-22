@@ -19,6 +19,11 @@ namespace Core
 
         public void ExecuteFile(string filePath)
         {
+            if (filePath == null)
+            {
+                throw new System.ArgumentNullException(nameof(filePath));
+            }
+
             if (File.Exists(filePath))
             {
                 var script = File.ReadAllText(filePath);

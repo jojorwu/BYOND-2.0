@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "LeNIyea3xqo=",
+  "success": true,
+  "projectFilePath": "/app/Server/Server.csproj",
+  "expectedPackageFiles": [
+    "/home/jules/.nuget/packages/keralua/1.4.7/keralua.1.4.7.nupkg.sha512",
+    "/home/jules/.nuget/packages/nlua/1.7.6/nlua.1.7.6.nupkg.sha512"
+  ],
+  "logs": []
+}

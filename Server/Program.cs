@@ -11,32 +11,36 @@ namespace Server
 
         static void Main(string[] args)
         {
-            scripting = new Scripting();
-
-            // Initial script execution
-            scripting.ExecuteFile("scripts/main.lua");
-
-            // Set up file watcher
-            FileSystemWatcher watcher = new FileSystemWatcher();
-            watcher.Path = "scripts";
-            watcher.Filter = "*.lua";
-            watcher.NotifyFilter = NotifyFilters.LastWrite;
-            watcher.Changed += OnChanged;
-            watcher.EnableRaisingEvents = true;
-
-            Console.WriteLine("Watching for changes in the 'scripts' directory. The server is running.");
-
-            // Keep the application running
-            while (true)
+            using (scripting = new Scripting())
             {
-                Thread.Sleep(1000);
+                // Initial script execution
+                scripting.ExecuteFile("scripts/main.lua");
+
+                using (FileSystemWatcher watcher = new FileSystemWatcher())
+                {
+                    watcher.Path = "scripts";
+                    watcher.Filter = "*.lua";
+                    watcher.NotifyFilter = NotifyFilters.LastWrite;
+                    watcher.Changed += OnChanged;
+                    watcher.EnableRaisingEvents = true;
+
+                    Console.WriteLine("Watching for changes in the 'scripts' directory. The server is running. Press Enter to exit.");
+                    Console.ReadLine();
+                }
             }
         }
 
         private static void OnChanged(object source, FileSystemEventArgs e)
         {
-            Console.WriteLine($"File {e.FullPath} has been changed. Reloading...");
-            scripting.ExecuteFile(e.FullPath);
+            try
+            {
+                Console.WriteLine($"File {e.FullPath} has been changed. Reloading...");
+                scripting.ExecuteFile(e.FullPath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing script: {ex.Message}");
+            }
         }
     }
 }

@@ -1,9 +1,11 @@
 using NLua;
 using System.IO;
 
+using System;
+
 namespace Core
 {
-    public class Scripting
+    public sealed class Scripting : IDisposable
     {
         private Lua lua;
 
@@ -12,7 +14,7 @@ namespace Core
             lua = new Lua();
         }
 
-        public void Execute(string script)
+        private void Execute(string script)
         {
             lua.DoString(script);
         }
@@ -34,7 +36,7 @@ namespace Core
 
         public void Dispose()
         {
-            lua.Dispose();
+            lua?.Dispose();
         }
     }
 }

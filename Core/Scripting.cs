@@ -24,11 +24,12 @@ namespace Core
                 throw new System.ArgumentNullException(nameof(filePath));
             }
 
-            if (File.Exists(filePath))
+            if (!File.Exists(filePath))
             {
-                var script = File.ReadAllText(filePath);
-                Execute(script);
+                throw new FileNotFoundException("File not found.", filePath);
             }
+            var script = File.ReadAllText(filePath);
+            Execute(script);
         }
 
         public void Dispose()

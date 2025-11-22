@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using System;
 using System.IO;
 
 namespace Core
@@ -16,11 +17,15 @@ namespace Core
             var mapData = JsonConvert.DeserializeObject<MapData>(json);
 
             var map = new Map(mapData.Width, mapData.Height, mapData.Depth);
-            for (int x = 0; x < map.Width; x++)
+            int width = Math.Min(map.Width, mapData.Tiles.GetLength(0));
+            int height = Math.Min(map.Height, mapData.Tiles.GetLength(1));
+            int depth = Math.Min(map.Depth, mapData.Tiles.GetLength(2));
+
+            for (int x = 0; x < width; x++)
             {
-                for (int y = 0; y < map.Height; y++)
+                for (int y = 0; y < height; y++)
                 {
-                    for (int z = 0; z < map.Depth; z++)
+                    for (int z = 0; z < depth; z++)
                     {
                         map.SetTile(x, y, z, new Tile(mapData.Tiles[x, y, z]));
                     }

@@ -4,7 +4,7 @@ namespace Core
 {
     public class GameState
     {
-        public Map Map { get; set; }
-        public List<GameObject> GameObjects { get; } = new List<GameObject>();
+        public Map? Map { get; set; }
+        public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
     }
 }

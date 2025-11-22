@@ -1,6 +1,5 @@
 using NLua;
 using System.IO;
-
 using System;
 
 namespace Core
@@ -13,25 +12,34 @@ namespace Core
         private Lua lua;
         private readonly object luaLock = new object();
         private readonly GameApi game;
+        private readonly EditorApi? editor;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Scripting"/> class.
         /// </summary>
-        public Scripting(GameApi game)
+        public Scripting(GameApi game, EditorApi? editor = null)
         {
             this.game = game;
+            this.editor = editor;
             lua = new Lua();
-            RegisterGameApi();
+            RegisterApis();
         }
 
-        private void RegisterGameApi()
+        private void RegisterApis()
         {
             lua["Game"] = game;
+            if (editor != null)
+            {
+                lua["Editor"] = editor;
+            }
         }
 
-        private void Execute(string script)
+        public void ExecuteString(string script)
         {
-            lua.DoString(script);
+            lock (luaLock)
+            {
+                lua.DoString(script);
+            }
         }
 
         /// <summary>
@@ -43,7 +51,7 @@ namespace Core
             {
                 lua.Close();
                 lua = new Lua();
-                RegisterGameApi();
+                RegisterApis();
             }
         }
 
@@ -53,7 +61,7 @@ namespace Core
         /// <param name="filePath">The path to the script file.</param>
         /// <exception cref="ArgumentNullException">Thrown when filePath is null.</exception>
         /// <exception cref="FileNotFoundException">Thrown when the file is not found.</exception>
-        public void ExecuteFile(string filePath)
+        public void ExecuteFile(string? filePath)
         {
             if (filePath == null)
             {
@@ -65,10 +73,7 @@ namespace Core
                 throw new FileNotFoundException("File not found.", filePath);
             }
             var script = File.ReadAllText(filePath);
-            lock (luaLock)
-            {
-                Execute(script);
-            }
+            ExecuteString(script);
         }
 
         /// <summary>

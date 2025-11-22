@@ -1,11 +1,12 @@
 using Newtonsoft.Json;
+using System;
 using System.IO;
 
 namespace Core
 {
     public static class MapLoader
     {
-        public static Map LoadMap(string filePath)
+        public static Map? LoadMap(string filePath)
         {
             if (!File.Exists(filePath))
             {
@@ -15,14 +16,23 @@ namespace Core
             var json = File.ReadAllText(filePath);
             var mapData = JsonConvert.DeserializeObject<MapData>(json);
 
-            var map = new Map(mapData.Width, mapData.Height, mapData.Depth);
-            for (int x = 0; x < map.Width; x++)
+            if (mapData == null)
             {
-                for (int y = 0; y < map.Height; y++)
+                return null;
+            }
+
+            var map = new Map(mapData.Width, mapData.Height, mapData.Depth);
+            int width = Math.Min(map.Width, mapData.Turfs.GetLength(0));
+            int height = Math.Min(map.Height, mapData.Turfs.GetLength(1));
+            int depth = Math.Min(map.Depth, mapData.Turfs.GetLength(2));
+
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
                 {
-                    for (int z = 0; z < map.Depth; z++)
+                    for (int z = 0; z < depth; z++)
                     {
-                        map.SetTile(x, y, z, new Tile(mapData.Tiles[x, y, z]));
+                        map.SetTurf(x, y, z, new Turf(mapData.Turfs[x, y, z]));
                     }
                 }
             }
@@ -37,7 +47,7 @@ namespace Core
                 Width = map.Width,
                 Height = map.Height,
                 Depth = map.Depth,
-                Tiles = new int[map.Width, map.Height, map.Depth]
+                Turfs = new int[map.Width, map.Height, map.Depth]
             };
 
             for (int x = 0; x < map.Width; x++)
@@ -46,7 +56,7 @@ namespace Core
                 {
                     for (int z = 0; z < map.Depth; z++)
                     {
-                        mapData.Tiles[x, y, z] = map.GetTile(x, y, z)?.Id ?? 0;
+                        mapData.Turfs[x, y, z] = map.GetTurf(x, y, z)?.Id ?? 0;
                     }
                 }
             }
@@ -60,7 +70,7 @@ namespace Core
             public int Width { get; set; }
             public int Height { get; set; }
             public int Depth { get; set; }
-            public int[,,] Tiles { get; set; }
+            public int[,,] Turfs { get; set; } = new int[0, 0, 0];
         }
     }
 }

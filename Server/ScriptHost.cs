@@ -11,7 +11,6 @@ namespace Server
         private readonly FileSystemWatcher _watcher;
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
-        private const string ScriptPath = "scripts";
         private readonly GameState _gameState;
         private readonly GameApi _gameApi;
 
@@ -20,7 +19,7 @@ namespace Server
             _gameState = new GameState();
             _gameApi = new GameApi(_gameState);
             _scripting = new Scripting(_gameApi);
-            _watcher = new FileSystemWatcher(ScriptPath)
+            _watcher = new FileSystemWatcher(Constants.ScriptsRoot)
             {
                 Filter = "*.lua",
                 NotifyFilter = NotifyFilters.LastWrite,
@@ -34,7 +33,7 @@ namespace Server
             Console.WriteLine("Starting script host...");
             ReloadScripts(null); // Initial script load
             _watcher.Changed += OnScriptChanged;
-            Console.WriteLine($"Watching for changes in '{ScriptPath}' directory.");
+            Console.WriteLine($"Watching for changes in '{Constants.ScriptsRoot}' directory.");
         }
 
         private void OnScriptChanged(object source, FileSystemEventArgs e)
@@ -43,7 +42,7 @@ namespace Server
             _debounceTimer.Change(200, Timeout.Infinite);
         }
 
-        private void ReloadScripts(object state)
+        private void ReloadScripts(object? state)
         {
             lock (_scriptLock)
             {
@@ -51,7 +50,7 @@ namespace Server
                 {
                     Console.WriteLine("Reloading scripts...");
                     _scripting.Reload();
-                    _scripting.ExecuteFile(Path.Combine(ScriptPath, "main.lua"));
+                    _scripting.ExecuteFile(Path.Combine(Constants.ScriptsRoot, "main.lua"));
                 }
                 catch (Exception ex)
                 {

@@ -12,10 +12,14 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private const string ScriptPath = "scripts";
+        private readonly GameState _gameState;
+        private readonly GameApi _gameApi;
 
         public ScriptHost()
         {
-            _scripting = new Scripting();
+            _gameState = new GameState();
+            _gameApi = new GameApi(_gameState);
+            _scripting = new Scripting(_gameApi);
             _watcher = new FileSystemWatcher(ScriptPath)
             {
                 Filter = "*.lua",

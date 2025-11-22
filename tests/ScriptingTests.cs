@@ -9,11 +9,15 @@ namespace Core.Tests
     public class ScriptingTests
     {
         private Scripting scripting;
+        private GameApi gameApi;
+        private GameState gameState;
 
         [SetUp]
         public void SetUp()
         {
-            scripting = new Scripting();
+            gameState = new GameState();
+            gameApi = new GameApi(gameState);
+            scripting = new Scripting(gameApi);
         }
 
         [TearDown]

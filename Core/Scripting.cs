@@ -12,13 +12,21 @@ namespace Core
     {
         private Lua lua;
         private readonly object luaLock = new object();
+        private readonly GameApi game;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Scripting"/> class.
         /// </summary>
-        public Scripting()
+        public Scripting(GameApi game)
         {
+            this.game = game;
             lua = new Lua();
+            RegisterGameApi();
+        }
+
+        private void RegisterGameApi()
+        {
+            lua["Game"] = game;
         }
 
         private void Execute(string script)
@@ -35,6 +43,7 @@ namespace Core
             {
                 lua.Close();
                 lua = new Lua();
+                RegisterGameApi();
             }
         }
 

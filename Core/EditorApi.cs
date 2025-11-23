@@ -23,11 +23,11 @@ namespace Core
         /// <summary>
         /// Initializes a new instance of the <see cref="EditorApi"/> class.
         /// </summary>
-        public EditorApi()
+        public EditorApi(Project project)
         {
             State = new EditorState();
             Selection = new SelectionManager();
-            Assets = new AssetBrowser(new AssetManager());
+            Assets = new AssetBrowser(new AssetManager(project));
         }
     }
 }

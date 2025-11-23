@@ -7,11 +7,24 @@ namespace tests
     public class ObjectTypeTests
     {
         private ObjectTypeManager _objectTypeManager = null!;
+        private const string TestProjectDir = "TestProject";
+        private Project _project = null!;
 
         [SetUp]
         public void SetUp()
         {
-            _objectTypeManager = new ObjectTypeManager();
+            Directory.CreateDirectory(TestProjectDir);
+            _project = new Project(TestProjectDir);
+            _objectTypeManager = new ObjectTypeManager(_project);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (Directory.Exists(TestProjectDir))
+            {
+                Directory.Delete(TestProjectDir, true);
+            }
         }
 
         [Test]
@@ -25,7 +38,7 @@ namespace tests
             gameObject.Properties["SpritePath"] = "instance.png";
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath", _objectTypeManager);
+            var spritePath = gameObject.GetProperty<string>("SpritePath");
 
             // Assert
             Assert.That(spritePath, Is.EqualTo("instance.png"));
@@ -41,7 +54,7 @@ namespace tests
             var gameObject = new GameObject(objectType);
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath", _objectTypeManager);
+            var spritePath = gameObject.GetProperty<string>("SpritePath");
 
             // Assert
             Assert.That(spritePath, Is.EqualTo("default.png"));
@@ -56,7 +69,7 @@ namespace tests
             var gameObject = new GameObject(objectType);
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath", _objectTypeManager);
+            var spritePath = gameObject.GetProperty<string>("SpritePath");
 
             // Assert
             Assert.That(spritePath, Is.Null);
@@ -66,7 +79,7 @@ namespace tests
         public void ObjectTypeManager_CanRegisterAndGetObjectType()
         {
             // Arrange
-            var manager = new ObjectTypeManager();
+            var manager = new ObjectTypeManager(_project);
             var objectType = new ObjectType("test");
 
             // Act

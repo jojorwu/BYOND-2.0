@@ -10,20 +10,24 @@ namespace tests
         private const string TestMapPath = "test_map.json";
         private ObjectTypeManager _objectTypeManager = null!;
         private MapLoader _mapLoader = null!;
+        private const string TestProjectDir = "TestProject";
+        private Project _project = null!;
 
         [SetUp]
         public void SetUp()
         {
-            _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
+            Directory.CreateDirectory(TestProjectDir);
+            _project = new Project(TestProjectDir);
+            _objectTypeManager = new ObjectTypeManager(_project);
+            _mapLoader = new MapLoader(_objectTypeManager, _project);
         }
 
         [TearDown]
         public void TearDown()
         {
-            if (File.Exists(TestMapPath))
+            if (Directory.Exists(TestProjectDir))
             {
-                File.Delete(TestMapPath);
+                Directory.Delete(TestProjectDir, true);
             }
         }
 
@@ -54,8 +58,8 @@ namespace tests
 
             var loadedGameObject = loadedTurf.Contents[0];
             Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
-            Assert.That(loadedGameObject.GetProperty<string>("SpritePath", _objectTypeManager), Is.EqualTo("default.png"));
-            Assert.That(loadedGameObject.GetProperty<string>("InstanceProp", _objectTypeManager), Is.EqualTo("instance_value"));
+            Assert.That(loadedGameObject.GetProperty<string>("SpritePath"), Is.EqualTo("default.png"));
+            Assert.That(loadedGameObject.GetProperty<string>("InstanceProp"), Is.EqualTo("instance_value"));
         }
     }
 }

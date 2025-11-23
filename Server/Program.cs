@@ -8,9 +8,10 @@ namespace Server
         static void Main(string[] args)
         {
             var engineSettings = EngineSettings.Load();
+            var project = new Project(Directory.GetCurrentDirectory());
 
-            using (var scriptHost = new ScriptHost())
-            using (var networkServer = new NetworkServer(7777, engineSettings))
+            using (var scriptHost = new ScriptHost(project))
+            using (var networkServer = new NetworkServer(7777, engineSettings, scriptHost))
             {
                 scriptHost.Start();
                 networkServer.Start();

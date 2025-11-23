@@ -8,12 +8,34 @@ namespace Core
 {
     public class ObjectTypeManager
     {
-        private const string TypesFilePath = "types.json";
+        private const string TypesFileName = "types.json";
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
+        private readonly Project _project;
+
+        public ObjectTypeManager(Project project)
+        {
+            _project = project;
+        }
 
         public void RegisterObjectType(ObjectType objectType)
         {
-            _objectTypes.TryAdd(objectType.Name, objectType);
+            if (_objectTypes.TryAdd(objectType.Name, objectType))
+            {
+                // Link this type to its parent if the parent is already registered.
+                if (objectType.ParentName != null)
+                {
+                    objectType.Parent = GetObjectType(objectType.ParentName);
+                }
+
+                // Link any existing children to this type if this is their parent.
+                foreach (var childType in _objectTypes.Values)
+                {
+                    if (childType.ParentName == objectType.Name)
+                    {
+                        childType.Parent = objectType;
+                    }
+                }
+            }
         }
 
         public ObjectType? GetObjectType(string name)
@@ -29,18 +51,20 @@ namespace Core
 
         public void SaveTypes()
         {
+            var path = _project.GetFullPath(TypesFileName);
             var json = JsonConvert.SerializeObject(_objectTypes.Values, Formatting.Indented);
-            File.WriteAllText(TypesFilePath, json);
+            File.WriteAllText(path, json);
         }
 
         public void LoadTypes()
         {
-            if (!File.Exists(TypesFilePath))
+            var path = _project.GetFullPath(TypesFileName);
+            if (!File.Exists(path))
             {
                 return;
             }
 
-            var json = File.ReadAllText(TypesFilePath);
+            var json = File.ReadAllText(path);
             var types = JsonConvert.DeserializeObject<List<ObjectType>>(json);
             if (types == null)
             {
@@ -50,7 +74,7 @@ namespace Core
             _objectTypes.Clear();
             foreach (var type in types)
             {
-                _objectTypes.TryAdd(type.Name, type);
+                RegisterObjectType(type);
             }
         }
     }

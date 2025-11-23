@@ -12,17 +12,21 @@ namespace Core
         private readonly GameState _gameState;
         private readonly ObjectTypeManager _objectTypeManager;
         private readonly MapLoader _mapLoader;
+        private readonly Project _project;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameApi"/> class.
         /// </summary>
         /// <param name="gameState">The game state to interact with.</param>
         /// <param name="objectTypeManager">The object type manager.</param>
-        public GameApi(GameState gameState, ObjectTypeManager objectTypeManager)
+        /// <param name="mapLoader">The map loader.</param>
+        /// <param name="project">The current project.</param>
+        public GameApi(GameState gameState, ObjectTypeManager objectTypeManager, MapLoader mapLoader, Project project)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _mapLoader = mapLoader;
+            _project = project;
         }
 
         // --- Map and Object Methods ---
@@ -150,18 +154,17 @@ namespace Core
         public object? GetObjectProperty(int objectId, string key)
         {
             var obj = GetObject(objectId);
-            return obj?.GetProperty<object>(key, _objectTypeManager);
+            return obj?.GetProperty<object>(key);
         }
 
         // --- Script Management Methods ---
 
-        private string SanitizePath(string filename)
+        private string SanitizeScriptPath(string filename)
         {
-            // Prevent directory traversal attacks
-            var fullPath = Path.GetFullPath(Path.Combine(Constants.ScriptsRoot, filename));
-            var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
+            var scriptsPath = _project.GetFullPath("scripts");
+            var fullPath = Path.GetFullPath(Path.Combine(scriptsPath, filename));
 
-            if (!fullPath.StartsWith(rootPath))
+            if (!fullPath.StartsWith(Path.GetFullPath(scriptsPath)))
             {
                 throw new System.Security.SecurityException("Access to path is denied.");
             }
@@ -174,9 +177,11 @@ namespace Core
         /// <returns>A list of script file paths.</returns>
         public List<string> ListScriptFiles()
         {
-            var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
-            return Directory.GetFiles(rootPath, "*.lua", SearchOption.AllDirectories)
-                .Select(path => Path.GetRelativePath(rootPath, path))
+            var scriptsPath = _project.GetFullPath("scripts");
+            if (!Directory.Exists(scriptsPath)) return new List<string>();
+
+            return Directory.GetFiles(scriptsPath, "*.lua", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(scriptsPath, path))
                 .ToList();
         }
 
@@ -187,8 +192,8 @@ namespace Core
         /// <returns>The content of the script file.</returns>
         public string ReadScriptFile(string filename)
         {
-            var safePath = SanitizePath(filename);
-            return File.ReadAllText(safePath);
+            var path = SanitizeScriptPath(filename);
+            return File.ReadAllText(path);
         }
 
         /// <summary>
@@ -198,8 +203,8 @@ namespace Core
         /// <param name="content">The content to write to the file.</param>
         public void WriteScriptFile(string filename, string content)
         {
-            var safePath = SanitizePath(filename);
-            File.WriteAllText(safePath, content);
+            var path = SanitizeScriptPath(filename);
+            File.WriteAllText(path, content);
         }
 
         /// <summary>
@@ -208,8 +213,8 @@ namespace Core
         /// <param name="filename">The name of the script file to delete.</param>
         public void DeleteScriptFile(string filename)
         {
-            var safePath = SanitizePath(filename);
-            File.Delete(safePath);
+            var path = SanitizeScriptPath(filename);
+            File.Delete(path);
         }
     }
 }

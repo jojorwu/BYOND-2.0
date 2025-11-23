@@ -13,16 +13,19 @@ namespace Server
     {
         private readonly TcpClient _client;
         private readonly CancellationToken _cancellationToken;
+        private readonly ScriptHost _scriptHost;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ClientHandler"/> class.
         /// </summary>
         /// <param name="client">The TCP client to handle.</param>
         /// <param name="cancellationToken">A token to signal when the server is shutting down.</param>
-        public ClientHandler(TcpClient client, CancellationToken cancellationToken)
+        /// <param name="scriptHost">The script host to execute commands.</param>
+        public ClientHandler(TcpClient client, CancellationToken cancellationToken, ScriptHost scriptHost)
         {
             _client = client;
             _cancellationToken = cancellationToken;
+            _scriptHost = scriptHost;
         }
 
         /// <summary>
@@ -35,14 +38,19 @@ namespace Server
             {
                 using var stream = _client.GetStream();
                 var buffer = new byte[1024];
+                var reader = new StreamReader(stream);
+                var writer = new StreamWriter(stream) { AutoFlush = true };
+
                 while (!_cancellationToken.IsCancellationRequested)
                 {
-                    var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, _cancellationToken);
-                    if (bytesRead == 0)
+                    var command = await reader.ReadLineAsync();
+                    if (command == null)
                     {
                         break; // Client disconnected
                     }
-                    // Process data here...
+
+                    var result = _scriptHost.ExecuteCommand(command);
+                    await writer.WriteLineAsync(result);
                 }
             }
             catch (OperationCanceledException)

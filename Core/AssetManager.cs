@@ -9,14 +9,12 @@ namespace Core
 {
     public class AssetManager
     {
-        private const string AssetDirectory = "assets";
+        private readonly Project _project;
+        private string AssetsPath => _project.GetFullPath("assets");
 
-        public AssetManager()
+        public AssetManager(Project project)
         {
-            if (!Directory.Exists(AssetDirectory))
-            {
-                Directory.CreateDirectory(AssetDirectory);
-            }
+            _project = project;
         }
 
         /// <summary>
@@ -30,9 +28,7 @@ namespace Core
             {
                 using (var image = Image.Load<Rgba32>(sourceImagePath))
                 {
-                    // Use the top-left pixel as the background color
                     Rgba32 backgroundColor = image[0, 0];
-
                     image.Mutate(ctx =>
                     {
                         ctx.ProcessPixelRowsAsVector4(row =>
@@ -41,18 +37,18 @@ namespace Core
                             {
                                 if (row[i].Equals(backgroundColor.ToVector4()))
                                 {
-                                    row[i].W = 0; // Set alpha to 0 for transparency
+                                    row[i].W = 0;
                                 }
                             }
                         });
                     });
 
                     string newFileName = $"{Path.GetFileNameWithoutExtension(sourceImagePath)}_{Guid.NewGuid().ToString().Substring(0, 8)}.png";
-                    string newAssetPath = Path.Combine(AssetDirectory, newFileName);
+                    string newAssetPath = Path.Combine(AssetsPath, newFileName);
 
                     image.SaveAsPng(newAssetPath);
                     Console.WriteLine($"Successfully imported asset to {newAssetPath}");
-                    return newAssetPath;
+                    return Path.GetRelativePath(_project.RootPath, newAssetPath);
                 }
             }
             catch (Exception ex)
@@ -68,7 +64,11 @@ namespace Core
         /// <returns>An array of asset file paths.</returns>
         public string[] GetAssetPaths()
         {
-            return Directory.GetFiles(AssetDirectory, "*.png");
+            if (!Directory.Exists(AssetsPath))
+            {
+                return Array.Empty<string>();
+            }
+            return Directory.GetFiles(AssetsPath, "*.png");
         }
     }
 }

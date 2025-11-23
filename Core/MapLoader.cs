@@ -11,20 +11,24 @@ namespace Core
     public class MapLoader
     {
         private readonly ObjectTypeManager _objectTypeManager;
+        private readonly Project _project;
 
-        public MapLoader(ObjectTypeManager objectTypeManager)
+        public MapLoader(ObjectTypeManager objectTypeManager, Project project)
         {
             _objectTypeManager = objectTypeManager;
+            _project = project;
         }
 
         public Map? LoadMap(string filePath)
         {
-            if (!File.Exists(filePath))
+            var fullPath = _project.GetFullPath(filePath);
+
+            if (!File.Exists(fullPath))
             {
                 return null;
             }
 
-            var json = File.ReadAllText(filePath);
+            var json = File.ReadAllText(fullPath);
             var mapData = JsonConvert.DeserializeObject<MapData>(json);
 
             if (mapData?.Turfs == null)
@@ -66,6 +70,8 @@ namespace Core
 
         public void SaveMap(Map map, string filePath)
         {
+            var fullPath = _project.GetFullPath(filePath);
+
             var turfData = new ConcurrentDictionary<Vector3D, TurfData>();
             Parallel.ForEach(map.GetAllTurfs(), kvp =>
             {
@@ -95,7 +101,7 @@ namespace Core
             }
 
             var json = JsonConvert.SerializeObject(mapData, Formatting.Indented);
-            File.WriteAllText(filePath, json);
+            File.WriteAllText(fullPath, json);
         }
 
         private class MapData

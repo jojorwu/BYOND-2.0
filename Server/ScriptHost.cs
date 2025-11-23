@@ -13,13 +13,20 @@ namespace Server
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
         private readonly GameApi _gameApi;
+        private readonly Project _project;
+        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly MapLoader _mapLoader;
 
-        public ScriptHost()
+        public ScriptHost(Project project)
         {
+            _project = project;
             _gameState = new GameState();
-            _gameApi = new GameApi(_gameState);
+            _objectTypeManager = new ObjectTypeManager(_project);
+            _objectTypeManager.LoadTypes();
+            _mapLoader = new MapLoader(_objectTypeManager, _project);
+            _gameApi = new GameApi(_gameState, _objectTypeManager, _mapLoader, _project);
             _scripting = new Scripting(_gameApi);
-            _watcher = new FileSystemWatcher(Constants.ScriptsRoot)
+            _watcher = new FileSystemWatcher(_project.GetFullPath("scripts"))
             {
                 Filter = "*.lua",
                 NotifyFilter = NotifyFilters.LastWrite,
@@ -33,7 +40,7 @@ namespace Server
             Console.WriteLine("Starting script host...");
             ReloadScripts(null); // Initial script load
             _watcher.Changed += OnScriptChanged;
-            Console.WriteLine($"Watching for changes in '{Constants.ScriptsRoot}' directory.");
+            Console.WriteLine($"Watching for changes in '{_project.GetFullPath("scripts")}' directory.");
         }
 
         private void OnScriptChanged(object source, FileSystemEventArgs e)
@@ -50,11 +57,26 @@ namespace Server
                 {
                     Console.WriteLine("Reloading scripts...");
                     _scripting.Reload();
-                    _scripting.ExecuteFile(Path.Combine(Constants.ScriptsRoot, "main.lua"));
+                    _scripting.ExecuteFile(_project.GetFullPath(Path.Combine("scripts", "main.lua")));
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error executing script: {ex.Message}");
+                }
+            }
+        }
+
+        public string ExecuteCommand(string command)
+        {
+            lock (_scriptLock)
+            {
+                try
+                {
+                    return _scripting.ExecuteCommand(command);
+                }
+                catch (Exception ex)
+                {
+                    return $"Error: {ex.Message}";
                 }
             }
         }

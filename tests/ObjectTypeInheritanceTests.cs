@@ -7,11 +7,24 @@ namespace Core.Tests
     public class ObjectTypeInheritanceTests
     {
         private ObjectTypeManager _objectTypeManager = null!;
+        private const string TestProjectDir = "TestProject";
+        private Project _project = null!;
 
         [SetUp]
         public void SetUp()
         {
-            _objectTypeManager = new ObjectTypeManager();
+            Directory.CreateDirectory(TestProjectDir);
+            _project = new Project(TestProjectDir);
+            _objectTypeManager = new ObjectTypeManager(_project);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (Directory.Exists(TestProjectDir))
+            {
+                Directory.Delete(TestProjectDir, true);
+            }
         }
 
         [Test]
@@ -28,7 +41,7 @@ namespace Core.Tests
             var gameObject = new GameObject(child);
 
             // Act
-            var health = gameObject.GetProperty<int>("health", _objectTypeManager);
+            var health = gameObject.GetProperty<int>("health");
 
             // Assert
             Assert.That(health, Is.EqualTo(100));
@@ -49,7 +62,7 @@ namespace Core.Tests
             var gameObject = new GameObject(child);
 
             // Act
-            var health = gameObject.GetProperty<int>("health", _objectTypeManager);
+            var health = gameObject.GetProperty<int>("health");
 
             // Assert
             Assert.That(health, Is.EqualTo(50));
@@ -71,7 +84,7 @@ namespace Core.Tests
             gameObject.Properties["health"] = 25;
 
             // Act
-            var health = gameObject.GetProperty<int>("health", _objectTypeManager);
+            var health = gameObject.GetProperty<int>("health");
 
             // Assert
             Assert.That(health, Is.EqualTo(25));

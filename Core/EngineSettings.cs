@@ -17,6 +17,11 @@ namespace Core
         public bool EnableMultiThreading { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets the path to the last opened project.
+        /// </summary>
+        public string? LastProjectPath { get; set; }
+
+        /// <summary>
         /// Gets or sets the number of threads to use for parallel tasks.
         /// If set to 0, the engine will automatically determine the number of threads based on the processor count.
         /// </summary>

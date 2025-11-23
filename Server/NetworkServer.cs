@@ -19,18 +19,21 @@ namespace Server
         private readonly ConcurrentBag<Task> _clientTasks = new ConcurrentBag<Task>();
         private readonly EngineSettings _engineSettings;
         private readonly SemaphoreSlim _maxConnectionsSemaphore;
+        private readonly ScriptHost _scriptHost;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NetworkServer"/> class.
         /// </summary>
         /// <param name="port">The port to listen on.</param>
         /// <param name="engineSettings">The engine settings to use.</param>
-        public NetworkServer(int port, EngineSettings engineSettings)
+        /// <param name="scriptHost">The script host to use for all clients.</param>
+        public NetworkServer(int port, EngineSettings engineSettings, ScriptHost scriptHost)
         {
             _engineSettings = engineSettings;
             _listener = new TcpListener(IPAddress.Any, port);
             _cancellationTokenSource = new CancellationTokenSource();
             _maxConnectionsSemaphore = new SemaphoreSlim(_engineSettings.EffectiveNumberOfThreads);
+            _scriptHost = scriptHost;
         }
 
         /// <summary>
@@ -74,7 +77,7 @@ namespace Server
         private void HandleNewClient(TcpClient client)
         {
             Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
-            var clientHandler = new ClientHandler(client, _cancellationTokenSource.Token);
+            var clientHandler = new ClientHandler(client, _cancellationTokenSource.Token, _scriptHost);
             var clientTask = clientHandler.HandleClientAsync().ContinueWith(_ => _maxConnectionsSemaphore.Release());
 
             _clientTasks.Add(clientTask);

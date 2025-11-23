@@ -34,11 +34,38 @@ namespace Core
             }
         }
 
-        public void ExecuteString(string script)
+        public object[] ExecuteString(string script)
         {
             lock (luaLock)
             {
-                lua.DoString(script);
+                return lua.DoString(script);
+            }
+        }
+
+        public string ExecuteCommand(string command)
+        {
+            lock (luaLock)
+            {
+                var output = new System.Collections.Generic.List<string>();
+                lua.RegisterFunction("print", this, GetType().GetMethod("CapturePrint"));
+                CapturePrintContext.Value = output;
+
+                var result = lua.DoString(command);
+                var resultStrings = result.Select(r => r?.ToString() ?? "nil").ToArray();
+
+                var allOutput = output.Concat(resultStrings);
+                return string.Join("\n", allOutput);
+            }
+        }
+
+        private static readonly System.Threading.AsyncLocal<System.Collections.Generic.List<string>> CapturePrintContext = new();
+
+        public static void CapturePrint(params object[] args)
+        {
+            var output = CapturePrintContext.Value;
+            if (output != null)
+            {
+                output.Add(string.Join("\t", args.Select(a => a?.ToString() ?? "nil")));
             }
         }
 

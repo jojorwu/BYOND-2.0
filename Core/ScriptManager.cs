@@ -9,17 +9,15 @@ namespace Core
     /// </summary>
     public class ScriptManager
     {
-        private const string ScriptDirectory = "scripts";
+        private readonly Project _project;
+        private string ScriptsPath => _project.GetFullPath("scripts");
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ScriptManager"/> class.
         /// </summary>
-        public ScriptManager()
+        public ScriptManager(Project project)
         {
-            if (!Directory.Exists(ScriptDirectory))
-            {
-                Directory.CreateDirectory(ScriptDirectory);
-            }
+            _project = project;
         }
 
         /// <summary>
@@ -30,7 +28,11 @@ namespace Core
         {
             try
             {
-                return Directory.GetFiles(ScriptDirectory, "*.lua")
+                if (!Directory.Exists(ScriptsPath))
+                {
+                    return Array.Empty<string>();
+                }
+                return Directory.GetFiles(ScriptsPath, "*.lua")
                                 .Select(Path.GetFileName)
                                 .ToArray()!;
             }
@@ -50,7 +52,7 @@ namespace Core
         {
             try
             {
-                string filePath = Path.Combine(ScriptDirectory, fileName);
+                string filePath = Path.Combine(ScriptsPath, fileName);
                 return File.ReadAllText(filePath);
             }
             catch (Exception ex)
@@ -70,7 +72,7 @@ namespace Core
         {
             try
             {
-                string filePath = Path.Combine(ScriptDirectory, fileName);
+                string filePath = Path.Combine(ScriptsPath, fileName);
                 File.WriteAllText(filePath, content);
                 Console.WriteLine($"Successfully saved script: {fileName}");
                 return true;

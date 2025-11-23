@@ -9,6 +9,8 @@ namespace Core
         public Dictionary<string, object> DefaultProperties { get; set; }
 
         [JsonIgnore]
+        public ObjectType? Parent { get; set; }
+
         public string? ParentName
         {
             get

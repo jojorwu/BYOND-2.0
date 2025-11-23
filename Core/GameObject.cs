@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 
 namespace Core
@@ -15,11 +16,6 @@ namespace Core
         public int Id { get; }
 
         /// <summary>
-        /// Gets or sets the name of the game object.
-        /// </summary>
-        public string Name { get; set; }
-
-        /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
         public int X { get; set; }
@@ -35,27 +31,36 @@ namespace Core
         public int Z { get; set; }
 
         /// <summary>
-        /// Gets or sets the path to the sprite for this game object.
+        /// Gets the ObjectType of this game object.
         /// </summary>
-        public string? SpritePath { get; set; }
+        public ObjectType ObjectType { get; }
 
-        public GameObject()
+        /// <summary>
+        /// Gets the instance-specific properties of this game object.
+        /// </summary>
+        public Dictionary<string, object> Properties { get; } = new();
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GameObject"/> class.
+        /// </summary>
+        /// <param name="objectType">The ObjectType of the game object.</param>
+        public GameObject(ObjectType objectType)
         {
             Id = Interlocked.Increment(ref nextId);
-            Name = string.Empty;
+            ObjectType = objectType;
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameObject"/> class.
         /// </summary>
-        /// <param name="name">The name of the game object.</param>
+        /// <param name="objectType">The ObjectType of the game object.</param>
         /// <param name="x">The X-coordinate of the game object.</param>
         /// <param name="y">The Y-coordinate of the game object.</param>
         /// <param name="z">The Z-coordinate of the game object.</param>
-        public GameObject(string name, int x, int y, int z)
+        public GameObject(ObjectType objectType, int x, int y, int z)
         {
             Id = Interlocked.Increment(ref nextId);
-            Name = name;
+            ObjectType = objectType;
             X = x;
             Y = y;
             Z = z;
@@ -72,6 +77,33 @@ namespace Core
             X = x;
             Y = y;
             Z = z;
+        }
+
+        /// <summary>
+        /// Gets a property value, checking instance properties first, then falling back to the ObjectType's default properties and its ancestors.
+        /// </summary>
+        /// <typeparam name="T">The type of the property.</typeparam>
+        /// <param name="propertyName">The name of the property.</param>
+        /// <param name="objectTypeManager">The object type manager to resolve parent types.</param>
+        /// <returns>The value of the property, or default(T) if not found.</returns>
+        public T? GetProperty<T>(string propertyName, ObjectTypeManager objectTypeManager)
+        {
+            if (Properties.TryGetValue(propertyName, out var value) && value is T tValue)
+            {
+                return tValue;
+            }
+
+            var currentType = ObjectType;
+            while (currentType != null)
+            {
+                if (currentType.DefaultProperties.TryGetValue(propertyName, out value) && value is T tDefaultValue)
+                {
+                    return tDefaultValue;
+                }
+                currentType = currentType.ParentName != null ? objectTypeManager.GetObjectType(currentType.ParentName) : null;
+            }
+
+            return default;
         }
     }
 }

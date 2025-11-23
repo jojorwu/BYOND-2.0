@@ -9,15 +9,20 @@ namespace Core
     /// </summary>
     public class GameApi
     {
-        private readonly GameState gameState;
+        private readonly GameState _gameState;
+        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly MapLoader _mapLoader;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameApi"/> class.
         /// </summary>
         /// <param name="gameState">The game state to interact with.</param>
-        public GameApi(GameState gameState)
+        /// <param name="objectTypeManager">The object type manager.</param>
+        public GameApi(GameState gameState, ObjectTypeManager objectTypeManager)
         {
-            this.gameState = gameState;
+            _gameState = gameState;
+            _objectTypeManager = objectTypeManager;
+            _mapLoader = new MapLoader(_objectTypeManager);
         }
 
         // --- Map and Object Methods ---
@@ -30,7 +35,7 @@ namespace Core
         /// <param name="depth">The depth of the map.</param>
         public void CreateMap(int width, int height, int depth)
         {
-            gameState.Map = new Map(width, height, depth);
+            _gameState.Map = new Map(width, height, depth);
         }
 
         /// <summary>
@@ -42,7 +47,7 @@ namespace Core
         /// <returns>The turf at the specified coordinates, or null if the coordinates are out of bounds.</returns>
         public Turf? GetTurf(int x, int y, int z)
         {
-            return gameState.Map?.GetTurf(x, y, z);
+            return _gameState.Map?.GetTurf(x, y, z);
         }
 
         /// <summary>
@@ -54,21 +59,27 @@ namespace Core
         /// <param name="turfId">The identifier of the turf type to set.</param>
         public void SetTurf(int x, int y, int z, int turfId)
         {
-            gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
+            _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
         }
 
         /// <summary>
         /// Creates a new game object at the specified coordinates.
         /// </summary>
-        /// <param name="name">The name of the game object.</param>
+        /// <param name="typeName">The name of the object type.</param>
         /// <param name="x">The X-coordinate.</param>
         /// <param name="y">The Y-coordinate.</param>
         /// <param name="z">The Z-coordinate.</param>
-        /// <returns>The newly created game object.</returns>
-        public GameObject CreateObject(string name, int x, int y, int z)
+        /// <returns>The newly created game object, or null if the object type does not exist.</returns>
+        public GameObject? CreateObject(string typeName, int x, int y, int z)
         {
-            var gameObject = new GameObject(name, x, y, z);
-            gameState.GameObjects.Add(gameObject.Id, gameObject);
+            var objectType = _objectTypeManager.GetObjectType(typeName);
+            if (objectType == null)
+            {
+                return null;
+            }
+
+            var gameObject = new GameObject(objectType, x, y, z);
+            _gameState.GameObjects.Add(gameObject.Id, gameObject);
             var turf = GetTurf(x, y, z);
             if (turf != null)
             {
@@ -84,7 +95,7 @@ namespace Core
         /// <returns>The game object with the specified identifier, or null if no such object exists.</returns>
         public GameObject? GetObject(int id)
         {
-            gameState.GameObjects.TryGetValue(id, out var obj);
+            _gameState.GameObjects.TryGetValue(id, out var obj);
             return obj;
         }
 
@@ -102,7 +113,7 @@ namespace Core
                 {
                     turf.Contents.Remove(gameObject);
                 }
-                gameState.GameObjects.Remove(id);
+                _gameState.GameObjects.Remove(id);
             }
         }
 
@@ -112,7 +123,7 @@ namespace Core
         /// <param name="filePath">The path to the map file.</param>
         public void LoadMap(string filePath)
         {
-            gameState.Map = MapLoader.LoadMap(filePath);
+            _gameState.Map = _mapLoader.LoadMap(filePath);
         }
 
         /// <summary>
@@ -121,10 +132,25 @@ namespace Core
         /// <param name="filePath">The path to save the map file to.</param>
         public void SaveMap(string filePath)
         {
-            if (gameState.Map != null)
+            if (_gameState.Map != null)
             {
-                MapLoader.SaveMap(gameState.Map, filePath);
+                _mapLoader.SaveMap(_gameState.Map, filePath);
             }
+        }
+
+        public void SetObjectProperty(int objectId, string key, object value)
+        {
+            var obj = GetObject(objectId);
+            if (obj != null)
+            {
+                obj.Properties[key] = value;
+            }
+        }
+
+        public object? GetObjectProperty(int objectId, string key)
+        {
+            var obj = GetObject(objectId);
+            return obj?.GetProperty<object>(key, _objectTypeManager);
         }
 
         // --- Script Management Methods ---

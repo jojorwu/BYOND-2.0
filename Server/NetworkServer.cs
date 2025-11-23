@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Core;
 
 namespace Server
 {
@@ -14,17 +16,21 @@ namespace Server
     {
         private readonly TcpListener _listener;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly List<TcpClient> _clients = new List<TcpClient>();
-        private readonly object _clientsLock = new object();
+        private readonly ConcurrentBag<Task> _clientTasks = new ConcurrentBag<Task>();
+        private readonly EngineSettings _engineSettings;
+        private readonly SemaphoreSlim _maxConnectionsSemaphore;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NetworkServer"/> class.
         /// </summary>
         /// <param name="port">The port to listen on.</param>
-        public NetworkServer(int port)
+        /// <param name="engineSettings">The engine settings to use.</param>
+        public NetworkServer(int port, EngineSettings engineSettings)
         {
+            _engineSettings = engineSettings;
             _listener = new TcpListener(IPAddress.Any, port);
             _cancellationTokenSource = new CancellationTokenSource();
+            _maxConnectionsSemaphore = new SemaphoreSlim(_engineSettings.EffectiveNumberOfThreads);
         }
 
         /// <summary>
@@ -50,6 +56,7 @@ namespace Server
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    await _maxConnectionsSemaphore.WaitAsync(cancellationToken);
                     var client = await _listener.AcceptTcpClientAsync(cancellationToken);
                     HandleNewClient(client);
                 }
@@ -66,12 +73,11 @@ namespace Server
 
         private void HandleNewClient(TcpClient client)
         {
-            lock (_clientsLock)
-            {
-                _clients.Add(client);
-            }
             Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
-            // In a real application, you would start a new task here to handle communication with this client.
+            var clientHandler = new ClientHandler(client, _cancellationTokenSource.Token);
+            var clientTask = clientHandler.HandleClientAsync().ContinueWith(_ => _maxConnectionsSemaphore.Release());
+
+            _clientTasks.Add(clientTask);
         }
 
         /// <summary>
@@ -81,17 +87,14 @@ namespace Server
         {
             try
             {
+                if (_cancellationTokenSource.IsCancellationRequested) return;
+
                 _cancellationTokenSource.Cancel();
                 _listener.Stop();
 
-                lock (_clientsLock)
-                {
-                    foreach (var client in _clients)
-                    {
-                        client.Close();
-                    }
-                    _clients.Clear();
-                }
+                // Wait for all client tasks to complete
+                Task.WaitAll(_clientTasks.ToArray(), TimeSpan.FromSeconds(5));
+
                 Console.WriteLine("Server stopped.");
             }
             catch (Exception ex)
@@ -107,6 +110,7 @@ namespace Server
         {
             Stop();
             _cancellationTokenSource.Dispose();
+            _maxConnectionsSemaphore.Dispose();
         }
     }
 }

@@ -8,9 +8,9 @@ namespace Editor
         string Name { get; }
         void Activate(Editor editor);
         void Deactivate(Editor editor);
-        void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
-        void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
-        void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
-        void Draw(Editor editor, GameState gameState, SelectionManager selectionManager);
+        void OnMouseDown(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
+        void OnMouseUp(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
+        void OnMouseMove(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
+        void Draw(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager);
     }
 }

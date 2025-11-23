@@ -6,24 +6,26 @@ namespace Core.Tests
     [TestFixture]
     public class EditorApiTests
     {
-        private Scripting scripting;
-        private GameApi gameApi;
-        private GameState gameState;
-        private EditorApi editorApi;
+        private Scripting _scripting = null!;
+        private GameApi _gameApi = null!;
+        private GameState _gameState = null!;
+        private EditorApi _editorApi = null!;
+        private ObjectTypeManager _objectTypeManager = null!;
 
         [SetUp]
         public void SetUp()
         {
-            gameState = new GameState();
-            gameApi = new GameApi(gameState);
-            editorApi = new EditorApi();
-            scripting = new Scripting(gameApi, editorApi);
+            _gameState = new GameState();
+            _objectTypeManager = new ObjectTypeManager();
+            _gameApi = new GameApi(_gameState, _objectTypeManager);
+            _editorApi = new EditorApi();
+            _scripting = new Scripting(_gameApi, _editorApi);
         }
 
         [TearDown]
         public void TearDown()
         {
-            scripting.Dispose();
+            _scripting.Dispose();
         }
 
         [Test]
@@ -32,10 +34,10 @@ namespace Core.Tests
             // Act & Assert
             Assert.DoesNotThrow(() =>
             {
-                scripting.ExecuteString("print(Editor)");
-                scripting.ExecuteString("print(Editor.State)");
-                scripting.ExecuteString("print(Editor.Selection)");
-                scripting.ExecuteString("print(Editor.Assets)");
+                _scripting.ExecuteString("print(Editor)");
+                _scripting.ExecuteString("print(Editor.State)");
+                _scripting.ExecuteString("print(Editor.Selection)");
+                _scripting.ExecuteString("print(Editor.Assets)");
             });
         }
     }

@@ -1,19 +1,61 @@
 using NUnit.Framework;
 using Core;
+using System.IO;
 
-namespace Core.Tests
+namespace tests
 {
     [TestFixture]
     public class MapLoaderTests
     {
+        private const string TestMapPath = "test_map.json";
+        private ObjectTypeManager _objectTypeManager = null!;
+        private MapLoader _mapLoader = null!;
+
+        [SetUp]
+        public void SetUp()
+        {
+            _objectTypeManager = new ObjectTypeManager();
+            _mapLoader = new MapLoader(_objectTypeManager);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (File.Exists(TestMapPath))
+            {
+                File.Delete(TestMapPath);
+            }
+        }
+
         [Test]
-        public void LoadMap_WithMismatchedDimensions_DoesNotThrow()
+        public void SaveAndLoadMap_PreservesGameObjectsAndProperties()
         {
             // Arrange
-            var mapPath = "maps/mismatched_map.json";
+            var objectType = new ObjectType("test_object");
+            objectType.DefaultProperties["SpritePath"] = "default.png";
+            _objectTypeManager.RegisterObjectType(objectType);
 
-            // Act & Assert
-            Assert.DoesNotThrow(() => MapLoader.LoadMap(mapPath));
+            var map = new Map(1, 1, 1);
+            var turf = new Turf(1);
+            var gameObject = new GameObject(objectType);
+            gameObject.Properties["InstanceProp"] = "instance_value";
+            turf.Contents.Add(gameObject);
+            map.SetTurf(0, 0, 0, turf);
+
+            // Act
+            _mapLoader.SaveMap(map, TestMapPath);
+            var loadedMap = _mapLoader.LoadMap(TestMapPath);
+
+            // Assert
+            Assert.That(loadedMap, Is.Not.Null);
+            var loadedTurf = loadedMap.GetTurf(0, 0, 0);
+            Assert.That(loadedTurf, Is.Not.Null);
+            Assert.That(loadedTurf.Contents, Has.Count.EqualTo(1));
+
+            var loadedGameObject = loadedTurf.Contents[0];
+            Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
+            Assert.That(loadedGameObject.GetProperty<string>("SpritePath", _objectTypeManager), Is.EqualTo("default.png"));
+            Assert.That(loadedGameObject.GetProperty<string>("InstanceProp", _objectTypeManager), Is.EqualTo("instance_value"));
         }
     }
 }

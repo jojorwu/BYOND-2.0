@@ -1,38 +1,34 @@
-using System.Collections.Generic;
-
 namespace Core
 {
     /// <summary>
-    /// Manages the selection of game objects in the editor.
+    /// Manages the selection of a single game object in the editor.
     /// </summary>
     public class SelectionManager
     {
-        private readonly List<GameObject> _selectedObjects = new List<GameObject>();
-
         /// <summary>
-        /// Gets the list of currently selected game objects.
+        /// Gets the currently selected game object.
         /// </summary>
-        public IReadOnlyList<GameObject> SelectedObjects => _selectedObjects.AsReadOnly();
+        public GameObject? SelectedObject { get; private set; }
 
         /// <summary>
-        /// Selects a game object.
+        /// Selects a game object, deselecting any previously selected object.
         /// </summary>
         /// <param name="gameObject">The game object to select.</param>
         public void Select(GameObject gameObject)
         {
-            if (!_selectedObjects.Contains(gameObject))
-            {
-                _selectedObjects.Add(gameObject);
-            }
+            SelectedObject = gameObject;
         }
 
         /// <summary>
-        /// Deselects a game object.
+        /// Deselects a game object if it is currently selected.
         /// </summary>
         /// <param name="gameObject">The game object to deselect.</param>
         public void Deselect(GameObject gameObject)
         {
-            _selectedObjects.Remove(gameObject);
+            if (SelectedObject == gameObject)
+            {
+                SelectedObject = null;
+            }
         }
 
         /// <summary>
@@ -40,7 +36,7 @@ namespace Core
         /// </summary>
         public void Clear()
         {
-            _selectedObjects.Clear();
+            SelectedObject = null;
         }
     }
 }

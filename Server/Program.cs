@@ -1,4 +1,5 @@
 using System;
+using Core;
 
 namespace Server
 {
@@ -6,8 +7,10 @@ namespace Server
     {
         static void Main(string[] args)
         {
+            var engineSettings = EngineSettings.Load();
+
             using (var scriptHost = new ScriptHost())
-            using (var networkServer = new NetworkServer(7777))
+            using (var networkServer = new NetworkServer(7777, engineSettings))
             {
                 scriptHost.Start();
                 networkServer.Start();

@@ -84,9 +84,8 @@ namespace Core
         /// </summary>
         /// <typeparam name="T">The type of the property.</typeparam>
         /// <param name="propertyName">The name of the property.</param>
-        /// <param name="objectTypeManager">The object type manager to resolve parent types.</param>
         /// <returns>The value of the property, or default(T) if not found.</returns>
-        public T? GetProperty<T>(string propertyName, ObjectTypeManager objectTypeManager)
+        public T? GetProperty<T>(string propertyName)
         {
             if (Properties.TryGetValue(propertyName, out var value) && value is T tValue)
             {
@@ -100,7 +99,7 @@ namespace Core
                 {
                     return tDefaultValue;
                 }
-                currentType = currentType.ParentName != null ? objectTypeManager.GetObjectType(currentType.ParentName) : null;
+                currentType = currentType.Parent;
             }
 
             return default;

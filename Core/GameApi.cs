@@ -150,7 +150,7 @@ namespace Core
         public object? GetObjectProperty(int objectId, string key)
         {
             var obj = GetObject(objectId);
-            return obj?.GetProperty<object>(key, _objectTypeManager);
+            return obj?.GetProperty<object>(key);
         }
 
         // --- Script Management Methods ---

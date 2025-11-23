@@ -13,7 +13,23 @@ namespace Core
 
         public void RegisterObjectType(ObjectType objectType)
         {
-            _objectTypes.TryAdd(objectType.Name, objectType);
+            if (_objectTypes.TryAdd(objectType.Name, objectType))
+            {
+                // Link this type to its parent if the parent is already registered.
+                if (objectType.ParentName != null)
+                {
+                    objectType.Parent = GetObjectType(objectType.ParentName);
+                }
+
+                // Link any existing children to this type if this is their parent.
+                foreach (var childType in _objectTypes.Values)
+                {
+                    if (childType.ParentName == objectType.Name)
+                    {
+                        childType.Parent = objectType;
+                    }
+                }
+            }
         }
 
         public ObjectType? GetObjectType(string name)
@@ -50,7 +66,7 @@ namespace Core
             _objectTypes.Clear();
             foreach (var type in types)
             {
-                _objectTypes.TryAdd(type.Name, type);
+                RegisterObjectType(type);
             }
         }
     }

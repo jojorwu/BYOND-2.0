@@ -54,8 +54,8 @@ namespace tests
 
             var loadedGameObject = loadedTurf.Contents[0];
             Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
-            Assert.That(loadedGameObject.GetProperty<string>("SpritePath", _objectTypeManager), Is.EqualTo("default.png"));
-            Assert.That(loadedGameObject.GetProperty<string>("InstanceProp", _objectTypeManager), Is.EqualTo("instance_value"));
+            Assert.That(loadedGameObject.GetProperty<string>("SpritePath"), Is.EqualTo("default.png"));
+            Assert.That(loadedGameObject.GetProperty<string>("InstanceProp"), Is.EqualTo("instance_value"));
         }
     }
 }

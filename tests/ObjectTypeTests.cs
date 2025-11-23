@@ -25,7 +25,7 @@ namespace tests
             gameObject.Properties["SpritePath"] = "instance.png";
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath", _objectTypeManager);
+            var spritePath = gameObject.GetProperty<string>("SpritePath");
 
             // Assert
             Assert.That(spritePath, Is.EqualTo("instance.png"));
@@ -41,7 +41,7 @@ namespace tests
             var gameObject = new GameObject(objectType);
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath", _objectTypeManager);
+            var spritePath = gameObject.GetProperty<string>("SpritePath");
 
             // Assert
             Assert.That(spritePath, Is.EqualTo("default.png"));
@@ -56,7 +56,7 @@ namespace tests
             var gameObject = new GameObject(objectType);
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath", _objectTypeManager);
+            var spritePath = gameObject.GetProperty<string>("SpritePath");
 
             // Assert
             Assert.That(spritePath, Is.Null);

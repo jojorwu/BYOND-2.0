@@ -28,7 +28,7 @@ namespace Core.Tests
             var gameObject = new GameObject(child);
 
             // Act
-            var health = gameObject.GetProperty<int>("health", _objectTypeManager);
+            var health = gameObject.GetProperty<int>("health");
 
             // Assert
             Assert.That(health, Is.EqualTo(100));
@@ -49,7 +49,7 @@ namespace Core.Tests
             var gameObject = new GameObject(child);
 
             // Act
-            var health = gameObject.GetProperty<int>("health", _objectTypeManager);
+            var health = gameObject.GetProperty<int>("health");
 
             // Assert
             Assert.That(health, Is.EqualTo(50));
@@ -71,7 +71,7 @@ namespace Core.Tests
             gameObject.Properties["health"] = 25;
 
             // Act
-            var health = gameObject.GetProperty<int>("health", _objectTypeManager);
+            var health = gameObject.GetProperty<int>("health");
 
             // Assert
             Assert.That(health, Is.EqualTo(25));

@@ -43,6 +43,39 @@ namespace Core
         }
 
         /// <summary>
+        /// Moves a game object to a new location.
+        /// </summary>
+        /// <param name="id">The unique identifier of the game object to move.</param>
+        /// <param name="newX">The new X-coordinate.</param>
+        /// <param name="newY">The new Y-coordinate.</param>
+        /// <param name="newZ">The new Z-coordinate.</param>
+        public void MoveObject(int id, int newX, int newY, int newZ)
+        {
+            var gameObject = GetObject(id);
+            if (gameObject != null)
+            {
+                // Remove from old turf
+                var oldTurf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+                if (oldTurf != null)
+                {
+                    oldTurf.Contents.Remove(gameObject);
+                }
+
+                // Add to new turf
+                var newTurf = GetTurf(newX, newY, newZ);
+                if (newTurf != null)
+                {
+                    newTurf.Contents.Add(gameObject);
+                }
+
+                // Update object's position
+                gameObject.X = newX;
+                gameObject.Y = newY;
+                gameObject.Z = newZ;
+            }
+        }
+
+        /// <summary>
         /// Gets the turf at the specified coordinates.
         /// </summary>
         /// <param name="x">The X-coordinate.</param>
@@ -109,15 +142,10 @@ namespace Core
         /// <param name="id">The unique identifier of the game object to destroy.</param>
         public void DestroyObject(int id)
         {
-            var gameObject = GetObject(id);
-            if (gameObject != null)
+            if (_gameState.GameObjects.Remove(id, out var gameObject))
             {
                 var turf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
-                if (turf != null)
-                {
-                    turf.Contents.Remove(gameObject);
-                }
-                _gameState.GameObjects.Remove(id);
+                turf?.Contents.Remove(gameObject);
             }
         }
 

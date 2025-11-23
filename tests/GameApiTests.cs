@@ -39,6 +39,28 @@ namespace Core.Tests
         }
 
         [Test]
+        public void MoveObject_UpdatesObjectPositionAndTurfContents()
+        {
+            // Arrange
+            _gameApi.CreateMap(2, 1, 1); // Create a map with at least two turfs
+            _gameApi.SetTurf(0, 0, 0, 1);
+            _gameApi.SetTurf(1, 0, 0, 1);
+            var obj = _gameApi.CreateObject("test", 0, 0, 0);
+            var oldTurf = _gameApi.GetTurf(0, 0, 0);
+            var newTurf = _gameApi.GetTurf(1, 0, 0);
+
+            // Act
+            _gameApi.MoveObject(obj.Id, 1, 0, 0);
+
+            // Assert
+            Assert.That(obj.X, Is.EqualTo(1));
+            Assert.That(obj.Y, Is.EqualTo(0));
+            Assert.That(obj.Z, Is.EqualTo(0));
+            Assert.That(oldTurf?.Contents, Does.Not.Contain(obj));
+            Assert.That(newTurf?.Contents, Contains.Item(obj));
+        }
+
+        [Test]
         public void CreateObject_AddsObjectToTurfContents()
         {
             // Arrange

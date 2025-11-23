@@ -8,30 +8,36 @@ namespace Core.Tests
     [TestFixture]
     public class ScriptingTests
     {
-        private Scripting scripting;
+        private Scripting _scripting = null!;
+        private GameApi _gameApi = null!;
+        private GameState _gameState = null!;
+        private ObjectTypeManager _objectTypeManager = null!;
 
         [SetUp]
         public void SetUp()
         {
-            scripting = new Scripting();
+            _gameState = new GameState();
+            _objectTypeManager = new ObjectTypeManager();
+            _gameApi = new GameApi(_gameState, _objectTypeManager);
+            _scripting = new Scripting(_gameApi);
         }
 
         [TearDown]
         public void TearDown()
         {
-            scripting.Dispose();
+            _scripting.Dispose();
         }
 
         [Test]
         public void ExecuteFile_WithNullPath_ShouldThrowArgumentNullException()
         {
-            Assert.Throws<ArgumentNullException>(() => scripting.ExecuteFile(null));
+            Assert.Throws<ArgumentNullException>(() => _scripting.ExecuteFile(null));
         }
 
         [Test]
         public void ExecuteFile_WithInvalidPath_ShouldThrowFileNotFoundException()
         {
-            Assert.Throws<FileNotFoundException>(() => scripting.ExecuteFile("nonexistent.lua"));
+            Assert.Throws<FileNotFoundException>(() => _scripting.ExecuteFile("nonexistent.lua"));
         }
 
         [Test]
@@ -39,7 +45,7 @@ namespace Core.Tests
         {
             var tempFile = Path.GetTempFileName();
             File.WriteAllText(tempFile, "print('test')");
-            Assert.DoesNotThrow(() => scripting.ExecuteFile(tempFile));
+            Assert.DoesNotThrow(() => _scripting.ExecuteFile(tempFile));
             File.Delete(tempFile);
         }
 
@@ -48,10 +54,10 @@ namespace Core.Tests
         {
             var tempFile = Path.GetTempFileName();
             File.WriteAllText(tempFile, "testVar = 123");
-            scripting.ExecuteFile(tempFile);
-            scripting.Reload();
+            _scripting.ExecuteFile(tempFile);
+            _scripting.Reload();
             File.WriteAllText(tempFile, "if testVar == nil then print('testVar is nil') else print('testVar is not nil') end");
-            Assert.DoesNotThrow(() => scripting.ExecuteFile(tempFile));
+            Assert.DoesNotThrow(() => _scripting.ExecuteFile(tempFile));
             File.Delete(tempFile);
         }
     }

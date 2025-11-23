@@ -2,6 +2,9 @@ using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
 using Silk.NET.Maths;
 using Core;
+using ImGuiNET;
+using Silk.NET.OpenGL.Extensions.ImGui;
+using Silk.NET.Input;
 
 namespace Editor
 {
@@ -12,6 +15,8 @@ namespace Editor
     {
         private IWindow? window;
         private GL? gl;
+        private IInputContext? inputContext;
+        private ImGuiController? imGuiController;
 
         private readonly EditorState _editorState = new EditorState();
         private readonly SelectionManager _selectionManager = new SelectionManager();
@@ -41,6 +46,8 @@ namespace Editor
             if (window != null)
             {
                 gl = window.CreateOpenGL();
+                inputContext = window.CreateInput();
+                imGuiController = new ImGuiController(gl, window, inputContext);
             }
 
             // In a real editor, you would load a map here.
@@ -49,6 +56,8 @@ namespace Editor
 
         private void OnRender(double deltaTime)
         {
+            imGuiController?.Update((float)deltaTime);
+
             HandleMouseInput();
             Draw();
         }
@@ -62,14 +71,37 @@ namespace Editor
             }
 
             // In a real editor, you would have ImGui rendering here.
+            ImGui.DockSpaceOverViewport(ImGui.GetMainViewport());
+
             DrawMenuBar();
-            DrawAssetWindow();
-            DrawMap();
+            DrawWindows();
+
+            imGuiController?.Render();
         }
 
         private void DrawMenuBar()
         {
             // Placeholder for a menu bar UI.
+        }
+
+        private void DrawWindows()
+        {
+            ImGui.Begin("Main");
+            if (ImGui.BeginTabBar("MainTabBar"))
+            {
+                if (ImGui.BeginTabItem("Map"))
+                {
+                    DrawMap();
+                    ImGui.EndTabItem();
+                }
+                if (ImGui.BeginTabItem("Assets"))
+                {
+                    DrawAssetWindow();
+                    ImGui.EndTabItem();
+                }
+                ImGui.EndTabBar();
+            }
+            ImGui.End();
         }
 
         private void DrawAssetWindow()
@@ -78,13 +110,18 @@ namespace Editor
             if (_gameState.Map != null)
             {
                 var assets = _assetBrowser.GetAssets(_gameState.Map);
-                // Here, you would display the list of assets in an ImGui window.
+                ImGui.Text("Asset Browser");
+                foreach (var asset in assets)
+                {
+                    ImGui.Text(asset);
+                }
             }
         }
 
         private void DrawMap()
         {
             // Placeholder for rendering the map and its contents.
+            ImGui.Text("Map View");
         }
 
         private void HandleMouseInput()
@@ -94,6 +131,7 @@ namespace Editor
 
         private void OnClose()
         {
+            imGuiController?.Dispose();
             gl?.Dispose();
         }
     }

@@ -35,6 +35,17 @@ namespace Core
         public int Z { get; set; }
 
         /// <summary>
+        /// Gets or sets the path to the sprite for this game object.
+        /// </summary>
+        public string? SpritePath { get; set; }
+
+        public GameObject()
+        {
+            Id = Interlocked.Increment(ref nextId);
+            Name = string.Empty;
+        }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="GameObject"/> class.
         /// </summary>
         /// <param name="name">The name of the game object.</param>

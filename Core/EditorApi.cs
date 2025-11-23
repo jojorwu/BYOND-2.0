@@ -27,7 +27,7 @@ namespace Core
         {
             State = new EditorState();
             Selection = new SelectionManager();
-            Assets = new AssetBrowser();
+            Assets = new AssetBrowser(new AssetManager());
         }
     }
 }

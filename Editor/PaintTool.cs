@@ -14,6 +14,7 @@ namespace Editor
             Console.WriteLine("Paint Tool Activated");
         }
 
+
         public void Deactivate(Editor editor)
         {
             // Logic to run when the tool is deactivated
@@ -22,7 +23,7 @@ namespace Editor
 
         public void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            if (gameState.Map == null || string.IsNullOrEmpty(editor.SelectedAsset)) return;
+            if (gameState.Map == null || editor.SelectedObjectType == null) return;
 
             int tileX = mousePosition.X / Constants.TileSize;
             int tileY = mousePosition.Y / Constants.TileSize;
@@ -32,13 +33,9 @@ namespace Editor
                 var turf = gameState.Map.GetTurf(tileX, tileY, editor.CurrentZLevel);
                 if (turf != null)
                 {
-                    var newObject = new GameObject
-                    {
-                        Name = System.IO.Path.GetFileNameWithoutExtension(editor.SelectedAsset),
-                        SpritePath = editor.SelectedAsset
-                    };
+                    var newObject = new GameObject(editor.SelectedObjectType, tileX, tileY, editor.CurrentZLevel);
                     turf.Contents.Add(newObject);
-                    Console.WriteLine($"Placed '{newObject.Name}' at ({tileX}, {tileY})");
+                    Console.WriteLine($"Placed '{newObject.ObjectType.Name}' at ({tileX}, {tileY})");
                 }
             }
         }

@@ -26,10 +26,11 @@ namespace Editor
         private readonly AssetManager _assetManager = new AssetManager();
         private readonly AssetBrowser _assetBrowser;
         private readonly ScriptManager _scriptManager = new ScriptManager();
-        private readonly MapLoader _mapLoader = new MapLoader();
-        private GameState _gameState = new GameState(); // This would be loaded from a file in a real editor.
+        private readonly ObjectTypeManager _objectTypeManager = new ObjectTypeManager();
+        private readonly MapLoader _mapLoader;
+        private GameState _gameState = new GameState();
 
-        public string? SelectedAsset { get; set; }
+        public ObjectType? SelectedObjectType { get; set; }
         public int CurrentZLevel { get; private set; } = 0;
 
         // Script Editor State
@@ -40,6 +41,7 @@ namespace Editor
         public Editor()
         {
             _assetBrowser = new AssetBrowser(_assetManager);
+            _mapLoader = new MapLoader(_objectTypeManager);
         }
 
         /// <summary>
@@ -83,7 +85,16 @@ namespace Editor
                 _scriptFiles = _scriptManager.GetScriptFiles();
             }
 
-            // In a real editor, you would load a map here.
+            // Create some dummy object types for now
+            var wall = new ObjectType("wall");
+            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
+            _objectTypeManager.RegisterObjectType(wall);
+
+            var floor = new ObjectType("floor");
+            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
+            _objectTypeManager.RegisterObjectType(floor);
+
+
             _gameState.Map = new Map(10, 10, 1);
         }
 
@@ -119,15 +130,16 @@ namespace Editor
                 {
                     if (ImGui.MenuItem("Save Map"))
                     {
-                        _mapLoader.SaveMap(_gameState, "maps/default.json");
+                        if(_gameState.Map != null)
+                            _mapLoader.SaveMap(_gameState.Map, "maps/default.json");
                         Console.WriteLine("Map saved to maps/default.json");
                     }
                     if (ImGui.MenuItem("Load Map"))
                     {
-                        var loadedGameState = _mapLoader.LoadMap("maps/default.json");
-                        if (loadedGameState != null)
+                        var loadedMap = _mapLoader.LoadMap("maps/default.json");
+                        if (loadedMap != null)
                         {
-                            _gameState = loadedGameState;
+                            _gameState.Map = loadedMap;
                             Console.WriteLine("Map loaded from maps/default.json");
                         }
                     }
@@ -151,9 +163,9 @@ namespace Editor
                     DrawMap();
                     ImGui.EndTabItem();
                 }
-                if (ImGui.BeginTabItem("Assets"))
+                if (ImGui.BeginTabItem("Types"))
                 {
-                    DrawAssetWindow();
+                    DrawTypesWindow();
                     ImGui.EndTabItem();
                 }
                 if (ImGui.BeginTabItem("Scripts"))
@@ -179,16 +191,15 @@ namespace Editor
             ImGui.End();
         }
 
-        private void DrawAssetWindow()
+        private void DrawTypesWindow()
         {
-            ImGui.BeginChild("Asset Browser");
-            var assets = _assetBrowser.GetAssets();
-            foreach (var assetPath in assets)
+            ImGui.BeginChild("Object Types");
+            foreach (var objectType in _objectTypeManager.GetAllObjectTypes())
             {
-                if (ImGui.Selectable(assetPath, SelectedAsset == assetPath))
+                if (ImGui.Selectable(objectType.Name, SelectedObjectType == objectType))
                 {
-                    SelectedAsset = assetPath;
-                    Console.WriteLine($"Selected asset: {assetPath}");
+                    SelectedObjectType = objectType;
+                    Console.WriteLine($"Selected object type: {objectType.Name}");
                 }
             }
             ImGui.EndChild();
@@ -212,9 +223,10 @@ namespace Editor
                         {
                             foreach (var gameObject in turf.Contents)
                             {
-                                if (!string.IsNullOrEmpty(gameObject.SpritePath))
+                                var spritePath = gameObject.GetProperty<string>("SpritePath");
+                                if (!string.IsNullOrEmpty(spritePath))
                                 {
-                                    uint textureId = _textureManager.GetTexture(gameObject.SpritePath);
+                                    uint textureId = _textureManager.GetTexture(spritePath);
                                     if (textureId != 0)
                                     {
                                         _spriteRenderer.Draw(textureId, new Vector2D<int>(x * Constants.TileSize, y * Constants.TileSize), new Vector2D<int>(Constants.TileSize, Constants.TileSize), 0.0f, projection);
@@ -271,12 +283,7 @@ namespace Editor
             if (selectedObject != null)
             {
                 ImGui.LabelText("ID", selectedObject.Id.ToString());
-
-                string name = selectedObject.Name;
-                if (ImGui.InputText("Name", ref name, 100))
-                {
-                    selectedObject.Name = name;
-                }
+                ImGui.LabelText("Type", selectedObject.ObjectType.Name);
 
                 int[] position = { selectedObject.X, selectedObject.Y, selectedObject.Z };
                 if (ImGui.InputInt3("Position", ref position[0]))
@@ -284,10 +291,21 @@ namespace Editor
                     selectedObject.SetPosition(position[0], position[1], position[2]);
                 }
 
-                string spritePath = selectedObject.SpritePath ?? "";
-                if (ImGui.InputText("Sprite Path", ref spritePath, 256))
+                // Display all properties (instance and default)
+                var allProperties = new Dictionary<string, object>(selectedObject.ObjectType.DefaultProperties);
+                foreach (var prop in selectedObject.Properties)
                 {
-                    selectedObject.SpritePath = spritePath;
+                    allProperties[prop.Key] = prop.Value;
+                }
+
+                foreach (var prop in allProperties)
+                {
+                    string valueStr = prop.Value.ToString() ?? "";
+                    if (ImGui.InputText(prop.Key, ref valueStr, 256))
+                    {
+                        // For simplicity, we are only handling string properties for now.
+                        selectedObject.Properties[prop.Key] = valueStr;
+                    }
                 }
             }
             else

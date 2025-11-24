@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Core;
 using ImGuiNET;
 using Silk.NET.Maths;
@@ -11,13 +12,11 @@ namespace Editor
 
         public void Activate(Editor editor)
         {
-            // Logic to run when the tool is activated
             Console.WriteLine("Selection Tool Activated");
         }
 
         public void Deactivate(Editor editor)
         {
-            // Logic to run when the tool is deactivated
             Console.WriteLine("Selection Tool Deactivated");
         }
 
@@ -44,32 +43,30 @@ namespace Editor
 
         public void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            // Handle mouse up event for selection
         }
 
         public void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            // Handle mouse move event for selection
         }
 
         public void Draw(Editor editor, GameState gameState, SelectionManager selectionManager)
         {
-            if (selectionManager.SelectedObject != null)
+            var selectedObject = selectionManager.SelectedObject;
+            if (selectedObject != null)
             {
-                var selected = selectionManager.SelectedObject;
                 var windowPos = ImGui.GetWindowPos();
                 var drawList = ImGui.GetWindowDrawList();
 
                 var min = new System.Numerics.Vector2(
-                    windowPos.X + selected.X * Constants.TileSize,
-                    windowPos.Y + selected.Y * Constants.TileSize
+                    windowPos.X + selectedObject.X * Constants.TileSize,
+                    windowPos.Y + selectedObject.Y * Constants.TileSize
                 );
                 var max = new System.Numerics.Vector2(
                     min.X + Constants.TileSize,
                     min.Y + Constants.TileSize
                 );
 
-                drawList.AddRect(min, max, 0xFF00FFFF, 0, ImDrawFlags.None, 2.0f); // Bright yellow rectangle
+                drawList.AddRect(min, max, 0xFF00FFFF, 0, ImDrawFlags.None, 2.0f);
             }
         }
     }

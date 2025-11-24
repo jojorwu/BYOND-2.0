@@ -8,38 +8,38 @@ namespace Editor
     {
         public string Name => "Paint";
 
-        public void Activate(Editor editor)
+        public void Activate(Editor editor, EditorContext editorContext)
         {
             Console.WriteLine("Paint Tool Activated");
         }
 
-        public void Deactivate(Editor editor)
+        public void Deactivate(Editor editor, EditorContext editorContext)
         {
             Console.WriteLine("Paint Tool Deactivated");
         }
 
-        public void OnMouseDown(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            if (gameState.Map == null || editor.SelectedObjectType == null) return;
+            if (gameState.Map == null || editorContext.SelectedObjectType == null) return;
 
             int tileX = mousePosition.X / Constants.TileSize;
             int tileY = mousePosition.Y / Constants.TileSize;
 
             if (tileX >= 0 && tileX < gameState.Map.Width && tileY >= 0 && tileY < gameState.Map.Height)
             {
-                gameApi.CreateObject(editor.SelectedObjectType.Name, tileX, tileY, editor.CurrentZLevel);
+                gameApi.CreateObject(editorContext.SelectedObjectType.Name, tileX, tileY, editor.CurrentZLevel);
             }
         }
 
-        public void OnMouseUp(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
         }
 
-        public void OnMouseMove(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
         }
 
-        public void Draw(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager)
+        public void Draw(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager)
         {
         }
     }

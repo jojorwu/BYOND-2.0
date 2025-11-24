@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace Core
 {
@@ -52,7 +52,7 @@ namespace Core
         public void SaveTypes()
         {
             var path = _project.GetFullPath(TypesFileName);
-            var json = JsonConvert.SerializeObject(_objectTypes.Values, Formatting.Indented);
+            var json = JsonSerializer.Serialize(_objectTypes.Values.ToList(), typeof(List<ObjectType>), JsonContext.Default);
             File.WriteAllText(path, json);
         }
 
@@ -65,7 +65,7 @@ namespace Core
             }
 
             var json = File.ReadAllText(path);
-            var types = JsonConvert.DeserializeObject<List<ObjectType>>(json);
+            var types = (List<ObjectType>?)JsonSerializer.Deserialize(json, typeof(List<ObjectType>), JsonContext.Default);
             if (types == null)
             {
                 return;

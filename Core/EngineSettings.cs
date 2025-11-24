@@ -1,6 +1,7 @@
 using System;
 using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Core
 {
@@ -38,7 +39,7 @@ namespace Core
         /// </summary>
         public void Save()
         {
-            var json = JsonConvert.SerializeObject(this, Formatting.Indented);
+            var json = JsonSerializer.Serialize(this, typeof(EngineSettings), JsonContext.Default);
             File.WriteAllText(SettingsFilePath, json);
         }
 
@@ -51,7 +52,7 @@ namespace Core
             if (File.Exists(SettingsFilePath))
             {
                 var json = File.ReadAllText(SettingsFilePath);
-                return JsonConvert.DeserializeObject<EngineSettings>(json) ?? new EngineSettings();
+                return (EngineSettings?)JsonSerializer.Deserialize(json, typeof(EngineSettings), JsonContext.Default) ?? new EngineSettings();
             }
             return new EngineSettings();
         }

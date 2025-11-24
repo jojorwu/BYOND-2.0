@@ -1,6 +1,8 @@
 
 using ImGuiNET;
 using Core;
+using ImGuiColorTextEditNet;
+using ImGuiColorTextEditNet.Syntax;
 
 namespace Editor.UI
 {
@@ -9,12 +11,13 @@ namespace Editor.UI
         private readonly ScriptManager _scriptManager;
         private string[] _scriptFiles;
         private string? _selectedScript;
-        private string _scriptContent = string.Empty;
+        private TextEditor _textEditor = new TextEditor();
 
         public ScriptEditorPanel(ScriptManager scriptManager)
         {
             _scriptManager = scriptManager;
             _scriptFiles = _scriptManager.GetScriptFiles();
+            _textEditor.SyntaxHighlighter = new CStyleHighlighter(false);
         }
 
         public void Draw()
@@ -28,7 +31,7 @@ namespace Editor.UI
                 if (ImGui.Selectable(scriptFile, _selectedScript == scriptFile))
                 {
                     _selectedScript = scriptFile;
-                    _scriptContent = _scriptManager.ReadScriptContent(scriptFile);
+                    _textEditor.AllText = _scriptManager.ReadScriptContent(scriptFile);
                 }
             }
             ImGui.EndChild();
@@ -40,7 +43,7 @@ namespace Editor.UI
             {
                 if (ImGui.Button("Save"))
                 {
-                    _scriptManager.WriteScriptContent(_selectedScript, _scriptContent);
+                    _scriptManager.WriteScriptContent(_selectedScript, _textEditor.AllText);
                 }
                 ImGui.SameLine();
                 ImGui.Text(_selectedScript);
@@ -50,7 +53,7 @@ namespace Editor.UI
                 ImGui.Text("No script selected");
             }
 
-            ImGui.InputTextMultiline("##ScriptContent", ref _scriptContent, 100000, ImGui.GetContentRegionAvail());
+            _textEditor.Render("ScriptContent");
             ImGui.EndChild();
 
             ImGui.Columns(1);

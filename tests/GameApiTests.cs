@@ -22,8 +22,9 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager(_project);
             _mapLoader = new MapLoader(_objectTypeManager, _project);
             _gameApi = new GameApi(_gameState, _objectTypeManager, _mapLoader, _project);
-            _gameApi.CreateMap(1, 1, 1);
-            _gameApi.SetTurf(0, 0, 0, 1);
+            _gameApi.CreateMap(10, 10, 1); // Create a larger map for tests
+            _gameApi.SetTurf(0, 0, 0, 1); // Common turf for object creation
+            _gameApi.SetTurf(1, 0, 0, 1); // Common turf for moving
 
             var testObjectType = new ObjectType("test");
             _objectTypeManager.RegisterObjectType(testObjectType);
@@ -36,6 +37,25 @@ namespace Core.Tests
             {
                 Directory.Delete(TestProjectDir, true);
             }
+        }
+
+        [Test]
+        public void MoveObject_UpdatesObjectPositionAndTurfContents()
+        {
+            // Arrange
+            var obj = _gameApi.CreateObject("test", 0, 0, 0);
+            var oldTurf = _gameApi.GetTurf(0, 0, 0);
+            var newTurf = _gameApi.GetTurf(1, 0, 0);
+
+            // Act
+            _gameApi.MoveObject(obj.Id, 1, 0, 0);
+
+            // Assert
+            Assert.That(obj.X, Is.EqualTo(1));
+            Assert.That(obj.Y, Is.EqualTo(0));
+            Assert.That(obj.Z, Is.EqualTo(0));
+            Assert.That(oldTurf?.Contents, Does.Not.Contain(obj));
+            Assert.That(newTurf?.Contents, Contains.Item(obj));
         }
 
         [Test]

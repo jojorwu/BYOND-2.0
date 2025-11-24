@@ -1,10 +1,11 @@
-using Newtonsoft.Json;
-using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System;
 
 namespace Core
 {
@@ -29,7 +30,7 @@ namespace Core
             }
 
             var json = File.ReadAllText(fullPath);
-            var mapData = JsonConvert.DeserializeObject<MapData>(json);
+            var mapData = (MapData?)JsonSerializer.Deserialize(json, typeof(MapData), JsonContext.Default);
 
             if (mapData?.Turfs == null)
             {
@@ -43,7 +44,8 @@ namespace Core
                 {
                     for (int x = 0; x < mapData.Width; x++)
                     {
-                        var turfData = mapData.Turfs[z, y, x];
+                        var index = z * mapData.Width * mapData.Height + y * mapData.Width + x;
+                        var turfData = mapData.Turfs[index];
                         if (turfData == null) continue;
 
                         var turf = new Turf(turfData.Id);
@@ -55,7 +57,7 @@ namespace Core
                                 var gameObject = new GameObject(objectType, x, y, z);
                                 foreach (var prop in objData.Properties)
                                 {
-                                    gameObject.Properties[prop.Key] = prop.Value;
+                                    gameObject.Properties[prop.Key] = ConvertJsonElement(prop.Value);
                                 }
                                 turf.Contents.Add(gameObject);
                             }
@@ -68,60 +70,67 @@ namespace Core
             return map;
         }
 
+        private object ConvertJsonElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return element.GetString()!;
+                case JsonValueKind.Number:
+                    if (element.TryGetInt64(out long l))
+                    {
+                        return l;
+                    }
+                    return element.GetDouble();
+                case JsonValueKind.True:
+                    return true;
+                case JsonValueKind.False:
+                    return false;
+                case JsonValueKind.Null:
+                    return null!;
+                default:
+                    throw new NotSupportedException($"Unsupported JsonElement type: {element.ValueKind}");
+            }
+        }
+
+
         public void SaveMap(Map map, string filePath)
         {
             var fullPath = _project.GetFullPath(filePath);
-
-            var turfData = new ConcurrentDictionary<Vector3D, TurfData>();
-            Parallel.ForEach(map.GetAllTurfs(), kvp =>
-            {
-                var turf = kvp.Value;
-                turfData[kvp.Key] = new TurfData
-                {
-                    Id = turf.Id,
-                    Contents = turf.Contents.Select(obj => new GameObjectData
-                    {
-                        TypeName = obj.ObjectType.Name,
-                        Properties = obj.Properties
-                    }).ToList()
-                };
-            });
 
             var mapData = new MapData
             {
                 Width = map.Width,
                 Height = map.Height,
                 Depth = map.Depth,
-                Turfs = new TurfData[map.Depth, map.Height, map.Width]
+                Turfs = new List<TurfData?>(new TurfData[map.Width * map.Height * map.Depth])
             };
 
-            foreach (var kvp in turfData)
+            Parallel.ForEach(map.GetAllTurfs(), kvp =>
             {
-                mapData.Turfs[kvp.Key.Z, kvp.Key.Y, kvp.Key.X] = kvp.Value;
-            }
+                var turf = kvp.Value;
+                var index = kvp.Key.Z * map.Width * map.Height + kvp.Key.Y * map.Width + kvp.Key.X;
+                mapData.Turfs[index] = new TurfData
+                {
+                    Id = turf.Id,
+                    Contents = turf.Contents.Select(obj =>
+                    {
+                        var gameObjectData = new GameObjectData
+                        {
+                            TypeName = obj.ObjectType.Name,
+                            Properties = new Dictionary<string, JsonElement>()
+                        };
+                        foreach (var prop in obj.Properties)
+                        {
+                            gameObjectData.Properties[prop.Key] = JsonSerializer.SerializeToElement(prop.Value);
+                        }
+                        return gameObjectData;
+                    }).ToList()
+                };
+            });
 
-            var json = JsonConvert.SerializeObject(mapData, Formatting.Indented);
+            var json = JsonSerializer.Serialize(mapData, typeof(MapData), JsonContext.Default);
             File.WriteAllText(fullPath, json);
-        }
-
-        private class MapData
-        {
-            public int Width { get; set; }
-            public int Height { get; set; }
-            public int Depth { get; set; }
-            public TurfData[,,]? Turfs { get; set; }
-        }
-
-        private class TurfData
-        {
-            public int Id { get; set; }
-            public List<GameObjectData> Contents { get; set; } = new List<GameObjectData>();
-        }
-
-        private class GameObjectData
-        {
-            public string TypeName { get; set; } = string.Empty;
-            public Dictionary<string, object> Properties { get; set; } = new Dictionary<string, object>();
         }
     }
 }

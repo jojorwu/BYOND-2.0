@@ -13,6 +13,11 @@ namespace Server
             using (var scriptHost = new ScriptHost(project))
             using (var networkServer = new NetworkServer(7777, engineSettings, scriptHost))
             {
+                if (!string.IsNullOrEmpty(project.Settings.MainMap))
+                {
+                    scriptHost.ExecuteCommand($"Game:LoadMap(\"{project.Settings.MainMap}\")");
+                }
+
                 scriptHost.Start();
                 networkServer.Start();
 

@@ -19,34 +19,34 @@ namespace Editor
             _tools.Add(new PaintTool());
         }
 
-        public void SetActiveTool(ITool? tool, Editor editor)
+        public void SetActiveTool(ITool? tool, Editor editor, EditorContext editorContext)
         {
             if (_activeTool == tool)
                 return;
 
-            _activeTool?.Deactivate(editor);
+            _activeTool?.Deactivate(editor, editorContext);
             _activeTool = tool;
-            _activeTool?.Activate(editor);
+            _activeTool?.Activate(editor, editorContext);
         }
 
-        public void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseDown(editor, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseDown(editor, editorContext, gameApi, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseUp(editor, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseUp(editor, editorContext, gameApi, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseMove(editor, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseMove(editor, editorContext, gameApi, gameState, selectionManager, mousePosition);
         }
 
-        public void Draw(Editor editor, GameState gameState, SelectionManager selectionManager)
+        public void Draw(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager)
         {
-            _activeTool?.Draw(editor, gameState, selectionManager);
+            _activeTool?.Draw(editor, editorContext, gameApi, gameState, selectionManager);
         }
     }
 }

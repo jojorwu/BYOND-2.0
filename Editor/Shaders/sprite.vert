@@ -5,10 +5,10 @@ layout (location = 1) in vec2 aTexCoord;
 out vec2 TexCoord;
 
 uniform mat4 uProjection;
-uniform mat4 uModel;
+layout (location = 2) in mat4 aModel;
 
 void main()
 {
-    gl_Position = uProjection * uModel * vec4(aPosition, 0.0, 1.0);
+    gl_Position = uProjection * aModel * vec4(aPosition, 0.0, 1.0);
     TexCoord = aTexCoord;
 }

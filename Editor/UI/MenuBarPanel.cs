@@ -9,7 +9,8 @@ namespace Editor.UI
         SaveMap,
         LoadMap,
         GoToMainMenu,
-        OpenSettings
+        OpenSettings,
+        OpenProjectSettings
     }
 
     public class MenuBarPanel
@@ -41,6 +42,10 @@ namespace Editor.UI
                     if (ImGui.MenuItem("Engine Settings"))
                     {
                         action = MenuBarAction.OpenSettings;
+                    }
+                    if (ImGui.MenuItem("Project Settings"))
+                    {
+                        action = MenuBarAction.OpenProjectSettings;
                     }
                     ImGui.EndMenu();
                 }

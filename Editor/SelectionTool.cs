@@ -10,17 +10,17 @@ namespace Editor
     {
         public string Name => "Select";
 
-        public void Activate(Editor editor)
+        public void Activate(Editor editor, EditorContext editorContext)
         {
             Console.WriteLine("Selection Tool Activated");
         }
 
-        public void Deactivate(Editor editor)
+        public void Deactivate(Editor editor, EditorContext editorContext)
         {
             Console.WriteLine("Selection Tool Deactivated");
         }
 
-        public void OnMouseDown(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
             if (gameState.Map == null) return;
 
@@ -45,15 +45,15 @@ namespace Editor
             }
         }
 
-        public void OnMouseUp(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
         }
 
-        public void OnMouseMove(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
         }
 
-        public void Draw(Editor editor, GameApi gameApi, GameState gameState, SelectionManager selectionManager)
+        public void Draw(Editor editor, EditorContext editorContext, GameApi gameApi, GameState gameState, SelectionManager selectionManager)
         {
             if (selectionManager.SelectedObject != null)
             {

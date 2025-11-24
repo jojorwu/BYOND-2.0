@@ -6,33 +6,73 @@ The BYOND 2.0 project is a game engine with a client-server architecture, built 
 
 The project is divided into several key components:
 
-*   **Core:** A class library containing the main logic and common components used by both the server and the client. This includes game logic, state management, and the scripting engine.
-*   **Server:** A console application that runs the game server. It is responsible for managing the game world, handling client connections, and executing Lua scripts.
-*   **Client:** A console application that is the game client. It is responsible for rendering the game world, handling user input, and interacting with the server.
-*   **scripts:** A directory containing the Lua scripts that define the game logic.
-*   **tests:** A project with unit tests to verify the correct operation of the project components.
+*   **`Core`**: A class library containing the core logic and common components used by all other parts of the engine.
+*   **`Server`**: A console application that runs the game server. It is responsible for managing the game world and handling connections.
+*   **`Editor`**: A graphical application for creating and editing game maps, objects, and scripts.
+*   **`Client`**: The game client (under development).
+*   **`scripts`**: A directory containing the Lua scripts that define the game's logic.
+*   **`tests`**: A project with unit tests.
+
+## Core Concepts
+
+### Game State (`GameState`)
+A central class that holds the entire current state of the game world, including the map (`Map`) and a list of all game objects (`GameObjects`).
+
+### Object Model (`GameObject` and `ObjectType`)
+The engine uses an inheritance-based system for defining object types.
+*   **`ObjectType`**: Defines a template for objects, including their name, parent type, and default properties.
+*   **`GameObject`**: Represents an instance of an object in the game world, with its own unique `Id`, coordinates, and instance properties that can override the `ObjectType`'s properties.
+
+### Scripting API (`GameApi`)
+The C# `GameApi` class serves as a bridge between C# and Lua. An instance of this class is provided to Lua as the global `Game` object, allowing scripts to interact with the game world safely.
 
 ## Architecture Diagram
 
 ```mermaid
 graph TD
-    subgraph Client
-        C[Client]
+    subgraph "User Tools"
+        Editor[<i class='fa fa-pencil-ruler'></i> Editor]
     end
 
-    subgraph Server
-        S[Server]
-        subgraph Scripting
-            L[Lua Scripts]
-        end
+    subgraph "Game Applications"
+        Client[<i class='fa fa-gamepad'></i> Client]
+        Server[<i class='fa fa-server'></i> Server]
     end
 
-    subgraph Shared Components
-        Co[Core]
+    subgraph "Engine Core (Core)"
+        CoreLib[Core.dll]
+        GameApi[GameApi]
+        GameState[GameState]
+        ObjectTypeManager[ObjectTypeManager]
+        MapLoader[MapLoader]
     end
 
-    C -- "TCP/IP" --> S
-    S -- "Uses" --> Co
-    C -- "Uses" --> Co
-    S -- "Executes" --> L
+    subgraph "Scripts & Data"
+        LuaScripts[<i class='fa fa-file-code'></i> Lua Scripts]
+        ProjectFiles[<i class='fa fa-folder-open'></i> Project Files<br>(maps, types)]
+    end
+
+    Editor -- "Uses" --> CoreLib
+    Client -- "Uses" --> CoreLib
+    Server -- "Uses" --> CoreLib
+
+    CoreLib --> GameApi
+    CoreLib --> GameState
+    CoreLib --> ObjectTypeManager
+    CoreLib --> MapLoader
+
+    Server -- "Executes" --> LuaScripts
+    LuaScripts -- "Calls" --> GameApi
+
+    GameApi -- "Mutates" --> GameState
+    GameApi -- "Uses" --> ObjectTypeManager
+    GameApi -- "Uses" --> MapLoader
+
+    Editor -- "Loads/Saves" --> ProjectFiles
+    MapLoader -- "Reads/Writes" --> ProjectFiles
+    ObjectTypeManager -- "Reads/Writes" --> ProjectFiles
+
+    style Editor fill:#D8BFD8,stroke:#333,stroke-width:2px
+    style Client fill:#ADD8E6,stroke:#333,stroke-width:2px
+    style Server fill:#90EE90,stroke:#333,stroke-width:2px
 ```

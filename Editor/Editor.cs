@@ -20,7 +20,8 @@ namespace Editor
         {
             MainMenu,
             Editing,
-            Settings
+            Settings,
+            ProjectSettings
         }
 
         private IWindow? window;
@@ -37,11 +38,13 @@ namespace Editor
         private ObjectBrowserPanel? _objectBrowserPanel;
         private MainMenuPanel _mainMenuPanel = null!;
         private SettingsPanel _settingsPanel = null!;
+        private ProjectSettingsPanel? _projectSettingsPanel;
         private ScriptEditorPanel? _scriptEditorPanel;
         private MenuBarPanel? _menuBarPanel;
         private ToolboxPanel? _toolboxPanel;
         private AssetBrowserPanel? _assetBrowserPanel;
         private ViewportPanel? _viewportPanel;
+        private MapControlsPanel? _mapControlsPanel;
         private AssetManager? _assetManager;
         private AssetBrowser? _assetBrowser;
         private ScriptManager? _scriptManager;
@@ -51,6 +54,7 @@ namespace Editor
         private EngineSettings _engineSettings;
         private GameState _gameState = new GameState();
         private EditorContext? _editorContext;
+        private Camera _camera = new Camera();
 
         public int CurrentZLevel { get; private set; } = 0;
 
@@ -89,10 +93,12 @@ namespace Editor
             {
                 gl = window.CreateOpenGL();
                 inputContext = window.CreateInput();
+                inputContext.Mice[0].Scroll += (mouse, scroll) => _camera.AdjustZoom(scroll.Y);
                 imGuiController = new ImGuiController(gl, window, inputContext);
                 _textureManager = new TextureManager(gl);
                 _spriteRenderer = new SpriteRenderer(gl);
-                _toolManager.SetActiveTool(_toolManager.Tools.FirstOrDefault(), this);
+                if(_editorContext != null)
+                    _toolManager.SetActiveTool(_toolManager.Tools.FirstOrDefault(), this, _editorContext);
 
                 if (!string.IsNullOrEmpty(_engineSettings.LastProjectPath) && Directory.Exists(_engineSettings.LastProjectPath))
                 {
@@ -127,8 +133,11 @@ namespace Editor
                     var settingsAction = _settingsPanel.Draw();
                     if (settingsAction == SettingsAction.Back)
                     {
-                        _appState = AppState.MainMenu;
+                        _appState = AppState.Editing;
                     }
+                    break;
+                case AppState.ProjectSettings:
+                    _projectSettingsPanel?.Draw();
                     break;
             }
 
@@ -159,16 +168,15 @@ namespace Editor
 
         private void DrawEditor()
         {
-            ImGui.DockSpaceOverViewport(ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
+            ImGui.DockSpaceOverViewport();
             var menuBarAction = _menuBarPanel?.Draw() ?? MenuBarAction.None;
             HandleMenuBarAction(menuBarAction);
             _objectBrowserPanel?.Draw();
             _inspectorPanel?.Draw();
             _assetBrowserPanel?.Draw();
             _toolboxPanel?.Draw();
-
+            _mapControlsPanel?.Draw();
             _viewportPanel?.Draw();
-
             _scriptEditorPanel?.Draw();
         }
 
@@ -189,9 +197,11 @@ namespace Editor
             _objectBrowserPanel = new ObjectBrowserPanel(_objectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel(_scriptManager);
             _menuBarPanel = new MenuBarPanel();
-            _toolboxPanel = new ToolboxPanel(_toolManager, this);
+            _projectSettingsPanel = new ProjectSettingsPanel(project);
+            _toolboxPanel = new ToolboxPanel(_toolManager, this, _editorContext);
             _assetBrowserPanel = new AssetBrowserPanel(_assetBrowser);
-            _viewportPanel = new ViewportPanel(_gameState, _spriteRenderer!, _textureManager!, _toolManager, this, _gameApi, _selectionManager);
+            _viewportPanel = new ViewportPanel(_gameState, _spriteRenderer!, _textureManager!, _toolManager, this, _gameApi, _selectionManager, _editorContext, _camera);
+            _mapControlsPanel = new MapControlsPanel(this, _gameState);
 
             _engineSettings.LastProjectPath = projectPath;
             _engineSettings.Save();
@@ -213,6 +223,19 @@ namespace Editor
                 case MenuBarAction.OpenSettings:
                     _appState = AppState.Settings;
                     break;
+                case MenuBarAction.OpenProjectSettings:
+                    _appState = AppState.ProjectSettings;
+                    break;
+            }
+        }
+
+        public void ChangeZLevel(int delta)
+        {
+            if (_gameState.Map == null) return;
+            var newZLevel = CurrentZLevel + delta;
+            if (newZLevel >= 0 && newZLevel < _gameState.Map.Depth)
+            {
+                CurrentZLevel = newZLevel;
             }
         }
 
@@ -250,9 +273,6 @@ namespace Editor
             colors[(int)ImGuiCol.ButtonActive] = activeColor;
             colors[(int)ImGuiCol.Tab] = new Vector4(0.12f, 0.12f, 0.12f, 1.00f);
             colors[(int)ImGuiCol.TabHovered] = new Vector4(0.26f, 0.59f, 0.98f, 0.80f);
-            colors[(int)ImGuiCol.TabActive] = new Vector4(0.20f, 0.20f, 0.22f, 1.00f);
-            colors[(int)ImGuiCol.TabUnfocused] = new Vector4(0.12f, 0.12f, 0.12f, 1.00f);
-            colors[(int)ImGuiCol.TabUnfocusedActive] = new Vector4(0.20f, 0.20f, 0.22f, 1.00f);
             colors[(int)ImGuiCol.CheckMark] = activeColor;
             colors[(int)ImGuiCol.SliderGrab] = activeColor;
             colors[(int)ImGuiCol.SliderGrabActive] = new Vector4(0.20f, 0.50f, 0.90f, 1.00f);

@@ -59,7 +59,13 @@ namespace Editor
                             data[index + 3] = pixel.A;
                         }
                     }
-                     _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)accessor.Width, (uint)accessor.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
+                    unsafe
+                    {
+                        fixed (void* d = data)
+                        {
+                            _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)accessor.Width, (uint)accessor.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, d);
+                        }
+                    }
                 });
 
                 _gl.GenerateMipmap(TextureTarget.Texture2D);

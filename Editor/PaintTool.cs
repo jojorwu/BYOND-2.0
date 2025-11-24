@@ -8,51 +8,46 @@ namespace Editor
     {
         public string Name => "Paint";
 
-        public void Activate(Editor editor)
+        public void Activate(EditorContext editorContext)
         {
-            // Logic to run when the tool is activated
             Console.WriteLine("Paint Tool Activated");
         }
 
 
-        public void Deactivate(Editor editor)
+        public void Deactivate(EditorContext editorContext)
         {
-            // Logic to run when the tool is deactivated
             Console.WriteLine("Paint Tool Deactivated");
         }
 
-        public void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            if (gameState.Map == null || editor.SelectedObjectType == null) return;
+            if (gameState.Map == null || editorContext.SelectedObjectType == null) return;
 
             int tileX = mousePosition.X / Constants.TileSize;
             int tileY = mousePosition.Y / Constants.TileSize;
 
             if (tileX >= 0 && tileX < gameState.Map.Width && tileY >= 0 && tileY < gameState.Map.Height)
             {
-                var turf = gameState.Map.GetTurf(tileX, tileY, editor.CurrentZLevel);
+                var turf = gameState.Map.GetTurf(tileX, tileY, editorContext.CurrentZLevel);
                 if (turf != null)
                 {
-                    var newObject = new GameObject(editor.SelectedObjectType, tileX, tileY, editor.CurrentZLevel);
+                    var newObject = new GameObject(editorContext.SelectedObjectType, tileX, tileY, editorContext.CurrentZLevel);
                     turf.Contents.Add(newObject);
                     Console.WriteLine($"Placed '{newObject.ObjectType.Name}' at ({tileX}, {tileY})");
                 }
             }
         }
 
-        public void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            // Handle mouse up event for painting
         }
 
-        public void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            // Handle mouse move event for painting
         }
 
-        public void Draw(Editor editor, GameState gameState, SelectionManager selectionManager)
+        public void Draw(EditorContext editorContext, GameState gameState, SelectionManager selectionManager)
         {
-            // Draw paint-related visuals (e.g., brush cursor)
         }
     }
 }

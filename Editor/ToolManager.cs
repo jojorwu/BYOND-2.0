@@ -19,34 +19,34 @@ namespace Editor
             _tools.Add(new PaintTool());
         }
 
-        public void SetActiveTool(ITool? tool, Editor editor)
+        public void SetActiveTool(ITool? tool, EditorContext editorContext)
         {
             if (_activeTool == tool)
                 return;
 
-            _activeTool?.Deactivate(editor);
+            _activeTool?.Deactivate(editorContext);
             _activeTool = tool;
-            _activeTool?.Activate(editor);
+            _activeTool?.Activate(editorContext);
         }
 
-        public void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseDown(editor, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseDown(editorContext, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseUp(editor, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseUp(editorContext, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseMove(editor, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseMove(editorContext, gameState, selectionManager, mousePosition);
         }
 
-        public void Draw(Editor editor, GameState gameState, SelectionManager selectionManager)
+        public void Draw(EditorContext editorContext, GameState gameState, SelectionManager selectionManager)
         {
-            _activeTool?.Draw(editor, gameState, selectionManager);
+            _activeTool?.Draw(editorContext, gameState, selectionManager);
         }
     }
 }

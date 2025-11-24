@@ -18,11 +18,21 @@ namespace Core
         /// </summary>
         /// <param name="gameState">The game state to interact with.</param>
         /// <param name="objectTypeManager">The object type manager.</param>
-        public GameApi(GameState gameState, ObjectTypeManager objectTypeManager)
+        public GameApi(GameState gameState, ObjectTypeManager objectTypeManager, MapLoader mapLoader)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _mapLoader = mapLoader;
+        }
+
+        public GameState GetState()
+        {
+            return _gameState;
+        }
+
+        public Map? GetMap()
+        {
+            return _gameState.Map;
         }
 
         // --- Map and Object Methods ---

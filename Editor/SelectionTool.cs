@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using Core;
 using ImGuiNET;
 using Silk.NET.Maths;
+using System.Linq;
 
 namespace Editor
 {
@@ -9,19 +11,17 @@ namespace Editor
     {
         public string Name => "Select";
 
-        public void Activate(Editor editor)
+        public void Activate(EditorContext editorContext)
         {
-            // Logic to run when the tool is activated
             Console.WriteLine("Selection Tool Activated");
         }
 
-        public void Deactivate(Editor editor)
+        public void Deactivate(EditorContext editorContext)
         {
-            // Logic to run when the tool is deactivated
             Console.WriteLine("Selection Tool Deactivated");
         }
 
-        public void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
             if (gameState.Map == null) return;
 
@@ -30,7 +30,7 @@ namespace Editor
 
             if (tileX >= 0 && tileX < gameState.Map.Width && tileY >= 0 && tileY < gameState.Map.Height)
             {
-                var turf = gameState.Map.GetTurf(tileX, tileY, editor.CurrentZLevel);
+                var turf = gameState.Map.GetTurf(tileX, tileY, editorContext.CurrentZLevel);
                 if (turf != null && turf.Contents.Any())
                 {
                     selectionManager.Select(turf.Contents.First());
@@ -42,34 +42,32 @@ namespace Editor
             }
         }
 
-        public void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            // Handle mouse up event for selection
         }
 
-        public void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            // Handle mouse move event for selection
         }
 
-        public void Draw(Editor editor, GameState gameState, SelectionManager selectionManager)
+        public void Draw(EditorContext editorContext, GameState gameState, SelectionManager selectionManager)
         {
-            if (selectionManager.SelectedObject != null)
+            var selectedObject = selectionManager.SelectedObject;
+            if (selectedObject != null)
             {
-                var selected = selectionManager.SelectedObject;
                 var windowPos = ImGui.GetWindowPos();
                 var drawList = ImGui.GetWindowDrawList();
 
                 var min = new System.Numerics.Vector2(
-                    windowPos.X + selected.X * Constants.TileSize,
-                    windowPos.Y + selected.Y * Constants.TileSize
+                    windowPos.X + selectedObject.X * Constants.TileSize,
+                    windowPos.Y + selectedObject.Y * Constants.TileSize
                 );
                 var max = new System.Numerics.Vector2(
                     min.X + Constants.TileSize,
                     min.Y + Constants.TileSize
                 );
 
-                drawList.AddRect(min, max, 0xFF00FFFF, 0, ImDrawFlags.None, 2.0f); // Bright yellow rectangle
+                drawList.AddRect(min, max, 0xFF00FFFF, 0, ImDrawFlags.None, 2.0f);
             }
         }
     }

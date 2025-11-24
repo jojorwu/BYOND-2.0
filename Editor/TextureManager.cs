@@ -21,7 +21,7 @@ namespace Editor
         {
             if (string.IsNullOrEmpty(assetPath) || !File.Exists(assetPath))
             {
-                return 0; // Return an invalid texture ID
+                return 0;
             }
 
             if (_textureCache.TryGetValue(assetPath, out uint textureId))
@@ -29,20 +29,16 @@ namespace Editor
                 return textureId;
             }
 
-            // Load the image with ImageSharp
             using (var image = Image.Load<Rgba32>(assetPath))
             {
-                // Generate a new OpenGL texture
                 uint newTextureId = _gl.GenTexture();
                 _gl.BindTexture(TextureTarget.Texture2D, newTextureId);
 
-                // Set texture parameters
                 _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
                 _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
                 _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.LinearMipmapLinear);
                 _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
 
-                // Upload the image data to the texture
                 image.ProcessPixelRows(accessor =>
                 {
                     var data = new byte[accessor.Width * accessor.Height * 4];
@@ -59,7 +55,14 @@ namespace Editor
                             data[index + 3] = pixel.A;
                         }
                     }
-                     _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)accessor.Width, (uint)accessor.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
+
+                    unsafe
+                    {
+                        fixed (void* ptr = data)
+                        {
+                            _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)accessor.Width, (uint)accessor.Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+                        }
+                    }
                 });
 
                 _gl.GenerateMipmap(TextureTarget.Texture2D);

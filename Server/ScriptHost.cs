@@ -12,12 +12,16 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
+        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly MapLoader _mapLoader;
         private readonly GameApi _gameApi;
 
         public ScriptHost()
         {
             _gameState = new GameState();
-            _gameApi = new GameApi(_gameState);
+            _objectTypeManager = new ObjectTypeManager();
+            _mapLoader = new MapLoader(_objectTypeManager);
+            _gameApi = new GameApi(_gameState, _objectTypeManager, _mapLoader);
             _scripting = new Scripting(_gameApi);
             _watcher = new FileSystemWatcher(Constants.ScriptsRoot)
             {

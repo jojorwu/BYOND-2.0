@@ -11,13 +11,15 @@ namespace Core.Tests
         private GameState _gameState = null!;
         private EditorApi _editorApi = null!;
         private ObjectTypeManager _objectTypeManager = null!;
+        private MapLoader _mapLoader = null!;
 
         [SetUp]
         public void SetUp()
         {
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            _gameApi = new GameApi(_gameState, _objectTypeManager);
+            _mapLoader = new MapLoader(_objectTypeManager);
+            _gameApi = new GameApi(_gameState, _objectTypeManager, _mapLoader);
             _editorApi = new EditorApi();
             _scripting = new Scripting(_gameApi, _editorApi);
         }

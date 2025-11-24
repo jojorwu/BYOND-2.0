@@ -6,11 +6,11 @@ namespace Editor
     public interface ITool
     {
         string Name { get; }
-        void Activate(Editor editor);
-        void Deactivate(Editor editor);
-        void OnMouseDown(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
-        void OnMouseUp(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
-        void OnMouseMove(Editor editor, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
-        void Draw(Editor editor, GameState gameState, SelectionManager selectionManager);
+        void Activate(EditorContext editorContext);
+        void Deactivate(EditorContext editorContext);
+        void OnMouseDown(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
+        void OnMouseUp(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
+        void OnMouseMove(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition);
+        void Draw(EditorContext editorContext, GameState gameState, SelectionManager selectionManager);
     }
 }

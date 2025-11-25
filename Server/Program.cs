@@ -14,13 +14,16 @@ namespace Server
             var settings = LoadSettings();
 
             using (var scriptHost = new ScriptHost())
-            using (var networkServer = new NetworkServer(IPAddress.Parse(settings.IpAddress), settings.Port))
             {
                 scriptHost.Start();
-                networkServer.Start();
 
-                Console.WriteLine($"Server is running on {settings.IpAddress}:{settings.Port}. Press Enter to exit.");
-                Console.ReadLine();
+                using (var networkServer = new NetworkServer(IPAddress.Parse(settings.IpAddress), settings.Port, scriptHost))
+                {
+                    networkServer.Start();
+
+                    Console.WriteLine($"Server is running on {settings.IpAddress}:{settings.Port}. Press Enter to exit.");
+                    Console.ReadLine();
+                }
             }
         }
 

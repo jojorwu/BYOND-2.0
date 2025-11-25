@@ -16,16 +16,19 @@ namespace Server
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly List<TcpClient> _clients = new List<TcpClient>();
         private readonly object _clientsLock = new object();
+        private readonly ScriptHost _scriptHost;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NetworkServer"/> class.
         /// </summary>
         /// <param name="ipAddress">The IP address to listen on.</param>
         /// <param name="port">The port to listen on.</param>
-        public NetworkServer(IPAddress ipAddress, int port)
+        /// <param name="scriptHost">The script host to execute commands.</param>
+        public NetworkServer(IPAddress ipAddress, int port, ScriptHost scriptHost)
         {
             _listener = new TcpListener(ipAddress, port);
             _cancellationTokenSource = new CancellationTokenSource();
+            _scriptHost = scriptHost;
         }
 
         /// <summary>
@@ -72,7 +75,8 @@ namespace Server
                 _clients.Add(client);
             }
             Console.WriteLine($"Client connected: {client.Client.RemoteEndPoint}");
-            // In a real application, you would start a new task here to handle communication with this client.
+            var clientHandler = new ClientHandler(client, _scriptHost);
+            Task.Run(clientHandler.HandleClientAsync);
         }
 
         /// <summary>

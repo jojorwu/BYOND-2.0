@@ -26,7 +26,6 @@ namespace Editor
         private AssetBrowserPanel _assetBrowserPanel;
         private InspectorPanel _inspectorPanel;
         private ObjectBrowserPanel _objectBrowserPanel;
-        private ScriptEditorPanel _scriptEditorPanel;
         private SettingsPanel _settingsPanel;
         private ToolboxPanel _toolboxPanel;
         private MapControlsPanel _mapControlsPanel;
@@ -100,7 +99,6 @@ namespace Editor
             _assetBrowserPanel = new AssetBrowserPanel(_assetManager);
             _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel(gameApi);
             _settingsPanel = new SettingsPanel();
             _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
             _menuBarPanel = new MenuBarPanel(gameApi, _editorContext);
@@ -134,7 +132,6 @@ namespace Editor
                     _assetBrowserPanel.Draw();
                     _inspectorPanel.Draw();
                     _objectBrowserPanel.Draw();
-                    _scriptEditorPanel.Draw();
                     _toolboxPanel.Draw();
                     _mapControlsPanel.Draw();
                     break;

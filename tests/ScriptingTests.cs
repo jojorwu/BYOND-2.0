@@ -62,5 +62,19 @@ namespace Core.Tests
             Assert.DoesNotThrow(() => _scripting.ExecuteFile(tempFile));
             File.Delete(tempFile);
         }
+
+        [Test]
+        public void Lua_CannotCallWriteScriptFile()
+        {
+            string script = @"Game:WriteScriptFile('test.lua', 'print(\'hello\')')";
+            Assert.Throws<NLua.Exceptions.LuaScriptException>(() => _scripting.ExecuteString(script));
+        }
+
+        [Test]
+        public void Lua_CannotCallDeleteScriptFile()
+        {
+            string script = @"Game:DeleteScriptFile('test.lua')";
+            Assert.Throws<NLua.Exceptions.LuaScriptException>(() => _scripting.ExecuteString(script));
+        }
     }
 }

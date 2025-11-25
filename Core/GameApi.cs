@@ -208,5 +208,26 @@ namespace Core
             var safePath = SanitizePath(filename, Constants.ScriptsRoot);
             return File.ReadAllText(safePath);
         }
+
+        /// <summary>
+        /// Writes content to a script file.
+        /// </summary>
+        /// <param name="filename">The name of the script file.</param>
+        /// <param name="content">The content to write to the file.</param>
+        public void WriteScriptFile(string filename, string content)
+        {
+            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
+            File.WriteAllText(safePath, content);
+        }
+
+        /// <summary>
+        /// Deletes a script file.
+        /// </summary>
+        /// <param name="filename">The name of the script file to delete.</param>
+        public void DeleteScriptFile(string filename)
+        {
+            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
+            File.Delete(safePath);
+        }
     }
 }

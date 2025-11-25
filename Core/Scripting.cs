@@ -27,7 +27,7 @@ namespace Core
 
         private void RegisterApis()
         {
-            lua["Game"] = game;
+            lua["Game"] = new LuaGameApi(game);
             if (editor != null)
             {
                 lua["Editor"] = editor;

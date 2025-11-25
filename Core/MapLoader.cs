@@ -31,13 +31,13 @@ namespace Core
             }
 
             var map = new Map(mapData.Width, mapData.Height, mapData.Depth);
-            for (int z = 0; z < mapData.Depth; z++)
+            for (int x = 0; x < mapData.Width; x++)
             {
                 for (int y = 0; y < mapData.Height; y++)
                 {
-                    for (int x = 0; x < mapData.Width; x++)
+                    for (int z = 0; z < mapData.Depth; z++)
                     {
-                        var turfData = mapData.Turfs[z, y, x];
+                        var turfData = mapData.Turfs[x, y, z];
                         if (turfData == null) continue;
 
                         var turf = new Turf(turfData.Id);
@@ -69,19 +69,19 @@ namespace Core
                 Width = map.Width,
                 Height = map.Height,
                 Depth = map.Depth,
-                Turfs = new TurfData[map.Depth, map.Height, map.Width]
+                Turfs = new TurfData[map.Width, map.Height, map.Depth]
             };
 
-            for (int z = 0; z < map.Depth; z++)
+            for (int x = 0; x < map.Width; x++)
             {
                 for (int y = 0; y < map.Height; y++)
                 {
-                    for (int x = 0; x < map.Width; x++)
+                    for (int z = 0; z < map.Depth; z++)
                     {
                         var turf = map.GetTurf(x, y, z);
                         if (turf == null) continue;
 
-                        mapData.Turfs[z, y, x] = new TurfData
+                        mapData.Turfs[x, y, z] = new TurfData
                         {
                             Id = turf.Id,
                             Contents = turf.Contents.Select(obj => new GameObjectData

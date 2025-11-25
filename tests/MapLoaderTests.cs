@@ -57,5 +57,32 @@ namespace tests
             Assert.That(loadedGameObject.GetProperty<string>("SpritePath"), Is.EqualTo("default.png"));
             Assert.That(loadedGameObject.GetProperty<string>("InstanceProp"), Is.EqualTo("instance_value"));
         }
+
+        [Test]
+        public void SaveAndLoadMap_HandlesNonCubicDimensions()
+        {
+            // Arrange
+            var map = new Map(10, 5, 2); // Non-cubic dimensions
+            var turf = new Turf(1);
+            map.SetTurf(9, 4, 1, turf);
+
+            // Act & Assert
+            Assert.DoesNotThrow(() =>
+            {
+                _mapLoader.SaveMap(map, TestMapPath);
+            }, "Saving a non-cubic map should not throw an exception.");
+
+            Map? loadedMap = null;
+            Assert.DoesNotThrow(() =>
+            {
+                loadedMap = _mapLoader.LoadMap(TestMapPath);
+            }, "Loading a non-cubic map should not throw an exception.");
+
+            Assert.That(loadedMap, Is.Not.Null);
+            Assert.That(loadedMap.Width, Is.EqualTo(10));
+            Assert.That(loadedMap.Height, Is.EqualTo(5));
+            Assert.That(loadedMap.Depth, Is.EqualTo(2));
+            Assert.That(loadedMap.GetTurf(9, 4, 1), Is.Not.Null);
+        }
     }
 }

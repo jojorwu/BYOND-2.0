@@ -82,5 +82,27 @@ namespace tests
             // Assert
             Assert.Throws<System.InvalidOperationException>(() => manager.RegisterObjectType(typeC));
         }
+
+        [Test]
+        public void RegisterObjectType_WhenLongLinearHierarchy_DoesNotThrowException()
+        {
+            // Arrange
+            var manager = new ObjectTypeManager();
+            var typeA = new ObjectType("A");
+            var typeB = new ObjectType("B") { ParentName = "A" };
+            var typeC = new ObjectType("C") { ParentName = "B" };
+            var typeD = new ObjectType("D") { ParentName = "C" };
+            var typeE = new ObjectType("E") { ParentName = "D" };
+
+            // Act & Assert
+            Assert.DoesNotThrow(() =>
+            {
+                manager.RegisterObjectType(typeA);
+                manager.RegisterObjectType(typeB);
+                manager.RegisterObjectType(typeC);
+                manager.RegisterObjectType(typeD);
+                manager.RegisterObjectType(typeE);
+            });
+        }
     }
 }

@@ -44,8 +44,8 @@ namespace Core
 
             while (fast?.Parent != null && fast.Parent.Parent != null)
             {
-                slow = slow.Parent;
-                fast = fast.Parent.Parent;
+                slow = slow.Parent!;
+                fast = fast.Parent.Parent!;
 
                 if (slow == fast)
                 {

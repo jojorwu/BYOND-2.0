@@ -1,6 +1,9 @@
 using NLua;
-using System.IO;
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace Core
 {
@@ -13,6 +16,9 @@ namespace Core
         private readonly object luaLock = new object();
         private readonly GameApi game;
         private readonly EditorApi? editor;
+        private readonly TimeSpan _executionTimeout = TimeSpan.FromSeconds(1);
+        private Stopwatch _stopwatch = new Stopwatch();
+        private GCHandle _hookHandle;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Scripting"/> class.
@@ -34,11 +40,46 @@ namespace Core
             }
         }
 
+        private void HookCallback(IntPtr L, IntPtr ar)
+        {
+            if (_stopwatch.Elapsed > _executionTimeout)
+            {
+                NativeLua.luaL_error(L, "Script execution timed out.");
+            }
+        }
+
         public void ExecuteString(string script)
         {
             lock (luaLock)
             {
-                lua.DoString(script);
+                var hookDelegate = new NativeLua.LuaHook(HookCallback);
+                _hookHandle = GCHandle.Alloc(hookDelegate);
+
+                var luaState = lua.State.Handle;
+
+                try
+                {
+                    _stopwatch.Restart();
+                    NativeLua.lua_sethook(luaState, hookDelegate, 8, 1000);
+                    lua.DoString(script);
+                }
+                catch (NLua.Exceptions.LuaException ex)
+                {
+                    if (ex.Message.Contains("Script execution timed out."))
+                    {
+                        throw new Exception("Script execution timed out.");
+                    }
+                    throw;
+                }
+                finally
+                {
+                    NativeLua.lua_sethook(luaState, null!, 0, 0);
+                    _stopwatch.Stop();
+                    if (_hookHandle.IsAllocated)
+                    {
+                        _hookHandle.Free();
+                    }
+                }
             }
         }
 

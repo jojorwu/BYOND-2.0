@@ -61,6 +61,23 @@ namespace Server
             }
         }
 
+        public string ExecuteCommand(string command)
+        {
+            try
+            {
+                _scripting.ExecuteString(command);
+                return "Command executed successfully.";
+            }
+            catch (NLua.Exceptions.LuaException ex) when (ex.Message.Contains("error"))
+            {
+                return "Script execution timed out.";
+            }
+            catch (Exception ex)
+            {
+                return $"Error executing command: {ex.Message}";
+            }
+        }
+
         public void Dispose()
         {
             _watcher.Dispose();

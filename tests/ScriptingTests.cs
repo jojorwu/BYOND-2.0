@@ -76,5 +76,13 @@ namespace Core.Tests
             string script = @"Game:DeleteScriptFile('test.lua')";
             Assert.Throws<NLua.Exceptions.LuaScriptException>(() => _scripting.ExecuteString(script));
         }
+
+        [Test]
+        public void ExecuteString_WithInfiniteLoop_ShouldThrowExceptionWithTimeoutMessage()
+        {
+            var script = "while true do end";
+            var ex = Assert.Throws<Exception>(() => _scripting.ExecuteString(script));
+            Assert.That(ex.Message, Is.EqualTo("Script execution timed out."));
+        }
     }
 }

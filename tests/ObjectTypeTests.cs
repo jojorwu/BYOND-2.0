@@ -65,5 +65,22 @@ namespace tests
             // Assert
             Assert.That(retrievedObjectType, Is.SameAs(objectType));
         }
+
+        [Test]
+        public void RegisterObjectType_WhenCircularDependency_ThrowsException()
+        {
+            // Arrange
+            var manager = new ObjectTypeManager();
+            var typeA = new ObjectType("A") { ParentName = "C" };
+            var typeB = new ObjectType("B") { ParentName = "A" };
+            var typeC = new ObjectType("C") { ParentName = "B" };
+
+            // Act
+            manager.RegisterObjectType(typeA);
+            manager.RegisterObjectType(typeB);
+
+            // Assert
+            Assert.Throws<System.InvalidOperationException>(() => manager.RegisterObjectType(typeC));
+        }
     }
 }

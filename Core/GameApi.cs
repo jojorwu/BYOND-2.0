@@ -153,8 +153,8 @@ namespace Core
         private string SanitizePath(string filename)
         {
             // Prevent directory traversal attacks
-            var fullPath = Path.GetFullPath(Path.Combine(Constants.ScriptsRoot, filename));
             var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
+            var fullPath = Path.GetFullPath(Path.Combine(rootPath, filename));
 
             if (!fullPath.StartsWith(rootPath))
             {
@@ -170,9 +170,30 @@ namespace Core
         public List<string> ListScriptFiles()
         {
             var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
+            if (!Directory.Exists(rootPath))
+                return new List<string>();
+
             return Directory.GetFiles(rootPath, "*.lua", SearchOption.AllDirectories)
                 .Select(path => Path.GetRelativePath(rootPath, path))
                 .ToList();
+        }
+
+        /// <summary>
+        /// Checks if a script file exists.
+        /// </summary>
+        /// <param name="filename">The name of the script file.</param>
+        /// <returns>True if the file exists, false otherwise.</returns>
+        public bool ScriptFileExists(string filename)
+        {
+            try
+            {
+                var safePath = SanitizePath(filename);
+                return File.Exists(safePath);
+            }
+            catch (System.Security.SecurityException)
+            {
+                return false;
+            }
         }
 
         /// <summary>

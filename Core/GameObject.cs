@@ -92,9 +92,14 @@ namespace Core
                 return tValue;
             }
 
-            if (ObjectType.DefaultProperties.TryGetValue(propertyName, out value) && value is T tDefaultValue)
+            var currentObjectType = ObjectType;
+            while (currentObjectType != null)
             {
-                return tDefaultValue;
+                if (currentObjectType.DefaultProperties.TryGetValue(propertyName, out value) && value is T tDefaultValue)
+                {
+                    return tDefaultValue;
+                }
+                currentObjectType = currentObjectType.Parent;
             }
 
             return default;

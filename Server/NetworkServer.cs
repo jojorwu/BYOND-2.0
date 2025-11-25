@@ -20,10 +20,11 @@ namespace Server
         /// <summary>
         /// Initializes a new instance of the <see cref="NetworkServer"/> class.
         /// </summary>
+        /// <param name="ipAddress">The IP address to listen on.</param>
         /// <param name="port">The port to listen on.</param>
-        public NetworkServer(int port)
+        public NetworkServer(IPAddress ipAddress, int port)
         {
-            _listener = new TcpListener(IPAddress.Any, port);
+            _listener = new TcpListener(ipAddress, port);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

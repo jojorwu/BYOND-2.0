@@ -17,7 +17,9 @@ namespace Server
         public ScriptHost()
         {
             _gameState = new GameState();
-            _gameApi = new GameApi(_gameState);
+            var objectTypeManager = new ObjectTypeManager();
+            var mapLoader = new MapLoader(objectTypeManager);
+            _gameApi = new GameApi(_gameState, objectTypeManager, mapLoader);
             _scripting = new Scripting(_gameApi);
             _watcher = new FileSystemWatcher(Constants.ScriptsRoot)
             {

@@ -82,7 +82,6 @@ namespace Editor
             var objectTypeManager = new ObjectTypeManager();
             var mapLoader = new MapLoader(objectTypeManager);
             _assetManager = new AssetManager();
-            var scriptManager = new ScriptManager();
             var selectionManager = new SelectionManager();
             var toolManager = new ToolManager();
             var gameApi = new GameApi(gameState, objectTypeManager, mapLoader);
@@ -101,7 +100,7 @@ namespace Editor
             _assetBrowserPanel = new AssetBrowserPanel(_assetManager);
             _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel(scriptManager);
+            _scriptEditorPanel = new ScriptEditorPanel(gameApi);
             _settingsPanel = new SettingsPanel();
             _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
             _menuBarPanel = new MenuBarPanel(gameApi, _editorContext);

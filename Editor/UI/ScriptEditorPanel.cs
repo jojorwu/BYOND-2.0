@@ -5,15 +5,15 @@ namespace Editor.UI
 {
     public class ScriptEditorPanel
     {
-        private readonly ScriptManager _scriptManager;
+        private readonly GameApi _gameApi;
         private string[] _scriptFiles = System.Array.Empty<string>();
         private string? _selectedScript;
         private string _scriptContent = string.Empty;
 
-        public ScriptEditorPanel(ScriptManager scriptManager)
+        public ScriptEditorPanel(GameApi gameApi)
         {
-            _scriptManager = scriptManager;
-            _scriptFiles = _scriptManager.GetScriptFiles();
+            _gameApi = gameApi;
+            _scriptFiles = _gameApi.ListScriptFiles().ToArray();
         }
 
         public void Draw()
@@ -27,7 +27,7 @@ namespace Editor.UI
                 if (ImGui.Selectable(scriptFile, _selectedScript == scriptFile))
                 {
                     _selectedScript = scriptFile;
-                    _scriptContent = _scriptManager.ReadScriptContent(scriptFile);
+                    _scriptContent = _gameApi.ReadScriptFile(scriptFile);
                 }
             }
             ImGui.EndChild();
@@ -37,7 +37,7 @@ namespace Editor.UI
             ImGui.BeginChild("ScriptContent");
             if (ImGui.Button("Save") && _selectedScript != null)
             {
-                _scriptManager.WriteScriptContent(_selectedScript, _scriptContent);
+                _gameApi.WriteScriptFile(_selectedScript, _scriptContent);
             }
             ImGui.SameLine();
             ImGui.Text(_selectedScript ?? "No script selected");

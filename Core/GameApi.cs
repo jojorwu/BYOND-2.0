@@ -133,7 +133,8 @@ namespace Core
         /// <param name="filePath">The path to the map file.</param>
         public void LoadMap(string filePath)
         {
-            _gameState.Map = _mapLoader.LoadMap(filePath);
+            var safePath = SanitizePath(filePath, Constants.MapsRoot);
+            _gameState.Map = _mapLoader.LoadMap(safePath);
         }
 
         /// <summary>
@@ -144,16 +145,17 @@ namespace Core
         {
             if (_gameState.Map != null)
             {
-                _mapLoader.SaveMap(_gameState.Map, filePath);
+                var safePath = SanitizePath(filePath, Constants.MapsRoot);
+                _mapLoader.SaveMap(_gameState.Map, safePath);
             }
         }
 
         // --- Script Management Methods ---
 
-        private string SanitizePath(string filename)
+        private string SanitizePath(string filename, string root)
         {
             // Prevent directory traversal attacks
-            var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
+            var rootPath = Path.GetFullPath(root);
             var fullPath = Path.GetFullPath(Path.Combine(rootPath, filename));
 
             if (!fullPath.StartsWith(rootPath))
@@ -187,7 +189,7 @@ namespace Core
         {
             try
             {
-                var safePath = SanitizePath(filename);
+                var safePath = SanitizePath(filename, Constants.ScriptsRoot);
                 return File.Exists(safePath);
             }
             catch (System.Security.SecurityException)
@@ -203,7 +205,7 @@ namespace Core
         /// <returns>The content of the script file.</returns>
         public string ReadScriptFile(string filename)
         {
-            var safePath = SanitizePath(filename);
+            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
             return File.ReadAllText(safePath);
         }
 
@@ -214,7 +216,7 @@ namespace Core
         /// <param name="content">The content to write to the file.</param>
         public void WriteScriptFile(string filename, string content)
         {
-            var safePath = SanitizePath(filename);
+            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
             File.WriteAllText(safePath, content);
         }
 
@@ -224,7 +226,7 @@ namespace Core
         /// <param name="filename">The name of the script file to delete.</param>
         public void DeleteScriptFile(string filename)
         {
-            var safePath = SanitizePath(filename);
+            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
             File.Delete(safePath);
         }
     }

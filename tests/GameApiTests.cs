@@ -57,5 +57,25 @@ namespace Core.Tests
             Assert.That(_gameState.GameObjects.ContainsKey(obj.Id), Is.False);
             Assert.That(turf?.Contents, Does.Not.Contain(obj));
         }
+
+        [Test]
+        public void LoadMap_WhenPathIsInvalid_ThrowsSecurityException()
+        {
+            // Arrange
+            var invalidPath = "../../../../../../../etc/passwd";
+
+            // Act & Assert
+            Assert.Throws<System.Security.SecurityException>(() => _gameApi.LoadMap(invalidPath));
+        }
+
+        [Test]
+        public void SaveMap_WhenPathIsInvalid_ThrowsSecurityException()
+        {
+            // Arrange
+            var invalidPath = "../../../../../../../etc/passwd";
+
+            // Act & Assert
+            Assert.Throws<System.Security.SecurityException>(() => _gameApi.SaveMap(invalidPath));
+        }
     }
 }

@@ -64,5 +64,10 @@ namespace Core
         {
             return _objectTypes.Values;
         }
+
+        public void Clear()
+        {
+            _objectTypes.Clear();
+        }
     }
 }

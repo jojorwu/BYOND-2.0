@@ -67,7 +67,7 @@ namespace Core
                 {
                     if (ex.Message.Contains("Script execution timed out."))
                     {
-                        throw new Exception("Script execution timed out.");
+                        throw new Exception("Script execution timed out.", ex);
                     }
                     throw;
                 }

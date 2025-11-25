@@ -68,18 +68,19 @@ namespace Server
                 _scripting.ExecuteString(command);
                 return "Command executed successfully.";
             }
-            catch (NLua.Exceptions.LuaException ex) when (ex.Message.Contains("error"))
-            {
-                return "Script execution timed out.";
-            }
             catch (Exception ex)
             {
+                if (ex.Message == "Script execution timed out.")
+                {
+                    return "Script execution timed out.";
+                }
                 return $"Error executing command: {ex.Message}";
             }
         }
 
         public void Dispose()
         {
+            _watcher.Changed -= OnScriptChanged;
             _watcher.Dispose();
             _debounceTimer.Dispose();
             _scripting.Dispose();

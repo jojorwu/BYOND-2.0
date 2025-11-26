@@ -97,7 +97,7 @@ namespace Editor
             toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), _editorContext);
 
             _viewportPanel = new ViewportPanel(gl, gameApi, toolManager, selectionManager, _editorContext);
-            _assetBrowserPanel = new AssetBrowserPanel(_assetManager);
+            _assetBrowserPanel = new AssetBrowserPanel(_assetManager, _project);
             _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel(gameApi);

@@ -74,7 +74,16 @@ namespace Server
                         {
                             dmFiles.Sort(); // Ensure a predictable order
                             Console.WriteLine($"Found {dmFiles.Count} DM files to compile.");
-                            var compiledJsonPath = _compilerService.Compile(dmFiles);
+                            var (compiledJsonPath, messages) = _compilerService.Compile(dmFiles);
+
+                            if (messages.Any())
+                            {
+                                Console.WriteLine("Compilation finished with messages:");
+                                foreach (var message in messages)
+                                {
+                                    Console.WriteLine(message);
+                                }
+                            }
 
                             if (compiledJsonPath != null && File.Exists(compiledJsonPath))
                             {
@@ -88,7 +97,7 @@ namespace Server
                             }
                             else
                             {
-                                Console.WriteLine("DM compilation failed or produced no output. Aborting script reload.");
+                                Console.WriteLine("DM compilation failed. Aborting script reload.");
                                 return;
                             }
                         }

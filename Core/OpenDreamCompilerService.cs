@@ -3,22 +3,22 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DMCompiler;
+using DMCompiler.Compiler;
 
 namespace Core
 {
     public class OpenDreamCompilerService
     {
-        public string? Compile(List<string> dmFiles)
+        public (string? JsonPath, List<string> Messages) Compile(List<string> dmFiles)
         {
             if (dmFiles == null || dmFiles.Count == 0)
             {
-                return null; // No files to compile, so no output path
+                return (null, new List<string>()); // No files to compile, so no output path
             }
 
             var projectDir = Path.GetDirectoryName(dmFiles.First());
             if (projectDir == null) {
-                Console.WriteLine("Could not determine project directory.");
-                return null;
+                return (null, new List<string> { "Could not determine project directory." });
             }
             var dmePath = Path.Combine(projectDir, "project.dme");
             var jsonOutputPath = Path.ChangeExtension(dmePath, "json");
@@ -45,18 +45,14 @@ namespace Core
                 Console.WriteLine($"Warning: Could not delete temporary file {dmePath}: {ex.Message}");
             }
 
+            var messages = compiler.CompilerMessages.Select(m => m.ToString()).ToList();
+
             if (success)
             {
-                return jsonOutputPath;
+                return (jsonOutputPath, messages);
             }
             else
             {
-                Console.WriteLine("OpenDream compilation failed. See errors below:");
-                foreach (var message in compiler.CompilerMessages)
-                {
-                    Console.WriteLine(message);
-                }
-
                 // Clean up the failed artifact
                 try
                 {
@@ -70,7 +66,7 @@ namespace Core
                     Console.WriteLine($"Warning: Could not delete failed artifact {jsonOutputPath}: {ex.Message}");
                 }
 
-                return null;
+                return (null, messages);
             }
         }
     }

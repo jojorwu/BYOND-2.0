@@ -87,9 +87,17 @@ namespace Core
                     return false;
                 case JsonValueKind.Null:
                     return null;
+                case JsonValueKind.Object:
+                    if (element.TryGetProperty("type", out var typeElement) &&
+                        typeElement.ValueKind == JsonValueKind.String &&
+                        element.TryGetProperty("path", out var pathElement) &&
+                        pathElement.ValueKind == JsonValueKind.String)
+                    {
+                        return new DreamResource(typeElement.GetString()!, pathElement.GetString()!);
+                    }
+                    // Fallback for other object types
+                    return element.ToString();
                 default:
-                    // For more complex types like "new /icon('...')" or resource paths,
-                    // OpenDream serializes them as objects. For now, we'll just store the raw text.
                     return element.ToString();
             }
         }

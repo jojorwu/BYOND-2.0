@@ -1,7 +1,7 @@
 {
   "version": 3,
   "targets": {
-    "net8.0": {
+    "net9.0": {
       "KeraLua/1.4.7": {
         "type": "package",
         "compile": {
@@ -132,8 +132,9 @@
       },
       "Core/1.0.0": {
         "type": "project",
-        "framework": ".NETCoreApp,Version=v8.0",
+        "framework": ".NETCoreApp,Version=v9.0",
         "dependencies": {
+          "DMCompiler": "1.0.0",
           "NLua": "1.7.6",
           "Newtonsoft.Json": "13.0.3",
           "SixLabors.ImageSharp": "3.1.5"
@@ -143,6 +144,29 @@
         },
         "runtime": {
           "bin/placeholder/Core.dll": {}
+        }
+      },
+      "DMCompiler/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "Robust.Shared.Maths": "267.3.0"
+        },
+        "compile": {
+          "bin/placeholder/DMCompiler.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/DMCompiler.dll": {}
+        }
+      },
+      "Robust.Shared.Maths/267.3.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "compile": {
+          "bin/placeholder/Robust.Shared.Maths.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Robust.Shared.Maths.dll": {}
         }
       }
     }
@@ -311,10 +335,20 @@
       "type": "project",
       "path": "../Core/Core.csproj",
       "msbuildProject": "../Core/Core.csproj"
+    },
+    "DMCompiler/1.0.0": {
+      "type": "project",
+      "path": "../OpenDream/DMCompiler/DMCompiler.csproj",
+      "msbuildProject": "../OpenDream/DMCompiler/DMCompiler.csproj"
+    },
+    "Robust.Shared.Maths/267.3.0": {
+      "type": "project",
+      "path": "../OpenDream/RobustToolbox/Robust.Shared.Maths/Robust.Shared.Maths.csproj",
+      "msbuildProject": "../OpenDream/RobustToolbox/Robust.Shared.Maths/Robust.Shared.Maths.csproj"
     }
   },
   "projectFileDependencyGroups": {
-    "net8.0": [
+    "net9.0": [
       "Core >= 1.0.0"
     ]
   },
@@ -334,14 +368,14 @@
         "/home/jules/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
-        "net8.0"
+        "net9.0"
       ],
       "sources": {
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
-        "net8.0": {
-          "targetAlias": "net8.0",
+        "net9.0": {
+          "targetAlias": "net9.0",
           "projectReferences": {
             "/app/Core/Core.csproj": {
               "projectPath": "/app/Core/Core.csproj"
@@ -358,11 +392,12 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      }
+      },
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
-      "net8.0": {
-        "targetAlias": "net8.0",
+      "net9.0": {
+        "targetAlias": "net9.0",
         "imports": [
           "net461",
           "net462",
@@ -379,7 +414,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/home/jules/.dotnet/sdk/8.0.416/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/home/jules/.dotnet/sdk/9.0.308/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

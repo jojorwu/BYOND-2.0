@@ -1,0 +1,3 @@
+[submodule "OpenDream"]
+	path = OpenDream
+	url = https://github.com/OpenDreamProject/OpenDream.git

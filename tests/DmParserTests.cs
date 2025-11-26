@@ -109,6 +109,48 @@ _parser.ParseString(dmCode);
 
         Assert.That(_typeManager.GetObjectType("/obj/child"), Is.Not.Null);
     }
+
+    [Test]
+    public void ParseString_CapturesProcedureBody()
+    {
+        // Arrange
+        string dmCode = @"
+/mob/proc/Attack()
+    set src in oview(1)
+    usr << ""You attack [src]!""
+    sleep(10)
+";
+
+        string expectedBody = @"    set src in oview(1)
+    usr << ""You attack [src]!""
+    sleep(10)";
+
+        // Act
+        _parser.ParseString(dmCode);
+
+        // Assert
+        var mobType = _typeManager.GetObjectType("/mob");
+        Assert.That(mobType, Is.Not.Null);
+        Assert.That(mobType.DmProcedures.ContainsKey("Attack"), Is.True);
+        Assert.That(mobType.DmProcedures["Attack"], Is.EqualTo(expectedBody));
+    }
+
+    [Test]
+    public void ParseString_HandlesInlineProcDefinition()
+    {
+        // Arrange
+        string dmCode = @"/obj/item/weapon/sword/proc/OnAttack()
+	usr << ""Swish!""";
+
+        // Act
+        _parser.ParseString(dmCode);
+
+        // Assert
+        var swordType = _typeManager.GetObjectType("/obj/item/weapon/sword");
+        Assert.That(swordType, Is.Not.Null, "Sword type should be registered");
+        Assert.That(swordType.DmProcedures.ContainsKey("OnAttack"), Is.True, "OnAttack proc should be captured");
+        Assert.That(swordType.DmProcedures["OnAttack"], Is.EqualTo("\tusr << \"Swish!\""));
+    }
 }
 
 }

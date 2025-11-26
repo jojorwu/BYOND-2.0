@@ -11,6 +11,7 @@ namespace Core
         [JsonIgnore]
         public ObjectType? Parent { get; set; }
         public Dictionary<string, object> DefaultProperties { get; set; }
+        public Dictionary<string, string> DmProcedures { get; set; } = new();
 
         public ObjectType(string name)
         {

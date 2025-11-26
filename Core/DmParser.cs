@@ -1,42 +1,37 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Core
 {
-public class DmParser
-{
-private readonly ObjectTypeManager _typeManager;
-
-public DmParser(ObjectTypeManager typeManager)
+    public class DmParser
     {
-        _typeManager = typeManager;
-    }
+        private readonly ObjectTypeManager _typeManager;
+        // Regex to capture a full type path and a proc definition on the same line.
+        private static readonly Regex ProcDefinitionRegex = new Regex(@"^(?<path>/[\w/]+)/proc/(?<proc>\w+)\(.*\)$", RegexOptions.Compiled);
 
-    public void ParseFile(string filePath)
-    {
-        var lines = File.ReadAllLines(filePath);
-        ParseLines(lines);
-    }
 
-    public void ParseString(string content)
-    {
-        var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-        ParseLines(lines);
-    }
-
-    private void ParseLines(string[] lines)
-    {
-        var pathStack = new Stack<(int Indent, string Path)>();
-        pathStack.Push((-1, "")); // Root context
-
-        string currentPath = "";
-
-        foreach (var line in lines)
+        public DmParser(ObjectTypeManager typeManager)
         {
-            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//")) continue;
+            _typeManager = typeManager;
+        }
 
-            // 1. Calculate indentation (tabs or 4 spaces)
+        public void ParseFile(string filePath)
+        {
+            var lines = File.ReadAllLines(filePath);
+            ParseLines(lines);
+        }
+
+        public void ParseString(string content)
+        {
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            ParseLines(lines);
+        }
+
+        private int CalculateIndent(string line)
+        {
             int indent = 0;
             int spaces = 0;
             foreach (char c in line)
@@ -45,135 +40,143 @@ public DmParser(ObjectTypeManager typeManager)
                 else if (c == ' ') { spaces++; if (spaces == 4) { indent++; spaces = 0; } }
                 else break;
             }
+            return indent;
+        }
 
-            string content = line.Trim();
+        private void ParseLines(string[] lines)
+        {
+            var pathStack = new Stack<(int Indent, string Path)>();
+            pathStack.Push((-1, "")); // Root context
 
-            // 2. Determine context (pop stack if indentation decreased or stayed same)
-            // We pop if the current stack top has indentation >= current line's indentation
-            // But we always keep the root (-1)
-            while (pathStack.Count > 1 && pathStack.Peek().Indent >= indent)
+            for (int i = 0; i < lines.Length; i++)
             {
-                pathStack.Pop();
-            }
+                var line = lines[i];
+                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//")) continue;
 
-            var parentContext = pathStack.Peek();
+                int indent = CalculateIndent(line);
+                string content = line.Trim();
 
-            // 3. Parse line content
-
-            // Variant A: Type Declaration (/obj/item)
-            // Logic: If it starts with /, it's a full path (relative to root implicitly in DM terms)
-            if (content.StartsWith("/"))
-            {
-                string newPath = content;
-                RegisterType(newPath);
-                pathStack.Push((indent, newPath));
-                currentPath = newPath;
-            }
-            // Variant B: Nested name without leading slash (inheritance by indentation)
-            // Logic: It's a subtype of the parent context
-            else if (!content.Contains("=") && !content.Contains("(") && IsIdentifier(content))
-            {
-                string newPath = parentContext.Path == "" ? "/" + content : parentContext.Path + "/" + content;
-                RegisterType(newPath);
-                pathStack.Push((indent, newPath));
-                currentPath = newPath;
-            }
-            // Variant C: Property assignment (var = val)
-            else if (content.Contains("="))
-            {
-                var parts = content.Split(new[] { '=' }, 2);
-                string key = parts[0].Trim();
-                string valueStr = parts[1].Trim();
-
-                // Simple check to ensure it's a property assignment and not something else
-                if (!string.IsNullOrEmpty(key))
+                while (pathStack.Count > 1 && pathStack.Peek().Indent >= indent)
                 {
-                    object value = ParseValue(valueStr);
+                    pathStack.Pop();
+                }
 
-                    // If currentPath is empty, we might be at global scope (not supported by ObjectType yet)
-                    // or just invalid DM. We'll skip if no type context.
-                    if (!string.IsNullOrEmpty(currentPath))
+                var parentContext = pathStack.Peek();
+                var currentPath = parentContext.Path;
+
+                var procMatch = ProcDefinitionRegex.Match(content);
+
+                if (procMatch.Success)
+                {
+                    string objectPath = procMatch.Groups["path"].Value;
+                    string procName = procMatch.Groups["proc"].Value;
+
+                    RegisterType(objectPath); // Ensure the type exists
+                    var objectType = _typeManager.GetObjectType(objectPath);
+                    if (objectType == null) continue;
+
+                    // Capture proc body
+                    var bodyLines = new List<string>();
+                    int procIndent = indent;
+                    int j = i + 1;
+                    for (; j < lines.Length; j++)
                     {
-                        var type = _typeManager.GetObjectType(currentPath);
-                        if (type != null)
+                        string nextLine = lines[j];
+                        if (string.IsNullOrWhiteSpace(nextLine)) continue;
+
+                        int nextIndent = CalculateIndent(nextLine);
+                        if (nextIndent > procIndent)
                         {
-                            type.DefaultProperties[key] = value;
-                            // Console.WriteLine($"[DM] Set {currentPath}.{key} = {value}");
+                            bodyLines.Add(nextLine);
                         }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    i = j - 1;
+                    objectType.DmProcedures[procName] = string.Join("\n", bodyLines);
+
+                    // Since this line defined a type, push it to the stack
+                    pathStack.Push((indent, objectPath));
+                }
+                else if (content.StartsWith("/"))
+                {
+                    RegisterType(content);
+                    pathStack.Push((indent, content));
+                }
+                else if (!content.Contains("=") && !content.Contains("(") && IsIdentifier(content))
+                {
+                    string newPath = parentContext.Path == "" ? "/" + content : parentContext.Path + "/" + content;
+                    RegisterType(newPath);
+                    pathStack.Push((indent, newPath));
+                }
+                else if (content.Contains("="))
+                {
+                    var currentType = _typeManager.GetObjectType(currentPath);
+                    if (currentType == null) continue;
+
+                    var parts = content.Split(new[] { '=' }, 2);
+                    string key = parts[0].Trim();
+                    string valueStr = parts[1].Trim();
+
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        object value = ParseValue(valueStr);
+                        currentType.DefaultProperties[key] = value;
                     }
                 }
             }
         }
-    }
 
-    private bool IsIdentifier(string s)
-    {
-        // Basic check if string looks like a type name and not code
-        // DM allows alphanumeric and underscores
-        if (string.IsNullOrEmpty(s)) return false;
-        return char.IsLetter(s[0]) || s[0] == '_';
-    }
-
-    private void RegisterType(string fullPath)
-    {
-        // Remove trailing slashes
-        if (fullPath.EndsWith("/")) fullPath = fullPath.TrimEnd('/');
-        if (string.IsNullOrEmpty(fullPath)) return;
-
-        // Ensure it starts with / for consistency in our system
-        if (!fullPath.StartsWith("/")) fullPath = "/" + fullPath;
-
-        // If type exists, we don't need to re-register, but we update currentPath context
-        if (_typeManager.GetObjectType(fullPath) != null) return;
-
-        // Determine parent
-        string? parentPath = null;
-        int lastSlash = fullPath.LastIndexOf('/');
-
-        // If path is like /obj, lastSlash is 0. Substring(0,0) is empty.
-        // If path is /obj/item, lastSlash is 4. Substring(0,4) is /obj.
-        if (lastSlash > 0)
+        private bool IsIdentifier(string s)
         {
-            parentPath = fullPath.Substring(0, lastSlash);
+            if (string.IsNullOrEmpty(s)) return false;
+            // Stricter regex: must start with a letter or underscore.
+            var match = Regex.Match(s, @"^[a-zA-Z_]\w*$");
+            return match.Success;
         }
 
-        var newType = new ObjectType(fullPath);
-        if (!string.IsNullOrEmpty(parentPath))
+        private void RegisterType(string fullPath)
         {
-            newType.ParentName = parentPath;
+            if (fullPath.EndsWith("/")) fullPath = fullPath.TrimEnd('/');
+            if (string.IsNullOrEmpty(fullPath)) return;
+            if (!fullPath.StartsWith("/")) fullPath = "/" + fullPath;
+            if (_typeManager.GetObjectType(fullPath) != null) return;
+
+            string? parentPath = null;
+            int lastSlash = fullPath.LastIndexOf('/');
+            if (lastSlash > 0)
+            {
+                parentPath = fullPath.Substring(0, lastSlash);
+                // Recursively register parents
+                RegisterType(parentPath);
+            }
+
+            var newType = new ObjectType(fullPath);
+            if (!string.IsNullOrEmpty(parentPath))
+            {
+                newType.ParentName = parentPath;
+            }
+
+            try
+            {
+                _typeManager.RegisterObjectType(newType);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DM Error] Failed to register {fullPath}: {ex.Message}");
+            }
         }
 
-        try
+        private object ParseValue(string val)
         {
-            _typeManager.RegisterObjectType(newType);
-            // Console.WriteLine($"[DM] Registered type: {fullPath} (Parent: {parentPath})");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[DM Error] Failed to register {fullPath}: {ex.Message}");
+            if (int.TryParse(val, out int i)) return i;
+            if (float.TryParse(val, out float f)) return f;
+            if (val.StartsWith("'") && val.EndsWith("'")) return val.Trim('\'');
+            if (val.StartsWith("\"") && val.EndsWith("\"")) return val.Trim('\"');
+            if (val == "null") return null!;
+            return val;
         }
     }
-
-    private object ParseValue(string val)
-    {
-        // Integer
-        if (int.TryParse(val, out int i)) return i;
-
-        // Float
-        if (float.TryParse(val, out float f)) return f;
-
-        // File/Icon 'icon.dmi'
-        if (val.StartsWith("'") && val.EndsWith("'")) return val.Trim('\'');
-
-        // String "text"
-        if (val.StartsWith("\"") && val.EndsWith("\"")) return val.Trim('\"');
-
-        // Null
-        if (val == "null") return null!;
-
-        // Return as string if nothing else matches
-        return val;
-    }
-}
-
 }

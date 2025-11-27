@@ -20,7 +20,7 @@ namespace DMCompiler;
 
 public class DMCompiler {
     public readonly HashSet<WarningCode> UniqueEmissions = new();
-    public readonly List<string> CompilerMessages = new();
+    public readonly List<CompilerEmission> CompilerMessages = new();
     public DMCompilerSettings Settings;
     public IReadOnlyCollection<string> ResourceDirectories => _resourceDirectories;
 
@@ -224,10 +224,10 @@ public class DMCompiler {
 
         if (Settings.StoreMessages)
             if (CompilerMessages.Count < 1000)
-                CompilerMessages.Add(emission.ToString());
+                CompilerMessages.Add(emission);
             else {
                 Settings.StoreMessages = false;
-                CompilerMessages.Add(new CompilerEmission(ErrorLevel.Warning, null, "No longer storing error messages due to excessive error counts.").ToString());
+                CompilerMessages.Add(new CompilerEmission(ErrorLevel.Warning, null, "No longer storing error messages due to excessive error counts."));
             }
         UniqueEmissions.Add(emission.Code);
         Console.WriteLine(emission);

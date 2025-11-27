@@ -1,11 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Core;
-
-namespace Editor
-{
+using DMCompiler.Compiler;
     public record BuildMessage(string File, int Line, string Text, BuildMessageLevel Level);
 
     public enum BuildMessageLevel
@@ -42,7 +39,9 @@ namespace Editor
 
             foreach (var message in compilerMessages)
             {
-                Messages.Add(ParseCompilerMessage(message));
+                if (message.Level == ErrorLevel.Disabled)
+                    continue;
+                Messages.Add(ConvertCompilerMessage(message));
             }
 
             if (jsonPath != null)
@@ -56,26 +55,19 @@ namespace Editor
             }
         }
 
-        private BuildMessage ParseCompilerMessage(string message)
+        private BuildMessage ConvertCompilerMessage(CompilerEmission message)
         {
-            var match = Regex.Match(message, @"(.+?)\((\d+)\): (.+?): (.+)");
-            if (match.Success)
+            var level = message.Level switch
             {
-                var file = match.Groups[1].Value;
-                var line = int.Parse(match.Groups[2].Value);
-                var levelStr = match.Groups[3].Value.ToLower();
-                var text = match.Groups[4].Value;
+                ErrorLevel.Error => BuildMessageLevel.Error,
+                ErrorLevel.Warning => BuildMessageLevel.Warning,
+                _ => BuildMessageLevel.Info
+            };
 
-                var level = levelStr switch
-                {
-                    "error" => BuildMessageLevel.Error,
-                    "warning" => BuildMessageLevel.Warning,
-                    _ => BuildMessageLevel.Info
-                };
+            var file = message.Location.SourceFile ?? "";
+            var line = message.Location.Line ?? 0;
 
-                return new BuildMessage(Path.GetFileName(file), line, text, level);
-            }
-            return new BuildMessage("", 0, message, BuildMessageLevel.Info);
+            return new BuildMessage(Path.GetFileName(file), line, message.Message, level);
         }
     }
 }

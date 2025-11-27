@@ -182,7 +182,7 @@ namespace Core
             var (jsonPath, messages) = compilerService.Compile(dmFiles);
 
             // Print compiler messages for debugging
-            messages.ForEach(Console.WriteLine);
+            messages.ForEach(message => Console.WriteLine(message.ToString()));
 
             if (jsonPath != null && File.Exists(jsonPath))
             {

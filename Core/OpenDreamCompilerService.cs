@@ -8,11 +8,11 @@ namespace Core
 {
     public class OpenDreamCompilerService
     {
-        public (string? JsonPath, List<string> Messages) Compile(List<string> dmFiles)
+        public (string? JsonPath, List<DMCompiler.Compiler.CompilerEmission> Messages) Compile(List<string> dmFiles)
         {
             if (dmFiles == null || dmFiles.Count == 0)
             {
-                return (null, new List<string>());
+                return (null, new List<DMCompiler.Compiler.CompilerEmission>());
             }
 
             var settings = new DMCompilerSettings
@@ -24,11 +24,9 @@ namespace Core
             var compiler = new DMCompiler.DMCompiler();
             var (success, outputPath) = compiler.Compile(settings);
 
-            var messages = compiler.CompilerMessages.Select(m => m.ToString()).ToList();
-
             if (success && outputPath != null && File.Exists(outputPath))
             {
-                return (outputPath, messages);
+                return (outputPath, compiler.CompilerMessages);
             }
             else
             {
@@ -43,7 +41,7 @@ namespace Core
                         Console.WriteLine($"Warning: Could not delete failed artifact {outputPath}: {ex.Message}");
                     }
                 }
-                return (null, messages);
+                return (null, compiler.CompilerMessages);
             }
         }
     }

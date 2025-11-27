@@ -23,8 +23,8 @@ namespace Editor
         {
             if (gameState.Map == null || editorContext.SelectedObjectType == null) return;
 
-            int tileX = mousePosition.X / Constants.TileSize;
-            int tileY = mousePosition.Y / Constants.TileSize;
+            int tileX = mousePosition.X / EditorConstants.TileSize;
+            int tileY = mousePosition.Y / EditorConstants.TileSize;
 
             if (tileX >= 0 && tileX < gameState.Map.Width && tileY >= 0 && tileY < gameState.Map.Height)
             {

@@ -1,6 +1,6 @@
 namespace Editor
 {
-    public static class Constants
+    public static class EditorConstants
     {
         public const int TileSize = 32;
     }

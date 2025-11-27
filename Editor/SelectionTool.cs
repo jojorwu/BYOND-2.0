@@ -24,8 +24,8 @@ namespace Editor
         {
             if (gameState.Map == null) return;
 
-            int tileX = mousePosition.X / Constants.TileSize;
-            int tileY = mousePosition.Y / Constants.TileSize;
+            int tileX = mousePosition.X / EditorConstants.TileSize;
+            int tileY = mousePosition.Y / EditorConstants.TileSize;
 
             if (tileX >= 0 && tileX < gameState.Map.Width && tileY >= 0 && tileY < gameState.Map.Height)
             {
@@ -58,12 +58,12 @@ namespace Editor
                 var drawList = ImGui.GetWindowDrawList();
 
                 var min = new System.Numerics.Vector2(
-                    windowPos.X + selected.X * Constants.TileSize,
-                    windowPos.Y + selected.Y * Constants.TileSize
+                    windowPos.X + selected.X * EditorConstants.TileSize,
+                    windowPos.Y + selected.Y * EditorConstants.TileSize
                 );
                 var max = new System.Numerics.Vector2(
-                    min.X + Constants.TileSize,
-                    min.Y + Constants.TileSize
+                    min.X + EditorConstants.TileSize,
+                    min.Y + EditorConstants.TileSize
                 );
 
                 drawList.AddRect(min, max, 0xFF00FFFF, 0, ImDrawFlags.None, 2.0f);

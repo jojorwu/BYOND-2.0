@@ -53,7 +53,7 @@ namespace Editor.UI
                                     uint textureId = _textureManager.GetTexture(spritePath);
                                     if (textureId != 0)
                                     {
-                                        _spriteRenderer.Draw(textureId, new Vector2D<int>(x * Constants.TileSize, y * Constants.TileSize), new Vector2D<int>(Constants.TileSize, Constants.TileSize), 0.0f, _camera.GetProjectionMatrix());
+                                        _spriteRenderer.Draw(textureId, new Vector2D<int>(x * EditorConstants.TileSize, y * EditorConstants.TileSize), new Vector2D<int>(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, _camera.GetProjectionMatrix());
                                     }
                                 }
                             }

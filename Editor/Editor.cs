@@ -21,15 +21,18 @@ namespace Editor
         private AssetManager? _assetManager;
 
         private MainMenuPanel _mainMenuPanel;
-        private MenuBarPanel _menuBarPanel;
-        private ViewportPanel _viewportPanel;
-        private AssetBrowserPanel _assetBrowserPanel;
-        private InspectorPanel _inspectorPanel;
-        private ObjectBrowserPanel _objectBrowserPanel;
-        private ScriptEditorPanel _scriptEditorPanel;
-        private SettingsPanel _settingsPanel;
-        private ToolboxPanel _toolboxPanel;
-        private MapControlsPanel _mapControlsPanel;
+        private MenuBarPanel _menuBarPanel = null!;
+        private ViewportPanel _viewportPanel = null!;
+        private AssetBrowserPanel _assetBrowserPanel = null!;
+        private InspectorPanel _inspectorPanel = null!;
+        private ObjectBrowserPanel _objectBrowserPanel = null!;
+        private ScriptEditorPanel _scriptEditorPanel = null!;
+        private SettingsPanel _settingsPanel = null!;
+        private ToolboxPanel _toolboxPanel = null!;
+        private MapControlsPanel _mapControlsPanel = null!;
+        private BuildPanel _buildPanel = null!;
+
+        private BuildService _buildService = null!;
 
         private AppState _appState = AppState.MainMenu;
 
@@ -70,9 +73,12 @@ namespace Editor
 
         private void OnLoad()
         {
-            gl = window.CreateOpenGL();
-            inputContext = window.CreateInput();
-            imGuiController = new ImGuiController(gl, window, inputContext);
+            if (window != null)
+            {
+                gl = window.CreateOpenGL();
+                inputContext = window.CreateInput();
+                imGuiController = new ImGuiController(gl, window, inputContext);
+            }
         }
 
         private void OnProjectLoad(string projectPath)
@@ -82,10 +88,9 @@ namespace Editor
             var objectTypeManager = new ObjectTypeManager();
             var mapLoader = new MapLoader(objectTypeManager);
             _assetManager = new AssetManager();
-            var scriptManager = new ScriptManager();
             var selectionManager = new SelectionManager();
             var toolManager = new ToolManager();
-            var gameApi = new GameApi(gameState, objectTypeManager, mapLoader);
+            var gameApi = new GameApi(_project, gameState, objectTypeManager, mapLoader);
 
             var wall = new ObjectType("wall");
             wall.DefaultProperties["SpritePath"] = "assets/wall.png";
@@ -97,22 +102,29 @@ namespace Editor
 
             toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), _editorContext);
 
-            _viewportPanel = new ViewportPanel(gl, gameApi, toolManager, selectionManager, _editorContext);
-            _assetBrowserPanel = new AssetBrowserPanel(_assetManager);
+            if (gl != null)
+            {
+                _viewportPanel = new ViewportPanel(gl, gameApi, toolManager, selectionManager, _editorContext);
+            }
+            _assetBrowserPanel = new AssetBrowserPanel(_assetManager, _project);
             _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel(scriptManager);
+            _scriptEditorPanel = new ScriptEditorPanel(gameApi);
             _settingsPanel = new SettingsPanel();
             _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext);
+            _buildService = new BuildService(_project);
+            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService);
             _mapControlsPanel = new MapControlsPanel(_editorContext);
+            _buildPanel = new BuildPanel(_buildService);
 
             _appState = AppState.Editing;
         }
 
         private void OnRender(double deltaTime)
         {
-            imGuiController?.Update((float)deltaTime);
+            if (imGuiController == null || gl == null) return;
+
+            imGuiController.Update((float)deltaTime);
 
             gl.ClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
@@ -129,7 +141,7 @@ namespace Editor
                     }
                     break;
                 case AppState.Editing:
-                    _menuBarPanel.Draw();
+                    if (_menuBarPanel != null) _menuBarPanel.Draw();
 
                     _viewportPanel.Draw();
                     _assetBrowserPanel.Draw();
@@ -138,6 +150,7 @@ namespace Editor
                     _scriptEditorPanel.Draw();
                     _toolboxPanel.Draw();
                     _mapControlsPanel.Draw();
+                    _buildPanel.Draw();
                     break;
                 case AppState.Settings:
                     _settingsPanel.Draw();

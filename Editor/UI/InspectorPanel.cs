@@ -32,7 +32,7 @@ namespace Editor.UI
                     selectedObject.SetPosition(position[0], position[1], position[2]);
                 }
 
-                var allProperties = new Dictionary<string, object>(selectedObject.ObjectType.DefaultProperties);
+                var allProperties = new Dictionary<string, object?>(selectedObject.ObjectType.DefaultProperties);
                 foreach (var prop in selectedObject.Properties)
                 {
                     allProperties[prop.Key] = prop.Value;
@@ -40,10 +40,17 @@ namespace Editor.UI
 
                 foreach (var prop in allProperties)
                 {
-                    string valueStr = prop.Value.ToString() ?? "";
-                    if (ImGui.InputText(prop.Key, ref valueStr, 256))
+                    if (prop.Value is DreamResource resource)
                     {
-                        selectedObject.Properties[prop.Key] = valueStr;
+                        ImGui.Text($"{prop.Key}: {resource.Type} ('{resource.Path}')");
+                    }
+                    else
+                    {
+                        string valueStr = prop.Value?.ToString() ?? "";
+                        if (ImGui.InputText(prop.Key, ref valueStr, 256))
+                        {
+                            selectedObject.Properties[prop.Key] = valueStr;
+                        }
                     }
                 }
             }

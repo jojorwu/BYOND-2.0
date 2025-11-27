@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -23,5 +23,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <DMStandardFiles Include="..\OpenDream\DMCompiler\DMStandard\**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DMStandardFiles)" DestinationFolder="$(TargetDir)DMStandard\%(RecursiveDir)" />
+  </Target>
 
 </Project>

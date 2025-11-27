@@ -9,5 +9,10 @@ namespace Core
         /// The root directory for all game scripts.
         /// </summary>
         public static readonly string ScriptsRoot = "scripts";
+
+        /// <summary>
+        /// The root directory for all map files.
+        /// </summary>
+        public static readonly string MapsRoot = "maps";
     }
 }

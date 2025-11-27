@@ -24,4 +24,11 @@
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <ItemGroup>
+      <DMStandardFiles Include="..\OpenDream\DMCompiler\DMStandard\**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DMStandardFiles)" DestinationFolder="$(TargetDir)DMStandard\%(RecursiveDir)" />
+  </Target>
+
 </Project>

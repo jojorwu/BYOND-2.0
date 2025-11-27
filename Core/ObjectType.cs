@@ -10,12 +10,12 @@ namespace Core
 
         [JsonIgnore]
         public ObjectType? Parent { get; set; }
-        public Dictionary<string, object> DefaultProperties { get; set; }
+        public Dictionary<string, object?> DefaultProperties { get; set; }
 
         public ObjectType(string name)
         {
             Name = name;
-            DefaultProperties = new Dictionary<string, object>();
+            DefaultProperties = new Dictionary<string, object?>();
         }
     }
 }

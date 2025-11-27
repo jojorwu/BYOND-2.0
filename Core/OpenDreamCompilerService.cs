@@ -8,69 +8,42 @@ namespace Core
 {
     public class OpenDreamCompilerService
     {
-        public string? Compile(List<string> dmFiles)
+        public (string? JsonPath, List<string> Messages) Compile(List<string> dmFiles)
         {
             if (dmFiles == null || dmFiles.Count == 0)
             {
-                return null; // No files to compile, so no output path
+                return (null, new List<string>());
             }
-
-            var projectDir = Path.GetDirectoryName(dmFiles.First());
-            if (projectDir == null) {
-                Console.WriteLine("Could not determine project directory.");
-                return null;
-            }
-            var dmePath = Path.Combine(projectDir, "project.dme");
-            var jsonOutputPath = Path.ChangeExtension(dmePath, "json");
-
-            // Create a temporary .dme file
-            File.WriteAllLines(dmePath, dmFiles.Select(file => $"#include \"{Path.GetRelativePath(projectDir, file)}\""));
 
             var settings = new DMCompilerSettings
             {
-                Files = new List<string> { dmePath },
-                StoreMessages = true // Enable message storing
+                Files = dmFiles,
+                StoreMessages = true
             };
 
             var compiler = new DMCompiler.DMCompiler();
-            bool success = compiler.Compile(settings);
+            var (success, outputPath) = compiler.Compile(settings);
 
-            // Clean up the temporary .dme file
-            try
-            {
-                File.Delete(dmePath);
-            }
-            catch (IOException ex)
-            {
-                Console.WriteLine($"Warning: Could not delete temporary file {dmePath}: {ex.Message}");
-            }
+            var messages = compiler.CompilerMessages.Select(m => m.ToString()).ToList();
 
-            if (success)
+            if (success && outputPath != null && File.Exists(outputPath))
             {
-                return jsonOutputPath;
+                return (outputPath, messages);
             }
             else
             {
-                Console.WriteLine("OpenDream compilation failed. See errors below:");
-                foreach (var message in compiler.CompilerMessages)
+                if (outputPath != null && File.Exists(outputPath))
                 {
-                    Console.WriteLine(message);
-                }
-
-                // Clean up the failed artifact
-                try
-                {
-                    if (File.Exists(jsonOutputPath))
+                    try
                     {
-                        File.Delete(jsonOutputPath);
+                        File.Delete(outputPath);
+                    }
+                    catch (IOException ex)
+                    {
+                        Console.WriteLine($"Warning: Could not delete failed artifact {outputPath}: {ex.Message}");
                     }
                 }
-                catch (IOException ex)
-                {
-                    Console.WriteLine($"Warning: Could not delete failed artifact {jsonOutputPath}: {ex.Message}");
-                }
-
-                return null;
+                return (null, messages);
             }
         }
     }

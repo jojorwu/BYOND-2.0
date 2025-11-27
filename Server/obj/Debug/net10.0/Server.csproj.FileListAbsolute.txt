@@ -36,3 +36,12 @@
 /app/Server/obj/Debug/net10.0/Server.pdb
 /app/Server/obj/Debug/net10.0/Server.genruntimeconfig.cache
 /app/Server/obj/Debug/net10.0/ref/Server.dll
+/app/Server/bin/Debug/net10.0/DMCompiler.deps.json
+/app/Server/bin/Debug/net10.0/DMCompiler.runtimeconfig.json
+/app/Server/bin/Debug/net10.0/DMCompiler
+/app/Server/bin/Debug/net10.0/Newtonsoft.Json.dll
+/app/Server/bin/Debug/net10.0/SixLabors.ImageSharp.dll
+/app/Server/bin/Debug/net10.0/DMCompiler.dll
+/app/Server/bin/Debug/net10.0/Robust.Shared.Maths.dll
+/app/Server/bin/Debug/net10.0/DMCompiler.pdb
+/app/Server/bin/Debug/net10.0/Robust.Shared.Maths.pdb

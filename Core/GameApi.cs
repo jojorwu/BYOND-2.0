@@ -11,6 +11,7 @@ namespace Core
     /// </summary>
     public class GameApi
     {
+        private readonly Project _project;
         private readonly GameState _gameState;
         private readonly ObjectTypeManager _objectTypeManager;
         private readonly MapLoader _mapLoader;
@@ -18,10 +19,12 @@ namespace Core
         /// <summary>
         /// Initializes a new instance of the <see cref="GameApi"/> class.
         /// </summary>
+        /// <param name="project">The project context.</param>
         /// <param name="gameState">The game state to interact with.</param>
         /// <param name="objectTypeManager">The object type manager.</param>
-        public GameApi(GameState gameState, ObjectTypeManager objectTypeManager, MapLoader mapLoader)
+        public GameApi(Project project, GameState gameState, ObjectTypeManager objectTypeManager, MapLoader mapLoader)
         {
+            _project = project;
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
             _mapLoader = mapLoader;
@@ -163,6 +166,37 @@ namespace Core
         }
 
         /// <summary>
+        /// Compiles and loads a map in the DMM format.
+        /// This will also load all DM object types defined in the project.
+        /// </summary>
+        /// <param name="filePath">The path to the DMM map file.</param>
+        public void LoadDmmMap(string filePath)
+        {
+            var safePath = SanitizePath(filePath, Constants.MapsRoot);
+
+            // Find all DM and DMM files to compile
+            var dmFiles = Directory.GetFiles(_project.GetFullPath(Constants.ScriptsRoot), "*.dm", SearchOption.AllDirectories).ToList();
+            dmFiles.Add(safePath); // Add the map itself to the compilation list
+
+            var compilerService = new OpenDreamCompilerService();
+            var (jsonPath, messages) = compilerService.Compile(dmFiles);
+
+            // Print compiler messages for debugging
+            messages.ForEach(Console.WriteLine);
+
+            if (jsonPath != null && File.Exists(jsonPath))
+            {
+                _objectTypeManager.Clear(); // Clear old types before loading new ones
+                var loader = new DreamMakerLoader(_objectTypeManager);
+                _gameState.Map = loader.Load(jsonPath);
+            }
+            else
+            {
+                throw new Exception("DMM compilation failed. See console for details.");
+            }
+        }
+
+        /// <summary>
         /// Saves the current map to a file.
         /// </summary>
         /// <param name="filePath">The path to save the map file to.</param>
@@ -177,17 +211,20 @@ namespace Core
 
         // --- Script Management Methods ---
 
-        private string SanitizePath(string filename, string root)
+        private string SanitizePath(string userProvidedPath, string expectedRootFolder)
         {
-            // Prevent directory traversal attacks
-            var rootPath = Path.GetFullPath(root);
-            var fullPath = Path.GetFullPath(Path.Combine(rootPath, filename));
+            // Get the full path of the project's root for the given type (e.g., /tmp/proj/scripts)
+            var fullRootPath = Path.GetFullPath(_project.GetFullPath(expectedRootFolder));
 
-            if (!fullPath.StartsWith(rootPath))
+            // Get the full path of the user-provided file relative to the project root
+            var fullUserPath = Path.GetFullPath(_project.GetFullPath(userProvidedPath));
+
+
+            if (!fullUserPath.StartsWith(fullRootPath))
             {
                 throw new System.Security.SecurityException("Access to path is denied.");
             }
-            return fullPath;
+            return fullUserPath;
         }
 
         /// <summary>

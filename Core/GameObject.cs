@@ -57,10 +57,8 @@ namespace Core
         /// <param name="x">The X-coordinate of the game object.</param>
         /// <param name="y">The Y-coordinate of the game object.</param>
         /// <param name="z">The Z-coordinate of the game object.</param>
-        public GameObject(ObjectType objectType, int x, int y, int z)
+        public GameObject(ObjectType objectType, int x, int y, int z) : this(objectType)
         {
-            Id = Interlocked.Increment(ref nextId);
-            ObjectType = objectType;
             X = x;
             Y = y;
             Z = z;
@@ -103,6 +101,16 @@ namespace Core
             }
 
             return default;
+        }
+
+        /// <summary>
+        /// Sets an instance-specific property value.
+        /// </summary>
+        /// <param name="propertyName">The name of the property.</param>
+        /// <param name="value">The value to set.</param>
+        public void SetProperty(string propertyName, object value)
+        {
+            Properties[propertyName] = value;
         }
     }
 }

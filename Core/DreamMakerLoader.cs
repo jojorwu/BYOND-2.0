@@ -10,12 +10,13 @@ namespace Core
         private class DreamCompiledJson
         {
             public List<DreamTypeJson>? Types { get; set; }
+            public List<JsonElement>? Maps { get; set; }
         }
 
         private class DreamTypeJson
         {
             public string? Path { get; set; }
-            public string? Parent { get; set; }
+            public JsonElement? Parent { get; set; }
             public Dictionary<string, JsonElement>? Vars { get; set; }
         }
 
@@ -26,7 +27,7 @@ namespace Core
             _typeManager = typeManager;
         }
 
-        public void Load(string jsonPath)
+        public Map? Load(string jsonPath)
         {
             var jsonContent = File.ReadAllText(jsonPath);
             var compiledDream = JsonSerializer.Deserialize<DreamCompiledJson>(jsonContent);
@@ -34,20 +35,39 @@ namespace Core
             if (compiledDream?.Types == null)
             {
                 Console.WriteLine("Warning: Compiled dream file contains no types.");
-                return;
+                return null;
             }
 
+            var typeIdMap = new Dictionary<int, ObjectType>();
+
             // First pass: Register all types to ensure they exist for parent linking
-            foreach (var typeJson in compiledDream.Types)
+            for (var i = 0; i < compiledDream.Types.Count; i++)
             {
+                var typeJson = compiledDream.Types[i];
                 if (string.IsNullOrEmpty(typeJson.Path)) continue;
 
                 var newType = new ObjectType(typeJson.Path);
-                if (!string.IsNullOrEmpty(typeJson.Parent))
+
+                if (typeJson.Parent.HasValue)
                 {
-                    newType.ParentName = typeJson.Parent;
+                    var parentElement = typeJson.Parent.Value;
+                    if (parentElement.ValueKind == JsonValueKind.String)
+                    {
+                        newType.ParentName = parentElement.GetString();
+                    }
+                    else if (parentElement.ValueKind == JsonValueKind.Number)
+                    {
+                        var parentId = parentElement.GetInt32();
+                        if (parentId < compiledDream.Types.Count)
+                        {
+                            newType.ParentName = compiledDream.Types[parentId].Path;
+                        }
+                    }
                 }
                 _typeManager.RegisterObjectType(newType);
+                var registeredType = _typeManager.GetObjectType(newType.Name);
+                if(registeredType != null)
+                    typeIdMap[i] = registeredType;
             }
 
             // Second pass: Set properties
@@ -67,6 +87,14 @@ namespace Core
                     objectType.DefaultProperties[key] = ConvertJsonElement(value);
                 }
             }
+
+            if (compiledDream.Maps != null && compiledDream.Maps.Count > 0)
+            {
+                var dmmLoader = new DmmLoader(_typeManager, typeIdMap);
+                return dmmLoader.LoadMap(compiledDream.Maps[0]);
+            }
+
+            return null;
         }
 
         private object? ConvertJsonElement(JsonElement element)
@@ -87,9 +115,17 @@ namespace Core
                     return false;
                 case JsonValueKind.Null:
                     return null;
+                case JsonValueKind.Object:
+                    if (element.TryGetProperty("type", out var typeElement) &&
+                        typeElement.ValueKind == JsonValueKind.String &&
+                        element.TryGetProperty("path", out var pathElement) &&
+                        pathElement.ValueKind == JsonValueKind.String)
+                    {
+                        return new DreamResource(typeElement.GetString()!, pathElement.GetString()!);
+                    }
+                    // Fallback for other object types
+                    return element.ToString();
                 default:
-                    // For more complex types like "new /icon('...')" or resource paths,
-                    // OpenDream serializes them as objects. For now, we'll just store the raw text.
                     return element.ToString();
             }
         }

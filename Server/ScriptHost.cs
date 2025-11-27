@@ -9,6 +9,7 @@ namespace Server
 {
     public class ScriptHost : IDisposable
     {
+        private readonly Project _project;
         private readonly Scripting _scripting;
         private readonly FileSystemWatcher _watcher;
         private readonly Timer _debounceTimer;
@@ -20,12 +21,13 @@ namespace Server
 
         public ScriptHost()
         {
+            _project = new Project("."); // Assume the server runs from the project root
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
             _compilerService = new OpenDreamCompilerService();
 
             var mapLoader = new MapLoader(_objectTypeManager);
-            _gameApi = new GameApi(_gameState, _objectTypeManager, mapLoader);
+            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
             _scripting = new Scripting(_gameApi);
 
             _watcher = new FileSystemWatcher(Constants.ScriptsRoot)
@@ -74,7 +76,16 @@ namespace Server
                         {
                             dmFiles.Sort(); // Ensure a predictable order
                             Console.WriteLine($"Found {dmFiles.Count} DM files to compile.");
-                            var compiledJsonPath = _compilerService.Compile(dmFiles);
+                            var (compiledJsonPath, messages) = _compilerService.Compile(dmFiles);
+
+                            if (messages.Any())
+                            {
+                                Console.WriteLine("Compilation finished with messages:");
+                                foreach (var message in messages)
+                                {
+                                    Console.WriteLine(message);
+                                }
+                            }
 
                             if (compiledJsonPath != null && File.Exists(compiledJsonPath))
                             {
@@ -88,7 +99,7 @@ namespace Server
                             }
                             else
                             {
-                                Console.WriteLine("DM compilation failed or produced no output. Aborting script reload.");
+                                Console.WriteLine("DM compilation failed. Aborting script reload.");
                                 return;
                             }
                         }

@@ -1,8 +1,8 @@
 using Core;
 using Silk.NET.OpenGL;
 using ImGuiNET;
-using Silk.NET.Maths;
 using System.Numerics;
+using Robust.Shared.Maths;
 using System.IO;
 
 namespace Editor.UI
@@ -15,13 +15,11 @@ namespace Editor.UI
         private readonly EditorContext _editorContext;
         private readonly SpriteRenderer _spriteRenderer;
         private readonly TextureManager _textureManager;
-        private readonly Camera _camera;
-        private readonly MapLoader _mapLoader;
+        private readonly GameApi _gameApi;
 
-        private GameState? _currentGameState;
         private string _currentFile = "";
 
-        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, MapLoader mapLoader)
+        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, GameApi gameApi)
         {
             _gl = gl;
             _toolManager = toolManager;
@@ -29,25 +27,24 @@ namespace Editor.UI
             _editorContext = editorContext;
             _spriteRenderer = new SpriteRenderer(_gl);
             _textureManager = new TextureManager(_gl);
-            _camera = new Camera();
-            _mapLoader = mapLoader;
+            _gameApi = gameApi;
         }
 
         public void Draw(string filePath)
         {
             if (_currentFile != filePath)
             {
-                var map = _mapLoader.LoadMap(filePath);
-                _currentGameState = new GameState { Map = map };
+                _gameApi.LoadMap(filePath);
                 _currentFile = filePath;
             }
 
             ImGui.Begin("Viewport");
 
             var windowSize = ImGui.GetWindowSize();
-            _camera.Update(windowSize.X, windowSize.Y);
+            var projectionMatrix = Camera.GetProjectionMatrix(windowSize.X, windowSize.Y);
 
-            if (_currentGameState?.Map is Map currentMap)
+            var currentMap = _gameApi.GetMap();
+            if (currentMap != null)
             {
                 for (int y = 0; y < currentMap.Height; y++)
                 {
@@ -64,7 +61,7 @@ namespace Editor.UI
                                     uint textureId = _textureManager.GetTexture(spritePath);
                                     if (textureId != 0)
                                     {
-                                        _spriteRenderer.Draw(textureId, new Vector2D<int>(x * EditorConstants.TileSize, y * EditorConstants.TileSize), new Vector2D<int>(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, _camera.GetProjectionMatrix());
+                                        _spriteRenderer.Draw(textureId, new Vector2i(x * EditorConstants.TileSize, y * EditorConstants.TileSize), new Vector2i(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
                                     }
                                 }
                             }
@@ -76,20 +73,22 @@ namespace Editor.UI
                 {
                     var mousePos = ImGui.GetMousePos();
                     var windowPos = ImGui.GetWindowPos();
-                    var localMousePos = new Vector2D<int>((int)(mousePos.X - windowPos.X), (int)(mousePos.Y - windowPos.Y));
+                    var localMousePos = new Vector2(mousePos.X - windowPos.X, mousePos.Y - windowPos.Y);
+                    var worldMousePos = Camera.ScreenToWorld(localMousePos, projectionMatrix);
 
-                    _toolManager.OnMouseMove(_editorContext, _currentGameState, _selectionManager, localMousePos);
+
+                    _toolManager.OnMouseMove(_editorContext, _gameApi.GetState(), _selectionManager, new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y));
                     if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
                     {
-                        _toolManager.OnMouseDown(_editorContext, _currentGameState, _selectionManager, localMousePos);
+                        _toolManager.OnMouseDown(_editorContext, _gameApi.GetState(), _selectionManager, new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y));
                     }
                     if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                     {
-                        _toolManager.OnMouseUp(_editorContext, _currentGameState, _selectionManager, localMousePos);
+                        _toolManager.OnMouseUp(_editorContext, _gameApi.GetState(), _selectionManager, new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y));
                     }
                 }
 
-                _toolManager.Draw(_editorContext, _currentGameState, _selectionManager);
+                _toolManager.Draw(_editorContext, _gameApi.GetState(), _selectionManager);
             }
 
             ImGui.End();

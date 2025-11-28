@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Linq;
 
 namespace Core
 {
@@ -31,6 +32,17 @@ namespace Core
         public string GetFullPath(string relativePath)
         {
             return System.IO.Path.Combine(RootPath, relativePath);
+        }
+
+        public List<string> GetDmFiles()
+        {
+            var scriptsPath = GetFullPath("scripts");
+            if (!Directory.Exists(scriptsPath))
+            {
+                return new List<string>();
+            }
+
+            return Directory.GetFiles(scriptsPath, "*.dm", SearchOption.AllDirectories).ToList();
         }
     }
 }

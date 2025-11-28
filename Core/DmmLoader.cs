@@ -1,6 +1,6 @@
 using System;
-using System.Text.Json;
 using System.Linq;
+using DMCompiler.Json;
 
 namespace Core
 {
@@ -15,14 +15,8 @@ namespace Core
             _typeIdMap = typeIdMap;
         }
 
-        public Map LoadMap(JsonElement mapData)
+        public Map LoadMap(PublicDreamMapJson dreamMapJson)
         {
-            var dreamMapJson = mapData.Deserialize<DreamMapJson>();
-            if (dreamMapJson == null)
-            {
-                throw new Exception("Failed to deserialize DreamMapJson");
-            }
-
             var map = new Map(dreamMapJson.MaxX, dreamMapJson.MaxY, dreamMapJson.MaxZ);
 
             foreach (var block in dreamMapJson.Blocks)
@@ -78,7 +72,7 @@ namespace Core
             return map;
         }
 
-        private GameObject? CreateGameObject(MapObjectJson mapObjectJson, int x, int y, int z)
+        private GameObject? CreateGameObject(PublicMapObjectJson mapObjectJson, int x, int y, int z)
         {
             if (!_typeIdMap.TryGetValue(mapObjectJson.Type, out var objectType))
             {

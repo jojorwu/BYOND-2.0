@@ -165,35 +165,9 @@ namespace Core
             _gameState.Map = _mapLoader.LoadMap(safePath);
         }
 
-        /// <summary>
-        /// Compiles and loads a map in the DMM format.
-        /// This will also load all DM object types defined in the project.
-        /// </summary>
-        /// <param name="filePath">The path to the DMM map file.</param>
-        public void LoadDmmMap(string filePath)
+        public void SetMap(Map map)
         {
-            var safePath = SanitizePath(filePath, Constants.MapsRoot);
-
-            // Find all DM and DMM files to compile
-            var dmFiles = Directory.GetFiles(_project.GetFullPath(Constants.ScriptsRoot), "*.dm", SearchOption.AllDirectories).ToList();
-            dmFiles.Add(safePath); // Add the map itself to the compilation list
-
-            var compilerService = new OpenDreamCompilerService();
-            var (jsonPath, messages) = compilerService.Compile(dmFiles);
-
-            // Print compiler messages for debugging
-            messages.ForEach(message => Console.WriteLine(message.ToString()));
-
-            if (jsonPath != null && File.Exists(jsonPath))
-            {
-                _objectTypeManager.Clear(); // Clear old types before loading new ones
-                var loader = new DreamMakerLoader(_objectTypeManager);
-                _gameState.Map = loader.Load(jsonPath);
-            }
-            else
-            {
-                throw new Exception("DMM compilation failed. See console for details.");
-            }
+            _gameState.Map = map;
         }
 
         /// <summary>

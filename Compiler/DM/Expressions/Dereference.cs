@@ -10,7 +10,7 @@ namespace DMCompiler.DM.Expressions;
 // x.f().y.g()[2]
 // etc.
 internal class Dereference : LValue {
-    public abstract class Operation {
+    internal abstract class Operation {
         /// <summary>
         /// Whether this operation will short circuit if the dereference equals null. (equal to x?.y)
         /// </summary>
@@ -22,23 +22,23 @@ internal class Dereference : LValue {
         public DreamPath? Path { get; init; }
     }
 
-    public abstract class NamedOperation : Operation {
+    internal abstract class NamedOperation : Operation {
         /// <summary>
         /// The name of the identifier.
         /// </summary>
         public required string Identifier { get; init; }
     }
 
-    public sealed class FieldOperation : NamedOperation;
+    internal sealed class FieldOperation : NamedOperation;
 
-    public sealed class IndexOperation : Operation {
+    internal sealed class IndexOperation : Operation {
         /// <summary>
         /// The index expression. (eg. x[expr])
         /// </summary>
         public required DMExpression Index { get; init; }
     }
 
-    public sealed class CallOperation : NamedOperation {
+    internal sealed class CallOperation : NamedOperation {
         /// <summary>
         /// The argument list inside the call operation's parentheses. (eg. x(args, ...))
         /// </summary>

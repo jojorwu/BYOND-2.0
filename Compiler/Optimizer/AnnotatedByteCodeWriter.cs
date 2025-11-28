@@ -164,7 +164,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
         _unresolvedLabelsInAnnotatedBytecode.Add((_annotatedBytecode.Count - 1, s));
     }
 
-    public void ResolveCodeLabelReferences(Stack<DMProc.CodeLabelReference> pendingLabelReferences) {
+    internal void ResolveCodeLabelReferences(Stack<DMProc.CodeLabelReference> pendingLabelReferences) {
         while (pendingLabelReferences.Count > 0) {
             DMProc.CodeLabelReference reference = pendingLabelReferences.Pop();
             DMProc.CodeLabel? label = GetCodeLabel(reference.Identifier, reference.Scope);

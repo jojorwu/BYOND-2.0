@@ -19,6 +19,8 @@ namespace Editor
 
         private Project? _project;
         private AssetManager? _assetManager;
+        private OpenDreamCompilerService? _compilerService;
+        private DmmService? _dmmService;
 
         private MainMenuPanel _mainMenuPanel;
         private MenuBarPanel _menuBarPanel = null!;
@@ -91,6 +93,8 @@ namespace Editor
             var selectionManager = new SelectionManager();
             var toolManager = new ToolManager();
             var gameApi = new GameApi(_project, gameState, objectTypeManager, mapLoader);
+            _compilerService = new OpenDreamCompilerService(_project);
+            _dmmService = new DmmService(objectTypeManager, _project);
 
             var wall = new ObjectType("wall");
             wall.DefaultProperties["SpritePath"] = "assets/wall.png";
@@ -104,7 +108,7 @@ namespace Editor
 
             if (gl != null)
             {
-                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, mapLoader);
+                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
             }
             _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
             _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
@@ -113,7 +117,7 @@ namespace Editor
             _settingsPanel = new SettingsPanel();
             _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
             _buildService = new BuildService(_project);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService);
+            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService);
             _mapControlsPanel = new MapControlsPanel(_editorContext);
             _buildPanel = new BuildPanel(_buildService);
 

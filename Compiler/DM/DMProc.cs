@@ -12,7 +12,7 @@ using VerbSrcEnum = DMCompiler.DM.VerbSrc;
 namespace DMCompiler.DM;
 
 internal sealed class DMProc {
-    public class LocalVariable(string name, int id, bool isParameter, DreamPath? type, DMComplexValueType? explicitValueType) {
+    internal class LocalVariable(string name, int id, bool isParameter, DreamPath? type, DMComplexValueType? explicitValueType) {
         public readonly string Name = name;
         public readonly int Id = id;
         public readonly bool IsParameter = isParameter;
@@ -25,12 +25,12 @@ internal sealed class DMProc {
         public DMComplexValueType? ExplicitValueType = explicitValueType;
     }
 
-    public sealed class LocalConstVariable(string name, int id, DreamPath? type, Constant value)
+    internal sealed class LocalConstVariable(string name, int id, DreamPath? type, Constant value)
         : LocalVariable(name, id, false, type, value.ValType) {
         public readonly Constant Value = value;
     }
 
-    public class CodeLabel {
+    internal class CodeLabel {
         private static int _idCounter;
         public readonly long AnnotatedByteOffset;
         public readonly int Id;
@@ -38,7 +38,7 @@ internal sealed class DMProc {
 
         public string LabelName => $"{Name}_{Id}_codelabel";
 
-        public CodeLabel(string name, long offset) {
+        internal CodeLabel(string name, long offset) {
             Id = _idCounter++;
             Name = name;
             AnnotatedByteOffset = offset;
@@ -59,7 +59,7 @@ internal sealed class DMProc {
 
         public DMProcScope() { }
 
-        public DMProcScope(DMProcScope? parentScope) {
+        internal DMProcScope(DMProcScope? parentScope) {
             ParentScope = parentScope;
         }
     }

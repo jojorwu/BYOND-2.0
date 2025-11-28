@@ -10,7 +10,7 @@ namespace Editor
         public void OnSelected(EditorContext context) { }
         public void OnDeselected(EditorContext context) { }
 
-        public void OnMouseDown(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition)
         {
             if (gameState.Map == null) return;
 
@@ -28,8 +28,8 @@ namespace Editor
             }
         }
 
-        public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition) { }
-        public void OnMouseMove(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition) { }
+        public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition) { }
+        public void OnMouseMove(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition) { }
         public void Draw(EditorContext context, GameState gameState, SelectionManager selectionManager) { }
     }
 }

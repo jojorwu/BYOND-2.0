@@ -104,12 +104,12 @@ namespace Editor
 
             if (gl != null)
             {
-                _viewportPanel = new ViewportPanel(gl, gameApi, toolManager, selectionManager, _editorContext);
+                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, mapLoader);
             }
-            _assetBrowserPanel = new AssetBrowserPanel(_assetManager, _project);
+            _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
             _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel(gameApi);
+            _scriptEditorPanel = new ScriptEditorPanel();
             _settingsPanel = new SettingsPanel();
             _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
             _buildService = new BuildService(_project);
@@ -141,16 +141,43 @@ namespace Editor
                     }
                     break;
                 case AppState.Editing:
-                    if (_menuBarPanel != null) _menuBarPanel.Draw();
-
-                    _viewportPanel.Draw();
+                    _menuBarPanel.Draw();
                     _assetBrowserPanel.Draw();
                     _inspectorPanel.Draw();
                     _objectBrowserPanel.Draw();
-                    _scriptEditorPanel.Draw();
                     _toolboxPanel.Draw();
                     _mapControlsPanel.Draw();
                     _buildPanel.Draw();
+
+                    ImGui.Begin("MainView");
+                    if (ImGui.BeginTabBar("FileTabs"))
+                    {
+                        for (int i = 0; i < _editorContext.OpenFiles.Count; i++)
+                        {
+                            var file = _editorContext.OpenFiles[i];
+                            bool isOpen = true;
+                            if (ImGui.BeginTabItem(System.IO.Path.GetFileName(file.Path), ref isOpen))
+                            {
+                                switch (file.Type)
+                                {
+                                    case FileType.Map:
+                                        _viewportPanel.Draw(file.Path);
+                                        break;
+                                    case FileType.Script:
+                                        _scriptEditorPanel.Draw(file.Path);
+                                        break;
+                                }
+                                ImGui.EndTabItem();
+                            }
+
+                            if (!isOpen)
+                            {
+                                _editorContext.OpenFiles.RemoveAt(i);
+                            }
+                        }
+                        ImGui.EndTabBar();
+                    }
+                    ImGui.End();
                     break;
                 case AppState.Settings:
                     _settingsPanel.Draw();

@@ -1,52 +1,48 @@
-using System.Collections.Generic;
-using System.Linq;
 using Core;
 using Silk.NET.Maths;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Editor
 {
     public class ToolManager
     {
-        private readonly List<ITool> _tools = new List<ITool>();
+        public List<ITool> Tools { get; } = new();
         private ITool? _activeTool;
-
-        public IReadOnlyList<ITool> Tools => _tools;
-        public ITool? ActiveTool => _activeTool;
 
         public ToolManager()
         {
-            _tools.Add(new SelectionTool());
-            _tools.Add(new PaintTool());
+            Tools.Add(new SelectionTool());
+            Tools.Add(new PaintTool());
         }
 
-        public void SetActiveTool(ITool? tool, EditorContext editorContext)
+        public void SetActiveTool(ITool? tool, EditorContext context)
         {
-            if (_activeTool == tool)
-                return;
-
-            _activeTool?.Deactivate(editorContext);
+            _activeTool?.OnDeselected(context);
             _activeTool = tool;
-            _activeTool?.Activate(editorContext);
+            _activeTool?.OnSelected(context);
         }
 
-        public void OnMouseDown(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public ITool? GetActiveTool() => _activeTool;
+
+        public void OnMouseDown(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseDown(editorContext, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseDown(context, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseUp(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseUp(editorContext, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseUp(context, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseMove(EditorContext editorContext, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
         {
-            _activeTool?.OnMouseMove(editorContext, gameState, selectionManager, mousePosition);
+            _activeTool?.OnMouseMove(context, gameState, selectionManager, mousePosition);
         }
 
-        public void Draw(EditorContext editorContext, GameState gameState, SelectionManager selectionManager)
+        public void Draw(EditorContext context, GameState gameState, SelectionManager selectionManager)
         {
-            _activeTool?.Draw(editorContext, gameState, selectionManager);
+            _activeTool?.Draw(context, gameState, selectionManager);
         }
     }
 }

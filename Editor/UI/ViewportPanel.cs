@@ -3,46 +3,57 @@ using Silk.NET.OpenGL;
 using ImGuiNET;
 using Silk.NET.Maths;
 using System.Numerics;
+using System.IO;
 
 namespace Editor.UI
 {
     public class ViewportPanel : IDisposable
     {
         private readonly GL _gl;
-        private readonly GameApi _gameApi;
         private readonly ToolManager _toolManager;
         private readonly SelectionManager _selectionManager;
         private readonly EditorContext _editorContext;
         private readonly SpriteRenderer _spriteRenderer;
         private readonly TextureManager _textureManager;
         private readonly Camera _camera;
+        private readonly MapLoader _mapLoader;
 
-        public ViewportPanel(GL gl, GameApi gameApi, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext)
+        private GameState? _currentGameState;
+        private string _currentFile = "";
+
+        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, MapLoader mapLoader)
         {
             _gl = gl;
-            _gameApi = gameApi;
             _toolManager = toolManager;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
             _spriteRenderer = new SpriteRenderer(_gl);
             _textureManager = new TextureManager(_gl);
             _camera = new Camera();
+            _mapLoader = mapLoader;
         }
 
-        public void Draw()
+        public void Draw(string filePath)
         {
+            if (_currentFile != filePath)
+            {
+                var map = _mapLoader.LoadMap(filePath);
+                _currentGameState = new GameState { Map = map };
+                _currentFile = filePath;
+            }
+
             ImGui.Begin("Viewport");
 
             var windowSize = ImGui.GetWindowSize();
             _camera.Update(windowSize.X, windowSize.Y);
 
-            if (_gameApi.GetMap() is Map map)
+            if (_currentGameState?.Map is Map currentMap)
             {
-                for (int y = 0; y < map.Height; y++)
+                for (int y = 0; y < currentMap.Height; y++)
                 {
-                    for (int x = 0; x < map.Width; x++)
+                    for (int x = 0; x < currentMap.Width; x++)
                     {
-                        var turf = map.GetTurf(x, y, _editorContext.CurrentZLevel);
+                        var turf = currentMap.GetTurf(x, y, _editorContext.CurrentZLevel);
                         if (turf != null)
                         {
                             foreach (var gameObject in turf.Contents)
@@ -60,26 +71,26 @@ namespace Editor.UI
                         }
                     }
                 }
-            }
 
-            if (ImGui.IsWindowHovered())
-            {
-                var mousePos = ImGui.GetMousePos();
-                var windowPos = ImGui.GetWindowPos();
-                var localMousePos = new Vector2D<int>((int)(mousePos.X - windowPos.X), (int)(mousePos.Y - windowPos.Y));
-
-                _toolManager.OnMouseMove(_editorContext, _gameApi.GetState(), _selectionManager, localMousePos);
-                if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                if (ImGui.IsWindowHovered())
                 {
-                    _toolManager.OnMouseDown(_editorContext, _gameApi.GetState(), _selectionManager, localMousePos);
-                }
-                if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
-                {
-                    _toolManager.OnMouseUp(_editorContext, _gameApi.GetState(), _selectionManager, localMousePos);
-                }
-            }
+                    var mousePos = ImGui.GetMousePos();
+                    var windowPos = ImGui.GetWindowPos();
+                    var localMousePos = new Vector2D<int>((int)(mousePos.X - windowPos.X), (int)(mousePos.Y - windowPos.Y));
 
-            _toolManager.Draw(_editorContext, _gameApi.GetState(), _selectionManager);
+                    _toolManager.OnMouseMove(_editorContext, _currentGameState, _selectionManager, localMousePos);
+                    if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+                    {
+                        _toolManager.OnMouseDown(_editorContext, _currentGameState, _selectionManager, localMousePos);
+                    }
+                    if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
+                    {
+                        _toolManager.OnMouseUp(_editorContext, _currentGameState, _selectionManager, localMousePos);
+                    }
+                }
+
+                _toolManager.Draw(_editorContext, _currentGameState, _selectionManager);
+            }
 
             ImGui.End();
         }

@@ -15,7 +15,7 @@ namespace Server
             var project = new Project("."); // Assume server runs from project root
             var gameState = new GameState();
 
-            using (var scriptHost = new ScriptHost(project, gameState))
+            using (var scriptHost = new ScriptHost(project, gameState, settings))
             {
                 scriptHost.Start();
 

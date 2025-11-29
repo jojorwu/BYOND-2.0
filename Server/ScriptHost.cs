@@ -5,6 +5,7 @@ using System.Threading;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
+using Core.VM.Runtime;
 using DMCompiler.Json;
 
 namespace Server
@@ -20,13 +21,18 @@ namespace Server
         private readonly GameApi _gameApi;
         private readonly ObjectTypeManager _objectTypeManager;
         private readonly OpenDreamCompilerService _compilerService;
+        private readonly DreamVM _dreamVM;
+        private readonly ServerSettings _settings;
+        private readonly List<DreamThread> _threads = new();
 
-        public ScriptHost(Project project, GameState gameState)
+        public ScriptHost(Project project, GameState gameState, ServerSettings settings)
         {
             _project = project;
             _gameState = gameState;
+            _settings = settings;
             _objectTypeManager = new ObjectTypeManager();
             _compilerService = new OpenDreamCompilerService(_project);
+            _dreamVM = new DreamVM(settings);
 
             var mapLoader = new MapLoader(_objectTypeManager);
             _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
@@ -59,6 +65,22 @@ namespace Server
             Console.WriteLine($"Watching for changes in '{_project.GetFullPath(Constants.ScriptsRoot)}' directory.");
         }
 
+        public void Tick()
+        {
+            lock (_scriptLock)
+            {
+                for (var i = _threads.Count - 1; i >= 0; i--)
+                {
+                    var thread = _threads[i];
+                    var state = thread.Run(_settings.Performance.VmInstructionSlice);
+                    if (state != DreamThreadState.Running)
+                    {
+                        _threads.RemoveAt(i);
+                    }
+                }
+            }
+        }
+
         private void OnScriptChanged(object source, FileSystemEventArgs e)
         {
             var ext = Path.GetExtension(e.FullPath).ToLower();
@@ -77,6 +99,7 @@ namespace Server
                 {
                     Console.WriteLine("Reloading scripts...");
                     _objectTypeManager.Clear();
+                    _threads.Clear();
 
                     var dmFiles = _project.GetDmFiles();
                     if (dmFiles != null && dmFiles.Any())
@@ -100,8 +123,14 @@ namespace Server
 
                             if (compiledJson != null)
                             {
-                                var loader = new DreamMakerLoader(_objectTypeManager, _project);
+                                var loader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
                                 loader.Load(compiledJson);
+                                if (_settings.EnableVm)
+                                {
+                                    var thread = _dreamVM.CreateWorldNewThread();
+                                    if(thread != null)
+                                        _threads.Add(thread);
+                                }
                             }
 
                             try { File.Delete(outputPath); }

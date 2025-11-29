@@ -42,5 +42,17 @@ namespace Core
     {
         public int TickRate { get; set; } = 20;
         public int VmInstructionSlice { get; set; } = 100;
+        public TimeBudgetSettings TimeBudgeting { get; set; } = new();
+    }
+
+    public class TimeBudgetSettings
+    {
+        public SubsystemBudget ScriptHost { get; set; } = new() { Enabled = true, BudgetPercent = 0.5f };
+    }
+
+    public class SubsystemBudget
+    {
+        public bool Enabled { get; set; }
+        public float BudgetPercent { get; set; }
     }
 }

@@ -24,6 +24,9 @@ namespace Server
         private readonly DreamVM _dreamVM;
         private readonly ServerSettings _settings;
         private readonly List<DreamThread> _threads = new();
+        private readonly System.Diagnostics.Stopwatch _stopwatch = new();
+        private int _lastProcessedThreadIndex = -1;
+        private readonly List<DreamThread> _completedThreads = new();
 
         public ScriptHost(Project project, GameState gameState, ServerSettings settings)
         {
@@ -69,15 +72,60 @@ namespace Server
         {
             lock (_scriptLock)
             {
-                for (var i = _threads.Count - 1; i >= 0; i--)
+                var budgetSettings = _settings.Performance.TimeBudgeting.ScriptHost;
+                if (!budgetSettings.Enabled)
                 {
-                    var thread = _threads[i];
+                    // Run all threads without a time budget
+                    for (var i = _threads.Count - 1; i >= 0; i--)
+                    {
+                        var thread = _threads[i];
+                        var state = thread.Run(_settings.Performance.VmInstructionSlice);
+                        if (state != DreamThreadState.Running)
+                        {
+                            _threads.RemoveAt(i);
+                        }
+                    }
+                    return;
+                }
+
+                var tickMilliseconds = 1000.0 / _settings.Performance.TickRate;
+                var budgetMilliseconds = tickMilliseconds * budgetSettings.BudgetPercent;
+                var budget = TimeSpan.FromMilliseconds(budgetMilliseconds);
+                _stopwatch.Restart();
+
+                if (_threads.Count == 0) return;
+
+                var startIndex = (_lastProcessedThreadIndex + 1) % _threads.Count;
+                DreamThread? lastProcessedThread = null;
+                _completedThreads.Clear();
+
+                for (int i = 0; i < _threads.Count; i++)
+                {
+                    int index = (startIndex + i) % _threads.Count;
+                    var thread = _threads[index];
+
+                    if (_stopwatch.Elapsed > budget && i > 0) // Always run at least one thread
+                    {
+                        break;
+                    }
+
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
                     if (state != DreamThreadState.Running)
                     {
-                        _threads.RemoveAt(i);
+                        _completedThreads.Add(thread);
+                    }
+                    lastProcessedThread = thread;
+                }
+
+                if (_completedThreads.Count > 0)
+                {
+                    foreach (var completedThread in _completedThreads)
+                    {
+                        _threads.Remove(completedThread);
                     }
                 }
+
+                _lastProcessedThreadIndex = lastProcessedThread != null ? _threads.IndexOf(lastProcessedThread) : -1;
             }
         }
 

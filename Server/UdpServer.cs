@@ -14,10 +14,14 @@ namespace Server
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ScriptHost _scriptHost;
         private readonly Core.GameState _gameState;
+        private readonly Core.ServerSettings _settings;
+        private readonly SnapshotManager _snapshotManager;
         private Timer _snapshotTimer;
 
-        public UdpServer(IPAddress ipAddress, int port, ScriptHost scriptHost, Core.GameState gameState)
+        public UdpServer(IPAddress ipAddress, int port, ScriptHost scriptHost, Core.GameState gameState, Core.ServerSettings settings)
         {
+            _settings = settings;
+            _snapshotManager = new SnapshotManager(gameState);
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
@@ -36,11 +40,11 @@ namespace Server
 
         public void Start()
         {
-            if (_netManager.Start(9050)) // TODO: Use port from config
+            if (_netManager.Start(_settings.Network.UdpPort))
             {
-                Console.WriteLine("UDP Server started on port 9050");
+                Console.WriteLine($"UDP Server started on port {_settings.Network.UdpPort}");
                 Task.Run(() => PollEvents(_cancellationTokenSource.Token));
-                _snapshotTimer.Change(0, 100); // Start broadcasting snapshots every 100ms
+                _snapshotTimer.Change(0, _settings.Performance.SnapshotBroadcastInterval);
             }
             else
             {
@@ -53,7 +57,7 @@ namespace Server
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(15);
+                Thread.Sleep(1);
             }
         }
 
@@ -68,7 +72,7 @@ namespace Server
         private void OnConnectionRequest(ConnectionRequest request)
         {
             Console.WriteLine($"Incoming connection from {request.RemoteEndPoint}");
-            request.AcceptIfKey("BYOND2.0");
+            request.AcceptIfKey(_settings.Network.ConnectionKey);
         }
 
         private void OnPeerConnected(NetPeer peer)
@@ -78,44 +82,19 @@ namespace Server
 
         private void BroadcastSnapshot(object? state)
         {
-            var writer = new LiteNetLib.Utils.NetDataWriter();
-            writer.Put((byte)Core.SnapshotMessageType.Full);
-            writer.Put(_gameState.GameObjects.Count);
-            foreach (var gameObject in _gameState.GameObjects.Values)
-            {
-                writer.Put(gameObject.Id);
-                writer.Put(gameObject.Position.X);
-                writer.Put(gameObject.Position.Y);
-
-                // Send icon path, or empty string if not specified
-                var icon = gameObject.ObjectType.GetProperty<string>("icon");
-                writer.Put(icon ?? string.Empty);
-            }
+            var writer = _snapshotManager.CreateSnapshot();
             _netManager.SendToAll(writer, DeliveryMethod.ReliableOrdered);
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
-            // For now, we only process commands from clients, not other message types.
-            // The snapshot logic is one-way (server to client).
-            if(reader.AvailableBytes > 0)
+            if (reader.AvailableBytes > 0)
             {
                 var command = reader.GetString();
                 Console.WriteLine($"Received command from {peer}: {command}");
 
-                string result;
-                if (command == "ping")
-                {
-                    result = "pong";
-                }
-                else
-                {
-                    result = _scriptHost.ExecuteCommand(command);
-                }
-
-                var writer = new LiteNetLib.Utils.NetDataWriter();
-                writer.Put(result);
-                peer.Send(writer, DeliveryMethod.ReliableOrdered);
+                // Enqueue the command for processing on the main game thread
+                _scriptHost.EnqueueCommand(peer, command);
             }
             reader.Recycle();
         }
@@ -129,6 +108,7 @@ namespace Server
         {
             Stop();
             _cancellationTokenSource.Dispose();
+            _snapshotTimer.Dispose();
         }
     }
 }

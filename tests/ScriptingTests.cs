@@ -62,15 +62,18 @@ namespace Core.Tests
         }
 
         [Test]
-        public void Reload_ShouldResetLuaState()
+        public void NewInstance_ShouldHaveCleanState()
         {
-            var tempFile = Path.GetTempFileName();
-            File.WriteAllText(tempFile, "testVar = 123");
-            _scripting.ExecuteFile(tempFile);
-            _scripting.Reload();
-            File.WriteAllText(tempFile, "if testVar == nil then print('testVar is nil') else print('testVar is not nil') end");
-            Assert.DoesNotThrow(() => _scripting.ExecuteFile(tempFile));
-            File.Delete(tempFile);
+            // Arrange: Define a variable in the first Lua state
+            _scripting.ExecuteString("testVar = 123");
+            Assert.That(_scripting.lua["testVar"], Is.EqualTo(123.0)); // NLua reads numbers as doubles
+
+            // Act: Dispose the old instance and create a new one
+            _scripting.Dispose();
+            _scripting = new Scripting(_gameApi);
+
+            // Assert: The new Lua state should not have the variable from the old one
+            Assert.That(_scripting.lua["testVar"], Is.Null);
         }
 
         [Test]

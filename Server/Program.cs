@@ -25,7 +25,7 @@ namespace Server
 
                 var port = settings.Network.Port;
 
-                using (var udpServer = new UdpServer(ipAddress, port, scriptHost, gameState))
+                using (var udpServer = new UdpServer(ipAddress, port, scriptHost, gameState, settings))
                 {
                     udpServer.Start();
 
@@ -36,12 +36,19 @@ namespace Server
                     Console.WriteLine($"Max Players: {settings.MaxPlayers}");
                     Console.WriteLine("The process will run indefinitely.");
 
-                    var tickInterval = 1000 / settings.Performance.TickRate;
+                    var tickInterval = TimeSpan.FromMilliseconds(1000.0 / settings.Performance.TickRate);
+                    var stopwatch = new System.Diagnostics.Stopwatch();
 
                     while (true)
                     {
+                        stopwatch.Restart();
                         scriptHost.Tick();
-                        Thread.Sleep(tickInterval);
+
+                        var elapsed = stopwatch.Elapsed;
+                        if (elapsed < tickInterval)
+                        {
+                            Thread.Sleep(tickInterval - elapsed);
+                        }
                     }
                 }
             }

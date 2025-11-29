@@ -12,7 +12,7 @@ namespace Core
     /// </summary>
     public sealed class Scripting : IDisposable
     {
-        private Lua lua;
+        internal Lua lua;
         private readonly object luaLock = new object();
         private readonly GameApi game;
         private readonly EditorApi? editor;
@@ -80,19 +80,6 @@ namespace Core
                         _hookHandle.Free();
                     }
                 }
-            }
-        }
-
-        /// <summary>
-        /// Reloads the Lua state, providing a clean environment for script execution.
-        /// </summary>
-        public void Reload()
-        {
-            lock (luaLock)
-            {
-                lua.Close();
-                lua = new Lua();
-                RegisterApis();
             }
         }
 

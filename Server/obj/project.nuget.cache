@@ -1,12 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "ints5+oVdIQ=",
+  "dgSpecHash": "5UzSEDcHdX4=",
   "success": true,
   "projectFilePath": "/app/Server/Server.csproj",
   "expectedPackageFiles": [
     "/home/jules/.nuget/packages/humanizer.core/2.14.1/humanizer.core.2.14.1.nupkg.sha512",
     "/home/jules/.nuget/packages/jetbrains.annotations/2025.2.4/jetbrains.annotations.2025.2.4.nupkg.sha512",
     "/home/jules/.nuget/packages/keralua/1.4.7/keralua.1.4.7.nupkg.sha512",
+    "/home/jules/.nuget/packages/litenetlib/1.2.0/litenetlib.1.2.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.analyzers/3.11.0/microsoft.codeanalysis.analyzers.3.11.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.common/5.0.0/microsoft.codeanalysis.common.5.0.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.csharp/5.0.0/microsoft.codeanalysis.csharp.5.0.0.nupkg.sha512",

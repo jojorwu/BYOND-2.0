@@ -35,12 +35,12 @@ namespace tests
             objectType.DefaultProperties["SpritePath"] = "default.png";
             _objectTypeManager.RegisterObjectType(objectType);
 
-            var map = new Map(1, 1, 1);
+            var map = new Map();
             var turf = new Turf(1);
             var gameObject = new GameObject(objectType);
             gameObject.Properties["InstanceProp"] = "instance_value";
             turf.Contents.Add(gameObject);
-            map.SetTurf(0, 0, 0, turf);
+            map.SetTurf(17, 33, 0, turf); // Coordinates that will fall into a non-zero chunk
 
             // Act
             _mapLoader.SaveMap(map, TestMapPath);
@@ -48,7 +48,7 @@ namespace tests
 
             // Assert
             Assert.That(loadedMap, Is.Not.Null);
-            var loadedTurf = loadedMap.GetTurf(0, 0, 0);
+            var loadedTurf = loadedMap.GetTurf(17, 33, 0);
             Assert.That(loadedTurf, Is.Not.Null);
             Assert.That(loadedTurf.Contents, Has.Count.EqualTo(1));
 
@@ -59,30 +59,19 @@ namespace tests
         }
 
         [Test]
-        public void SaveAndLoadMap_HandlesNonCubicDimensions()
+        public void GetAndSetTurf_WithNegativeCoordinates_WorksCorrectly()
         {
             // Arrange
-            var map = new Map(10, 5, 2); // Non-cubic dimensions
+            var map = new Map();
             var turf = new Turf(1);
-            map.SetTurf(9, 4, 1, turf);
 
-            // Act & Assert
-            Assert.DoesNotThrow(() =>
-            {
-                _mapLoader.SaveMap(map, TestMapPath);
-            }, "Saving a non-cubic map should not throw an exception.");
+            // Act
+            map.SetTurf(-1, -1, 0, turf);
+            var retrievedTurf = map.GetTurf(-1, -1, 0);
 
-            Map? loadedMap = null;
-            Assert.DoesNotThrow(() =>
-            {
-                loadedMap = _mapLoader.LoadMap(TestMapPath);
-            }, "Loading a non-cubic map should not throw an exception.");
-
-            Assert.That(loadedMap, Is.Not.Null);
-            Assert.That(loadedMap.Width, Is.EqualTo(10));
-            Assert.That(loadedMap.Height, Is.EqualTo(5));
-            Assert.That(loadedMap.Depth, Is.EqualTo(2));
-            Assert.That(loadedMap.GetTurf(9, 4, 1), Is.Not.Null);
+            // Assert
+            Assert.That(retrievedTurf, Is.Not.Null);
+            Assert.That(retrievedTurf, Is.EqualTo(turf));
         }
     }
 }

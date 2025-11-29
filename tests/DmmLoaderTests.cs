@@ -64,8 +64,6 @@ ab
 
             // Assert
             Assert.That(map, Is.Not.Null, "Map should not be null after loading.");
-            Assert.That(map.Width, Is.EqualTo(2), "Map width should be 2.");
-            Assert.That(map.Height, Is.EqualTo(1), "Map height should be 1.");
 
             var turfA = map.GetTurf(0, 0, 0);
             Assert.That(turfA, Is.Not.Null, "Turf at (0,0,0) should exist.");

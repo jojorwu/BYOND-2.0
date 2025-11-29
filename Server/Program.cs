@@ -12,17 +12,19 @@ namespace Server
         static void Main(string[] args)
         {
             var settings = LoadSettings();
+            var project = new Project("."); // Assume server runs from project root
+            var gameState = new GameState();
 
-            using (var scriptHost = new ScriptHost())
+            using (var scriptHost = new ScriptHost(project, gameState))
             {
                 scriptHost.Start();
 
-                using (var networkServer = new NetworkServer(IPAddress.Parse(settings.IpAddress), settings.Port, scriptHost))
+                using (var udpServer = new UdpServer(IPAddress.Parse(settings.IpAddress), settings.Port, scriptHost, gameState))
                 {
-                    networkServer.Start();
+                    udpServer.Start();
 
-                    Console.WriteLine($"Server is running on {settings.IpAddress}:{settings.Port}. Press Enter to exit.");
-                    Console.ReadLine();
+                    Console.WriteLine($"Server is running on {settings.IpAddress}:{settings.Port}. The process will run indefinitely.");
+                    new System.Threading.ManualResetEvent(false).WaitOne();
                 }
             }
         }

@@ -24,7 +24,7 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager();
             _mapLoader = new MapLoader(_objectTypeManager);
             _gameApi = new GameApi(_project, _gameState, _objectTypeManager, _mapLoader);
-            _gameApi.CreateMap(1, 1, 1);
+            _gameApi.SetMap(new Map());
             _gameApi.SetTurf(0, 0, 0, 1);
 
             var testObjectType = new ObjectType("test");

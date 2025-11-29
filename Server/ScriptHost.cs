@@ -4,6 +4,8 @@ using System.IO;
 using System.Threading;
 using System.Linq;
 using System.Collections.Generic;
+using System.Text.Json;
+using DMCompiler.Json;
 
 namespace Server
 {
@@ -19,21 +21,28 @@ namespace Server
         private readonly ObjectTypeManager _objectTypeManager;
         private readonly OpenDreamCompilerService _compilerService;
 
-        public ScriptHost()
+        public ScriptHost(Project project, GameState gameState)
         {
-            _project = new Project("."); // Assume the server runs from the project root
-            _gameState = new GameState();
+            _project = project;
+            _gameState = gameState;
             _objectTypeManager = new ObjectTypeManager();
-            _compilerService = new OpenDreamCompilerService();
+            _compilerService = new OpenDreamCompilerService(_project);
 
             var mapLoader = new MapLoader(_objectTypeManager);
             _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
             _scripting = new Scripting(_gameApi);
 
-            _watcher = new FileSystemWatcher(Constants.ScriptsRoot)
+            var scriptsRoot = _project.GetFullPath(Constants.ScriptsRoot);
+            if (!Directory.Exists(scriptsRoot))
+            {
+                Directory.CreateDirectory(scriptsRoot);
+            }
+
+            _watcher = new FileSystemWatcher(scriptsRoot)
             {
                 Filter = "*.*",
-                NotifyFilter = NotifyFilters.LastWrite,
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                IncludeSubdirectories = true,
                 EnableRaisingEvents = true
             };
             _debounceTimer = new Timer(ReloadScripts, null, Timeout.Infinite, Timeout.Infinite);
@@ -44,13 +53,16 @@ namespace Server
             Console.WriteLine("Starting script host...");
             ReloadScripts(null); // Initial script load
             _watcher.Changed += OnScriptChanged;
-            Console.WriteLine($"Watching for changes in '{Constants.ScriptsRoot}' directory.");
+            _watcher.Created += OnScriptChanged;
+            _watcher.Deleted += OnScriptChanged;
+            _watcher.Renamed += OnScriptChanged;
+            Console.WriteLine($"Watching for changes in '{_project.GetFullPath(Constants.ScriptsRoot)}' directory.");
         }
 
         private void OnScriptChanged(object source, FileSystemEventArgs e)
         {
             var ext = Path.GetExtension(e.FullPath).ToLower();
-            if (ext == ".lua" || ext == ".dm")
+            if (ext == ".lua" || ext == ".dm" || ext == ".dmm")
             {
                 Console.WriteLine($"File {e.FullPath} has been changed. Debouncing reload...");
                 _debounceTimer.Change(200, Timeout.Infinite);
@@ -64,51 +76,45 @@ namespace Server
                 try
                 {
                     Console.WriteLine("Reloading scripts...");
-
-                    // 1. Clear existing types for a clean reload
                     _objectTypeManager.Clear();
 
-                    // 2. Compile DM files
-                    if (Directory.Exists(Constants.ScriptsRoot))
+                    var dmFiles = _project.GetDmFiles();
+                    if (dmFiles != null && dmFiles.Any())
                     {
-                        var dmFiles = Directory.GetFiles(Constants.ScriptsRoot, "*.dm", SearchOption.AllDirectories).ToList();
-                        if (dmFiles.Any())
+                        var (outputPath, messages) = _compilerService.Compile(dmFiles);
+
+                        if (messages.Any())
                         {
-                            dmFiles.Sort(); // Ensure a predictable order
-                            Console.WriteLine($"Found {dmFiles.Count} DM files to compile.");
-                            var (compiledJsonPath, messages) = _compilerService.Compile(dmFiles);
-
-                            if (messages.Any())
+                            Console.WriteLine("Compilation finished with messages:");
+                            foreach (var message in messages)
                             {
-                                Console.WriteLine("Compilation finished with messages:");
-                                foreach (var message in messages)
-                                {
-                                    Console.WriteLine(message);
-                                }
+                                Console.WriteLine(message);
+                            }
+                        }
+
+                        if (outputPath != null && File.Exists(outputPath))
+                        {
+                            Console.WriteLine($"Compilation successful. Loading from {outputPath}");
+                            var json = File.ReadAllText(outputPath);
+                            var compiledJson = JsonSerializer.Deserialize<PublicDreamCompiledJson>(json);
+
+                            if (compiledJson != null)
+                            {
+                                var loader = new DreamMakerLoader(_objectTypeManager, _project);
+                                loader.Load(compiledJson);
                             }
 
-                            if (compiledJsonPath != null && File.Exists(compiledJsonPath))
-                            {
-                                Console.WriteLine($"Compilation successful. Loading from {compiledJsonPath}");
-                                var loader = new DreamMakerLoader(_objectTypeManager);
-                                loader.Load(compiledJsonPath);
-
-                                // Clean up the compiled file
-                                try { File.Delete(compiledJsonPath); }
-                                catch (IOException ex) { Console.WriteLine($"Warning: Could not delete compiled file {compiledJsonPath}: {ex.Message}"); }
-                            }
-                            else
-                            {
-                                Console.WriteLine("DM compilation failed. Aborting script reload.");
-                                return;
-                            }
+                            try { File.Delete(outputPath); }
+                            catch (IOException ex) { Console.WriteLine($"Warning: Could not delete compiled file {outputPath}: {ex.Message}"); }
+                        }
+                        else
+                        {
+                            Console.WriteLine("DM compilation failed or produced no output. Skipping type and map loading.");
                         }
                     }
 
-                    // 3. Reload and execute Lua scripts
                     _scripting.Reload();
-
-                    var mainLua = Path.Combine(Constants.ScriptsRoot, "main.lua");
+                    var mainLua = _project.GetFullPath(Path.Combine(Constants.ScriptsRoot, "main.lua"));
                     if(File.Exists(mainLua))
                     {
                         _scripting.ExecuteFile(mainLua);
@@ -116,7 +122,7 @@ namespace Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error executing script: {ex.Message}");
+                    Console.WriteLine($"Error during script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 }
             }
         }

@@ -1,5 +1,21 @@
 {
   "IpAddress": "127.0.0.1",
   "Port": 7777,
-  "ThreadManagement": 0
+  "Network": {
+    "Mode": "Automatic",
+    "IpAddress": "127.0.0.1",
+    "Port": 7777,
+    "UdpPort": 9050,
+    "ConnectionKey": "BYOND2.0"
+  },
+  "Performance": {
+    "TickRate": 20,
+    "VmInstructionSlice": 100,
+    "TimeBudgeting": {
+      "ScriptHost": {
+        "Enabled": true,
+        "BudgetPercent": 0.5
+      }
+    }
+  }
 }

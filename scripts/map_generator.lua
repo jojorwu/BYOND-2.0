@@ -1,28 +1,25 @@
--- A simple map generator script
+-- A simple map generator script using the new chunk-based system
 
-print("Generating map...")
+print("Map generator script started.")
 
--- Create a 10x10x1 map
-Game:CreateMap(10, 10, 1)
+-- Since the map is now infinite, we don't create it.
+-- We just place a few walls to have something to see.
 
--- Fill the map with grass (tile id 1)
-for x = 0, 9 do
-    for y = 0, 9 do
-        Game:SetTile(x, y, 0, 1)
+local wallType = Game:GetObjectType("/obj/wall")
+if wallType == nil then
+    print("Error: Could not find object type '/obj/wall'")
+else
+    print("Creating a small room...")
+    -- Top and bottom walls
+    for x = -5, 5 do
+        Game:CreateObject(wallType, x, -5, 0)
+        Game:CreateObject(wallType, x, 5, 0)
     end
-end
 
--- Create a wall (tile id 2) around the border
-for x = 0, 9 do
-    Game:SetTile(x, 0, 0, 2)
-    Game:SetTile(x, 9, 0, 2)
+    -- Left and right walls (avoiding corners)
+    for y = -4, 4 do
+        Game:CreateObject(wallType, -5, y, 0)
+        Game:CreateObject(wallType, 5, y, 0)
+    end
+    print("Room creation complete.")
 end
-for y = 0, 9 do
-    Game:SetTile(0, y, 0, 2)
-    Game:SetTile(9, y, 0, 2)
-end
-
--- Save the map to a file
-Game:SaveMap("maps/generated_map.json")
-
-print("Map generation complete.")

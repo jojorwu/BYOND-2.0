@@ -15,23 +15,28 @@ namespace Core
             _project = project;
         }
 
-        public (DMCompiler.DMCompiler? compiler, List<DMCompiler.Compiler.CompilerEmission> Messages) Compile()
+        public (string? OutputPath, List<DMCompiler.Compiler.CompilerEmission> Messages) Compile(List<string> files)
         {
-            var dmFiles = _project.GetDmFiles();
-            if (dmFiles == null || dmFiles.Count == 0)
+            if (files == null || files.Count == 0)
             {
                 return (null, new List<DMCompiler.Compiler.CompilerEmission>());
             }
 
             var settings = new DMCompilerSettings
             {
-                Files = dmFiles,
+                Files = files,
                 StoreMessages = true
             };
 
             var compiler = new DMCompiler.DMCompiler();
-            compiler.Compile(settings);
-            return (compiler, compiler.CompilerMessages);
+            var (success, outputPath) = compiler.Compile(settings);
+
+            if (!success)
+            {
+                return (null, compiler.CompilerMessages);
+            }
+
+            return (outputPath, compiler.CompilerMessages);
         }
     }
 }

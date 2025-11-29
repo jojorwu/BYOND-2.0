@@ -30,33 +30,24 @@ namespace Core
                 return null;
             }
 
-            var map = new Map(mapData.Width, mapData.Height, mapData.Depth);
-            for (int x = 0; x < mapData.Width; x++)
+            var map = new Map();
+            foreach(var turfData in mapData.Turfs)
             {
-                for (int y = 0; y < mapData.Height; y++)
+                var turf = new Turf(turfData.Id);
+                foreach (var objData in turfData.Contents)
                 {
-                    for (int z = 0; z < mapData.Depth; z++)
+                    var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
+                    if (objectType != null)
                     {
-                        var turfData = mapData.Turfs[x, y, z];
-                        if (turfData == null) continue;
-
-                        var turf = new Turf(turfData.Id);
-                        foreach (var objData in turfData.Contents)
+                        var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
+                        foreach (var prop in objData.Properties)
                         {
-                            var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
-                            if (objectType != null)
-                            {
-                                var gameObject = new GameObject(objectType, x, y, z);
-                                foreach (var prop in objData.Properties)
-                                {
-                                    gameObject.Properties[prop.Key] = prop.Value;
-                                }
-                                turf.Contents.Add(gameObject);
-                            }
+                            gameObject.Properties[prop.Key] = prop.Value;
                         }
-                        map.SetTurf(x, y, z, turf);
+                        turf.Contents.Add(gameObject);
                     }
                 }
+                map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
             }
 
             return map;
@@ -64,35 +55,36 @@ namespace Core
 
         public void SaveMap(Map map, string filePath)
         {
-            var mapData = new MapData
-            {
-                Width = map.Width,
-                Height = map.Height,
-                Depth = map.Depth,
-                Turfs = new TurfData[map.Width, map.Height, map.Depth]
-            };
+            var mapData = new MapData();
 
-            for (int x = 0; x < map.Width; x++)
+            foreach (var z in map.GetZLevels())
             {
-                for (int y = 0; y < map.Height; y++)
+                foreach (var (chunkCoords, chunk) in map.GetChunks(z))
                 {
-                    for (int z = 0; z < map.Depth; z++)
+                    for (int x = 0; x < Chunk.ChunkSize; x++)
                     {
-                        var turf = map.GetTurf(x, y, z);
-                        if (turf == null) continue;
-
-                        mapData.Turfs[x, y, z] = new TurfData
+                        for (int y = 0; y < Chunk.ChunkSize; y++)
                         {
-                            Id = turf.Id,
-                            Contents = turf.Contents.Select(obj => new GameObjectData
+                            var turf = chunk.GetTurf(x, y);
+                            if (turf == null) continue;
+
+                            mapData.Turfs.Add(new TurfData
                             {
-                                TypeName = obj.ObjectType.Name,
-                                Properties = obj.Properties
-                            }).ToList()
-                        };
+                                X = chunkCoords.X * Chunk.ChunkSize + x,
+                                Y = chunkCoords.Y * Chunk.ChunkSize + y,
+                                Z = z,
+                                Id = turf.Id,
+                                Contents = turf.Contents.Select(obj => new GameObjectData
+                                {
+                                    TypeName = obj.ObjectType.Name,
+                                    Properties = obj.Properties
+                                }).ToList()
+                            });
+                        }
                     }
                 }
             }
+
 
             var json = JsonConvert.SerializeObject(mapData, Formatting.Indented);
             File.WriteAllText(filePath, json);
@@ -100,14 +92,14 @@ namespace Core
 
         private class MapData
         {
-            public int Width { get; set; }
-            public int Height { get; set; }
-            public int Depth { get; set; }
-            public TurfData[,,]? Turfs { get; set; }
+            public List<TurfData> Turfs { get; set; } = new List<TurfData>();
         }
 
         private class TurfData
         {
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int Z { get; set; }
             public int Id { get; set; }
             public List<GameObjectData> Contents { get; set; } = new List<GameObjectData>();
         }

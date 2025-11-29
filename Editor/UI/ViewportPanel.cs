@@ -46,22 +46,27 @@ namespace Editor.UI
             var currentMap = _gameApi.GetMap();
             if (currentMap != null)
             {
-                for (int y = 0; y < currentMap.Height; y++)
+                foreach (var (chunkCoords, chunk) in currentMap.GetChunks(_editorContext.CurrentZLevel))
                 {
-                    for (int x = 0; x < currentMap.Width; x++)
+                    for (int y = 0; y < Chunk.ChunkSize; y++)
                     {
-                        var turf = currentMap.GetTurf(x, y, _editorContext.CurrentZLevel);
-                        if (turf != null)
+                        for (int x = 0; x < Chunk.ChunkSize; x++)
                         {
-                            foreach (var gameObject in turf.Contents)
+                            var turf = chunk.GetTurf(x, y);
+                            if (turf != null)
                             {
-                                var spritePath = gameObject.GetProperty<string>("SpritePath");
-                                if (!string.IsNullOrEmpty(spritePath))
+                                foreach (var gameObject in turf.Contents)
                                 {
-                                    uint textureId = _textureManager.GetTexture(spritePath);
-                                    if (textureId != 0)
+                                    var spritePath = gameObject.GetProperty<string>("SpritePath");
+                                    if (!string.IsNullOrEmpty(spritePath))
                                     {
-                                        _spriteRenderer.Draw(textureId, new Vector2i(x * EditorConstants.TileSize, y * EditorConstants.TileSize), new Vector2i(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
+                                        uint textureId = _textureManager.GetTexture(spritePath);
+                                        if (textureId != 0)
+                                        {
+                                            var worldX = chunkCoords.X * Chunk.ChunkSize + x;
+                                            var worldY = chunkCoords.Y * Chunk.ChunkSize + y;
+                                            _spriteRenderer.Draw(textureId, new Vector2i(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize), new Vector2i(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
+                                        }
                                     }
                                 }
                             }

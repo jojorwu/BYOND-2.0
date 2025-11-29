@@ -45,14 +45,6 @@ namespace Core
         /// <summary>
         /// Creates a new map with the specified dimensions.
         /// </summary>
-        /// <param name="width">The width of the map.</param>
-        /// <param name="height">The height of the map.</param>
-        /// <param name="depth">The depth of the map.</param>
-        public void CreateMap(int width, int height, int depth)
-        {
-            _gameState.Map = new Map(width, height, depth);
-        }
-
         /// <summary>
         /// Gets the turf at the specified coordinates.
         /// </summary>

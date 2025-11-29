@@ -2,13 +2,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LiteNetLib" Version="1.2.0" />
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
     <ItemGroup>
-      <DMStandardFiles Include="$(SolutionDir)OpenDream/DMCompiler/DMStandard/**" />
+      <DMStandardFiles Include="..\OpenDream\DMCompiler\DMStandard\**" />
     </ItemGroup>
-    <Copy SourceFiles="@(DMStandardFiles)" DestinationFolder="$(TargetDir)DMStandard/%(RecursiveDir)" />
+    <Copy SourceFiles="@(DMStandardFiles)" DestinationFolder="$(TargetDir)DMStandard\%(RecursiveDir)" />
   </Target>
 
   <PropertyGroup>

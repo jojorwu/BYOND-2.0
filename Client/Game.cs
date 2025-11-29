@@ -2,128 +2,169 @@ using Silk.NET.Windowing;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using System;
-using Core.Graphics;
-using System.Numerics;
+using Client.Assets;
+using Client.Graphics;
 using System.Diagnostics;
+using Robust.Shared.Maths;
+using Core.Dmi;
 
 namespace Client
 {
     public class Game
     {
-        private IWindow window;
-        private GL? Gl;
-        private BatchRenderer? batchRenderer;
-        private uint whiteTexture;
-        private LogicThread? logicThread;
-        private Stopwatch? gameTimer;
-        private double lastLogicTickTime;
-        private long lastTickCount = -1;
+        private IWindow _window;
+        private GL _gl;
+        private LogicThread _logicThread;
+        private AssetManager _assetManager;
+        private SpriteRenderer _spriteRenderer;
+        private Camera _camera;
+
+        private GameState _previousState;
+        private GameState _currentState;
+        private double _accumulator;
+        private float _alpha;
 
         public Game()
         {
             var options = WindowOptions.Default;
-            options.Title = "BYOND 2.0";
+            options.Title = "BYOND 2.0 Client";
             options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
-            window = Window.Create(options);
+            _window = Window.Create(options);
 
-            window.Load += OnLoad;
-            window.Update += OnUpdate;
-            window.Render += OnRender;
-            window.Closing += OnClose;
+            _window.Load += OnLoad;
+            _window.Update += OnUpdate;
+            _window.Render += OnRender;
+            _window.Closing += OnClose;
         }
 
         public void Run()
         {
-            window.Run();
+            _window.Run();
         }
 
-        private unsafe void OnLoad()
+        private void OnLoad()
         {
-            IInputContext input = window.CreateInput();
+            IInputContext input = _window.CreateInput();
             for (int i = 0; i < input.Keyboards.Count; i++)
             {
                 input.Keyboards[i].KeyDown += KeyDown;
             }
 
-            Gl = GL.GetApi(window);
-            batchRenderer = new BatchRenderer(Gl);
+            _gl = GL.GetApi(_window);
+            _assetManager = new AssetManager(_gl);
+            _spriteRenderer = new SpriteRenderer(_gl);
+            _camera = new Camera(new Vector2(0, 0), 1.0f);
 
-            whiteTexture = Gl.GenTexture();
-            Gl.BindTexture(TextureTarget.Texture2D, whiteTexture);
-            byte[] whitePixel = { 255, 255, 255, 255 };
-            fixed (void* p = whitePixel)
-            {
-                Gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, p);
-            }
-            Gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            Gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-
-            gameTimer = new Stopwatch();
-            gameTimer.Start();
-            lastLogicTickTime = gameTimer.Elapsed.TotalSeconds;
-
-            logicThread = new LogicThread();
-            logicThread.Start();
+            _logicThread = new LogicThread();
+            _previousState = _logicThread.PreviousState;
+            _currentState = _logicThread.CurrentState;
+            _logicThread.Start();
         }
 
         private void OnUpdate(double deltaTime)
         {
+            _accumulator += deltaTime;
+
+            while (_accumulator >= LogicThread.TimeStep)
+            {
+                var states = _logicThread.GetStatesForRender();
+                _previousState = states.Item1;
+                _currentState = states.Item2;
+                _accumulator -= LogicThread.TimeStep;
+            }
+
+            _alpha = (float)(_accumulator / LogicThread.TimeStep);
         }
 
         private void OnRender(double deltaTime)
         {
-            Gl!.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-            Gl!.Clear(ClearBufferMask.ColorBufferBit);
+            _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+            _gl.Clear(ClearBufferMask.ColorBufferBit);
 
-            var projection = Matrix4x4.CreateOrthographicOffCenter(-1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f);
-            var view = Matrix4x4.Identity;
-            batchRenderer!.SetCamera(view, projection);
+            _spriteRenderer.Begin(_camera.GetViewMatrix(), _camera.GetProjectionMatrix((float)_window.FramebufferSize.X / _window.FramebufferSize.Y));
 
-            var (prevState, currState) = logicThread!.GetStatesForRender();
-
-            if (currState.TickCount > lastTickCount)
+            if (_currentState != null)
             {
-                lastLogicTickTime = gameTimer!.Elapsed.TotalSeconds;
-                lastTickCount = currState.TickCount;
-            }
-
-            double now = gameTimer!.Elapsed.TotalSeconds;
-            float alpha = (float)((now - lastLogicTickTime) / LogicThread.TimeStep);
-
-            batchRenderer.Begin((int)whiteTexture);
-            foreach (var curr in currState.Renderables.Values)
-            {
-                if (prevState.Renderables.TryGetValue(curr.ID, out var prev))
+                foreach (var currentObj in _currentState.Renderables.Values)
                 {
-                    var interpolatedPos = Vector2.Lerp(prev.Position, curr.Position, alpha);
-                    var interpolatedRot = prev.Rotation + (curr.Rotation - prev.Rotation) * alpha;
-
-                    var component = new RenderableComponent
+                    Vector2 renderPos;
+                    if (_previousState.Renderables.TryGetValue(currentObj.Id, out var previousObj))
                     {
-                        TextureID = (int)whiteTexture,
-                        Position = interpolatedPos,
-                        Rotation = interpolatedRot,
-                        Scale = curr.Scale,
-                        Color = curr.Color,
-                        SourceRect = curr.SourceRect
-                    };
-                    batchRenderer.Draw(component);
+                        renderPos = Vector2.Lerp(previousObj.Position, currentObj.Position, _alpha);
+                    }
+                    else
+                    {
+                        renderPos = currentObj.Position;
+                    }
+
+                    if (!string.IsNullOrEmpty(currentObj.Icon))
+                    {
+                        var (dmiPath, stateName) = ParseIconString(currentObj.Icon);
+                        if(dmiPath != null)
+                        {
+                            try
+                            {
+                                var asset = _assetManager.LoadDmi("assets/" + dmiPath);
+                                var state = asset.Description.GetStateOrDefault(stateName);
+                                if(state != null)
+                                {
+                                    var frame = state.GetFrames(AtomDirection.South)[0];
+                                    var uv = new Box2(
+                                        (float)frame.X / asset.Width,
+                                        (float)frame.Y / asset.Height,
+                                        (float)(frame.X + asset.Description.Width) / asset.Width,
+                                        (float)(frame.Y + asset.Description.Height) / asset.Height
+                                    );
+
+                                    _spriteRenderer.Draw(asset.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"Error rendering icon {currentObj.Icon}: {e.Message}");
+                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red); // Draw red square on error
+                            }
+                        }
+                    } else {
+                         _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White);
+                    }
                 }
             }
-            batchRenderer.End();
+
+            _spriteRenderer.End();
+        }
+
+        private (string?, string?) ParseIconString(string icon)
+        {
+            var parts = icon.Split(':');
+            if (parts.Length == 2)
+            {
+                return (parts[0], parts[1]);
+            }
+            if (parts.Length == 1)
+            {
+                return (parts[0], null);
+            }
+            return (null, null);
         }
 
         private void OnClose()
         {
-            logicThread!.Stop();
-            batchRenderer!.Dispose();
+            _logicThread.Stop();
+            _spriteRenderer.Dispose();
+            _assetManager.Dispose();
         }
 
         private void KeyDown(IKeyboard keyboard, Key key, int arg3)
         {
             if (key == Key.Escape)
             {
-                window.Close();
+                _window.Close();
+            }
+            if (key == Key.P)
+            {
+                Console.WriteLine("Sending ping...");
+                _logicThread?.SendCommand("ping");
             }
         }
     }

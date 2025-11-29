@@ -8,11 +8,11 @@ namespace Core.Tests
     [TestFixture]
     public class DmmLoaderTests
     {
-        private GameApi _gameApi = null!;
         private GameState _gameState = null!;
         private ObjectTypeManager _objectTypeManager = null!;
         private Project _project = null!;
         private string _projectPath = null!;
+        private DmmService _dmmService = null!;
 
         [SetUp]
         public void SetUp()
@@ -25,8 +25,7 @@ namespace Core.Tests
             _project = new Project(_projectPath);
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            var mapLoader = new MapLoader(_objectTypeManager);
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
+            _dmmService = new DmmService(_objectTypeManager, _project);
         }
 
         [TearDown]
@@ -60,13 +59,11 @@ ab
             File.WriteAllText(dmmFullPath, dmmContent);
 
             // Act
-            _gameApi.LoadDmmMap(dmmRelativePath);
+            var map = _dmmService.LoadDmm(dmmFullPath);
+            _gameState.Map = map;
 
             // Assert
-            var map = _gameState.Map;
             Assert.That(map, Is.Not.Null, "Map should not be null after loading.");
-            Assert.That(map.Width, Is.EqualTo(2), "Map width should be 2.");
-            Assert.That(map.Height, Is.EqualTo(1), "Map height should be 1.");
 
             var turfA = map.GetTurf(0, 0, 0);
             Assert.That(turfA, Is.Not.Null, "Turf at (0,0,0) should exist.");

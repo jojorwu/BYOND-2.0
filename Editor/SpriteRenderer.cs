@@ -1,7 +1,7 @@
 using Silk.NET.OpenGL;
-using Silk.NET.Maths;
 using System.IO;
 using System.Numerics;
+using Robust.Shared.Maths;
 
 namespace Editor
 {
@@ -81,18 +81,18 @@ namespace Editor
             _gl.BindVertexArray(0);
         }
 
-        public unsafe void Draw(uint textureId, Vector2D<int> position, Vector2D<int> size, float rotate, Matrix4x4 projection)
+        public unsafe void Draw(uint textureId, Vector2i position, Vector2i size, float rotate, Matrix4x4 projection)
         {
             _gl.UseProgram(_shaderProgram);
 
             Matrix4x4 model = Matrix4x4.Identity;
-            model *= Matrix4x4.CreateTranslation(new Vector3(position.X, position.Y, 0.0f));
+            model *= Matrix4x4.CreateTranslation(position.X, position.Y, 0.0f);
 
-            model *= Matrix4x4.CreateTranslation(new Vector3(0.5f * size.X, 0.5f * size.Y, 0.0f));
+            model *= Matrix4x4.CreateTranslation(0.5f * size.X, 0.5f * size.Y, 0.0f);
             model *= Matrix4x4.CreateRotationZ(rotate);
-            model *= Matrix4x4.CreateTranslation(new Vector3(-0.5f * size.X, -0.5f * size.Y, 0.0f));
+            model *= Matrix4x4.CreateTranslation(-0.5f * size.X, -0.5f * size.Y, 0.0f);
 
-            model *= Matrix4x4.CreateScale(new Vector3(size.X, size.Y, 1.0f));
+            model *= Matrix4x4.CreateScale(size.X, size.Y, 1.0f);
 
             _gl.UniformMatrix4(_uProjectionLocation, 1, false, in projection.M11);
             _gl.UniformMatrix4(_uModelLocation, 1, false, in model.M11);

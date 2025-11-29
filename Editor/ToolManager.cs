@@ -25,17 +25,17 @@ namespace Editor
 
         public ITool? GetActiveTool() => _activeTool;
 
-        public void OnMouseDown(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseDown(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition)
         {
             _activeTool?.OnMouseDown(context, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition)
         {
             _activeTool?.OnMouseUp(context, gameState, selectionManager, mousePosition);
         }
 
-        public void OnMouseMove(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2D<int> mousePosition)
+        public void OnMouseMove(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition)
         {
             _activeTool?.OnMouseMove(context, gameState, selectionManager, mousePosition);
         }

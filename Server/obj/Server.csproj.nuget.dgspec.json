@@ -25,7 +25,11 @@
         "frameworks": {
           "net9.0": {
             "targetAlias": "net9.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj": {
+                "projectPath": "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -101,6 +105,9 @@
             "projectReferences": {
               "/app/Compiler/Compiler.csproj": {
                 "projectPath": "/app/Compiler/Compiler.csproj"
+              },
+              "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj": {
+                "projectPath": "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj"
               }
             }
           }
@@ -154,6 +161,71 @@
         }
       }
     },
+    "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj",
+        "projectName": "Robust.Shared.Maths",
+        "projectPath": "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj",
+        "packagesPath": "/home/jules/.nuget/packages/",
+        "outputPath": "/app/Robust.Shared.Maths/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/jules/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "JetBrains.Annotations": {
+              "target": "Package",
+              "version": "[2025.2.4, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/home/jules/.dotnet/sdk/9.0.308/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
     "/app/Server/Server.csproj": {
       "version": "1.0.0",
       "restore": {
@@ -178,6 +250,9 @@
             "projectReferences": {
               "/app/Core/Core.csproj": {
                 "projectPath": "/app/Core/Core.csproj"
+              },
+              "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj": {
+                "projectPath": "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj"
               }
             }
           }
@@ -197,6 +272,12 @@
       "frameworks": {
         "net9.0": {
           "targetAlias": "net9.0",
+          "dependencies": {
+            "LiteNetLib": {
+              "target": "Package",
+              "version": "[1.2.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",

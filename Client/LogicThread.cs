@@ -1,6 +1,8 @@
 using System;
 using System.Diagnostics;
+using System.Text;
 using System.Threading;
+using LiteNetLib;
 
 namespace Client
 {
@@ -14,57 +16,48 @@ namespace Client
         private bool _isRunning;
         public const int TicksPerSecond = 30;
         public const float TimeStep = 1.0f / TicksPerSecond;
-        private int _nextId = 0;
+
+        private readonly NetManager _netManager;
+        private readonly EventBasedNetListener _listener;
+        private NetPeer? _server;
 
         public LogicThread()
         {
             PreviousState = new GameState();
             CurrentState = new GameState();
+            _listener = new EventBasedNetListener();
+            _netManager = new NetManager(_listener);
             _thread = new Thread(GameLoop);
+
+            _listener.NetworkReceiveEvent += OnNetworkReceive;
         }
 
         public void Start()
         {
             _isRunning = true;
+            _netManager.Start();
+            _netManager.Connect("localhost", 9050, "BYOND2.0");
             _thread.Start();
         }
 
         public void Stop()
         {
             _isRunning = false;
+            _netManager.Stop();
             _thread.Join();
         }
 
         private void GameLoop()
         {
             var stopwatch = new Stopwatch();
-            double accumulator = 0;
-
-            // Initialize game state
-            for (int y = 0; y < 10; y++)
-            {
-                for (int x = 0; x < 10; x++)
-                {
-                    var id = _nextId++;
-                    CurrentState.Renderables.Add(id, new Core.Graphics.RenderableComponent
-                    {
-                        ID = id,
-                        TextureID = 0,
-                        Position = new System.Numerics.Vector2(x * 0.1f - 0.5f, y * 0.1f - 0.5f),
-                        Rotation = 0,
-                        Scale = new System.Numerics.Vector2(0.1f, 0.1f),
-                        Color = new System.Numerics.Vector4((float)x / 10, (float)y / 10, 1.0f, 1.0f),
-                        SourceRect = new System.Numerics.Vector4(0, 0, 1, 1)
-                    });
-                }
-            }
-            PreviousState = CurrentState.Clone();
-
             stopwatch.Start();
             double lastTime = stopwatch.Elapsed.TotalSeconds;
+            double accumulator = 0;
 
             while (_isRunning)
             {
+                _netManager.PollEvents();
+
                 double currentTime = stopwatch.Elapsed.TotalSeconds;
                 double frameTime = currentTime - lastTime;
                 lastTime = currentTime;
@@ -72,30 +65,61 @@ namespace Client
 
                 while (accumulator >= TimeStep)
                 {
-                    Update(TimeStep);
+                    // Update logic is now driven by server responses
                     accumulator -= TimeStep;
+                    CurrentState.TickCount++;
                 }
+
+                Thread.Sleep(15);
             }
         }
 
-        private void Update(float deltaTime)
+        public void SendCommand(string command)
         {
-            lock (_lock)
+            if (_netManager.FirstPeer != null && _netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
             {
-                PreviousState = CurrentState.Clone();
-
-                var newRenderables = new System.Collections.Generic.Dictionary<int, Core.Graphics.RenderableComponent>();
-                foreach (var r in CurrentState.Renderables.Values)
-                {
-                    var newR = r;
-                    newR.Position.X += 0.1f * deltaTime;
-                    newR.Rotation += 0.5f * deltaTime;
-                    if (newR.Position.X > 1.0f) newR.Position.X = -1.0f;
-                    newRenderables[newR.ID] = newR;
-                }
-                CurrentState.Renderables = newRenderables;
-                CurrentState.TickCount++;
+                var writer = new LiteNetLib.Utils.NetDataWriter();
+                writer.Put(command);
+                _netManager.FirstPeer.Send(writer, DeliveryMethod.ReliableOrdered);
             }
+        }
+
+        private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+        {
+            // First byte is the message type. We may have other types later.
+            var messageType = (Core.SnapshotMessageType)reader.GetByte();
+
+            if (messageType == Core.SnapshotMessageType.Full)
+            {
+                lock (_lock)
+                {
+                    PreviousState = CurrentState.Clone();
+
+                    var newRenderables = new Dictionary<int, RenderableObject>();
+                    var count = reader.GetInt();
+                    for (int i = 0; i < count; i++)
+                    {
+                        var id = reader.GetInt();
+                        var x = reader.GetFloat();
+                        var y = reader.GetFloat();
+                        var icon = reader.GetString();
+                        newRenderables[id] = new RenderableObject { Id = id, Position = new(x, y), Icon = icon };
+                    }
+                    CurrentState.Renderables = newRenderables;
+                }
+            } else {
+                // We might receive other message types like commands responses, etc.
+                // For now, we just print them if they are not snapshots.
+                // Note: a robust implementation would have a proper message dispatcher.
+                try {
+                    var text = reader.GetString();
+                    Console.WriteLine($"Received non-snapshot message: {text}");
+                } catch {
+                     Console.WriteLine("Received unknown binary message.");
+                }
+            }
+
+            reader.Recycle();
         }
 
         public (GameState, GameState) GetStatesForRender()

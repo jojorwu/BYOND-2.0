@@ -111,6 +111,19 @@
           }
         }
       },
+      "LiteNetLib/1.2.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/LiteNetLib.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/LiteNetLib.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Microsoft.CodeAnalysis.Analyzers/3.11.0": {
         "type": "package",
         "build": {
@@ -516,7 +529,8 @@
         "dependencies": {
           "JetBrains.Annotations": "2025.2.4",
           "Microsoft.CodeAnalysis.CSharp": "5.0.0",
-          "Microsoft.CodeAnalysis.CSharp.Workspaces": "5.0.0"
+          "Microsoft.CodeAnalysis.CSharp.Workspaces": "5.0.0",
+          "Robust.Shared.Maths": "1.0.0"
         },
         "compile": {
           "bin/placeholder/Compiler.dll": {}
@@ -532,6 +546,7 @@
           "Compiler": "1.0.0",
           "NLua": "1.7.6",
           "Newtonsoft.Json": "13.0.3",
+          "Robust.Shared.Maths": "1.0.0",
           "SixLabors.ImageSharp": "3.1.5"
         },
         "compile": {
@@ -539,6 +554,19 @@
         },
         "runtime": {
           "bin/placeholder/Core.dll": {}
+        }
+      },
+      "Robust.Shared.Maths/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v9.0",
+        "dependencies": {
+          "JetBrains.Annotations": "2025.2.4"
+        },
+        "compile": {
+          "bin/placeholder/Robust.Shared.Maths.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Robust.Shared.Maths.dll": {}
         }
       }
     }
@@ -657,6 +685,35 @@
         "runtimes/win10-arm64/nativeassets/uap10.0/lua54.dll",
         "runtimes/win10-x64/nativeassets/uap10.0/lua54.dll",
         "runtimes/win10-x86/nativeassets/uap10.0/lua54.dll"
+      ]
+    },
+    "LiteNetLib/1.2.0": {
+      "sha512": "N4pJ6Drzdt7M7Ok//J1YB1t2jBNQikKud3OEgllUwK2qcu6elLyvb+vgOy4WJy9xbyobYg7oav1g5vuoaDHLuw==",
+      "type": "package",
+      "path": "litenetlib/1.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LNL.png",
+        "README.md",
+        "lib/net471/LiteNetLib.dll",
+        "lib/net471/LiteNetLib.xml",
+        "lib/net5.0/LiteNetLib.dll",
+        "lib/net5.0/LiteNetLib.xml",
+        "lib/net6.0/LiteNetLib.dll",
+        "lib/net6.0/LiteNetLib.xml",
+        "lib/net7.0/LiteNetLib.dll",
+        "lib/net7.0/LiteNetLib.xml",
+        "lib/net8.0/LiteNetLib.dll",
+        "lib/net8.0/LiteNetLib.xml",
+        "lib/netcoreapp3.1/LiteNetLib.dll",
+        "lib/netcoreapp3.1/LiteNetLib.xml",
+        "lib/netstandard2.0/LiteNetLib.dll",
+        "lib/netstandard2.0/LiteNetLib.xml",
+        "lib/netstandard2.1/LiteNetLib.dll",
+        "lib/netstandard2.1/LiteNetLib.xml",
+        "litenetlib.1.2.0.nupkg.sha512",
+        "litenetlib.nuspec"
       ]
     },
     "Microsoft.CodeAnalysis.Analyzers/3.11.0": {
@@ -1862,11 +1919,18 @@
       "type": "project",
       "path": "../Core/Core.csproj",
       "msbuildProject": "../Core/Core.csproj"
+    },
+    "Robust.Shared.Maths/1.0.0": {
+      "type": "project",
+      "path": "../Robust.Shared.Maths/Robust.Shared.Maths.csproj",
+      "msbuildProject": "../Robust.Shared.Maths/Robust.Shared.Maths.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net9.0": [
-      "Core >= 1.0.0"
+      "Core >= 1.0.0",
+      "LiteNetLib >= 1.2.0",
+      "Robust.Shared.Maths >= 1.0.0"
     ]
   },
   "packageFolders": {
@@ -1896,6 +1960,9 @@
           "projectReferences": {
             "/app/Core/Core.csproj": {
               "projectPath": "/app/Core/Core.csproj"
+            },
+            "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj": {
+              "projectPath": "/app/Robust.Shared.Maths/Robust.Shared.Maths.csproj"
             }
           }
         }
@@ -1915,6 +1982,12 @@
     "frameworks": {
       "net9.0": {
         "targetAlias": "net9.0",
+        "dependencies": {
+          "LiteNetLib": {
+            "target": "Package",
+            "version": "[1.2.0, )"
+          }
+        },
         "imports": [
           "net461",
           "net462",

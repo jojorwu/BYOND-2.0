@@ -1,5 +1,6 @@
 using Core;
 using ImGuiNET;
+using ImGuiFileDialog;
 
 namespace Editor.UI
 {
@@ -8,12 +9,14 @@ namespace Editor.UI
         private readonly GameApi _gameApi;
         private readonly EditorContext _editorContext;
         private readonly BuildService _buildService;
+        private readonly DmmService _dmmService;
 
-        public MenuBarPanel(GameApi gameApi, EditorContext editorContext, BuildService buildService)
+        public MenuBarPanel(GameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
             _buildService = buildService;
+            _dmmService = dmmService;
         }
 
         public void Draw()
@@ -36,8 +39,7 @@ namespace Editor.UI
                     }
                     if (ImGui.MenuItem("Load DMM Map"))
                     {
-                        // For now, hardcode the path. In the future, this would open a file dialog.
-                        _gameApi.LoadDmmMap("maps/default.dmm");
+                        FileDialog.OpenFileDialog("ChooseDmmFileDlgKey", "Choose a DMM File", ".dmm", ".");
                     }
                     ImGui.EndMenu();
                 }
@@ -51,6 +53,17 @@ namespace Editor.UI
                     ImGui.EndMenu();
                 }
                 ImGui.EndMainMenuBar();
+            }
+
+            if (FileDialog.Display("ChooseDmmFileDlgKey"))
+            {
+                if (FileDialog.IsOk)
+                {
+                    string filePath = FileDialog.GetFilepathName();
+                    var map = _dmmService.LoadDmm(filePath);
+                    _gameApi.SetMap(map);
+                }
+                FileDialog.Close();
             }
         }
     }

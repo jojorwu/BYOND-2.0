@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Angle.cs" />
+    <Compile Include="Box2.cs" />
+    <Compile Include="Box2Rotated.cs" />
+    <Compile Include="Box2i.cs" />
+    <Compile Include="Circle.cs" />
+    <Compile Include="Color.cs" />
+    <Compile Include="Direction.cs" />
+    <Compile Include="Easings.cs" />
+    <Compile Include="FormatHelpers.cs" />
+    <Compile Include="IApproxEquatable.cs" />
+    <Compile Include="MathHelper.cs" />
+    <Compile Include="Matrix22.cs" />
+    <Compile Include="Matrix33.cs" />
+    <Compile Include="Matrix3Helpers.cs" />
+    <Compile Include="NumericsHelpers.Abs.cs" />
+    <Compile Include="NumericsHelpers.Add.cs" />
+    <Compile Include="NumericsHelpers.Divide.cs" />
+    <Compile Include="NumericsHelpers.Max.cs" />
+    <Compile Include="NumericsHelpers.Min.cs" />
+    <Compile Include="NumericsHelpers.Multiply.cs" />
+    <Compile Include="NumericsHelpers.Sub.cs" />
+    <Compile Include="NumericsHelpers.cs" />
+    <Compile Include="SimdHelpers.cs" />
+    <Compile Include="Thickness.cs" />
+    <Compile Include="UIBox2.cs" />
+    <Compile Include="UIBox2i.cs" />
+    <Compile Include="Vector2Helpers.cs" />
+    <Compile Include="Vector2d.cs" />
+    <Compile Include="Vector2i.cs" />
+    <Compile Include="Vector2u.cs" />
+    <Compile Include="Vector3d.cs" />
+    <Compile Include="Vector4d.cs" />
+    <Compile Include="VectorHelpers.cs" />
+  </ItemGroup>
+
+</Project>

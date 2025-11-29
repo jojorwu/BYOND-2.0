@@ -1,5 +1,21 @@
 {
-  "IpAddress": "127.0.0.1",
-  "Port": 7777,
-  "ThreadManagement": 0
+  "ServerName": "BYOND 2.0 Server",
+  "ServerDescription": "A default server instance.",
+  "MaxPlayers": 32,
+  "EnableVm": false,
+  "VmMaxInstructions": 1000000,
+  "Network": {
+    "Mode": "Automatic",
+    "IpAddress": "127.0.0.1",
+    "Port": 7777
+  },
+  "Threading": {
+    "Mode": "Automatic",
+    "ThreadCount": 0
+  },
+  "Performance": {
+    "TickRate": 20,
+    "VmInstructionSlice": 100,
+    "SubsystemTickBudget": 10
+  }
 }

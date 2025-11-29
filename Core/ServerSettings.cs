@@ -42,5 +42,6 @@ namespace Core
     {
         public int TickRate { get; set; } = 20;
         public int VmInstructionSlice { get; set; } = 100;
+        public int SubsystemTickBudget { get; set; } = 10;
     }
 }

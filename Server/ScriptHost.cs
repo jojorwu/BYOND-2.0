@@ -67,10 +67,16 @@ namespace Server
 
         public void Tick()
         {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             lock (_scriptLock)
             {
+                var budget = TimeSpan.FromMilliseconds(_settings.Performance.SubsystemTickBudget);
                 for (var i = _threads.Count - 1; i >= 0; i--)
                 {
+                    if (stopwatch.Elapsed > budget)
+                    {
+                        break;
+                    }
                     var thread = _threads[i];
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
                     if (state != DreamThreadState.Running)

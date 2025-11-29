@@ -11,7 +11,6 @@ namespace Core
 
         public GameState GetState() => _gameApi.GetState();
         public Map? GetMap() => _gameApi.GetMap();
-        public void CreateMap(int width, int height, int depth) => _gameApi.CreateMap(width, height, depth);
         public Turf? GetTurf(int x, int y, int z) => _gameApi.GetTurf(x, y, z);
         public void SetTurf(int x, int y, int z, int turfId) => _gameApi.SetTurf(x, y, z, turfId);
         public GameObject? CreateObject(string typeName, int x, int y, int z) => _gameApi.CreateObject(typeName, x, y, z);

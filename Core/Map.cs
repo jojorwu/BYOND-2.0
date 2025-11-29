@@ -1,70 +1,71 @@
+using Robust.Shared.Maths;
+using System;
+using System.Collections.Generic;
+
 namespace Core
 {
-    /// <summary>
-    /// Represents the game map as a 3D grid of turfs.
-    /// </summary>
     public class Map
     {
-        private readonly Turf[,,] turfs;
+        private readonly Dictionary<int, Dictionary<Vector2i, Chunk>> _chunksByZ = new();
 
-        /// <summary>
-        /// Gets the width of the map.
-        /// </summary>
-        public int Width { get; }
-
-        /// <summary>
-        /// Gets the height of the map.
-        /// </summary>
-        public int Height { get; }
-
-        /// <summary>
-        /// Gets the depth of the map.
-        /// </summary>
-        public int Depth { get; }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Map"/> class.
-        /// </summary>
-        /// <param name="width">The width of the map.</param>
-        /// <param name="height">The height of the map.</param>
-        /// <param name="depth">The depth of the map.</param>
-        public Map(int width, int height, int depth)
+        public Map()
         {
-            Width = width;
-            Height = height;
-            Depth = depth;
-            turfs = new Turf[width, height, depth];
         }
 
-        /// <summary>
-        /// Gets the turf at the specified coordinates.
-        /// </summary>
-        /// <param name="x">The X-coordinate.</param>
-        /// <param name="y">The Y-coordinate.</param>
-        /// <param name="z">The Z-coordinate.</param>
-        /// <returns>The turf at the specified coordinates, or null if the coordinates are out of bounds.</returns>
+        private (Vector2i chunkCoords, Vector2i localCoords) GetChunkAndLocalCoords(int x, int y)
+        {
+            var chunkX = (int)Math.Floor((double)x / Chunk.ChunkSize);
+            var chunkY = (int)Math.Floor((double)y / Chunk.ChunkSize);
+            var localX = x - chunkX * Chunk.ChunkSize;
+            var localY = y - chunkY * Chunk.ChunkSize;
+            return (new Vector2i(chunkX, chunkY), new Vector2i(localX, localY));
+        }
+
         public Turf? GetTurf(int x, int y, int z)
         {
-            if (x < 0 || x >= Width || y < 0 || y >= Height || z < 0 || z >= Depth)
+            var (chunkCoords, localCoords) = GetChunkAndLocalCoords(x, y);
+
+            if (_chunksByZ.TryGetValue(z, out var chunks) && chunks.TryGetValue(chunkCoords, out var chunk))
             {
-                return null;
+                return chunk.GetTurf(localCoords.X, localCoords.Y);
             }
-            return turfs[x, y, z];
+
+            return null;
         }
 
-        /// <summary>
-        /// Sets the turf at the specified coordinates.
-        /// </summary>
-        /// <param name="x">The X-coordinate.</param>
-        /// <param name="y">The Y-coordinate.</param>
-        /// <param name="z">The Z-coordinate.</param>
-        /// <param name="turf">The turf to set.</param>
         public void SetTurf(int x, int y, int z, Turf turf)
         {
-            if (x >= 0 && x < Width && y >= 0 && y < Height && z >= 0 && z < Depth)
+            var (chunkCoords, localCoords) = GetChunkAndLocalCoords(x, y);
+
+            if (!_chunksByZ.TryGetValue(z, out var chunks))
             {
-                turfs[x, y, z] = turf;
+                chunks = new Dictionary<Vector2i, Chunk>();
+                _chunksByZ[z] = chunks;
             }
+
+            if (!chunks.TryGetValue(chunkCoords, out var chunk))
+            {
+                chunk = new Chunk();
+                chunks[chunkCoords] = chunk;
+            }
+
+            chunk.SetTurf(localCoords.X, localCoords.Y, turf);
+        }
+
+        public IEnumerable<(Vector2i coords, Chunk chunk)> GetChunks(int z)
+        {
+            if (_chunksByZ.TryGetValue(z, out var chunks))
+            {
+                foreach (var (coords, chunk) in chunks)
+                {
+                    yield return (coords, chunk);
+                }
+            }
+        }
+
+        public IEnumerable<int> GetZLevels()
+        {
+            return _chunksByZ.Keys;
         }
     }
 }

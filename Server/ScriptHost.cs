@@ -5,6 +5,7 @@ using System.Threading;
 using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
+using Core.VM.Runtime;
 using DMCompiler.Json;
 
 namespace Server
@@ -20,6 +21,7 @@ namespace Server
         private readonly GameApi _gameApi;
         private readonly ObjectTypeManager _objectTypeManager;
         private readonly OpenDreamCompilerService _compilerService;
+        private readonly DreamVM _dreamVM;
 
         public ScriptHost(Project project, GameState gameState)
         {
@@ -27,6 +29,7 @@ namespace Server
             _gameState = gameState;
             _objectTypeManager = new ObjectTypeManager();
             _compilerService = new OpenDreamCompilerService(_project);
+            _dreamVM = new DreamVM();
 
             var mapLoader = new MapLoader(_objectTypeManager);
             _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
@@ -100,8 +103,9 @@ namespace Server
 
                             if (compiledJson != null)
                             {
-                                var loader = new DreamMakerLoader(_objectTypeManager, _project);
+                                var loader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
                                 loader.Load(compiledJson);
+                                _dreamVM.RunWorldNew();
                             }
 
                             try { File.Delete(outputPath); }

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using Core.VM.Procs;
+using Core.VM.Runtime;
 using DMCompiler.Json;
 
 namespace Core
@@ -10,15 +12,47 @@ namespace Core
     {
         private readonly ObjectTypeManager _typeManager;
         private readonly Project _project;
+        private readonly DreamVM? _dreamVM;
 
-        public DreamMakerLoader(ObjectTypeManager typeManager, Project project)
+        public DreamMakerLoader(ObjectTypeManager typeManager, Project project, DreamVM? dreamVM = null)
         {
             _typeManager = typeManager;
             _project = project;
+            _dreamVM = dreamVM;
         }
 
         public void Load(PublicDreamCompiledJson compiledJson)
         {
+            if (_dreamVM != null)
+            {
+                // Load strings
+                _dreamVM.Strings.Clear();
+                if (compiledJson.Strings != null)
+                {
+                    foreach (var str in compiledJson.Strings)
+                    {
+                        _dreamVM.Strings.Add(str);
+                    }
+                }
+
+                // Load procs
+                _dreamVM.Procs.Clear();
+                if (compiledJson.Procs != null)
+                {
+                    foreach (var procJson in compiledJson.Procs)
+                    {
+                        var bytecode = procJson.Bytecode ?? Array.Empty<byte>();
+                        var newProc = new DreamProc(
+                            procJson.Name,
+                            bytecode,
+                            procJson.Arguments?.Count ?? 0,
+                            procJson.Locals?.Count ?? 0
+                        );
+                        _dreamVM.Procs.Add(newProc);
+                    }
+                }
+            }
+
             // First pass: Register all types to ensure they exist for parent linking
             foreach (var typeJson in compiledJson.Types)
             {

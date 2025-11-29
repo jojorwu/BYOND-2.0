@@ -36,12 +36,19 @@ namespace Server
                     Console.WriteLine($"Max Players: {settings.MaxPlayers}");
                     Console.WriteLine("The process will run indefinitely.");
 
-                    var tickInterval = 1000 / settings.Performance.TickRate;
+                    var tickInterval = TimeSpan.FromMilliseconds(1000 / settings.Performance.TickRate);
+                    var stopwatch = new System.Diagnostics.Stopwatch();
 
                     while (true)
                     {
+                        stopwatch.Restart();
                         scriptHost.Tick();
-                        Thread.Sleep(tickInterval);
+
+                        var elapsed = stopwatch.Elapsed;
+                        if (elapsed < tickInterval)
+                        {
+                            Thread.Sleep(tickInterval - elapsed);
+                        }
                     }
                 }
             }

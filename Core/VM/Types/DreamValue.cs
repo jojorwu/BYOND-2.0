@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using Core.VM.Procs;
 
 namespace Core.VM.Types
 {
@@ -35,6 +36,13 @@ namespace Core.VM.Types
         public DreamValue(DreamObject value)
         {
             Type = DreamValueType.DreamObject;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public DreamValue(DreamProc value)
+        {
+            Type = DreamValueType.DreamProc;
             _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
@@ -75,11 +83,24 @@ namespace Core.VM.Types
             return false;
         }
 
+        public bool TryGetValue(out DreamProc? value)
+        {
+            if (Type == DreamValueType.DreamProc)
+            {
+                value = (DreamProc?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
 
         public static implicit operator DreamValue(float value) => new DreamValue(value);
         public static implicit operator DreamValue(int value) => new DreamValue((float)value);
         public static implicit operator DreamValue(string value) => new DreamValue(value);
         public static implicit operator DreamValue(DreamObject value) => new DreamValue(value);
+        public static implicit operator DreamValue(DreamProc value) => new DreamValue(value);
 
         public override string ToString()
         {
@@ -92,6 +113,7 @@ namespace Core.VM.Types
                 case DreamValueType.String:
                     return (string?)_objectValue ?? string.Empty;
                 case DreamValueType.DreamObject:
+                case DreamValueType.DreamProc:
                     return _objectValue?.ToString() ?? "null";
                 default:
                     throw new InvalidOperationException("Invalid DreamValue type");
@@ -114,6 +136,100 @@ namespace Core.VM.Types
                 floatB = b._floatValue;
 
             return new DreamValue(floatA + floatB);
+        }
+
+        public static DreamValue operator -(DreamValue a, DreamValue b)
+        {
+            float floatA = 0;
+            if (a.Type == DreamValueType.Float)
+                floatA = a._floatValue;
+
+            float floatB = 0;
+            if (b.Type == DreamValueType.Float)
+                floatB = b._floatValue;
+
+            return new DreamValue(floatA - floatB);
+        }
+
+        public static DreamValue operator *(DreamValue a, DreamValue b)
+        {
+            float floatA = 0;
+            if (a.Type == DreamValueType.Float)
+                floatA = a._floatValue;
+
+            float floatB = 0;
+            if (b.Type == DreamValueType.Float)
+                floatB = b._floatValue;
+
+            return new DreamValue(floatA * floatB);
+        }
+
+        public static DreamValue operator /(DreamValue a, DreamValue b)
+        {
+            float floatA = 0;
+            if (a.Type == DreamValueType.Float)
+                floatA = a._floatValue;
+
+            float floatB = 0;
+            if (b.Type == DreamValueType.Float)
+                floatB = b._floatValue;
+
+            if (floatB == 0)
+                return new DreamValue(0); // Avoid division by zero
+
+            return new DreamValue(floatA / floatB);
+        }
+
+        public override bool Equals(object? obj)
+        {
+            if (obj is not DreamValue other)
+                return false;
+
+            if (Type != other.Type)
+                return false;
+
+            switch (Type)
+            {
+                case DreamValueType.Null:
+                    return true;
+                case DreamValueType.Float:
+                    return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
+                case DreamValueType.String:
+                case DreamValueType.DreamObject:
+                case DreamValueType.DreamProc:
+                    return _objectValue?.Equals(other._objectValue) ?? other._objectValue == null;
+                default:
+                    throw new InvalidOperationException("Invalid DreamValue type");
+            }
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Type, _floatValue, _objectValue);
+        }
+
+        public static bool operator ==(DreamValue a, DreamValue b)
+        {
+            return a.Equals(b);
+        }
+
+        public static bool operator !=(DreamValue a, DreamValue b)
+        {
+            return !a.Equals(b);
+        }
+
+        public bool IsFalse()
+        {
+            if (Type == DreamValueType.Null)
+                return true;
+
+            if (Type == DreamValueType.Float && _floatValue == 0)
+                return true;
+
+            if (Type == DreamValueType.String && (string)_objectValue == "")
+                return true;
+
+            return false;
         }
     }
 }

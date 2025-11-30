@@ -5,5 +5,6 @@ public enum DreamValueType {
     String,
     Null,
     DreamObject,
-    DreamType
+    DreamType,
+    DreamProc
 }

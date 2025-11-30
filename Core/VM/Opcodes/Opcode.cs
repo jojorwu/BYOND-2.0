@@ -305,5 +305,10 @@ public enum Opcode : byte {
     PushFloatAssign = 0x9A,
 
     NPushFloatAssign = 0x9B,
+
+    PushArgument = 0x9C,
+    SetArgument = 0x9D,
+    PushLocal = 0x9E,
+    SetLocal = 0x9F,
 }
 // ReSharper restore MissingBlankLines

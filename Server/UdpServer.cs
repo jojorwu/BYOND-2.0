@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Core;
 using LiteNetLib;
 
 namespace Server
@@ -14,19 +15,20 @@ namespace Server
         private readonly CancellationTokenSource _cancellationTokenSource;
         private readonly ScriptHost _scriptHost;
         private readonly Core.GameState _gameState;
-        private Timer _snapshotTimer;
+        private readonly ServerSettings _settings;
+        private Thread? _networkThread;
 
-        public UdpServer(IPAddress ipAddress, int port, ScriptHost scriptHost, Core.GameState gameState)
+        public UdpServer(IPAddress ipAddress, int port, ScriptHost scriptHost, Core.GameState gameState, ServerSettings settings)
         {
+            _settings = settings;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
-                DisconnectTimeout = 10000
+                DisconnectTimeout = settings.Network.DisconnectTimeout
             };
             _scriptHost = scriptHost;
             _gameState = gameState;
             _cancellationTokenSource = new CancellationTokenSource();
-            _snapshotTimer = new Timer(BroadcastSnapshot, null, Timeout.Infinite, Timeout.Infinite);
 
             _listener.ConnectionRequestEvent += OnConnectionRequest;
             _listener.PeerConnectedEvent += OnPeerConnected;
@@ -36,11 +38,14 @@ namespace Server
 
         public void Start()
         {
-            if (_netManager.Start(9050)) // TODO: Use port from config
+            if (_netManager.Start(_settings.Network.UdpPort))
             {
-                Console.WriteLine("UDP Server started on port 9050");
-                Task.Run(() => PollEvents(_cancellationTokenSource.Token));
-                _snapshotTimer.Change(0, 100); // Start broadcasting snapshots every 100ms
+                Console.WriteLine($"UDP Server started on port {_settings.Network.UdpPort}");
+                _networkThread = new Thread(() => PollEvents(_cancellationTokenSource.Token))
+                {
+                    Name = "NetworkThread"
+                };
+                _networkThread.Start();
             }
             else
             {
@@ -53,13 +58,12 @@ namespace Server
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(15);
+                Thread.Sleep(1);
             }
         }
 
         public void Stop()
         {
-            _snapshotTimer.Change(Timeout.Infinite, Timeout.Infinite);
             _cancellationTokenSource.Cancel();
             _netManager.Stop();
             Console.WriteLine("UDP Server stopped.");
@@ -68,7 +72,7 @@ namespace Server
         private void OnConnectionRequest(ConnectionRequest request)
         {
             Console.WriteLine($"Incoming connection from {request.RemoteEndPoint}");
-            request.AcceptIfKey("BYOND2.0");
+            request.AcceptIfKey(_settings.Network.ConnectionKey);
         }
 
         private void OnPeerConnected(NetPeer peer)
@@ -76,46 +80,19 @@ namespace Server
             Console.WriteLine($"Client connected: {peer}");
         }
 
-        private void BroadcastSnapshot(object? state)
-        {
-            var writer = new LiteNetLib.Utils.NetDataWriter();
-            writer.Put((byte)Core.SnapshotMessageType.Full);
-            writer.Put(_gameState.GameObjects.Count);
-            foreach (var gameObject in _gameState.GameObjects.Values)
-            {
-                writer.Put(gameObject.Id);
-                writer.Put(gameObject.Position.X);
-                writer.Put(gameObject.Position.Y);
-
-                // Send icon path, or empty string if not specified
-                var icon = gameObject.ObjectType.GetProperty<string>("icon");
-                writer.Put(icon ?? string.Empty);
-            }
-            _netManager.SendToAll(writer, DeliveryMethod.ReliableOrdered);
-        }
-
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
-            // For now, we only process commands from clients, not other message types.
-            // The snapshot logic is one-way (server to client).
-            if(reader.AvailableBytes > 0)
+            if (reader.AvailableBytes > 0)
             {
                 var command = reader.GetString();
                 Console.WriteLine($"Received command from {peer}: {command}");
 
-                string result;
-                if (command == "ping")
-                {
-                    result = "pong";
-                }
-                else
-                {
-                    result = _scriptHost.ExecuteCommand(command);
-                }
-
-                var writer = new LiteNetLib.Utils.NetDataWriter();
-                writer.Put(result);
-                peer.Send(writer, DeliveryMethod.ReliableOrdered);
+                // Enqueue the command for processing on the main game thread
+                _scriptHost.EnqueueCommand(command, (result) => {
+                    var writer = new LiteNetLib.Utils.NetDataWriter();
+                    writer.Put(result);
+                    peer.Send(writer, DeliveryMethod.ReliableOrdered);
+                });
             }
             reader.Recycle();
         }
@@ -123,6 +100,12 @@ namespace Server
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             Console.WriteLine($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
+        }
+
+        public void BroadcastSnapshot(string snapshot) {
+            var writer = new LiteNetLib.Utils.NetDataWriter();
+            writer.Put(snapshot);
+            _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
         }
 
         public void Dispose()

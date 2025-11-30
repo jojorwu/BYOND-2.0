@@ -18,7 +18,7 @@ public class Lexer<TSourceType> {
     protected readonly Queue<Token> PendingTokenQueue = new();
 
     private readonly IEnumerator<TSourceType> _sourceEnumerator;
-    private TSourceType _current;
+    private TSourceType _current = default!;
 
     /// <summary>
     /// Given a stream of some type, allows to advance through it and create <see cref="Token"/> tokens

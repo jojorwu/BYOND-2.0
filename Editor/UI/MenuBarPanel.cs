@@ -1,6 +1,5 @@
 using Core;
 using ImGuiNET;
-using ImGuiFileDialog;
 
 namespace Editor.UI
 {
@@ -39,7 +38,7 @@ namespace Editor.UI
                     }
                     if (ImGui.MenuItem("Load DMM Map"))
                     {
-                        FileDialog.OpenFileDialog("ChooseDmmFileDlgKey", "Choose a DMM File", ".dmm", ".");
+                        ImGui.OpenPopup("ChooseDmmFileDlgKey");
                     }
                     ImGui.EndMenu();
                 }
@@ -55,15 +54,10 @@ namespace Editor.UI
                 ImGui.EndMainMenuBar();
             }
 
-            if (FileDialog.Display("ChooseDmmFileDlgKey"))
+            if (ImGui.BeginPopupModal("ChooseDmmFileDlgKey"))
             {
-                if (FileDialog.IsOk)
-                {
-                    string filePath = FileDialog.GetFilepathName();
-                    var map = _dmmService.LoadDmm(filePath);
-                    _gameApi.SetMap(map);
-                }
-                FileDialog.Close();
+                // TODO: File dialog
+                ImGui.EndPopup();
             }
         }
     }

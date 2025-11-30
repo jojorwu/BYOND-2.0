@@ -13,17 +13,21 @@ namespace Server
     public class ScriptHost : IDisposable
     {
         private readonly Project _project;
-        private readonly Scripting _scripting;
+        private Scripting _scripting;
         private readonly FileSystemWatcher _watcher;
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
-        private readonly GameApi _gameApi;
+        private GameApi? _gameApi;
         private readonly ObjectTypeManager _objectTypeManager;
         private readonly OpenDreamCompilerService _compilerService;
         private readonly DreamVM _dreamVM;
         private readonly ServerSettings _settings;
         private readonly List<DreamThread> _threads = new();
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
+        private readonly System.Diagnostics.Stopwatch _stopwatch = new();
+        private int _lastProcessedThreadIndex = -1;
+        private readonly List<DreamThread> _completedThreads = new();
 
         public ScriptHost(Project project, GameState gameState, ServerSettings settings)
         {
@@ -33,10 +37,7 @@ namespace Server
             _objectTypeManager = new ObjectTypeManager();
             _compilerService = new OpenDreamCompilerService(_project);
             _dreamVM = new DreamVM(settings);
-
-            var mapLoader = new MapLoader(_objectTypeManager);
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
-            _scripting = new Scripting(_gameApi);
+            _scripting = new Scripting(); // Dummy initialization
 
             var scriptsRoot = _project.GetFullPath(Constants.ScriptsRoot);
             if (!Directory.Exists(scriptsRoot))
@@ -67,17 +68,63 @@ namespace Server
 
         public void Tick()
         {
+            ProcessCommandQueue();
             lock (_scriptLock)
             {
-                for (var i = _threads.Count - 1; i >= 0; i--)
+                var budgetSettings = _settings.Performance.TimeBudgeting.ScriptHost;
+                if (!budgetSettings.Enabled)
                 {
-                    var thread = _threads[i];
+                    // Run all threads without a time budget
+                    for (var i = _threads.Count - 1; i >= 0; i--)
+                    {
+                        var thread = _threads[i];
+                        var state = thread.Run(_settings.Performance.VmInstructionSlice);
+                        if (state != DreamThreadState.Running)
+                        {
+                            _threads.RemoveAt(i);
+                        }
+                    }
+                    return;
+                }
+
+                var tickMilliseconds = 1000.0 / _settings.Performance.TickRate;
+                var budgetMilliseconds = tickMilliseconds * budgetSettings.BudgetPercent;
+                var budget = TimeSpan.FromMilliseconds(budgetMilliseconds);
+                _stopwatch.Restart();
+
+                if (_threads.Count == 0) return;
+
+                var startIndex = (_lastProcessedThreadIndex + 1) % _threads.Count;
+                DreamThread? lastProcessedThread = null;
+                _completedThreads.Clear();
+
+                for (int i = 0; i < _threads.Count; i++)
+                {
+                    int index = (startIndex + i) % _threads.Count;
+                    var thread = _threads[index];
+
+                    if (_stopwatch.Elapsed > budget && i > 0) // Always run at least one thread
+                    {
+                        break;
+                    }
+
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
                     if (state != DreamThreadState.Running)
                     {
-                        _threads.RemoveAt(i);
+                        _completedThreads.Add(thread);
+                    }
+                    lastProcessedThread = thread;
+                }
+
+                if (_completedThreads.Count > 0)
+                {
+                    foreach (var completedThread in _completedThreads)
+                    {
+                        _threads.Remove(completedThread);
                     }
                 }
+
+                _lastProcessedThreadIndex = lastProcessedThread != null ? _threads.IndexOf(lastProcessedThread) : -1;
             }
         }
 
@@ -87,7 +134,7 @@ namespace Server
             if (ext == ".lua" || ext == ".dm" || ext == ".dmm")
             {
                 Console.WriteLine($"File {e.FullPath} has been changed. Debouncing reload...");
-                _debounceTimer.Change(200, Timeout.Infinite);
+                _debounceTimer.Change(_settings.Development.ScriptReloadDebounceMs, Timeout.Infinite);
             }
         }
 
@@ -142,7 +189,12 @@ namespace Server
                         }
                     }
 
-                    _scripting.Reload();
+                    // Dispose the old scripting engine and create a new one for a clean slate
+                    _scripting?.Dispose();
+                    var mapLoader = new MapLoader(_objectTypeManager);
+                    _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
+                    _scripting = new Scripting(_gameApi);
+
                     var mainLua = _project.GetFullPath(Path.Combine(Constants.ScriptsRoot, "main.lua"));
                     if(File.Exists(mainLua))
                     {
@@ -160,6 +212,9 @@ namespace Server
         {
             try
             {
+                if (_scripting == null)
+                    return "Scripting engine not initialized.";
+
                 _scripting.ExecuteString(command);
                 return "Command executed successfully.";
             }
@@ -170,6 +225,21 @@ namespace Server
                     return "Script execution timed out.";
                 }
                 return $"Error executing command: {ex.Message}";
+            }
+        }
+
+        public void EnqueueCommand(string command, Action<string> onResult)
+        {
+            _commandQueue.Enqueue((command, onResult));
+        }
+
+        private void ProcessCommandQueue()
+        {
+            while (_commandQueue.TryDequeue(out var commandInfo))
+            {
+                var (command, onResult) = commandInfo;
+                var result = ExecuteCommand(command);
+                onResult(result);
             }
         }
 

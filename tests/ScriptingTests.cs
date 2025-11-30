@@ -67,7 +67,11 @@ namespace Core.Tests
             var tempFile = Path.GetTempFileName();
             File.WriteAllText(tempFile, "testVar = 123");
             _scripting.ExecuteFile(tempFile);
-            _scripting.Reload();
+
+            // Simulate reload by creating a new Scripting instance
+            _scripting.Dispose();
+            _scripting = new Scripting(_gameApi);
+
             File.WriteAllText(tempFile, "if testVar == nil then print('testVar is nil') else print('testVar is not nil') end");
             Assert.DoesNotThrow(() => _scripting.ExecuteFile(tempFile));
             File.Delete(tempFile);

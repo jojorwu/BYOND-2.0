@@ -57,7 +57,7 @@ namespace Core.Tests
 
             Assert.That(settings, Is.Not.Null);
             Assert.That(settings.Network.IpAddress, Is.EqualTo("127.0.0.1"));
-            Assert.That(settings.Network.Port, Is.EqualTo(7777));
+            Assert.That(settings.Network.UdpPort, Is.EqualTo(9050));
             Assert.That(settings.Threading.Mode, Is.EqualTo(ThreadMode.Automatic));
         }
     }

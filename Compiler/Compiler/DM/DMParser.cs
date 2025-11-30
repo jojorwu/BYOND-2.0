@@ -1,4 +1,5 @@
 using DMCompiler.Compiler.DMPreprocessor;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM;
@@ -264,7 +265,7 @@ namespace DMCompiler.Compiler.DM {
                         "Empty proc detected - add an explicit \"return\" statement");
                 }
 
-                if (path.IsOperator) {
+                if (path.IsOperator && procBlock is not null) {
                     List<DMASTProcStatement> procStatements = procBlock.Statements.ToList();
                     Location tokenLoc = procBlock.Location;
                     //add ". = src" as the first expression in the operator
@@ -455,7 +456,7 @@ namespace DMCompiler.Compiler.DM {
         private string? PathElement() {
             Token elementToken = Current();
             if (Check(ValidPathElementTokens)) {
-                return elementToken.Text;
+                return elementToken.Text ?? null;
             } else {
                 return null;
             }
@@ -1160,6 +1161,13 @@ namespace DMCompiler.Compiler.DM {
             return new DMASTProcStatementSpawn(loc, delay ?? new DMASTConstantInteger(loc, 0), body);
         }
 
+        private void RequirePath([NotNull] ref DMASTPath? path, string message = "Expected a path") {
+            if (path == null) {
+                Emit(WarningCode.BadExpression, message);
+                path = new DMASTPath(Current().Location, DreamPath.Root);
+            }
+        }
+
         private void ExtraColonPeriod() {
             var token = Current();
             if (token.Type is not (TokenType.DM_Colon or TokenType.DM_Period))
@@ -1265,6 +1273,7 @@ namespace DMCompiler.Compiler.DM {
             if (Check(TokenType.DM_In)) {
                 Whitespace();
                 DMASTExpression? listExpr = Expression();
+                RequireExpression(ref listExpr);
                 Whitespace();
                 Consume(TokenType.DM_RightParenthesis, "Expected ')' in for after expression 2");
                 ExtraColonPeriod();
@@ -1910,7 +1919,7 @@ namespace DMCompiler.Compiler.DM {
                 DMASTExpression? c = ExpressionTernary(isTernaryB);
                 if (c is DMASTVoid) c = new DMASTConstantNull(c.Location);
 
-                return new DMASTTernary(a.Location, a, b, c);
+                return new DMASTTernary(a.Location, a, b, c ?? new DMASTConstantNull(a.Location));
             }
 
             return a;
@@ -2250,8 +2259,11 @@ namespace DMCompiler.Compiler.DM {
                 return inner;
             }
 
-            if (token.Type == TokenType.DM_Var && _allowVarDeclExpression)
-                return new DMASTVarDeclExpression( loc, Path() );
+            if (token.Type == TokenType.DM_Var && _allowVarDeclExpression) {
+                var varPath = Path();
+                RequirePath(ref varPath);
+                return new DMASTVarDeclExpression(loc, varPath);
+            }
 
             if (Constant() is { } constant)
                 return constant;
@@ -2339,9 +2351,9 @@ namespace DMCompiler.Compiler.DM {
             switch (constantToken.Type) {
                 case TokenType.DM_Integer: Advance(); return new DMASTConstantInteger(constantToken.Location, constantToken.ValueAsInt());
                 case TokenType.DM_Float: Advance(); return new DMASTConstantFloat(constantToken.Location, constantToken.ValueAsFloat());
-                case TokenType.DM_Resource: Advance(); return new DMASTConstantResource(constantToken.Location, constantToken.ValueAsString());
+                case TokenType.DM_Resource: Advance(); return new DMASTConstantResource(constantToken.Location, constantToken.ValueAsString() ?? "");
                 case TokenType.DM_Null: Advance(); return new DMASTConstantNull(constantToken.Location);
-                case TokenType.DM_RawString: Advance(); return new DMASTConstantString(constantToken.Location, constantToken.ValueAsString());
+                case TokenType.DM_RawString: Advance(); return new DMASTConstantString(constantToken.Location, constantToken.ValueAsString() ?? "");
                 case TokenType.DM_ConstantString:
                 case TokenType.DM_StringBegin:
                     // Don't advance, ExpressionFromString() will handle it
@@ -2459,6 +2471,8 @@ namespace DMCompiler.Compiler.DM {
                             }
 
                             expression = ParseScopeIdentifier(expression);
+                            if (expression is null)
+                                return null;
                             continue;
                         }
 

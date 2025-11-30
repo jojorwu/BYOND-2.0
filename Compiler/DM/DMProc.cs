@@ -534,6 +534,8 @@ internal sealed class DMProc {
 
     public DMReference GetLocalVariableReference(string name) {
         LocalVariable? local = GetLocalVariable(name);
+        if (local == null)
+            return DMReference.Invalid;
 
         return local.IsParameter ? DMReference.CreateArgument(local.Id) : DMReference.CreateLocal(local.Id);
     }

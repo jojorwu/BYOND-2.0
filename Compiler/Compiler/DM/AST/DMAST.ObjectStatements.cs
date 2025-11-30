@@ -16,14 +16,18 @@ public sealed class DMASTInvalidStatement(Location location) : DMASTStatement(lo
 /// Lone semicolon, statement containing nothing
 public sealed class DMASTNullStatement(Location location) : DMASTStatement(location);
 
-public sealed class DMASTObjectDefinition(Location location, DreamPath path, DMASTBlockInner? innerBlock)
-    : DMASTStatement(location) {
+public sealed class DMASTObjectDefinition : DMASTStatement {
     /// <summary> Unlike other Path variables stored by AST nodes, this path is guaranteed to be the real, absolute path of this object definition block. <br/>
     /// That includes any inherited pathing from being tabbed into a different, base definition.
     /// </summary>
-    public DreamPath Path = path;
+    public DreamPath Path;
 
-    public readonly DMASTBlockInner? InnerBlock = innerBlock;
+    public readonly DMASTBlockInner? InnerBlock;
+
+    public DMASTObjectDefinition(Location location, DreamPath path, DMASTBlockInner? innerBlock) : base(location) {
+        Path = path;
+        InnerBlock = innerBlock;
+    }
 }
 
 /// <remarks> Also includes proc overrides; see the <see cref="IsOverride"/> member. Verbs too.</remarks>
@@ -59,18 +63,14 @@ public sealed class DMASTProcDefinition : DMASTStatement {
         }
 
         ObjectPath = (path.Elements.Length > 1) ? path.FromElements(0, -2) : DreamPath.Root;
-        Name = path.LastElement;
+        Name = path.LastElement!;
         Parameters = parameters;
         Body = body;
         ReturnTypes = returnType;
     }
 }
 
-public sealed class DMASTObjectVarDefinition(
-    Location location,
-    DreamPath path,
-    DMASTExpression value,
-    DMComplexValueType valType) : DMASTStatement(location) {
+public sealed class DMASTObjectVarDefinition : DMASTStatement {
     /// <summary>The path of the object that we are a property of.</summary>
     public DreamPath ObjectPath => _varDecl.ObjectPath;
 
@@ -78,9 +78,16 @@ public sealed class DMASTObjectVarDefinition(
     public DreamPath? Type => _varDecl.IsList ? DreamPath.List : _varDecl.TypePath;
 
     public string Name => _varDecl.VarName;
-    public DMASTExpression Value = value;
+    public DMASTExpression Value;
 
-    private readonly ObjVarDeclInfo _varDecl = new(path);
+    private readonly ObjVarDeclInfo _varDecl;
+    public readonly DMComplexValueType ValType;
+
+    public DMASTObjectVarDefinition(Location location, DreamPath path, DMASTExpression value, DMComplexValueType valType) : base(location) {
+        _varDecl = new(path);
+        Value = value;
+        ValType = valType;
+    }
 
     public bool IsStatic => _varDecl.IsStatic;
 
@@ -88,7 +95,6 @@ public sealed class DMASTObjectVarDefinition(
     public bool IsFinal => _varDecl.IsFinal;
     public bool IsTmp => _varDecl.IsTmp;
 
-    public readonly DMComplexValueType ValType = valType;
 }
 
 public sealed class DMASTMultipleObjectVarDefinitions(Location location, DMASTObjectVarDefinition[] varDefinitions)
@@ -99,11 +105,11 @@ public sealed class DMASTMultipleObjectVarDefinitions(Location location, DMASTOb
 public sealed class DMASTObjectVarOverride : DMASTStatement {
     public readonly DreamPath ObjectPath;
     public readonly string VarName;
-    public DMASTExpression Value;
+    public DMASTExpression? Value;
 
-    public DMASTObjectVarOverride(Location location, DreamPath path, DMASTExpression value) : base(location) {
+    public DMASTObjectVarOverride(Location location, DreamPath path, DMASTExpression? value) : base(location) {
         ObjectPath = path.FromElements(0, -2);
-        VarName = path.LastElement;
+        VarName = path.LastElement!;
         Value = value;
     }
 }

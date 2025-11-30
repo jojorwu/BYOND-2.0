@@ -2,7 +2,11 @@
 
 internal abstract class VarDeclInfo {
     public DreamPath? TypePath;
-    public string VarName;
+    public string VarName = "";
+
+    protected VarDeclInfo(string varName) {
+        VarName = varName;
+    }
 
     ///<summary>Marks whether the variable is /global/ or /static/. (These are seemingly interchangeable keywords in DM and so are under this same boolean)</summary>
     public bool IsStatic;
@@ -13,7 +17,7 @@ internal abstract class VarDeclInfo {
 }
 
 internal sealed class ProcVarDeclInfo : VarDeclInfo {
-    public ProcVarDeclInfo(DreamPath path) {
+    public ProcVarDeclInfo(DreamPath path) : base(path.LastElement) {
         string[] elements = path.Elements;
         var readIdx = 0;
         List<string> currentPath = new();
@@ -59,7 +63,7 @@ internal sealed class ObjVarDeclInfo : VarDeclInfo {
     public DreamPath ObjectPath;
     public readonly bool IsTmp;
 
-    public ObjVarDeclInfo(DreamPath path) {
+    public ObjVarDeclInfo(DreamPath path) : base(path.LastElement) {
         string[] elements = path.Elements;
         var readIdx = 0;
         List<string> currentPath = new();
@@ -113,7 +117,7 @@ internal sealed class ObjVarDeclInfo : VarDeclInfo {
 }
 
 internal sealed class ProcParameterDeclInfo : VarDeclInfo {
-    public ProcParameterDeclInfo(DreamPath path) {
+    public ProcParameterDeclInfo(DreamPath path) : base(path.LastElement) {
         string[] elements = path.Elements;
         var readIdx = 0;
         List<string> currentPath = new();

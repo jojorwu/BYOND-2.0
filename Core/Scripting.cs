@@ -14,7 +14,7 @@ namespace Core
     {
         private Lua lua;
         private readonly object luaLock = new object();
-        private readonly GameApi game;
+        private readonly GameApi? game;
         private readonly EditorApi? editor;
         private readonly TimeSpan _executionTimeout = TimeSpan.FromSeconds(1);
         private Stopwatch _stopwatch = new Stopwatch();
@@ -23,6 +23,11 @@ namespace Core
         /// <summary>
         /// Initializes a new instance of the <see cref="Scripting"/> class.
         /// </summary>
+        public Scripting()
+        {
+            lua = new Lua();
+        }
+
         public Scripting(GameApi game, EditorApi? editor = null)
         {
             this.game = game;
@@ -33,6 +38,9 @@ namespace Core
 
         private void RegisterApis()
         {
+            if (game == null)
+                return;
+
             lua["Game"] = new LuaGameApi(game);
             if (editor != null)
             {
@@ -80,19 +88,6 @@ namespace Core
                         _hookHandle.Free();
                     }
                 }
-            }
-        }
-
-        /// <summary>
-        /// Reloads the Lua state, providing a clean environment for script execution.
-        /// </summary>
-        public void Reload()
-        {
-            lock (luaLock)
-            {
-                lua.Close();
-                lua = new Lua();
-                RegisterApis();
             }
         }
 

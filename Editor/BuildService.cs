@@ -3,6 +3,9 @@ using System.IO;
 using System.Linq;
 using Core;
 using DMCompiler.Compiler;
+
+namespace Editor
+{
     public record BuildMessage(string File, int Line, string Text, BuildMessageLevel Level);
 
     public enum BuildMessageLevel
@@ -21,7 +24,7 @@ using DMCompiler.Compiler;
 
         public BuildService(Project project)
         {
-            _compilerService = new OpenDreamCompilerService();
+            _compilerService = new OpenDreamCompilerService(project);
             _project = project;
         }
 

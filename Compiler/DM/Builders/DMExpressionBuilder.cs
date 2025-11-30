@@ -5,6 +5,8 @@ using DMCompiler.DM.Expressions;
 using static DMCompiler.DM.Builders.DMExpressionBuilder.ScopeMode;
 using String = DMCompiler.DM.Expressions.String;
 
+using DMCompiler.DM;
+
 namespace DMCompiler.DM.Builders;
 
 internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.ScopeMode scopeMode = Normal) {
@@ -65,7 +67,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             case DMASTIdentifier identifier: result = BuildIdentifier(identifier, inferredPath); break;
             case DMASTScopeIdentifier globalIdentifier: result = BuildScopeIdentifier(globalIdentifier, inferredPath); break;
             case DMASTCallableSelf: result = new ProcSelf(expression.Location, ctx.Proc.ReturnTypes); break;
-            case DMASTCallableSuper: result = new ProcSuper(expression.Location, ctx.Type.GetProcReturnTypes(ctx.Proc.Name)); break;
+            case DMASTCallableSuper: result = new ProcSuper(expression.Location, ctx.Type.GetProcReturnTypes(ctx.Proc.Name) ?? DMValueType.Anything); break;
             case DMASTCallableProcIdentifier procIdentifier: result = BuildCallableProcIdentifier(procIdentifier, ctx.Type); break;
             case DMASTProcCall procCall: result = BuildProcCall(procCall, inferredPath); break;
             case DMASTAssign assign: result = BuildAssign(assign, inferredPath); break;
@@ -601,6 +603,9 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
 
                 return BuildPath(identifier.Location, inferredPath.Value);
             case "__PROC__": // The saner alternative to "....."
+                if (ctx.Proc == null)
+                    return BadExpression(WarningCode.BadExpression, identifier.Location,
+                        "__PROC__ cannot be used here, there is no proc in context");
                 var path = ctx.Type.Path.AddToPath("proc/" + ctx.Proc.Name);
 
                 return new ConstantProcReference(identifier.Location, path, ctx.Proc);

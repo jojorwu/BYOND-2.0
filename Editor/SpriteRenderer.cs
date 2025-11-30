@@ -1,7 +1,7 @@
 using Silk.NET.OpenGL;
 using System.IO;
 using System.Numerics;
-using Robust.Shared.Maths;
+using Silk.NET.Maths;
 
 namespace Editor
 {
@@ -81,7 +81,7 @@ namespace Editor
             _gl.BindVertexArray(0);
         }
 
-        public unsafe void Draw(uint textureId, Vector2i position, Vector2i size, float rotate, Matrix4x4 projection)
+        public unsafe void Draw(uint textureId, Vector2D<int> position, Vector2D<int> size, float rotate, Matrix4x4 projection)
         {
             _gl.UseProgram(_shaderProgram);
 

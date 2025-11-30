@@ -34,6 +34,31 @@ namespace Core.VM.Runtime
             return Stack.Pop();
         }
 
+        private byte ReadByte()
+        {
+            if (PC + 1 > CurrentProc.Bytecode.Length)
+                throw new Exception("Attempted to read past the end of the bytecode.");
+            return CurrentProc.Bytecode[PC++];
+        }
+
+        private int ReadInt32()
+        {
+            if (PC + 4 > CurrentProc.Bytecode.Length)
+                throw new Exception("Attempted to read past the end of the bytecode.");
+            var value = BitConverter.ToInt32(CurrentProc.Bytecode, PC);
+            PC += 4;
+            return value;
+        }
+
+        private float ReadSingle()
+        {
+            if (PC + 4 > CurrentProc.Bytecode.Length)
+                throw new Exception("Attempted to read past the end of the bytecode.");
+            var value = BitConverter.ToSingle(CurrentProc.Bytecode, PC);
+            PC += 4;
+            return value;
+        }
+
         public DreamThreadState Run(int instructionBudget)
         {
             if (State != DreamThreadState.Running)
@@ -52,24 +77,18 @@ namespace Core.VM.Runtime
                     return State;
                 }
 
-                var opcode = (Opcode)CurrentProc.Bytecode[PC++];
+                var opcode = (Opcode)ReadByte();
                 switch (opcode)
                 {
                     case Opcode.PushString:
                     {
-                        if (PC + 4 > CurrentProc.Bytecode.Length)
-                            throw new Exception("Attempted to read past the end of the bytecode.");
-                        var stringId = BitConverter.ToInt32(CurrentProc.Bytecode, PC);
-                        PC += 4;
+                        var stringId = ReadInt32();
                         Push(new DreamValue(_vm.Strings[stringId]));
                         break;
                     }
                     case Opcode.PushFloat:
                     {
-                        if (PC + 4 > CurrentProc.Bytecode.Length)
-                            throw new Exception("Attempted to read past the end of the bytecode.");
-                        var value = BitConverter.ToSingle(CurrentProc.Bytecode, PC);
-                        PC += 4;
+                        var value = ReadSingle();
                         Push(new DreamValue(value));
                         break;
                     }
@@ -78,6 +97,55 @@ namespace Core.VM.Runtime
                         var b = Pop();
                         var a = Pop();
                         Push(a + b);
+                        break;
+                    }
+                    case Opcode.Subtract:
+                    {
+                        var b = Pop();
+                        var a = Pop();
+                        Push(a - b);
+                        break;
+                    }
+                    case Opcode.Multiply:
+                    {
+                        var b = Pop();
+                        var a = Pop();
+                        Push(a * b);
+                        break;
+                    }
+                    case Opcode.Divide:
+                    {
+                        var b = Pop();
+                        var a = Pop();
+                        Push(a / b);
+                        break;
+                    }
+                    case Opcode.CompareEquals:
+                    {
+                        var b = Pop();
+                        var a = Pop();
+                        Push(new DreamValue(a == b ? 1 : 0));
+                        break;
+                    }
+                    case Opcode.CompareNotEquals:
+                    {
+                        var b = Pop();
+                        var a = Pop();
+                        Push(new DreamValue(a != b ? 1 : 0));
+                        break;
+                    }
+                    case Opcode.Jump:
+                    {
+                        var address = ReadInt32();
+                        PC = address;
+                        break;
+                    }
+                    case Opcode.JumpIfFalse:
+                    {
+                        var value = Pop();
+                        var address = ReadInt32();
+                        if (value.IsFalse())
+                            PC = address;
                         break;
                     }
                     case Opcode.Output:

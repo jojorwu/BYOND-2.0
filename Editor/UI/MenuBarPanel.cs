@@ -29,12 +29,12 @@ namespace Editor.UI
                         var map = _gameApi.GetMap();
                         if (map != null)
                         {
-                            _gameApi.SaveMap("maps/default.json");
+                            _gameApi.SaveMapAsync("maps/default.json");
                         }
                     }
                     if (ImGui.MenuItem("Load Map"))
                     {
-                        _gameApi.LoadMap("maps/default.json");
+                        _gameApi.LoadMapAsync("maps/default.json");
                     }
                     if (ImGui.MenuItem("Load DMM Map"))
                     {

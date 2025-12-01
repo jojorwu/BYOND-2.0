@@ -15,45 +15,49 @@ namespace Core
             _objectTypeManager = objectTypeManager;
         }
 
-        public Map? LoadMap(string filePath)
+        public async Task<Map?> LoadMapAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
                 return null;
             }
 
-            var json = File.ReadAllText(filePath);
-            var mapData = JsonConvert.DeserializeObject<MapData>(json);
+            var json = await File.ReadAllTextAsync(filePath);
 
-            if (mapData?.Turfs == null)
+            return await Task.Run(() =>
             {
-                return null;
-            }
+                var mapData = JsonConvert.DeserializeObject<MapData>(json);
 
-            var map = new Map();
-            foreach(var turfData in mapData.Turfs)
-            {
-                var turf = new Turf(turfData.Id);
-                foreach (var objData in turfData.Contents)
+                if (mapData?.Turfs == null)
                 {
-                    var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
-                    if (objectType != null)
-                    {
-                        var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
-                        foreach (var prop in objData.Properties)
-                        {
-                            gameObject.Properties[prop.Key] = prop.Value;
-                        }
-                        turf.Contents.Add(gameObject);
-                    }
+                    return null;
                 }
-                map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
-            }
 
-            return map;
+                var map = new Map();
+                foreach(var turfData in mapData.Turfs)
+                {
+                    var turf = new Turf(turfData.Id);
+                    foreach (var objData in turfData.Contents)
+                    {
+                        var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
+                        if (objectType != null)
+                        {
+                            var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
+                            foreach (var prop in objData.Properties)
+                            {
+                                gameObject.Properties[prop.Key] = prop.Value;
+                            }
+                            turf.Contents.Add(gameObject);
+                        }
+                    }
+                    map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
+                }
+
+                return map;
+            });
         }
 
-        public void SaveMap(Map map, string filePath)
+        public async Task SaveMapAsync(Map map, string filePath)
         {
             var mapData = new MapData();
 
@@ -85,9 +89,8 @@ namespace Core
                 }
             }
 
-
-            var json = JsonConvert.SerializeObject(mapData, Formatting.Indented);
-            File.WriteAllText(filePath, json);
+            var json = await Task.Run(() => JsonConvert.SerializeObject(mapData, Formatting.Indented));
+            await File.WriteAllTextAsync(filePath, json);
         }
 
         private class MapData

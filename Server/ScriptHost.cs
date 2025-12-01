@@ -14,12 +14,12 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
-        private readonly GameApi _gameApi;
-        private readonly ObjectTypeManager _objectTypeManager;
-        private readonly DreamVM _dreamVM;
+        private GameApi _gameApi;
+        private ObjectTypeManager _objectTypeManager;
+        private DreamVM _dreamVM;
         private readonly ServerSettings _settings;
         private readonly List<DreamThread> _threads = new();
-        private readonly ScriptManager _scriptManager;
+        private ScriptManager _scriptManager;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
 
         public ScriptHost(Project project, GameState gameState, ServerSettings settings)
@@ -101,36 +101,53 @@ namespace Server
             }
         }
 
-        private async void ReloadScripts(object? state)
+        private void ReloadScripts(object? state)
         {
-            try
+            Console.WriteLine("Starting background script reload...");
+            Task.Run(async () =>
             {
-                Console.WriteLine("Reloading all scripts...");
-                await _scriptManager.ReloadAll(); // Perform the async operation outside the lock
-                Console.WriteLine("Invoking OnStart event...");
-
-                lock (_scriptLock)
+                try
                 {
-                    _threads.Clear(); // Clear old threads now that scripts are loaded
-                    _scriptManager.InvokeGlobalEvent("OnStart");
+                    // 1. Create a new script environment in the background
+                    var newObjectTypeManager = new ObjectTypeManager();
+                    var newDreamVM = new DreamVM(_settings);
+                    var newMapLoader = new MapLoader(newObjectTypeManager);
+                    var newGameApi = new GameApi(_project, _gameState, newObjectTypeManager, newMapLoader);
+                    var newScriptManager = new ScriptManager(newGameApi, newObjectTypeManager, _project, newDreamVM);
 
-                    // After reloading, we need to re-create the main thread for world.New()
-                    var mainThread = _scriptManager.CreateThread("world.New");
+                    await newScriptManager.ReloadAll();
+                    Console.WriteLine("Invoking OnStart event in new environment...");
+                    newScriptManager.InvokeGlobalEvent("OnStart");
+
+                    var newThreads = new List<DreamThread>();
+                    var mainThread = newScriptManager.CreateThread("world.New");
                     if (mainThread != null)
                     {
-                        _threads.Add(mainThread);
-                        Console.WriteLine("Successfully created and started 'world.New' thread.");
+                        newThreads.Add(mainThread);
+                        Console.WriteLine("Successfully created 'world.New' thread in new environment.");
                     }
                     else
                     {
-                        Console.WriteLine("Warning: Could not create 'world.New' thread. Main game loop will not start.");
+                        Console.WriteLine("Warning: Could not create 'world.New' thread in new environment.");
                     }
+
+                    // 2. Hot-swap the old environment with the new one inside a lock
+                    lock (_scriptLock)
+                    {
+                        _objectTypeManager = newObjectTypeManager;
+                        _dreamVM = newDreamVM;
+                        _gameApi = newGameApi;
+                        _scriptManager = newScriptManager;
+                        _threads.Clear();
+                        _threads.AddRange(newThreads);
+                    }
+                    Console.WriteLine("Script reload complete and activated.");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error during script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
-            }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error during background script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                }
+            });
         }
 
         public void Dispose()

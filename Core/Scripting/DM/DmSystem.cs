@@ -25,28 +25,30 @@ namespace Core.Scripting.DM
 
         public Task LoadScripts(string rootDirectory)
         {
-            var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
-            if (dmFiles.Count == 0) return Task.CompletedTask;
-
-            Console.WriteLine($"[DM] Compiling {dmFiles.Count} files...");
-            var (jsonPath, messages) = _compiler.Compile(dmFiles);
-
-            foreach (var msg in messages)
+            return Task.Run(() =>
             {
-                Console.WriteLine($"[DM Compiler] {msg}");
-            }
+                var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
+                if (dmFiles.Count == 0) return;
 
-            if (jsonPath != null && File.Exists(jsonPath))
-            {
-                Console.WriteLine("[DM] Loading compiled JSON...");
-                var json = File.ReadAllText(jsonPath);
-                var compiledJson = JsonSerializer.Deserialize<PublicDreamCompiledJson>(json);
-                if (compiledJson != null)
+                Console.WriteLine($"[DM] Compiling {dmFiles.Count} files...");
+                var (jsonPath, messages) = _compiler.Compile(dmFiles);
+
+                foreach (var msg in messages)
                 {
-                    _loader.Load(compiledJson);
+                    Console.WriteLine($"[DM Compiler] {msg}");
                 }
-            }
-            return Task.CompletedTask;
+
+                if (jsonPath != null && File.Exists(jsonPath))
+                {
+                    Console.WriteLine("[DM] Loading compiled JSON...");
+                    var json = File.ReadAllText(jsonPath);
+                    var compiledJson = JsonSerializer.Deserialize<PublicDreamCompiledJson>(json);
+                    if (compiledJson != null)
+                    {
+                        _loader.Load(compiledJson);
+                    }
+                }
+            });
         }
 
         public void InvokeEvent(string eventName, params object[] args)

@@ -30,11 +30,11 @@ namespace Editor.UI
             _gameApi = gameApi;
         }
 
-        public void Draw(string filePath)
+        public async void Draw(string filePath)
         {
             if (_currentFile != filePath)
             {
-                _gameApi.LoadMap(filePath);
+                await _gameApi.LoadMapAsync(filePath);
                 _currentFile = filePath;
             }
 

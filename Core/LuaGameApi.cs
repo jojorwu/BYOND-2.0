@@ -1,3 +1,7 @@
+using NLua;
+using System;
+using System.Threading.Tasks;
+
 namespace Core
 {
     public class LuaGameApi
@@ -16,8 +20,35 @@ namespace Core
         public GameObject? CreateObject(string typeName, int x, int y, int z) => _gameApi.CreateObject(typeName, x, y, z);
         public GameObject? GetObject(int id) => _gameApi.GetObject(id);
         public void DestroyObject(int id) => _gameApi.DestroyObject(id);
-        public void LoadMap(string filePath) => _gameApi.LoadMap(filePath);
-        public void SaveMap(string filePath) => _gameApi.SaveMap(filePath);
+
+        public async void LoadMap(string filePath, LuaFunction? callback = null)
+        {
+            try
+            {
+                await _gameApi.LoadMapAsync(filePath);
+                callback?.Call(true, null);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] LuaGameApi.LoadMap failed: {e.Message}");
+                callback?.Call(false, e.Message);
+            }
+        }
+
+        public async void SaveMap(string filePath, LuaFunction? callback = null)
+        {
+            try
+            {
+                await _gameApi.SaveMapAsync(filePath);
+                callback?.Call(true, null);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] LuaGameApi.SaveMap failed: {e.Message}");
+                callback?.Call(false, e.Message);
+            }
+        }
+
         public System.Collections.Generic.List<string> ListScriptFiles() => _gameApi.ListScriptFiles();
         public bool ScriptFileExists(string filename) => _gameApi.ScriptFileExists(filename);
         public string ReadScriptFile(string filename) => _gameApi.ReadScriptFile(filename);

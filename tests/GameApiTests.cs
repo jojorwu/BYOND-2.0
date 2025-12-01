@@ -80,7 +80,7 @@ namespace Core.Tests
             var invalidPath = "../../../../../../../etc/passwd";
 
             // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _gameApi.LoadMap(invalidPath));
+            Assert.ThrowsAsync<System.Security.SecurityException>(async () => await _gameApi.LoadMapAsync(invalidPath));
         }
 
         [Test]
@@ -90,7 +90,7 @@ namespace Core.Tests
             var invalidPath = "../../../../../../../etc/passwd";
 
             // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _gameApi.SaveMap(invalidPath));
+            Assert.ThrowsAsync<System.Security.SecurityException>(async () => await _gameApi.SaveMapAsync(invalidPath));
         }
     }
 }

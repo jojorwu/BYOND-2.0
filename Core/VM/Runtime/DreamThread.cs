@@ -189,14 +189,23 @@ namespace Core.VM.Runtime
         private void Opcode_Call()
         {
             var procId = ReadInt32();
+            var argCount = ReadByte(); // Read the number of arguments from the bytecode
+
             var procName = _vm.Strings[procId];
             var proc = _vm.Procs[procName];
 
-            // The current PC (return address) is already stored in the current frame.
-            // We just need to create the new frame and push it.
-            var frame = new CallFrame(proc, PC, Stack.Count);
+            // The arguments are the last `argCount` items on the stack.
+            // The base of the new stack frame will be where the arguments start.
+            var stackBase = Stack.Count - argCount;
+
+            var frame = new CallFrame(proc, PC, stackBase);
             CallStack.Push(frame);
-            // PC is now automatically pointing to the new frame's PC (which is 0)
+
+            // Allocate space for local variables by pushing nulls.
+            for (int i = 0; i < proc.LocalVariableCount; i++)
+            {
+                Push(DreamValue.Null);
+            }
         }
 
         private void Opcode_Jump()
@@ -221,15 +230,30 @@ namespace Core.VM.Runtime
 
         private void Opcode_Return()
         {
+            // The return value is on top of the stack.
+            var returnValue = Pop();
+
             var returnedFrame = CallStack.Pop();
             if (CallStack.Count > 0)
             {
+                // The frame's data starts at StackBase. We need to remove everything from there to the current top.
+                var cleanupStart = returnedFrame.StackBase;
+                var cleanupCount = Stack.Count - cleanupStart;
+                if (cleanupCount > 0)
+                    Stack.RemoveRange(cleanupStart, cleanupCount);
+
+                // Push the return value back onto the cleaned stack.
+                Push(returnValue);
+
                 // Set the PC of the *new* top frame to the return address we stored.
                 PC = returnedFrame.ReturnAddress;
             }
             else
             {
                 // We've returned from the last proc, thread is finished.
+                // Clear the stack and push the final return value.
+                Stack.Clear();
+                Push(returnValue);
                 State = DreamThreadState.Finished;
             }
         }

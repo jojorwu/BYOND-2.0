@@ -896,6 +896,7 @@ internal sealed class DMProc {
         WriteReference(reference);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
+        WriteStackDelta(argumentStackSize);
     }
 
     public void CallStatement(DMCallArgumentsType argumentsType, int argumentStackSize) {

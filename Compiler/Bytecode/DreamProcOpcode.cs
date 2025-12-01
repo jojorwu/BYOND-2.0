@@ -20,7 +20,7 @@ public enum DreamProcOpcode : byte {
     Add = 0x8,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     Assign = 0x9,
-    [OpcodeMetadata(0, OpcodeArgType.Reference, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    [OpcodeMetadata(0, OpcodeArgType.Reference, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.StackDelta)]
     Call = 0xA,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     MultiplyReference = 0xB,

@@ -1,8 +1,11 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
 using Core.Scripting;
 using Core.Scripting.CSharp;
 using Core.Scripting.DM;
 using Core.Scripting.LuaSystem;
+using Core.VM;
 using Core.VM.Runtime;
 
 namespace Core
@@ -16,7 +19,6 @@ namespace Core
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
 
-            // Регистрируем системы
             _systems.Add(new CSharpSystem(gameApi));
             _systems.Add(new LuaSystem(gameApi));
             _systems.Add(new DmSystem(typeManager, project, dreamVM));
@@ -45,7 +47,6 @@ namespace Core
             }
         }
 
-        // Пример вызова глобального события (например, старт раунда)
         public void InvokeGlobalEvent(string eventName)
         {
             foreach (var sys in _systems)
@@ -56,7 +57,6 @@ namespace Core
 
         public void ExecuteCommand(string command)
         {
-            // Find the Lua system and execute the command
             foreach (var sys in _systems)
             {
                 if (sys is LuaSystem luaSystem)

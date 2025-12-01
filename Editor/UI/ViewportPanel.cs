@@ -30,12 +30,20 @@ namespace Editor.UI
             _gameApi = gameApi;
         }
 
-        public void Draw(string filePath)
+        public async void Draw(string filePath)
         {
             if (_currentFile != filePath)
             {
-                _gameApi.LoadMap(filePath);
-                _currentFile = filePath;
+                try
+                {
+                    await _gameApi.LoadMapAsync(filePath);
+                    _currentFile = filePath;
+                }
+                catch (System.Exception e)
+                {
+                    System.Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
+                    _currentFile = filePath; // Prevent repeated load attempts on failure
+                }
             }
 
             ImGui.Begin("Viewport");

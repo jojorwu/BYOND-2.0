@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "5UzSEDcHdX4=",
+  "dgSpecHash": "SjauDqAzxM8=",
   "success": true,
   "projectFilePath": "/app/Server/Server.csproj",
   "expectedPackageFiles": [
@@ -11,7 +11,9 @@
     "/home/jules/.nuget/packages/microsoft.codeanalysis.analyzers/3.11.0/microsoft.codeanalysis.analyzers.3.11.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.common/5.0.0/microsoft.codeanalysis.common.5.0.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.csharp/5.0.0/microsoft.codeanalysis.csharp.5.0.0.nupkg.sha512",
+    "/home/jules/.nuget/packages/microsoft.codeanalysis.csharp.scripting/5.0.0/microsoft.codeanalysis.csharp.scripting.5.0.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.csharp.workspaces/5.0.0/microsoft.codeanalysis.csharp.workspaces.5.0.0.nupkg.sha512",
+    "/home/jules/.nuget/packages/microsoft.codeanalysis.scripting.common/5.0.0/microsoft.codeanalysis.scripting.common.5.0.0.nupkg.sha512",
     "/home/jules/.nuget/packages/microsoft.codeanalysis.workspaces.common/5.0.0/microsoft.codeanalysis.workspaces.common.5.0.0.nupkg.sha512",
     "/home/jules/.nuget/packages/newtonsoft.json/13.0.3/newtonsoft.json.13.0.3.nupkg.sha512",
     "/home/jules/.nuget/packages/nlua/1.7.6/nlua.1.7.6.nupkg.sha512",

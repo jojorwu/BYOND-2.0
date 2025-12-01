@@ -1,0 +1,88 @@
+using NUnit.Framework;
+using Core;
+using System;
+using System.IO;
+using Core.VM.Runtime;
+using Server;
+
+namespace Core.Tests
+{
+    [TestFixture]
+    public class ScriptManagerTests
+    {
+        private ScriptManager _scriptManager = null!;
+        private GameApi _gameApi = null!;
+        private GameState _gameState = null!;
+        private ObjectTypeManager _objectTypeManager = null!;
+        private MapLoader _mapLoader = null!;
+        private Project _project = null!;
+        private DreamVM _dreamVM = null!;
+        private string _scriptsPath = null!;
+
+        [SetUp]
+        public void SetUp()
+        {
+            var projectPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(projectPath);
+            _scriptsPath = Path.Combine(projectPath, "scripts");
+            Directory.CreateDirectory(_scriptsPath);
+            File.WriteAllText(Path.Combine(projectPath, "project.json"), "{\"scripts_root\": \"scripts\"}");
+
+            _project = new Project(projectPath);
+            _gameState = new GameState();
+            _objectTypeManager = new ObjectTypeManager();
+            _mapLoader = new MapLoader(_objectTypeManager);
+            _dreamVM = new DreamVM(new ServerSettings());
+            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, _mapLoader);
+            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (Directory.Exists(_project.RootPath))
+            {
+                Directory.Delete(_project.RootPath, true);
+            }
+        }
+
+        [Test]
+        public void ScriptManager_InitializesAndLoadsAllScriptTypes()
+        {
+            // Arrange
+            File.WriteAllText(Path.Combine(_scriptsPath, "test.lua"), "print('lua loaded')");
+            File.WriteAllText(Path.Combine(_scriptsPath, "test.dm"), "/mob/player");
+            File.WriteAllText(Path.Combine(_scriptsPath, "test.cs"), "Console.WriteLine(\"csharp loaded\");");
+
+            // Act & Assert
+            Assert.DoesNotThrow(() => {
+                _scriptManager.Initialize();
+            });
+        }
+
+        [Test]
+        public void ScriptManager_ReloadsScripts()
+        {
+            // Arrange
+            _scriptManager.Initialize();
+
+            // Act & Assert
+            Assert.DoesNotThrow(() => {
+                _scriptManager.ReloadAll();
+            });
+        }
+
+        [Test]
+        public void ScriptManager_InvokesGlobalEvents()
+        {
+             // Arrange
+            File.WriteAllText(Path.Combine(_scriptsPath, "test.lua"), "function MyEvent() print('event handled') end");
+            _scriptManager.Initialize();
+
+            // Act & Assert
+            Assert.DoesNotThrow(() => {
+                _scriptManager.InvokeGlobalEvent("MyEvent");
+            });
+        }
+    }
+}

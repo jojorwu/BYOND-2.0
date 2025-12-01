@@ -1,4 +1,5 @@
 using System.Numerics;
+using Core.Maths;
 using Robust.Shared.Maths;
 
 namespace Editor
@@ -10,16 +11,16 @@ namespace Editor
             return Matrix4x4.CreateOrthographicOffCenter(0.0f, width, height, 0.0f, -1.0f, 1.0f);
         }
 
-        public static Vector2 ScreenToWorld(Vector2 screenCoords, Matrix4x4 projectionMatrix)
+        public static Vector2d ScreenToWorld(Vector2 screenCoords, Matrix4x4 projectionMatrix)
         {
             Matrix4x4.Invert(projectionMatrix, out var invertedProjection);
             var worldCoords = Vector2.Transform(screenCoords, invertedProjection);
-            return worldCoords;
+            return worldCoords.ToRobust();
         }
 
-        public static Vector2i WorldToScreen(Vector2 worldCoords, Matrix4x4 projectionMatrix)
+        public static Vector2i WorldToScreen(Vector2d worldCoords, Matrix4x4 projectionMatrix)
         {
-            var screenCoords = Vector2.Transform(worldCoords, projectionMatrix);
+            var screenCoords = Vector2.Transform(worldCoords.ToNumerics(), projectionMatrix);
             return new Vector2i((int)screenCoords.X, (int)screenCoords.Y);
         }
     }

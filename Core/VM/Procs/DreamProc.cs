@@ -4,14 +4,14 @@ namespace Core.VM.Procs
     {
         public byte[] Bytecode { get; }
         public string Name { get; }
-        public int ArgumentCount { get; }
+        public string[] Arguments { get; }
         public int LocalVariableCount { get; }
 
-        public DreamProc(string name, byte[] bytecode, int argumentCount, int localVariableCount)
+        public DreamProc(string name, byte[] bytecode, string[] arguments, int localVariableCount)
         {
             Name = name;
             Bytecode = bytecode;
-            ArgumentCount = argumentCount;
+            Arguments = arguments;
             LocalVariableCount = localVariableCount;
         }
     }

@@ -1,4 +1,4 @@
-using System.Numerics;
+using Robust.Shared.Maths;
 
 namespace Core.Graphics
 {
@@ -6,10 +6,10 @@ namespace Core.Graphics
     {
         public int ID;
         public int TextureID;
-        public Vector2 Position;
+        public Vector2d Position;
         public float Rotation;
-        public Vector2 Scale;
-        public Vector4 Color;
-        public Vector4 SourceRect;
+        public Vector2d Scale;
+        public Vector4d Color;
+        public Vector4d SourceRect;
     }
 }

@@ -2,7 +2,7 @@ using Core;
 using Silk.NET.OpenGL;
 using ImGuiNET;
 using System.Numerics;
-using Silk.NET.Maths;
+using Robust.Shared.Maths;
 using System.IO;
 
 namespace Editor.UI
@@ -65,7 +65,7 @@ namespace Editor.UI
                                         {
                                             var worldX = chunkCoords.X * Chunk.ChunkSize + x;
                                             var worldY = chunkCoords.Y * Chunk.ChunkSize + y;
-                                            _spriteRenderer.Draw(textureId, new Vector2D<int>(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize), new Vector2D<int>(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
+                                            _spriteRenderer.Draw(textureId, new Vector2i(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize), new Vector2i(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
                                         }
                                     }
                                 }
@@ -80,16 +80,17 @@ namespace Editor.UI
                     var windowPos = ImGui.GetWindowPos();
                     var localMousePos = new Vector2(mousePos.X - windowPos.X, mousePos.Y - windowPos.Y);
                     var worldMousePos = Camera.ScreenToWorld(localMousePos, projectionMatrix);
+                    var worldMousePosInt = new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y);
 
 
-                    _toolManager.OnMouseMove(_editorContext, _gameApi.GetState(), _selectionManager, new Vector2D<int>((int)worldMousePos.X, (int)worldMousePos.Y));
+                    _toolManager.OnMouseMove(_editorContext, _gameApi.GetState(), _selectionManager, worldMousePosInt);
                     if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
                     {
-                        _toolManager.OnMouseDown(_editorContext, _gameApi.GetState(), _selectionManager, new Vector2D<int>((int)worldMousePos.X, (int)worldMousePos.Y));
+                        _toolManager.OnMouseDown(_editorContext, _gameApi.GetState(), _selectionManager, worldMousePosInt);
                     }
                     if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                     {
-                        _toolManager.OnMouseUp(_editorContext, _gameApi.GetState(), _selectionManager, new Vector2D<int>((int)worldMousePos.X, (int)worldMousePos.Y));
+                        _toolManager.OnMouseUp(_editorContext, _gameApi.GetState(), _selectionManager, worldMousePosInt);
                     }
                 }
 

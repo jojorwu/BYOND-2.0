@@ -148,13 +148,13 @@ namespace Core
         }
 
         /// <summary>
-        /// Loads a map from a file.
+        /// Asynchronously loads a map from a file.
         /// </summary>
         /// <param name="filePath">The path to the map file.</param>
-        public void LoadMap(string filePath)
+        public async Task LoadMapAsync(string filePath)
         {
             var safePath = SanitizePath(filePath, Constants.MapsRoot);
-            _gameState.Map = _mapLoader.LoadMap(safePath);
+            _gameState.Map = await _mapLoader.LoadMapAsync(safePath);
         }
 
         public void SetMap(Map map)
@@ -163,15 +163,15 @@ namespace Core
         }
 
         /// <summary>
-        /// Saves the current map to a file.
+        /// Asynchronously saves the current map to a file.
         /// </summary>
         /// <param name="filePath">The path to save the map file to.</param>
-        public void SaveMap(string filePath)
+        public async Task SaveMapAsync(string filePath)
         {
             if (_gameState.Map != null)
             {
                 var safePath = SanitizePath(filePath, Constants.MapsRoot);
-                _mapLoader.SaveMap(_gameState.Map, safePath);
+                await _mapLoader.SaveMapAsync(_gameState.Map, safePath);
             }
         }
 

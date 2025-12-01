@@ -87,7 +87,6 @@ namespace Server
                 var command = reader.GetString();
                 Console.WriteLine($"Received command from {peer}: {command}");
 
-                // Enqueue the command for processing on the main game thread
                 _scriptHost.EnqueueCommand(command, (result) => {
                     var writer = new LiteNetLib.Utils.NetDataWriter();
                     writer.Put(result);

@@ -43,10 +43,11 @@ namespace Core
                     foreach (var procJson in compiledJson.Procs)
                     {
                         var bytecode = procJson.Bytecode ?? Array.Empty<byte>();
+                        var arguments = procJson.Arguments?.Select(a => a.Name).ToArray() ?? Array.Empty<string>();
                         var newProc = new DreamProc(
                             procJson.Name,
                             bytecode,
-                            procJson.Arguments?.Count ?? 0,
+                            arguments,
                             procJson.Locals?.Count ?? 0
                         );
                         _dreamVM.Procs[newProc.Name] = newProc;
@@ -126,6 +127,23 @@ namespace Core
                 }
             }
             return element;
+        }
+
+        public DreamThread? CreateThread(string procName)
+        {
+            if (_dreamVM == null)
+            {
+                Console.WriteLine("Warning: DreamVM is not available. Cannot create a thread.");
+                return null;
+            }
+
+            if (_dreamVM.Procs.TryGetValue(procName, out var proc))
+            {
+                return new DreamThread(proc, _dreamVM, 100000); // Using a default instruction limit for now
+            }
+
+            Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");
+            return null;
         }
     }
 }

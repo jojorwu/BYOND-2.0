@@ -28,7 +28,7 @@ namespace tests
         }
 
         [Test]
-        public void SaveAndLoadMap_PreservesGameObjectsAndProperties()
+        public async Task SaveAndLoadMap_PreservesGameObjectsAndProperties()
         {
             // Arrange
             var objectType = new ObjectType("test_object");
@@ -43,8 +43,8 @@ namespace tests
             map.SetTurf(17, 33, 0, turf); // Coordinates that will fall into a non-zero chunk
 
             // Act
-            _mapLoader.SaveMap(map, TestMapPath);
-            var loadedMap = _mapLoader.LoadMap(TestMapPath);
+            await _mapLoader.SaveMapAsync(map, TestMapPath);
+            var loadedMap = await _mapLoader.LoadMapAsync(TestMapPath);
 
             // Assert
             Assert.That(loadedMap, Is.Not.Null);

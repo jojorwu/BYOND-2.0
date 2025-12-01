@@ -92,7 +92,12 @@ namespace Editor
             _assetManager = new AssetManager();
             var selectionManager = new SelectionManager();
             var toolManager = new ToolManager();
-            var gameApi = new GameApi(_project, gameState, objectTypeManager, mapLoader);
+
+            var mapApi = new MapApi(gameState, mapLoader, _project);
+            var objectApi = new ObjectApi(gameState, objectTypeManager, mapApi);
+            var stdLibApi = new StandardLibraryApi(gameState, objectTypeManager, mapApi);
+            var gameApi = new GameApi(mapApi, objectApi, stdLibApi, _project, gameState);
+
             _compilerService = new OpenDreamCompilerService(_project);
             _dmmService = new DmmService(objectTypeManager, _project);
 

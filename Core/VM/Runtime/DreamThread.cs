@@ -8,7 +8,7 @@ namespace Core.VM.Runtime
 {
     public class DreamThread
     {
-        public List<DreamValue> Stack { get; } = new();
+        public List<DreamValue> Stack { get; } = new(128);
         public Stack<CallFrame> CallStack { get; } = new();
 
         // Convenience properties to access the current frame's data
@@ -24,14 +24,11 @@ namespace Core.VM.Runtime
         private readonly DreamVM _vm;
         private readonly int _maxInstructions;
         private int _totalInstructionsExecuted;
-        private readonly Action[] _opcodeHandlers;
 
         public DreamThread(DreamProc proc, DreamVM vm, int maxInstructions)
         {
             _vm = vm;
             _maxInstructions = maxInstructions;
-            _opcodeHandlers = new Action[256]; // Assuming opcodes are bytes
-            RegisterOpcodes();
 
             CallStack.Push(new CallFrame(proc, -1, 0)); // PC is initialized to 0 inside CallFrame
         }
@@ -91,44 +88,51 @@ namespace Core.VM.Runtime
                     return State;
                 }
 
-                var opcode = ReadByte();
-                var handler = _opcodeHandlers[opcode];
-                if (handler != null)
+                var opcode = (Opcode)ReadByte();
+                switch (opcode)
                 {
-                    handler();
-                    if (State != DreamThreadState.Running) // Check state after handler execution
-                        return State;
+                    case Opcode.PushString: Opcode_PushString(); break;
+                    case Opcode.PushFloat: Opcode_PushFloat(); break;
+                    case Opcode.Add: Opcode_Add(); break;
+                    case Opcode.Subtract: Opcode_Subtract(); break;
+                    case Opcode.Multiply: Opcode_Multiply(); break;
+                    case Opcode.Divide: Opcode_Divide(); break;
+                    case Opcode.CompareEquals: Opcode_CompareEquals(); break;
+                    case Opcode.CompareNotEquals: Opcode_CompareNotEquals(); break;
+                    case Opcode.CompareLessThan: Opcode_CompareLessThan(); break;
+                    case Opcode.CompareGreaterThan: Opcode_CompareGreaterThan(); break;
+                    case Opcode.CompareLessThanOrEqual: Opcode_CompareLessThanOrEqual(); break;
+                    case Opcode.CompareGreaterThanOrEqual: Opcode_CompareGreaterThanOrEqual(); break;
+                    case Opcode.Negate: Opcode_Negate(); break;
+                    case Opcode.BooleanNot: Opcode_BooleanNot(); break;
+                    case Opcode.PushNull: Opcode_PushNull(); break;
+                    case Opcode.Pop: Opcode_Pop(); break;
+                    case Opcode.Call: Opcode_Call(); break;
+                    case Opcode.Jump: Opcode_Jump(); break;
+                    case Opcode.JumpIfFalse: Opcode_JumpIfFalse(); break;
+                    case Opcode.Output: Opcode_Output(); break;
+                    case Opcode.Return: Opcode_Return(); break;
+                    case Opcode.BitAnd: Opcode_BitAnd(); break;
+                    case Opcode.BitOr: Opcode_BitOr(); break;
+                    case Opcode.BitXor: Opcode_BitXor(); break;
+                    case Opcode.BitNot: Opcode_BitNot(); break;
+                    case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
+                    case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
+                    case Opcode.PushArgument: Opcode_PushArgument(); break;
+                    case Opcode.SetArgument: Opcode_SetArgument(); break;
+                    case Opcode.PushLocal: Opcode_PushLocal(); break;
+                    case Opcode.SetLocal: Opcode_SetLocal(); break;
+                    default:
+                        State = DreamThreadState.Error;
+                        throw new Exception($"Unknown opcode: {opcode}");
                 }
-                else
-                {
-                    State = DreamThreadState.Error;
-                    throw new Exception($"Unknown opcode: (Opcode)0x{opcode:X2}");
-                }
+
+                if (State != DreamThreadState.Running) // Check state after handler execution
+                    return State;
             }
 
             State = DreamThreadState.Finished;
             return State;
-        }
-
-        private void RegisterOpcodes()
-        {
-            _opcodeHandlers[(int)Opcode.PushString] = Opcode_PushString;
-            _opcodeHandlers[(int)Opcode.PushFloat] = Opcode_PushFloat;
-            _opcodeHandlers[(int)Opcode.Add] = Opcode_Add;
-            _opcodeHandlers[(int)Opcode.Subtract] = Opcode_Subtract;
-            _opcodeHandlers[(int)Opcode.Multiply] = Opcode_Multiply;
-            _opcodeHandlers[(int)Opcode.Divide] = Opcode_Divide;
-            _opcodeHandlers[(int)Opcode.CompareEquals] = Opcode_CompareEquals;
-            _opcodeHandlers[(int)Opcode.CompareNotEquals] = Opcode_CompareNotEquals;
-            _opcodeHandlers[(int)Opcode.Call] = Opcode_Call;
-            _opcodeHandlers[(int)Opcode.Jump] = Opcode_Jump;
-            _opcodeHandlers[(int)Opcode.JumpIfFalse] = Opcode_JumpIfFalse;
-            _opcodeHandlers[(int)Opcode.Output] = Opcode_Output;
-            _opcodeHandlers[(int)Opcode.Return] = Opcode_Return;
-            _opcodeHandlers[(int)Opcode.PushArgument] = Opcode_PushArgument;
-            _opcodeHandlers[(int)Opcode.SetArgument] = Opcode_SetArgument;
-            _opcodeHandlers[(int)Opcode.PushLocal] = Opcode_PushLocal;
-            _opcodeHandlers[(int)Opcode.SetLocal] = Opcode_SetLocal;
         }
 
         #region Opcode Handlers
@@ -186,17 +190,76 @@ namespace Core.VM.Runtime
             Push(new DreamValue(a != b ? 1 : 0));
         }
 
+        private void Opcode_CompareLessThan()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(a < b ? 1 : 0));
+        }
+
+        private void Opcode_CompareGreaterThan()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(a > b ? 1 : 0));
+        }
+
+        private void Opcode_CompareLessThanOrEqual()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(a <= b ? 1 : 0));
+        }
+
+        private void Opcode_CompareGreaterThanOrEqual()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(a >= b ? 1 : 0));
+        }
+
+        private void Opcode_Negate()
+        {
+            var value = Pop();
+            Push(-value);
+        }
+
+        private void Opcode_BooleanNot()
+        {
+            var value = Pop();
+            Push(!value);
+        }
+
+        private void Opcode_PushNull()
+        {
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_Pop()
+        {
+            Pop();
+        }
+
         private void Opcode_Call()
         {
             var procId = ReadInt32();
+            var argCount = ReadByte(); // Read the number of arguments from the bytecode
+
             var procName = _vm.Strings[procId];
             var proc = _vm.Procs[procName];
 
-            // The current PC (return address) is already stored in the current frame.
-            // We just need to create the new frame and push it.
-            var frame = new CallFrame(proc, PC, Stack.Count);
+            // The arguments are the last `argCount` items on the stack.
+            // The base of the new stack frame will be where the arguments start.
+            var stackBase = Stack.Count - argCount;
+
+            var frame = new CallFrame(proc, PC, stackBase);
             CallStack.Push(frame);
-            // PC is now automatically pointing to the new frame's PC (which is 0)
+
+            // Allocate space for local variables by pushing nulls.
+            for (int i = 0; i < proc.LocalVariableCount; i++)
+            {
+                Push(DreamValue.Null);
+            }
         }
 
         private void Opcode_Jump()
@@ -221,15 +284,30 @@ namespace Core.VM.Runtime
 
         private void Opcode_Return()
         {
+            // The return value is on top of the stack.
+            var returnValue = Pop();
+
             var returnedFrame = CallStack.Pop();
             if (CallStack.Count > 0)
             {
+                // The frame's data starts at StackBase. We need to remove everything from there to the current top.
+                var cleanupStart = returnedFrame.StackBase;
+                var cleanupCount = Stack.Count - cleanupStart;
+                if (cleanupCount > 0)
+                    Stack.RemoveRange(cleanupStart, cleanupCount);
+
+                // Push the return value back onto the cleaned stack.
+                Push(returnValue);
+
                 // Set the PC of the *new* top frame to the return address we stored.
                 PC = returnedFrame.ReturnAddress;
             }
             else
             {
                 // We've returned from the last proc, thread is finished.
+                // Clear the stack and push the final return value.
+                Stack.Clear();
+                Push(returnValue);
                 State = DreamThreadState.Finished;
             }
         }
@@ -262,6 +340,47 @@ namespace Core.VM.Runtime
             var value = Pop();
             var frame = CallStack.Peek();
             Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex] = value;
+        }
+
+        private void Opcode_BitAnd()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(a & b);
+        }
+
+        private void Opcode_BitOr()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(a | b);
+        }
+
+        private void Opcode_BitXor()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(a ^ b);
+        }
+
+        private void Opcode_BitNot()
+        {
+            var value = Pop();
+            Push(~value);
+        }
+
+        private void Opcode_BitShiftLeft()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(a << b);
+        }
+
+        private void Opcode_BitShiftRight()
+        {
+            var b = Pop();
+            var a = Pop();
+            Push(a >> b);
         }
         #endregion
     }

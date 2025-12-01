@@ -23,19 +23,21 @@ namespace Core.Scripting.LuaSystem
 
         public Task LoadScripts(string rootDirectory)
         {
-            var luaFiles = Directory.GetFiles(rootDirectory, "*.lua", SearchOption.AllDirectories);
-            foreach (var file in luaFiles)
+            return Task.Run(() =>
             {
-                try
+                var luaFiles = Directory.GetFiles(rootDirectory, "*.lua", SearchOption.AllDirectories);
+                foreach (var file in luaFiles)
                 {
-                    _lua.DoFile(file);
+                    try
+                    {
+                        _lua.DoFile(file);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Lua Error] {Path.GetFileName(file)}: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[Lua Error] {Path.GetFileName(file)}: {ex.Message}");
-                }
-            }
-            return Task.CompletedTask;
+            });
         }
 
         public void InvokeEvent(string eventName, params object[] args)

@@ -1,5 +1,7 @@
 using Core;
 using ImGuiNET;
+using System;
+using System.Threading.Tasks;
 
 namespace Editor.UI
 {
@@ -29,12 +31,30 @@ namespace Editor.UI
                         var map = _gameApi.GetMap();
                         if (map != null)
                         {
-                            _gameApi.SaveMap("maps/default.json");
+                            Task.Run(async () => {
+                                try
+                                {
+                                    await _gameApi.SaveMapAsync("maps/default.json");
+                                }
+                                catch (Exception e)
+                                {
+                                    Console.WriteLine($"[ERROR] Failed to save map: {e.Message}");
+                                }
+                            });
                         }
                     }
                     if (ImGui.MenuItem("Load Map"))
                     {
-                        _gameApi.LoadMap("maps/default.json");
+                        Task.Run(async () => {
+                            try
+                            {
+                                await _gameApi.LoadMapAsync("maps/default.json");
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
+                            }
+                        });
                     }
                     if (ImGui.MenuItem("Load DMM Map"))
                     {

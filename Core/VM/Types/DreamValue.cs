@@ -195,6 +195,88 @@ namespace Core.VM.Types
             return !a.Equals(b);
         }
 
+        public static bool operator >(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply > operator to types {a.Type} and {b.Type}");
+            return a._floatValue > b._floatValue;
+        }
+
+        public static bool operator <(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply < operator to types {a.Type} and {b.Type}");
+            return a._floatValue < b._floatValue;
+        }
+
+        public static bool operator >=(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply >= operator to types {a.Type} and {b.Type}");
+            return a._floatValue >= b._floatValue;
+        }
+
+        public static bool operator <=(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply <= operator to types {a.Type} and {b.Type}");
+            return a._floatValue <= b._floatValue;
+        }
+
+        public static DreamValue operator -(DreamValue a)
+        {
+            if (a.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply unary - operator to type {a.Type}");
+            return new DreamValue(-a._floatValue);
+        }
+
+        public static DreamValue operator !(DreamValue a)
+        {
+            return new DreamValue(a.IsFalse() ? 1 : 0);
+        }
+
+        public static DreamValue operator &(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply & operator to types {a.Type} and {b.Type}");
+            return new DreamValue((int)a._floatValue & (int)b._floatValue);
+        }
+
+        public static DreamValue operator |(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply | operator to types {a.Type} and {b.Type}");
+            return new DreamValue((int)a._floatValue | (int)b._floatValue);
+        }
+
+        public static DreamValue operator ^(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply ^ operator to types {a.Type} and {b.Type}");
+            return new DreamValue((int)a._floatValue ^ (int)b._floatValue);
+        }
+
+        public static DreamValue operator ~(DreamValue a)
+        {
+            if (a.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply ~ operator to type {a.Type}");
+            return new DreamValue(~(int)a._floatValue);
+        }
+
+        public static DreamValue operator <<(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply << operator to types {a.Type} and {b.Type}");
+            return new DreamValue((int)a._floatValue << (int)b._floatValue);
+        }
+
+        public static DreamValue operator >>(DreamValue a, DreamValue b)
+        {
+            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot apply >> operator to types {a.Type} and {b.Type}");
+            return new DreamValue((int)a._floatValue >> (int)b._floatValue);
+        }
+
         public bool IsFalse()
         {
             if (Type == DreamValueType.Null)

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using Core;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server
 {
@@ -13,12 +14,12 @@ namespace Server
         private readonly ServerSettings _settings;
         private bool _isRunning = true;
 
-        public Game(Project project, ServerSettings settings)
+        public Game(GameState gameState, ScriptHost scriptHost, UdpServer udpServer, ServerSettings settings)
         {
+            _gameState = gameState;
+            _scriptHost = scriptHost;
+            _udpServer = udpServer;
             _settings = settings;
-            _gameState = new GameState();
-            _scriptHost = new ScriptHost(project, _gameState, _settings);
-            _udpServer = new UdpServer(System.Net.IPAddress.Any, _settings.Network.UdpPort, _scriptHost, _gameState, _settings);
         }
 
         public void Start()

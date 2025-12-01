@@ -2,8 +2,10 @@ using Core;
 using System;
 using System.IO;
 using System.Threading;
+using Core.VM;
 using Core.VM.Runtime;
 using System.Collections.Generic;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server
 {
@@ -14,25 +16,25 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
-        private readonly GameApi _gameApi;
-        private readonly ObjectTypeManager _objectTypeManager;
-        private readonly DreamVM _dreamVM;
+        private GameApi _gameApi;
+        private ObjectTypeManager _objectTypeManager;
+        private DreamVM _dreamVM;
         private readonly ServerSettings _settings;
         private readonly List<DreamThread> _threads = new();
-        private readonly ScriptManager _scriptManager;
+        private ScriptManager _scriptManager;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
+        private readonly IServiceProvider _serviceProvider;
 
-        public ScriptHost(Project project, GameState gameState, ServerSettings settings)
+        public ScriptHost(Project project, GameState gameState, ServerSettings settings, ObjectTypeManager objectTypeManager, DreamVM dreamVM, GameApi gameApi, ScriptManager scriptManager, IServiceProvider serviceProvider)
         {
             _project = project;
             _gameState = gameState;
             _settings = settings;
-            _objectTypeManager = new ObjectTypeManager();
-            _dreamVM = new DreamVM(settings);
-
-            var mapLoader = new MapLoader(_objectTypeManager);
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, mapLoader);
-            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM);
+            _objectTypeManager = objectTypeManager;
+            _dreamVM = dreamVM;
+            _gameApi = gameApi;
+            _scriptManager = scriptManager;
+            _serviceProvider = serviceProvider;
 
             _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
             {
@@ -101,37 +103,56 @@ namespace Server
             }
         }
 
-        private async void ReloadScripts(object? state)
+        private void ReloadScripts(object? state)
         {
-            try
+            Console.WriteLine("Starting background script reload...");
+            Task.Run(async () =>
             {
-                Console.WriteLine("Reloading all scripts...");
-                await _scriptManager.ReloadAll(); // Perform the async operation outside the lock
-                Console.WriteLine("Invoking OnStart event...");
-
-                lock (_scriptLock)
+                try
                 {
-                    _threads.Clear(); // Clear old threads now that scripts are loaded
-                    _scriptManager.InvokeGlobalEvent("OnStart");
+                    // 1. Create a new script environment in the background using a temporary scope
+                    using var scope = _serviceProvider.CreateScope();
+                    var newObjectTypeManager = scope.ServiceProvider.GetRequiredService<ObjectTypeManager>();
+                    var newDreamVM = scope.ServiceProvider.GetRequiredService<DreamVM>();
+                    var newGameApi = scope.ServiceProvider.GetRequiredService<GameApi>();
+                    var newScriptManager = scope.ServiceProvider.GetRequiredService<ScriptManager>();
 
-                    // After reloading, we need to re-create the main thread for world.New()
-                    var mainThread = _scriptManager.CreateThread("world.New");
+
+                    await newScriptManager.ReloadAll();
+                    Console.WriteLine("Invoking OnStart event in new environment...");
+                    newScriptManager.InvokeGlobalEvent("OnStart");
+
+                    var newThreads = new List<DreamThread>();
+                    var mainThread = newScriptManager.CreateThread("world.New");
                     if (mainThread != null)
                     {
-                        _threads.Add(mainThread);
-                        Console.WriteLine("Successfully created and started 'world.New' thread.");
+                        newThreads.Add(mainThread);
+                        Console.WriteLine("Successfully created 'world.New' thread in new environment.");
                     }
                     else
                     {
-                        Console.WriteLine("Warning: Could not create 'world.New' thread. Main game loop will not start.");
+                        Console.WriteLine("Warning: Could not create 'world.New' thread in new environment.");
                     }
+
+                    // 2. Hot-swap the old environment with the new one inside a lock
+                    lock (_scriptLock)
+                    {
+                        _objectTypeManager = newObjectTypeManager;
+                        _dreamVM = newDreamVM;
+                        _gameApi = newGameApi;
+                        _scriptManager = newScriptManager;
+                        _threads.Clear();
+                        _threads.AddRange(newThreads);
+                    }
+                    Console.WriteLine("Script reload complete and activated.");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error during script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
-            }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error during background script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                }
+            });
         }
+
 
         public void Dispose()
         {

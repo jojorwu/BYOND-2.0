@@ -75,6 +75,12 @@ namespace Core.VM.Types
             return false;
         }
 
+        private float AsFloat()
+        {
+            if (Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a float");
+            return _floatValue;
+        }
 
         public static implicit operator DreamValue(float value) => new DreamValue(value);
         public static implicit operator DreamValue(int value) => new DreamValue((float)value);
@@ -83,79 +89,54 @@ namespace Core.VM.Types
 
         public override string ToString()
         {
-            switch (Type)
+            if (TryGetValue(out float floatValue))
             {
-                case DreamValueType.Null:
-                    return "null";
-                case DreamValueType.Float:
-                    return _floatValue.ToString(CultureInfo.InvariantCulture);
-                case DreamValueType.String:
-                    return (string?)_objectValue ?? string.Empty;
-                case DreamValueType.DreamObject:
-                    return _objectValue?.ToString() ?? "null";
-                default:
-                    throw new InvalidOperationException("Invalid DreamValue type");
+                return floatValue.ToString(CultureInfo.InvariantCulture);
             }
+            if (TryGetValue(out string? stringValue))
+            {
+                return stringValue ?? string.Empty;
+            }
+            if (TryGetValue(out DreamObject? dreamObjectValue))
+            {
+                return dreamObjectValue?.ToString() ?? "null";
+            }
+            if (Type == DreamValueType.Null)
+            {
+                return "null";
+            }
+            throw new InvalidOperationException("Invalid DreamValue type");
         }
 
         public static DreamValue operator +(DreamValue a, DreamValue b)
         {
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
-                return new DreamValue(a.ToString() + b.ToString());
+                var sA = a.Type == DreamValueType.String ? (string)a._objectValue! : a.ToString();
+                var sB = b.Type == DreamValueType.String ? (string)b._objectValue! : b.ToString();
+                return new DreamValue(sA + sB);
             }
 
-            float floatA = 0;
-            if (a.Type == DreamValueType.Float)
-                floatA = a._floatValue;
-
-            float floatB = 0;
-            if (b.Type == DreamValueType.Float)
-                floatB = b._floatValue;
-
-            return new DreamValue(floatA + floatB);
+            return new DreamValue(a.AsFloat() + b.AsFloat());
         }
 
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
-            float floatA = 0;
-            if (a.Type == DreamValueType.Float)
-                floatA = a._floatValue;
-
-            float floatB = 0;
-            if (b.Type == DreamValueType.Float)
-                floatB = b._floatValue;
-
-            return new DreamValue(floatA - floatB);
+            return new DreamValue(a.AsFloat() - b.AsFloat());
         }
 
         public static DreamValue operator *(DreamValue a, DreamValue b)
         {
-            float floatA = 0;
-            if (a.Type == DreamValueType.Float)
-                floatA = a._floatValue;
-
-            float floatB = 0;
-            if (b.Type == DreamValueType.Float)
-                floatB = b._floatValue;
-
-            return new DreamValue(floatA * floatB);
+            return new DreamValue(a.AsFloat() * b.AsFloat());
         }
 
         public static DreamValue operator /(DreamValue a, DreamValue b)
         {
-            float floatA = 0;
-            if (a.Type == DreamValueType.Float)
-                floatA = a._floatValue;
-
-            float floatB = 0;
-            if (b.Type == DreamValueType.Float)
-                floatB = b._floatValue;
-
+            var floatB = b.AsFloat();
             if (floatB == 0)
                 return new DreamValue(0); // Avoid division by zero
 
-            return new DreamValue(floatA / floatB);
+            return new DreamValue(a.AsFloat() / floatB);
         }
 
         public override bool Equals(object? obj)
@@ -197,37 +178,27 @@ namespace Core.VM.Types
 
         public static bool operator >(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply > operator to types {a.Type} and {b.Type}");
-            return a._floatValue > b._floatValue;
+            return a.AsFloat() > b.AsFloat();
         }
 
         public static bool operator <(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply < operator to types {a.Type} and {b.Type}");
-            return a._floatValue < b._floatValue;
+            return a.AsFloat() < b.AsFloat();
         }
 
         public static bool operator >=(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply >= operator to types {a.Type} and {b.Type}");
-            return a._floatValue >= b._floatValue;
+            return a.AsFloat() >= b.AsFloat();
         }
 
         public static bool operator <=(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply <= operator to types {a.Type} and {b.Type}");
-            return a._floatValue <= b._floatValue;
+            return a.AsFloat() <= b.AsFloat();
         }
 
         public static DreamValue operator -(DreamValue a)
         {
-            if (a.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply unary - operator to type {a.Type}");
-            return new DreamValue(-a._floatValue);
+            return new DreamValue(-a.AsFloat());
         }
 
         public static DreamValue operator !(DreamValue a)
@@ -237,44 +208,32 @@ namespace Core.VM.Types
 
         public static DreamValue operator &(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply & operator to types {a.Type} and {b.Type}");
-            return new DreamValue((int)a._floatValue & (int)b._floatValue);
+            return new DreamValue((int)a.AsFloat() & (int)b.AsFloat());
         }
 
         public static DreamValue operator |(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply | operator to types {a.Type} and {b.Type}");
-            return new DreamValue((int)a._floatValue | (int)b._floatValue);
+            return new DreamValue((int)a.AsFloat() | (int)b.AsFloat());
         }
 
         public static DreamValue operator ^(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply ^ operator to types {a.Type} and {b.Type}");
-            return new DreamValue((int)a._floatValue ^ (int)b._floatValue);
+            return new DreamValue((int)a.AsFloat() ^ (int)b.AsFloat());
         }
 
         public static DreamValue operator ~(DreamValue a)
         {
-            if (a.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply ~ operator to type {a.Type}");
-            return new DreamValue(~(int)a._floatValue);
+            return new DreamValue(~(int)a.AsFloat());
         }
 
         public static DreamValue operator <<(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply << operator to types {a.Type} and {b.Type}");
-            return new DreamValue((int)a._floatValue << (int)b._floatValue);
+            return new DreamValue((int)a.AsFloat() << (int)b.AsFloat());
         }
 
         public static DreamValue operator >>(DreamValue a, DreamValue b)
         {
-            if (a.Type != DreamValueType.Float || b.Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot apply >> operator to types {a.Type} and {b.Type}");
-            return new DreamValue((int)a._floatValue >> (int)b._floatValue);
+            return new DreamValue((int)a.AsFloat() >> (int)b.AsFloat());
         }
 
         public bool IsFalse()

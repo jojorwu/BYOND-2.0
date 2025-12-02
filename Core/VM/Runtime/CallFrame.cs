@@ -6,14 +6,12 @@ namespace Core.VM.Runtime
     {
         public DreamProc Proc { get; }
         public int PC { get; set; }
-        public int ReturnAddress { get; }
         public int StackBase { get; }
 
-        public CallFrame(DreamProc proc, int returnAddress, int stackBase)
+        public CallFrame(DreamProc proc, int pc, int stackBase)
         {
             Proc = proc;
-            PC = 0;
-            ReturnAddress = returnAddress;
+            PC = pc;
             StackBase = stackBase;
         }
     }

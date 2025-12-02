@@ -43,7 +43,14 @@ namespace Core
                     foreach (var procJson in compiledJson.Procs)
                     {
                         var bytecode = procJson.Bytecode ?? Array.Empty<byte>();
-                        var arguments = procJson.Arguments?.Select(a => a.Name).ToArray() ?? Array.Empty<string>();
+                        var arguments = new string[procJson.Arguments?.Count ?? 0];
+                        if (procJson.Arguments != null)
+                        {
+                            for (int i = 0; i < procJson.Arguments.Count; i++)
+                            {
+                                arguments[i] = procJson.Arguments[i].Name;
+                            }
+                        }
                         var newProc = new DreamProc(
                             procJson.Name,
                             bytecode,
@@ -55,7 +62,7 @@ namespace Core
                 }
             }
 
-            // First pass: Register all types to ensure they exist for parent linking
+            // Load types and their properties
             foreach (var typeJson in compiledJson.Types)
             {
                 var newType = new ObjectType(typeJson.Path);
@@ -69,23 +76,12 @@ namespace Core
                     }
                 }
                 _typeManager.RegisterObjectType(newType);
-            }
-
-            // Second pass: Set properties
-            foreach (var typeJson in compiledJson.Types)
-            {
-                var objectType = _typeManager.GetObjectType(typeJson.Path);
-                if (objectType == null)
-                {
-                    Console.WriteLine($"Warning: Could not find registered type {typeJson.Path} to set properties.");
-                    continue;
-                }
 
                 if (typeJson.Variables != null)
                 {
                     foreach (var (key, value) in typeJson.Variables)
                     {
-                        objectType.DefaultProperties[key] = ConvertJsonElement(value);
+                        newType.DefaultProperties[key] = ConvertJsonElement(value);
                     }
                 }
             }

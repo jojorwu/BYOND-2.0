@@ -67,7 +67,7 @@ namespace Server
                 threadsToRun = new Queue<DreamThread>(_threads);
             }
 
-            var finishedThreads = new List<DreamThread>();
+            var finishedThreads = new HashSet<DreamThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -94,8 +94,7 @@ namespace Server
             {
                 lock (_scriptLock)
                 {
-                    foreach (var thread in finishedThreads)
-                        _threads.Remove(thread);
+                    _threads.RemoveAll(t => finishedThreads.Contains(t));
                 }
             }
         }

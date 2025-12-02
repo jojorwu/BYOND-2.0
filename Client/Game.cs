@@ -2,11 +2,14 @@ using Silk.NET.Windowing;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using System;
-using Client.Assets;
 using Client.Graphics;
-using System.Diagnostics;
 using Robust.Shared.Maths;
+using Core;
 using Core.Dmi;
+using System.Numerics;
+using System.Text.Json;
+using Client.Assets;
+using AssetManager = Core.AssetManager;
 
 namespace Client
 {
@@ -51,7 +54,8 @@ namespace Client
             }
 
             _gl = GL.GetApi(_window);
-            _assetManager = new AssetManager(_gl);
+            TextureCache.Init(_gl);
+            _assetManager = new AssetManager();
             _spriteRenderer = new SpriteRenderer(_gl);
             _camera = new Camera(new Vector2(0, 0), 1.0f);
 
@@ -83,45 +87,50 @@ namespace Client
 
             _spriteRenderer.Begin(_camera.GetViewMatrix(), _camera.GetProjectionMatrix((float)_window.FramebufferSize.X / _window.FramebufferSize.Y));
 
-            if (_currentState != null)
+            if (_currentState?.GameObjects != null)
             {
-                foreach (var currentObj in _currentState.Renderables.Values)
+                foreach (var currentObj in _currentState.GameObjects.Values)
                 {
                     Vector2 renderPos;
-                    if (_previousState.Renderables.TryGetValue(currentObj.Id, out var previousObj))
+
+                    var currentPosition = GetPosition(currentObj);
+                    if (_previousState?.GameObjects != null && _previousState.GameObjects.TryGetValue(currentObj.Id, out var previousObj))
                     {
-                        renderPos = Vector2.Lerp(previousObj.Position, currentObj.Position, _alpha);
+                        var previousPosition = GetPosition(previousObj);
+                        renderPos = Vector2.Lerp(previousPosition, currentPosition, _alpha);
                     }
                     else
                     {
-                        renderPos = currentObj.Position;
+                        renderPos = currentPosition;
                     }
 
-                    if (!string.IsNullOrEmpty(currentObj.Icon))
+                    var icon = GetIcon(currentObj);
+                    if (!string.IsNullOrEmpty(icon))
                     {
-                        var (dmiPath, stateName) = ParseIconString(currentObj.Icon);
+                        var (dmiPath, stateName) = ParseIconString(icon);
                         if(dmiPath != null)
                         {
                             try
                             {
-                                var asset = _assetManager.LoadDmi("assets/" + dmiPath);
-                                var state = asset.Description.GetStateOrDefault(stateName);
+                                var texture = TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                                var dmi = DmiCache.GetDmi(dmiPath, texture);
+                                var state = dmi.Description.GetStateOrDefault(stateName);
                                 if(state != null)
                                 {
                                     var frame = state.GetFrames(AtomDirection.South)[0];
                                     var uv = new Box2(
-                                        (float)frame.X / asset.Width,
-                                        (float)frame.Y / asset.Height,
-                                        (float)(frame.X + asset.Description.Width) / asset.Width,
-                                        (float)(frame.Y + asset.Description.Height) / asset.Height
+                                        (float)frame.X / dmi.Width,
+                                        (float)frame.Y / dmi.Height,
+                                        (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                                        (float)(frame.Y + dmi.Description.Height) / dmi.Height
                                     );
 
-                                    _spriteRenderer.Draw(asset.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White);
+                                    _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White);
                                 }
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine($"Error rendering icon {currentObj.Icon}: {e.Message}");
+                                Console.WriteLine($"Error rendering icon {icon}: {e.Message}");
                                 _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red); // Draw red square on error
                             }
                         }
@@ -132,6 +141,24 @@ namespace Client
             }
 
             _spriteRenderer.End();
+        }
+
+        private Vector2 GetPosition(GameObject obj)
+        {
+            if (obj.Properties.TryGetValue("Position", out var pos) && pos is JsonElement posElement)
+            {
+                return new Vector2(posElement.GetProperty("X").GetSingle(), posElement.GetProperty("Y").GetSingle());
+            }
+            return Vector2.Zero;
+        }
+
+        private string? GetIcon(GameObject obj)
+        {
+            if (obj.Properties.TryGetValue("Icon", out var icon) && icon is string iconStr)
+            {
+                return iconStr;
+            }
+            return null;
         }
 
         private (string?, string?) ParseIconString(string icon)
@@ -152,7 +179,7 @@ namespace Client
         {
             _logicThread.Stop();
             _spriteRenderer.Dispose();
-            _assetManager.Dispose();
+            TextureCache.Dispose();
         }
 
         private void KeyDown(IKeyboard keyboard, Key key, int arg3)

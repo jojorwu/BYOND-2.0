@@ -128,17 +128,21 @@ namespace Core.VM.Runtime
                     case Opcode.Jump: Opcode_Jump(proc, ref pc); break;
                     case Opcode.JumpIfFalse: Opcode_JumpIfFalse(proc, ref pc); break;
                     case Opcode.Output: Opcode_Output(); break;
-                    case Opcode.Return: Opcode_Return(ref proc, ref pc); break;
+                    case Opcode.Return:
+                        Opcode_Return(ref proc, ref pc);
+                        if(State == DreamThreadState.Running)
+                            frame = CallStack.Peek();
+                        break;
                     case Opcode.BitAnd: Opcode_BitAnd(); break;
                     case Opcode.BitOr: Opcode_BitOr(); break;
                     case Opcode.BitXor: Opcode_BitXor(); break;
                     case Opcode.BitNot: Opcode_BitNot(); break;
                     case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
                     case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
-                    case Opcode.PushArgument: Opcode_PushArgument(proc, ref pc); break;
-                    case Opcode.SetArgument: Opcode_SetArgument(proc, ref pc); break;
-                    case Opcode.PushLocal: Opcode_PushLocal(proc, ref pc); break;
-                    case Opcode.SetLocal: Opcode_SetLocal(proc, ref pc); break;
+                    case Opcode.PushArgument: Opcode_PushArgument(proc, frame, ref pc); break;
+                    case Opcode.SetArgument: Opcode_SetArgument(proc, frame, ref pc); break;
+                    case Opcode.PushLocal: Opcode_PushLocal(proc, frame, ref pc); break;
+                    case Opcode.SetLocal: Opcode_SetLocal(proc, frame, ref pc); break;
                     default:
                         State = DreamThreadState.Error;
                         throw new Exception($"Unknown opcode: {opcode}");

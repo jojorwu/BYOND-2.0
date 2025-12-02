@@ -181,33 +181,29 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_PushArgument(DreamProc proc, ref int pc)
+        private void Opcode_PushArgument(DreamProc proc, CallFrame frame, ref int pc)
         {
             var argIndex = ReadByte(proc, ref pc);
-            var frame = CallStack.Peek();
             Push(Stack[frame.StackBase + argIndex]);
         }
 
-        private void Opcode_SetArgument(DreamProc proc, ref int pc)
+        private void Opcode_SetArgument(DreamProc proc, CallFrame frame, ref int pc)
         {
             var argIndex = ReadByte(proc, ref pc);
             var value = Pop();
-            var frame = CallStack.Peek();
             Stack[frame.StackBase + argIndex] = value;
         }
 
-        private void Opcode_PushLocal(DreamProc proc, ref int pc)
+        private void Opcode_PushLocal(DreamProc proc, CallFrame frame, ref int pc)
         {
             var localIndex = ReadByte(proc, ref pc);
-            var frame = CallStack.Peek();
             Push(Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex]);
         }
 
-        private void Opcode_SetLocal(DreamProc proc, ref int pc)
+        private void Opcode_SetLocal(DreamProc proc, CallFrame frame, ref int pc)
         {
             var localIndex = ReadByte(proc, ref pc);
             var value = Pop();
-            var frame = CallStack.Peek();
             Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex] = value;
         }
 

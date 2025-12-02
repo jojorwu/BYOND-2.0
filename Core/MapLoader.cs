@@ -1,8 +1,9 @@
-using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace Core
 {
@@ -22,39 +23,57 @@ namespace Core
                 return null;
             }
 
-            var json = await File.ReadAllTextAsync(filePath);
+            await using var stream = File.OpenRead(filePath);
+            var mapData = await JsonSerializer.DeserializeAsync<MapData>(stream);
 
-            return await Task.Run(() =>
+            if (mapData?.Turfs == null)
             {
-                var mapData = JsonConvert.DeserializeObject<MapData>(json);
+                return null;
+            }
 
-                if (mapData?.Turfs == null)
-                {
-                    return null;
-                }
+            var map = new Map();
+            var turfsByChunk = mapData.Turfs.GroupBy(t =>
+            {
+                var (chunkCoords, _) = Map.GlobalToChunk(t.X, t.Y);
+                return (t.Z, chunkCoords);
+            });
 
-                var map = new Map();
-                foreach(var turfData in mapData.Turfs)
+            foreach (var chunkGroup in turfsByChunk)
+            {
+                var z = chunkGroup.Key.Z;
+                var chunkCoords = chunkGroup.Key.chunkCoords;
+                var chunk = new Chunk();
+
+                foreach (var turfData in chunkGroup)
                 {
+                    var (_, localCoords) = Map.GlobalToChunk(turfData.X, turfData.Y);
                     var turf = new Turf(turfData.Id);
                     foreach (var objData in turfData.Contents)
                     {
                         var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
                         if (objectType != null)
                         {
-                            var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
+                            var gameObject = new GameObject(objectType, turfData.X, turfData.Y, z);
                             foreach (var prop in objData.Properties)
                             {
-                                gameObject.Properties[prop.Key] = prop.Value;
+                                if (prop.Value is JsonElement element)
+                                {
+                                    gameObject.Properties[prop.Key] = GetValueFromJsonElement(element);
+                                }
+                                else
+                                {
+                                    gameObject.Properties[prop.Key] = prop.Value;
+                                }
                             }
                             turf.Contents.Add(gameObject);
                         }
                     }
-                    map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
+                    chunk.SetTurf(localCoords.X, localCoords.Y, turf);
                 }
+                map.SetChunk(z, chunkCoords, chunk);
+            }
 
-                return map;
-            });
+            return map;
         }
 
         public async Task SaveMapAsync(Map map, string filePath)
@@ -89,8 +108,43 @@ namespace Core
                 }
             }
 
-            var json = await Task.Run(() => JsonConvert.SerializeObject(mapData, Formatting.Indented));
-            await File.WriteAllTextAsync(filePath, json);
+            await using var stream = File.Create(filePath);
+            await JsonSerializer.SerializeAsync(stream, mapData, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        private object? GetValueFromJsonElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return element.GetString();
+                case JsonValueKind.Number:
+                    if (element.TryGetInt32(out int intValue)) return intValue;
+                    if (element.TryGetDouble(out double doubleValue)) return doubleValue;
+                    return element.GetDecimal();
+                case JsonValueKind.True:
+                    return true;
+                case JsonValueKind.False:
+                    return false;
+                case JsonValueKind.Null:
+                    return null;
+                case JsonValueKind.Object:
+                    var obj = new Dictionary<string, object?>();
+                    foreach (var prop in element.EnumerateObject())
+                    {
+                        obj[prop.Name] = GetValueFromJsonElement(prop.Value);
+                    }
+                    return obj;
+                case JsonValueKind.Array:
+                    var list = new List<object?>();
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        list.Add(GetValueFromJsonElement(item));
+                    }
+                    return list;
+                default:
+                    return element.ToString();
+            }
         }
 
         private class MapData

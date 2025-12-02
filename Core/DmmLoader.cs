@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using DMCompiler.Json;
+using Robust.Shared.Maths;
 
 namespace Core
 {
@@ -18,6 +19,7 @@ namespace Core
         public Map LoadMap(PublicDreamMapJson dreamMapJson)
         {
             var map = new Map();
+            var chunksByZ = new Dictionary<int, Dictionary<Vector2i, Chunk>>();
 
             foreach (var block in dreamMapJson.Blocks)
             {
@@ -58,10 +60,33 @@ namespace Core
                                     if (gameObj != null)
                                         turf.Contents.Add(gameObj);
                                 }
-                                map.SetTurf(mapX, mapY, mapZ, turf);
+
+                                var (chunkCoords, localCoords) = Map.GlobalToChunk(mapX, mapY);
+
+                                if (!chunksByZ.TryGetValue(mapZ, out var chunks))
+                                {
+                                    chunks = new Dictionary<Vector2i, Chunk>();
+                                    chunksByZ[mapZ] = chunks;
+                                }
+
+                                if (!chunks.TryGetValue(chunkCoords, out var chunk))
+                                {
+                                    chunk = new Chunk();
+                                    chunks[chunkCoords] = chunk;
+                                }
+
+                                chunk.SetTurf(localCoords.X, localCoords.Y, turf);
                             }
                         }
                     }
+                }
+            }
+
+            foreach (var (z, chunks) in chunksByZ)
+            {
+                foreach (var (chunkCoords, chunk) in chunks)
+                {
+                    map.SetChunk(z, chunkCoords, chunk);
                 }
             }
             return map;

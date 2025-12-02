@@ -12,7 +12,7 @@ namespace Core
         {
         }
 
-        private (Vector2i chunkCoords, Vector2i localCoords) GetChunkAndLocalCoords(int x, int y)
+        public static (Vector2i chunkCoords, Vector2i localCoords) GlobalToChunk(int x, int y)
         {
             var chunkX = (int)Math.Floor((double)x / Chunk.ChunkSize);
             var chunkY = (int)Math.Floor((double)y / Chunk.ChunkSize);
@@ -23,7 +23,7 @@ namespace Core
 
         public Turf? GetTurf(int x, int y, int z)
         {
-            var (chunkCoords, localCoords) = GetChunkAndLocalCoords(x, y);
+            var (chunkCoords, localCoords) = GlobalToChunk(x, y);
 
             if (_chunksByZ.TryGetValue(z, out var chunks) && chunks.TryGetValue(chunkCoords, out var chunk))
             {
@@ -35,7 +35,7 @@ namespace Core
 
         public void SetTurf(int x, int y, int z, Turf turf)
         {
-            var (chunkCoords, localCoords) = GetChunkAndLocalCoords(x, y);
+            var (chunkCoords, localCoords) = GlobalToChunk(x, y);
 
             if (!_chunksByZ.TryGetValue(z, out var chunks))
             {
@@ -50,6 +50,17 @@ namespace Core
             }
 
             chunk.SetTurf(localCoords.X, localCoords.Y, turf);
+        }
+
+        public void SetChunk(int z, Vector2i chunkCoords, Chunk chunk)
+        {
+            if (!_chunksByZ.TryGetValue(z, out var chunks))
+            {
+                chunks = new Dictionary<Vector2i, Chunk>();
+                _chunksByZ[z] = chunks;
+            }
+
+            chunks[chunkCoords] = chunk;
         }
 
         public IEnumerable<(Vector2i coords, Chunk chunk)> GetChunks(int z)

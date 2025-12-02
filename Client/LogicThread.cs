@@ -1,7 +1,8 @@
 using System;
 using System.Diagnostics;
-using System.Text;
+using System.Text.Json;
 using System.Threading;
+using Core;
 using LiteNetLib;
 
 namespace Client
@@ -67,7 +68,6 @@ namespace Client
                 {
                     // Update logic is now driven by server responses
                     accumulator -= TimeStep;
-                    CurrentState.TickCount++;
                 }
 
                 Thread.Sleep(15);
@@ -87,25 +87,19 @@ namespace Client
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
             // First byte is the message type. We may have other types later.
-            var messageType = (Core.SnapshotMessageType)reader.GetByte();
+            var messageType = (SnapshotMessageType)reader.GetByte();
 
-            if (messageType == Core.SnapshotMessageType.Full)
+            if (messageType == SnapshotMessageType.Full)
             {
-                lock (_lock)
-                {
-                    PreviousState = CurrentState.Clone();
+                var json = reader.GetString();
+                var newGameState = JsonSerializer.Deserialize<GameState>(json);
 
-                    var newRenderables = new Dictionary<int, RenderableObject>();
-                    var count = reader.GetInt();
-                    for (int i = 0; i < count; i++)
+                if (newGameState != null) {
+                    lock (_lock)
                     {
-                        var id = reader.GetInt();
-                        var x = reader.GetFloat();
-                        var y = reader.GetFloat();
-                        var icon = reader.GetString();
-                        newRenderables[id] = new RenderableObject { Id = id, Position = new(x, y), Icon = icon };
+                        PreviousState = CurrentState;
+                        CurrentState = newGameState;
                     }
-                    CurrentState.Renderables = newRenderables;
                 }
             } else {
                 // We might receive other message types like commands responses, etc.

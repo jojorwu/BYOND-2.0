@@ -63,6 +63,16 @@ namespace Core.VM.Runtime
             return value;
         }
 
+        private void SavePC(int pc)
+        {
+            if (CallStack.Count > 0)
+            {
+                var frame = CallStack.Pop();
+                frame.PC = pc;
+                CallStack.Push(frame);
+            }
+        }
+
         public DreamThreadState Run(int instructionBudget)
         {
             if (State != DreamThreadState.Running)
@@ -78,7 +88,7 @@ namespace Core.VM.Runtime
             {
                 if (instructionsExecutedThisTick++ >= instructionBudget)
                 {
-                    frame.PC = pc;
+                    SavePC(pc);
                     return DreamThreadState.Running; // Budget exhausted, will resume next tick
                 }
 
@@ -86,14 +96,16 @@ namespace Core.VM.Runtime
                 {
                     State = DreamThreadState.Error;
                     Console.WriteLine("Error: Instruction limit exceeded.");
-                    frame.PC = pc;
+                    SavePC(pc);
                     return State;
                 }
 
-                var opcode = (Opcode)ReadByte(proc, ref pc);
-                switch (opcode)
+                try
                 {
-                    case Opcode.PushString: Opcode_PushString(proc, ref pc); break;
+                    var opcode = (Opcode)ReadByte(proc, ref pc);
+                    switch (opcode)
+                    {
+                        case Opcode.PushString: Opcode_PushString(proc, ref pc); break;
                     case Opcode.PushFloat: Opcode_PushFloat(proc, ref pc); break;
                     case Opcode.Add: Opcode_Add(); break;
                     case Opcode.Subtract: Opcode_Subtract(); break;
@@ -118,30 +130,42 @@ namespace Core.VM.Runtime
                     case Opcode.Jump: Opcode_Jump(proc, ref pc); break;
                     case Opcode.JumpIfFalse: Opcode_JumpIfFalse(proc, ref pc); break;
                     case Opcode.Output: Opcode_Output(); break;
-                    case Opcode.Return: Opcode_Return(ref proc, ref pc); break;
+                    case Opcode.Return:
+                        Opcode_Return(ref proc, ref pc);
+                        if(State == DreamThreadState.Running)
+                            frame = CallStack.Peek();
+                        break;
                     case Opcode.BitAnd: Opcode_BitAnd(); break;
                     case Opcode.BitOr: Opcode_BitOr(); break;
                     case Opcode.BitXor: Opcode_BitXor(); break;
                     case Opcode.BitNot: Opcode_BitNot(); break;
                     case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
                     case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
-                    case Opcode.PushArgument: Opcode_PushArgument(proc, ref pc); break;
-                    case Opcode.SetArgument: Opcode_SetArgument(proc, ref pc); break;
-                    case Opcode.PushLocal: Opcode_PushLocal(proc, ref pc); break;
-                    case Opcode.SetLocal: Opcode_SetLocal(proc, ref pc); break;
+                    case Opcode.PushArgument: Opcode_PushArgument(proc, frame, ref pc); break;
+                    case Opcode.SetArgument: Opcode_SetArgument(proc, frame, ref pc); break;
+                    case Opcode.PushLocal: Opcode_PushLocal(proc, frame, ref pc); break;
+                    case Opcode.SetLocal: Opcode_SetLocal(proc, frame, ref pc); break;
                     default:
                         State = DreamThreadState.Error;
                         throw new Exception($"Unknown opcode: {opcode}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    State = DreamThreadState.Error;
+                    Console.WriteLine($"Error during script execution: {e.Message}");
+                    SavePC(pc);
+                    return State;
                 }
 
                 if (State != DreamThreadState.Running) // Check state after handler execution
                 {
-                    frame.PC = pc;
+                    SavePC(pc);
                     return State;
                 }
             }
 
-            frame.PC = pc;
+            SavePC(pc);
             State = DreamThreadState.Finished;
             return State;
         }

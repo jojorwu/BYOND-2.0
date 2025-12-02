@@ -100,10 +100,12 @@ namespace Core.VM.Runtime
                     return State;
                 }
 
-                var opcode = (Opcode)ReadByte(proc, ref pc);
-                switch (opcode)
+                try
                 {
-                    case Opcode.PushString: Opcode_PushString(proc, ref pc); break;
+                    var opcode = (Opcode)ReadByte(proc, ref pc);
+                    switch (opcode)
+                    {
+                        case Opcode.PushString: Opcode_PushString(proc, ref pc); break;
                     case Opcode.PushFloat: Opcode_PushFloat(proc, ref pc); break;
                     case Opcode.Add: Opcode_Add(); break;
                     case Opcode.Subtract: Opcode_Subtract(); break;
@@ -146,6 +148,14 @@ namespace Core.VM.Runtime
                     default:
                         State = DreamThreadState.Error;
                         throw new Exception($"Unknown opcode: {opcode}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    State = DreamThreadState.Error;
+                    Console.WriteLine($"Error during script execution: {e.Message}");
+                    SavePC(pc);
+                    return State;
                 }
 
                 if (State != DreamThreadState.Running) // Check state after handler execution

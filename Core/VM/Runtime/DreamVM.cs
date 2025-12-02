@@ -8,11 +8,13 @@ namespace Core.VM.Runtime
     {
         public List<string> Strings { get; } = new();
         public Dictionary<string, DreamProc> Procs { get; } = new();
+        public ObjectTypeManager ObjectTypeManager { get; }
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)
         {
             _settings = settings;
+            ObjectTypeManager = new ObjectTypeManager();
         }
 
         public DreamThread? CreateWorldNewThread()

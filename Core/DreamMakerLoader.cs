@@ -43,7 +43,19 @@ namespace Core
                     foreach (var procJson in compiledJson.Procs)
                     {
                         var bytecode = procJson.Bytecode ?? Array.Empty<byte>();
-                        var arguments = procJson.Arguments?.Select(a => a.Name).ToArray() ?? Array.Empty<string>();
+                        string[] arguments;
+                        if (procJson.Arguments != null)
+                        {
+                            arguments = new string[procJson.Arguments.Count];
+                            for (int i = 0; i < procJson.Arguments.Count; i++)
+                            {
+                                arguments[i] = procJson.Arguments[i].Name;
+                            }
+                        }
+                        else
+                        {
+                            arguments = Array.Empty<string>();
+                        }
                         var newProc = new DreamProc(
                             procJson.Name,
                             bytecode,

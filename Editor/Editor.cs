@@ -6,7 +6,7 @@ using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
 using Editor.UI;
-using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Editor
 {
@@ -17,12 +17,11 @@ namespace Editor
         private IInputContext? inputContext;
         private ImGuiController? imGuiController;
 
-        private Project? _project;
-        private AssetManager? _assetManager;
-        private OpenDreamCompilerService? _compilerService;
-        private DmmService? _dmmService;
+        private IServiceScope? _projectScope;
+        private IServiceProvider _serviceProvider;
 
-        private MainMenuPanel _mainMenuPanel;
+        // Panels (resolved from DI)
+        private MainMenuPanel _mainMenuPanel = null!;
         private MenuBarPanel _menuBarPanel = null!;
         private ViewportPanel _viewportPanel = null!;
         private AssetBrowserPanel _assetBrowserPanel = null!;
@@ -34,16 +33,37 @@ namespace Editor
         private MapControlsPanel _mapControlsPanel = null!;
         private BuildPanel _buildPanel = null!;
 
-        private BuildService _buildService = null!;
-
         private AppState _appState = AppState.MainMenu;
-
-        private readonly EditorContext _editorContext;
 
         public Editor()
         {
-            _editorContext = new EditorContext();
-            _mainMenuPanel = new MainMenuPanel();
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            _serviceProvider = services.BuildServiceProvider();
+
+            _mainMenuPanel = _serviceProvider.GetRequiredService<MainMenuPanel>();
+        }
+
+        private void ConfigureServices(IServiceCollection services)
+        {
+            services.AddSingleton<EditorContext>();
+            services.AddSingleton<MainMenuPanel>();
+            services.AddScoped<MenuBarPanel>();
+            services.AddScoped<ViewportPanel>();
+            services.AddScoped<AssetBrowserPanel>();
+            services.AddScoped<InspectorPanel>();
+            services.AddScoped<ObjectBrowserPanel>();
+            services.AddScoped<ScriptEditorPanel>();
+            services.AddScoped<SettingsPanel>();
+            services.AddScoped<ToolboxPanel>();
+            services.AddScoped<MapControlsPanel>();
+            services.AddScoped<BuildPanel>();
+            services.AddScoped<BuildService>();
+            services.AddScoped<DmmService>();
+            services.AddScoped<AssetManager>();
+            services.AddScoped<SelectionManager>();
+            services.AddScoped<ToolManager>();
+            services.AddCoreServices();
         }
 
         public void Run()
@@ -57,20 +77,8 @@ namespace Editor
             window.Load += OnLoad;
             window.Render += OnRender;
             window.Closing += OnClose;
-            window.FileDrop += OnFileDrop;
 
             window.Run();
-        }
-
-        private void OnFileDrop(string[] paths)
-        {
-            if (_assetManager != null)
-            {
-                foreach (var path in paths)
-                {
-                    _assetManager.ImportAsset(path);
-                }
-            }
         }
 
         private void OnLoad()
@@ -80,46 +88,28 @@ namespace Editor
                 gl = window.CreateOpenGL();
                 inputContext = window.CreateInput();
                 imGuiController = new ImGuiController(gl, window, inputContext);
+                _serviceProvider.GetRequiredService<EditorContext>().GL = gl;
             }
         }
 
         private void OnProjectLoad(string projectPath)
         {
-            _project = new Project(projectPath);
-            var gameState = new GameState();
-            var objectTypeManager = new ObjectTypeManager();
-            var mapLoader = new MapLoader(objectTypeManager);
-            _assetManager = new AssetManager();
-            var selectionManager = new SelectionManager();
-            var toolManager = new ToolManager();
-            var gameApi = new GameApi(_project, gameState, objectTypeManager, mapLoader);
-            _compilerService = new OpenDreamCompilerService(_project);
-            _dmmService = new DmmService(objectTypeManager, _project);
+            _projectScope = _serviceProvider.CreateScope();
+            var scopeProvider = _projectScope.ServiceProvider;
 
-            var wall = new ObjectType("wall");
-            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
-            objectTypeManager.RegisterObjectType(wall);
+            var project = new Project(projectPath);
+            scopeProvider.GetRequiredService<EditorContext>().Project = project;
 
-            var floor = new ObjectType("floor");
-            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
-            objectTypeManager.RegisterObjectType(floor);
-
-            toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), _editorContext);
-
-            if (gl != null)
-            {
-                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
-            }
-            _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
-            _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
-            _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel();
-            _settingsPanel = new SettingsPanel();
-            _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
-            _buildService = new BuildService(_project);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService);
-            _mapControlsPanel = new MapControlsPanel(_editorContext);
-            _buildPanel = new BuildPanel(_buildService);
+            _menuBarPanel = scopeProvider.GetRequiredService<MenuBarPanel>();
+            _viewportPanel = scopeProvider.GetRequiredService<ViewportPanel>();
+            _assetBrowserPanel = scopeProvider.GetRequiredService<AssetBrowserPanel>();
+            _inspectorPanel = scopeProvider.GetRequiredService<InspectorPanel>();
+            _objectBrowserPanel = scopeProvider.GetRequiredService<ObjectBrowserPanel>();
+            _scriptEditorPanel = scopeProvider.GetRequiredService<ScriptEditorPanel>();
+            _settingsPanel = scopeProvider.GetRequiredService<SettingsPanel>();
+            _toolboxPanel = scopeProvider.GetRequiredService<ToolboxPanel>();
+            _mapControlsPanel = scopeProvider.GetRequiredService<MapControlsPanel>();
+            _buildPanel = scopeProvider.GetRequiredService<BuildPanel>();
 
             _appState = AppState.Editing;
         }
@@ -156,9 +146,10 @@ namespace Editor
                     ImGui.Begin("MainView");
                     if (ImGui.BeginTabBar("FileTabs"))
                     {
-                        for (int i = 0; i < _editorContext.OpenFiles.Count; i++)
+                        var editorContext = _serviceProvider.GetRequiredService<EditorContext>();
+                        for (int i = 0; i < editorContext.OpenFiles.Count; i++)
                         {
-                            var file = _editorContext.OpenFiles[i];
+                            var file = editorContext.OpenFiles[i];
                             bool isOpen = true;
                             if (ImGui.BeginTabItem(System.IO.Path.GetFileName(file.Path), ref isOpen))
                             {
@@ -176,7 +167,7 @@ namespace Editor
 
                             if (!isOpen)
                             {
-                                _editorContext.OpenFiles.RemoveAt(i);
+                                editorContext.OpenFiles.RemoveAt(i);
                             }
                         }
                         ImGui.EndTabBar();
@@ -193,6 +184,7 @@ namespace Editor
 
         private void OnClose()
         {
+            _projectScope?.Dispose();
             imGuiController?.Dispose();
             _viewportPanel?.Dispose();
             gl?.Dispose();

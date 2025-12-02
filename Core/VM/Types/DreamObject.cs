@@ -1,6 +1,12 @@
-namespace Core.VM.Types;
-
-public class DreamObject
+namespace Core.VM.Types
 {
-    // TODO: Implement DreamObject logic
+    public class DreamObject
+    {
+        public GameObject GameObject { get; }
+
+        public DreamObject(GameObject gameObject)
+        {
+            GameObject = gameObject;
+        }
+    }
 }

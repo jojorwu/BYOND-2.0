@@ -40,6 +40,7 @@ namespace Core.Tests
         [TearDown]
         public void TearDown()
         {
+            _gameState.Dispose();
             if (Directory.Exists(_project.RootPath))
             {
                 Directory.Delete(_project.RootPath, true);

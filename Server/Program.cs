@@ -29,7 +29,11 @@ class Program
         services.AddScoped<ObjectTypeManager>();
         services.AddScoped<DreamVM>();
         services.AddScoped<MapLoader>();
-        services.AddScoped<GameApi>();
+        services.AddScoped<IMapApi, MapApi>();
+        services.AddScoped<IObjectApi, ObjectApi>();
+        services.AddScoped<IScriptApi, ScriptApi>();
+        services.AddScoped<IStandardLibraryApi, StandardLibraryApi>();
+        services.AddScoped<IGameApi, GameApi>();
         services.AddScoped<ScriptManager>();
         services.AddSingleton<ScriptHost>();
         services.AddSingleton<UdpServer>(provider =>

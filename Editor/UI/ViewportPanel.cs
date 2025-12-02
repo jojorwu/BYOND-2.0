@@ -9,25 +9,25 @@ namespace Editor.UI
 {
     public class ViewportPanel : IDisposable
     {
-        private readonly GL _gl;
         private readonly ToolManager _toolManager;
         private readonly SelectionManager _selectionManager;
         private readonly EditorContext _editorContext;
         private readonly SpriteRenderer _spriteRenderer;
         private readonly TextureManager _textureManager;
-        private readonly GameApi _gameApi;
+        private readonly IGameApi _gameApi;
+        private readonly GameState _gameState;
 
         private string _currentFile = "";
 
-        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, GameApi gameApi)
+        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, GameState gameState)
         {
-            _gl = gl;
             _toolManager = toolManager;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
-            _spriteRenderer = new SpriteRenderer(_gl);
-            _textureManager = new TextureManager(_gl);
+            _spriteRenderer = new SpriteRenderer(editorContext.Gl);
+            _textureManager = new TextureManager(editorContext.Gl);
             _gameApi = gameApi;
+            _gameState = gameState;
         }
 
         public async void Draw(string filePath)
@@ -36,7 +36,7 @@ namespace Editor.UI
             {
                 try
                 {
-                    await _gameApi.LoadMapAsync(filePath);
+                    await _gameApi.Map.LoadMapAsync(filePath);
                     _currentFile = filePath;
                 }
                 catch (System.Exception e)
@@ -51,7 +51,7 @@ namespace Editor.UI
             var windowSize = ImGui.GetWindowSize();
             var projectionMatrix = Camera.GetProjectionMatrix(windowSize.X, windowSize.Y);
 
-            var currentMap = _gameApi.GetMap();
+            var currentMap = _gameApi.Map.GetMap();
             if (currentMap != null)
             {
                 foreach (var (chunkCoords, chunk) in currentMap.GetChunks(_editorContext.CurrentZLevel))
@@ -91,18 +91,18 @@ namespace Editor.UI
                     var worldMousePosInt = new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y);
 
 
-                    _toolManager.OnMouseMove(_editorContext, _gameApi.GetState(), _selectionManager, worldMousePosInt);
+                    _toolManager.OnMouseMove(_editorContext, _gameState, _selectionManager, worldMousePosInt);
                     if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
                     {
-                        _toolManager.OnMouseDown(_editorContext, _gameApi.GetState(), _selectionManager, worldMousePosInt);
+                        _toolManager.OnMouseDown(_editorContext, _gameState, _selectionManager, worldMousePosInt);
                     }
                     if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                     {
-                        _toolManager.OnMouseUp(_editorContext, _gameApi.GetState(), _selectionManager, worldMousePosInt);
+                        _toolManager.OnMouseUp(_editorContext, _gameState, _selectionManager, worldMousePosInt);
                     }
                 }
 
-                _toolManager.Draw(_editorContext, _gameApi.GetState(), _selectionManager);
+                _toolManager.Draw(_editorContext, _gameState, _selectionManager);
             }
 
             ImGui.End();

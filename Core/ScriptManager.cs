@@ -15,7 +15,7 @@ namespace Core
         private readonly List<IScriptSystem> _systems = new();
         private readonly string _scriptsRoot;
 
-        public ScriptManager(GameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM)
+        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
 

@@ -7,6 +7,8 @@ using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
 using Editor.UI;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace Editor
 {
@@ -18,9 +20,7 @@ namespace Editor
         private ImGuiController? imGuiController;
 
         private Project? _project;
-        private AssetManager? _assetManager;
-        private OpenDreamCompilerService? _compilerService;
-        private DmmService? _dmmService;
+        private IServiceProvider? _serviceProvider;
 
         private MainMenuPanel _mainMenuPanel;
         private MenuBarPanel _menuBarPanel = null!;
@@ -33,9 +33,6 @@ namespace Editor
         private ToolboxPanel _toolboxPanel = null!;
         private MapControlsPanel _mapControlsPanel = null!;
         private BuildPanel _buildPanel = null!;
-
-        private BuildService _buildService = null!;
-
         private AppState _appState = AppState.MainMenu;
 
         private readonly EditorContext _editorContext;
@@ -64,11 +61,12 @@ namespace Editor
 
         private void OnFileDrop(string[] paths)
         {
-            if (_assetManager != null)
+            if (_serviceProvider != null)
             {
+                var assetManager = _serviceProvider.GetRequiredService<AssetManager>();
                 foreach (var path in paths)
                 {
-                    _assetManager.ImportAsset(path);
+                    assetManager.ImportAsset(path);
                 }
             }
         }
@@ -80,22 +78,50 @@ namespace Editor
                 gl = window.CreateOpenGL();
                 inputContext = window.CreateInput();
                 imGuiController = new ImGuiController(gl, window, inputContext);
+                _editorContext.Gl = gl;
             }
+        }
+
+        private void ConfigureServices(IServiceCollection services)
+        {
+            services.AddSingleton(_project);
+            services.AddSingleton<GameState>();
+            services.AddSingleton<ObjectTypeManager>();
+            services.AddSingleton<MapLoader>();
+            services.AddSingleton<AssetManager>();
+            services.AddSingleton<SelectionManager>();
+            services.AddSingleton<ToolManager>();
+            services.AddSingleton<IMapApi, MapApi>();
+            services.AddSingleton<IObjectApi, ObjectApi>();
+            services.AddSingleton<IScriptApi, ScriptApi>();
+            services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
+            services.AddSingleton<IGameApi, GameApi>();
+            services.AddSingleton<OpenDreamCompilerService>();
+            services.AddSingleton<DmmService>();
+            services.AddSingleton<BuildService>();
+            services.AddSingleton(_editorContext);
+
+            // UI Panels
+            services.AddSingleton<MenuBarPanel>();
+            services.AddSingleton<ViewportPanel>();
+            services.AddSingleton<AssetBrowserPanel>();
+            services.AddSingleton<InspectorPanel>();
+            services.AddSingleton<ObjectBrowserPanel>();
+            services.AddSingleton<ScriptEditorPanel>();
+            services.AddSingleton<SettingsPanel>();
+            services.AddSingleton<ToolboxPanel>();
+            services.AddSingleton<MapControlsPanel>();
+            services.AddSingleton<BuildPanel>();
         }
 
         private void OnProjectLoad(string projectPath)
         {
             _project = new Project(projectPath);
-            var gameState = new GameState();
-            var objectTypeManager = new ObjectTypeManager();
-            var mapLoader = new MapLoader(objectTypeManager);
-            _assetManager = new AssetManager();
-            var selectionManager = new SelectionManager();
-            var toolManager = new ToolManager();
-            var gameApi = new GameApi(_project, gameState, objectTypeManager, mapLoader);
-            _compilerService = new OpenDreamCompilerService(_project);
-            _dmmService = new DmmService(objectTypeManager, _project);
+            var services = new ServiceCollection();
+            ConfigureServices(services);
+            _serviceProvider = services.BuildServiceProvider();
 
+            var objectTypeManager = _serviceProvider.GetRequiredService<ObjectTypeManager>();
             var wall = new ObjectType("wall");
             wall.DefaultProperties["SpritePath"] = "assets/wall.png";
             objectTypeManager.RegisterObjectType(wall);
@@ -104,22 +130,19 @@ namespace Editor
             floor.DefaultProperties["SpritePath"] = "assets/floor.png";
             objectTypeManager.RegisterObjectType(floor);
 
+            var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
             toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), _editorContext);
 
-            if (gl != null)
-            {
-                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
-            }
-            _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
-            _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
-            _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel();
-            _settingsPanel = new SettingsPanel();
-            _toolboxPanel = new ToolboxPanel(toolManager, _editorContext);
-            _buildService = new BuildService(_project);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService);
-            _mapControlsPanel = new MapControlsPanel(_editorContext);
-            _buildPanel = new BuildPanel(_buildService);
+            _menuBarPanel = _serviceProvider.GetRequiredService<MenuBarPanel>();
+            _viewportPanel = _serviceProvider.GetRequiredService<ViewportPanel>();
+            _assetBrowserPanel = _serviceProvider.GetRequiredService<AssetBrowserPanel>();
+            _inspectorPanel = _serviceProvider.GetRequiredService<InspectorPanel>();
+            _objectBrowserPanel = _serviceProvider.GetRequiredService<ObjectBrowserPanel>();
+            _scriptEditorPanel = _serviceProvider.GetRequiredService<ScriptEditorPanel>();
+            _settingsPanel = _serviceProvider.GetRequiredService<SettingsPanel>();
+            _toolboxPanel = _serviceProvider.GetRequiredService<ToolboxPanel>();
+            _mapControlsPanel = _serviceProvider.GetRequiredService<MapControlsPanel>();
+            _buildPanel = _serviceProvider.GetRequiredService<BuildPanel>();
 
             _appState = AppState.Editing;
         }

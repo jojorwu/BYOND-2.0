@@ -37,7 +37,10 @@ namespace Core
 
         public Map? GetMap()
         {
-            return _gameState.Map;
+            using (_gameState.ReadLock())
+            {
+                return _gameState.Map;
+            }
         }
 
         // --- Map and Object Methods ---
@@ -54,7 +57,10 @@ namespace Core
         /// <returns>The turf at the specified coordinates, or null if the coordinates are out of bounds.</returns>
         public Turf? GetTurf(int x, int y, int z)
         {
-            return _gameState.Map?.GetTurf(x, y, z);
+            using (_gameState.ReadLock())
+            {
+                return _gameState.Map?.GetTurf(x, y, z);
+            }
         }
 
         /// <summary>
@@ -66,7 +72,10 @@ namespace Core
         /// <param name="turfId">The identifier of the turf type to set.</param>
         public void SetTurf(int x, int y, int z, int turfId)
         {
-            _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
+            using (_gameState.WriteLock())
+            {
+                _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
+            }
         }
 
         /// <summary>
@@ -85,14 +94,17 @@ namespace Core
                 return null;
             }
 
-            var gameObject = new GameObject(objectType, x, y, z);
-            _gameState.GameObjects.Add(gameObject.Id, gameObject);
-            var turf = GetTurf(x, y, z);
-            if (turf != null)
+            using (_gameState.WriteLock())
             {
-                turf.Contents.Add(gameObject);
+                var gameObject = new GameObject(objectType, x, y, z);
+                _gameState.GameObjects.Add(gameObject.Id, gameObject);
+                var turf = GetTurf(x, y, z);
+                if (turf != null)
+                {
+                    turf.Contents.Add(gameObject);
+                }
+                return gameObject;
             }
-            return gameObject;
         }
 
         /// <summary>
@@ -102,8 +114,11 @@ namespace Core
         /// <returns>The game object with the specified identifier, or null if no such object exists.</returns>
         public GameObject? GetObject(int id)
         {
-            _gameState.GameObjects.TryGetValue(id, out var obj);
-            return obj;
+            using (_gameState.ReadLock())
+            {
+                _gameState.GameObjects.TryGetValue(id, out var obj);
+                return obj;
+            }
         }
 
         /// <summary>
@@ -112,37 +127,43 @@ namespace Core
         /// <param name="id">The unique identifier of the game object to destroy.</param>
         public void DestroyObject(int id)
         {
-            var gameObject = GetObject(id);
-            if (gameObject != null)
+            using (_gameState.WriteLock())
             {
-                var turf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
-                if (turf != null)
+                var gameObject = GetObject(id);
+                if (gameObject != null)
                 {
-                    turf.Contents.Remove(gameObject);
+                    var turf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+                    if (turf != null)
+                    {
+                        turf.Contents.Remove(gameObject);
+                    }
+                    _gameState.GameObjects.Remove(id);
                 }
-                _gameState.GameObjects.Remove(id);
             }
         }
 
         public void MoveObject(int id, int x, int y, int z)
         {
-            var gameObject = GetObject(id);
-            if (gameObject != null)
+            using (_gameState.WriteLock())
             {
-                var oldTurf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
-                if (oldTurf != null)
+                var gameObject = GetObject(id);
+                if (gameObject != null)
                 {
-                    oldTurf.Contents.Remove(gameObject);
-                }
+                    var oldTurf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+                    if (oldTurf != null)
+                    {
+                        oldTurf.Contents.Remove(gameObject);
+                    }
 
-                gameObject.X = x;
-                gameObject.Y = y;
-                gameObject.Z = z;
+                    gameObject.X = x;
+                    gameObject.Y = y;
+                    gameObject.Z = z;
 
-                var newTurf = GetTurf(x, y, z);
-                if (newTurf != null)
-                {
-                    newTurf.Contents.Add(gameObject);
+                    var newTurf = GetTurf(x, y, z);
+                    if (newTurf != null)
+                    {
+                        newTurf.Contents.Add(gameObject);
+                    }
                 }
             }
         }
@@ -154,12 +175,19 @@ namespace Core
         public async Task LoadMapAsync(string filePath)
         {
             var safePath = SanitizePath(filePath, Constants.MapsRoot);
-            _gameState.Map = await _mapLoader.LoadMapAsync(safePath);
+            var map = await _mapLoader.LoadMapAsync(safePath);
+            using (_gameState.WriteLock())
+            {
+                _gameState.Map = map;
+            }
         }
 
         public void SetMap(Map map)
         {
-            _gameState.Map = map;
+            using (_gameState.WriteLock())
+            {
+                _gameState.Map = map;
+            }
         }
 
         /// <summary>
@@ -168,10 +196,16 @@ namespace Core
         /// <param name="filePath">The path to save the map file to.</param>
         public async Task SaveMapAsync(string filePath)
         {
-            if (_gameState.Map != null)
+            Map? mapToSave;
+            using (_gameState.ReadLock())
+            {
+                mapToSave = _gameState.Map;
+            }
+
+            if (mapToSave != null)
             {
                 var safePath = SanitizePath(filePath, Constants.MapsRoot);
-                await _mapLoader.SaveMapAsync(_gameState.Map, safePath);
+                await _mapLoader.SaveMapAsync(mapToSave, safePath);
             }
         }
 
@@ -290,33 +324,39 @@ namespace Core
 
         public List<GameObject> Range(int distance, int centerX, int centerY, int centerZ)
         {
-            var results = new List<GameObject>();
-            foreach (var obj in _gameState.GameObjects.Values)
+            using (_gameState.ReadLock())
             {
-                if (GetDistance(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distance)
+                var results = new List<GameObject>();
+                foreach (var obj in _gameState.GameObjects.Values)
                 {
-                    results.Add(obj);
-                }
-            }
-            return results;
-        }
-
-        public List<GameObject> View(int distance, GameObject viewer)
-        {
-            var results = new List<GameObject>();
-            foreach (var obj in _gameState.GameObjects.Values)
-            {
-                if (obj == viewer) continue; // Can't see yourself
-
-                if (GetDistance(viewer, obj) <= distance)
-                {
-                    if (HasLineOfSight(viewer, obj))
+                    if (GetDistance(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distance)
                     {
                         results.Add(obj);
                     }
                 }
+                return results;
             }
-            return results;
+        }
+
+        public List<GameObject> View(int distance, GameObject viewer)
+        {
+            using (_gameState.ReadLock())
+            {
+                var results = new List<GameObject>();
+                foreach (var obj in _gameState.GameObjects.Values)
+                {
+                    if (obj == viewer) continue; // Can't see yourself
+
+                    if (GetDistance(viewer, obj) <= distance)
+                    {
+                        if (HasLineOfSight(viewer, obj))
+                        {
+                            results.Add(obj);
+                        }
+                    }
+                }
+                return results;
+            }
         }
 
         // --- Helper Methods ---

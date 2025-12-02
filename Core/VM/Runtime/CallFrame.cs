@@ -2,7 +2,7 @@ using Core.VM.Procs;
 
 namespace Core.VM.Runtime
 {
-    public class CallFrame
+    public struct CallFrame
     {
         public DreamProc Proc { get; }
         public int PC { get; set; }

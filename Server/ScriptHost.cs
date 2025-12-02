@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Server
 {
-    public class ScriptHost : IDisposable
+    public class ScriptHost : IDisposable, IScriptHost
     {
         private readonly Project _project;
         private readonly FileSystemWatcher _watcher;
@@ -102,6 +102,14 @@ namespace Server
         public void EnqueueCommand(string command, Action<string> onResult)
         {
             _commandQueue.Enqueue((command, onResult));
+        }
+
+        public void AddThread(DreamThread thread)
+        {
+            lock (_scriptLock)
+            {
+                _threads.Add(thread);
+            }
         }
 
         private void ProcessCommandQueue()

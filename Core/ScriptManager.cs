@@ -15,13 +15,13 @@ namespace Core
         private readonly List<IScriptSystem> _systems = new();
         private readonly string _scriptsRoot;
 
-        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM)
+        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
 
             _systems.Add(new CSharpSystem(gameApi));
             _systems.Add(new LuaSystem(gameApi));
-            _systems.Add(new DmSystem(typeManager, project, dreamVM));
+            _systems.Add(new DmSystem(typeManager, project, dreamVM, scriptHostFactory));
         }
 
         public async Task Initialize()

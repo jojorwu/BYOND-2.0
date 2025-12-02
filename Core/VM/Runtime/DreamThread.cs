@@ -63,6 +63,16 @@ namespace Core.VM.Runtime
             return value;
         }
 
+        private void SavePC(int pc)
+        {
+            if (CallStack.Count > 0)
+            {
+                var frame = CallStack.Pop();
+                frame.PC = pc;
+                CallStack.Push(frame);
+            }
+        }
+
         public DreamThreadState Run(int instructionBudget)
         {
             if (State != DreamThreadState.Running)
@@ -78,7 +88,7 @@ namespace Core.VM.Runtime
             {
                 if (instructionsExecutedThisTick++ >= instructionBudget)
                 {
-                    frame.PC = pc;
+                    SavePC(pc);
                     return DreamThreadState.Running; // Budget exhausted, will resume next tick
                 }
 
@@ -86,7 +96,7 @@ namespace Core.VM.Runtime
                 {
                     State = DreamThreadState.Error;
                     Console.WriteLine("Error: Instruction limit exceeded.");
-                    frame.PC = pc;
+                    SavePC(pc);
                     return State;
                 }
 
@@ -136,12 +146,12 @@ namespace Core.VM.Runtime
 
                 if (State != DreamThreadState.Running) // Check state after handler execution
                 {
-                    frame.PC = pc;
+                    SavePC(pc);
                     return State;
                 }
             }
 
-            frame.PC = pc;
+            SavePC(pc);
             State = DreamThreadState.Finished;
             return State;
         }

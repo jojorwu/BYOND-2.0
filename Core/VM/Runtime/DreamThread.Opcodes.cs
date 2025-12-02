@@ -122,7 +122,10 @@ namespace Core.VM.Runtime
 
             var stackBase = Stack.Count - argCount;
 
-            CallStack.Peek().PC = pc; // Save the return address
+            var currentFrame = CallStack.Pop();
+            currentFrame.PC = pc;
+            CallStack.Push(currentFrame);
+
             var frame = new CallFrame(newProc, 0, stackBase);
             CallStack.Push(frame);
 

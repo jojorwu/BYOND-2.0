@@ -34,8 +34,17 @@ class Program
         services.AddScoped<IScriptApi, ScriptApi>();
         services.AddScoped<IStandardLibraryApi, StandardLibraryApi>();
         services.AddScoped<IGameApi, GameApi>();
-        services.AddScoped<ScriptManager>();
+        services.AddSingleton<ScriptManager>(provider =>
+            new ScriptManager(
+                provider.GetRequiredService<IGameApi>(),
+                provider.GetRequiredService<ObjectTypeManager>(),
+                provider.GetRequiredService<Project>(),
+                provider.GetRequiredService<DreamVM>(),
+                () => provider.GetRequiredService<IScriptHost>()
+            )
+        );
         services.AddSingleton<ScriptHost>();
+        services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
         services.AddSingleton<UdpServer>(provider =>
         {
             var settings = provider.GetRequiredService<ServerSettings>();

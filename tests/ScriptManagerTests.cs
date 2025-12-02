@@ -38,7 +38,7 @@ namespace Core.Tests
             var scriptApi = new ScriptApi(_project);
             var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
-            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM);
+            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM, () => null!);
         }
 
         [TearDown]

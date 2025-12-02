@@ -87,6 +87,19 @@ namespace Core.VM.Types
         public static implicit operator DreamValue(string value) => new DreamValue(value);
         public static implicit operator DreamValue(DreamObject value) => new DreamValue(value);
 
+        public static DreamValue FromObject(object? value)
+        {
+            return value switch
+            {
+                null => Null,
+                string s => new DreamValue(s),
+                int i => new DreamValue(i),
+                float f => new DreamValue(f),
+                DreamObject o => new DreamValue(o),
+                _ => throw new ArgumentException($"Unsupported type for DreamValue: {value.GetType()}")
+            };
+        }
+
         public override string ToString()
         {
             if (TryGetValue(out float floatValue))

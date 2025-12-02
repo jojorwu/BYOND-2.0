@@ -33,13 +33,19 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager();
             _mapLoader = new MapLoader(_objectTypeManager);
             _dreamVM = new DreamVM(new ServerSettings());
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, _mapLoader);
-            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM);
+
+            var mapApi = new MapApi(_gameState, _mapLoader, _project);
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
+            var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
+
+            _gameApi = new GameApi(mapApi, objectApi, standardLibraryApi, _project);
+            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM, _gameState);
         }
 
         [TearDown]
         public void TearDown()
         {
+            _gameState.Dispose();
             if (Directory.Exists(_project.RootPath))
             {
                 Directory.Delete(_project.RootPath, true);

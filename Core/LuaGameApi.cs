@@ -6,13 +6,15 @@ namespace Core
     public class LuaGameApi
     {
         private readonly GameApi _gameApi;
+        private readonly GameState _gameState;
 
-        public LuaGameApi(GameApi gameApi)
+        public LuaGameApi(GameApi gameApi, GameState gameState)
         {
             _gameApi = gameApi;
+            _gameState = gameState;
         }
 
-        public GameState GetState() => _gameApi.GetState();
+        public GameState GetState() => _gameState;
         public Map? GetMap() => _gameApi.GetMap();
         public Turf? GetTurf(int x, int y, int z) => _gameApi.GetTurf(x, y, z);
         public void SetTurf(int x, int y, int z, int turfId) => _gameApi.SetTurf(x, y, z, turfId);

@@ -29,6 +29,9 @@ class Program
         services.AddScoped<ObjectTypeManager>();
         services.AddScoped<DreamVM>();
         services.AddScoped<MapLoader>();
+        services.AddScoped<IMapApi, MapApi>();
+        services.AddScoped<IObjectApi, ObjectApi>();
+        services.AddScoped<IStandardLibraryApi, StandardLibraryApi>();
         services.AddScoped<GameApi>();
         services.AddScoped<ScriptManager>();
         services.AddSingleton<ScriptHost>();

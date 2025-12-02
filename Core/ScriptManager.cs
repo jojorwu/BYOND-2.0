@@ -15,12 +15,12 @@ namespace Core
         private readonly List<IScriptSystem> _systems = new();
         private readonly string _scriptsRoot;
 
-        public ScriptManager(GameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM)
+        public ScriptManager(GameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM, GameState gameState)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
 
             _systems.Add(new CSharpSystem(gameApi));
-            _systems.Add(new LuaSystem(gameApi));
+            _systems.Add(new LuaSystem(gameApi, gameState));
             _systems.Add(new DmSystem(typeManager, project, dreamVM));
         }
 

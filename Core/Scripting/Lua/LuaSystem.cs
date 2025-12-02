@@ -8,17 +8,19 @@ namespace Core.Scripting.LuaSystem
     {
         private Lua? _lua;
         private readonly GameApi _gameApi;
+        private readonly GameState _gameState;
 
-        public LuaSystem(GameApi gameApi)
+        public LuaSystem(GameApi gameApi, GameState gameState)
         {
             _gameApi = gameApi;
+            _gameState = gameState;
         }
 
         public void Initialize()
         {
             _lua = new Lua();
             _lua.LoadCLRPackage();
-            _lua["Game"] = new LuaGameApi(_gameApi); // Твоя обертка
+            _lua["Game"] = new LuaGameApi(_gameApi, _gameState); // Твоя обертка
         }
 
         public Task LoadScripts(string rootDirectory)

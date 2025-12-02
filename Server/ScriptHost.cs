@@ -61,19 +61,42 @@ namespace Server
         {
             ProcessCommandQueue();
 
+            List<DreamThread> threadsToRun;
             lock (_scriptLock)
             {
-                // Simple round-robin scheduler for VM threads
-                for (int i = _threads.Count - 1; i >= 0; i--)
-                {
-                    var thread = _threads[i];
-                    var state = thread.Run(100); // 100 instructions per tick budget
+                threadsToRun = new List<DreamThread>(_threads);
+            }
 
-                    if (state != DreamThreadState.Running)
-                    {
-                        Console.WriteLine($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
-                        _threads.RemoveAt(i);
-                    }
+            var finishedThreads = new List<DreamThread>();
+            var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            while (threadsToRun.Count > 0)
+            {
+                if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
+                    break;
+
+                var thread = threadsToRun[0];
+                threadsToRun.RemoveAt(0);
+
+                var state = thread.Run(_settings.Performance.VmInstructionSlice);
+
+                if (state != DreamThreadState.Running)
+                {
+                    Console.WriteLine($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
+                    finishedThreads.Add(thread);
+                }
+                else
+                {
+                    threadsToRun.Add(thread);
+                }
+            }
+            if (finishedThreads.Count > 0)
+            {
+                lock (_scriptLock)
+                {
+                    foreach (var thread in finishedThreads)
+                        _threads.Remove(thread);
                 }
             }
         }

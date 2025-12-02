@@ -9,10 +9,10 @@ namespace Core.Scripting.CSharp
 {
     public class CSharpSystem : IScriptSystem
     {
-        private readonly GameApi _gameApi;
+        private readonly IGameApi _gameApi;
         private readonly List<object> _scriptInstances = new();
 
-        public CSharpSystem(GameApi gameApi)
+        public CSharpSystem(IGameApi gameApi)
         {
             _gameApi = gameApi;
         }
@@ -68,6 +68,6 @@ namespace Core.Scripting.CSharp
 
     public class ScriptGlobals
     {
-        public GameApi? Game { get; set; }
+        public IGameApi? Game { get; set; }
     }
 }

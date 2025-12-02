@@ -5,26 +5,25 @@ namespace Core
 {
     public class LuaGameApi
     {
-        private readonly GameApi _gameApi;
+        private readonly IGameApi _gameApi;
 
-        public LuaGameApi(GameApi gameApi)
+        public LuaGameApi(IGameApi gameApi)
         {
             _gameApi = gameApi;
         }
 
-        public GameState GetState() => _gameApi.GetState();
-        public Map? GetMap() => _gameApi.GetMap();
-        public Turf? GetTurf(int x, int y, int z) => _gameApi.GetTurf(x, y, z);
-        public void SetTurf(int x, int y, int z, int turfId) => _gameApi.SetTurf(x, y, z, turfId);
-        public GameObject? CreateObject(string typeName, int x, int y, int z) => _gameApi.CreateObject(typeName, x, y, z);
-        public GameObject? GetObject(int id) => _gameApi.GetObject(id);
-        public void DestroyObject(int id) => _gameApi.DestroyObject(id);
+        public Map? GetMap() => _gameApi.Map.GetMap();
+        public Turf? GetTurf(int x, int y, int z) => _gameApi.Map.GetTurf(x, y, z);
+        public void SetTurf(int x, int y, int z, int turfId) => _gameApi.Map.SetTurf(x, y, z, turfId);
+        public GameObject? CreateObject(string typeName, int x, int y, int z) => _gameApi.Objects.CreateObject(typeName, x, y, z);
+        public GameObject? GetObject(int id) => _gameApi.Objects.GetObject(id);
+        public void DestroyObject(int id) => _gameApi.Objects.DestroyObject(id);
 
         public void LoadMap(string filePath)
         {
             try
             {
-                Task.Run(async () => await _gameApi.LoadMapAsync(filePath)).Wait();
+                Task.Run(async () => await _gameApi.Map.LoadMapAsync(filePath)).Wait();
             }
             catch (Exception e)
             {
@@ -36,7 +35,7 @@ namespace Core
         {
             try
             {
-                Task.Run(async () => await _gameApi.SaveMapAsync(filePath)).Wait();
+                Task.Run(async () => await _gameApi.Map.SaveMapAsync(filePath)).Wait();
             }
             catch (Exception e)
             {
@@ -44,8 +43,8 @@ namespace Core
             }
         }
 
-        public System.Collections.Generic.List<string> ListScriptFiles() => _gameApi.ListScriptFiles();
-        public bool ScriptFileExists(string filename) => _gameApi.ScriptFileExists(filename);
-        public string ReadScriptFile(string filename) => _gameApi.ReadScriptFile(filename);
+        public System.Collections.Generic.List<string> ListScriptFiles() => _gameApi.Scripts.ListScriptFiles();
+        public bool ScriptFileExists(string filename) => _gameApi.Scripts.ScriptFileExists(filename);
+        public string ReadScriptFile(string filename) => _gameApi.Scripts.ReadScriptFile(filename);
     }
 }

@@ -7,9 +7,9 @@ namespace Core.Scripting.LuaSystem
     public class LuaSystem : IScriptSystem, IDisposable
     {
         private Lua? _lua;
-        private readonly GameApi _gameApi;
+        private readonly IGameApi _gameApi;
 
-        public LuaSystem(GameApi gameApi)
+        public LuaSystem(IGameApi gameApi)
         {
             _gameApi = gameApi;
         }

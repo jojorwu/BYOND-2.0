@@ -13,6 +13,7 @@ namespace Server
         private readonly UdpServer _udpServer;
         private readonly ServerSettings _settings;
         private bool _isRunning = true;
+        private Task? _snapshotTask;
 
         public Game(GameState gameState, ScriptHost scriptHost, UdpServer udpServer, ServerSettings settings)
         {
@@ -51,8 +52,22 @@ namespace Server
         private void Tick()
         {
             _scriptHost.Tick();
-            var snapshot = _gameState.GetSnapshot();
-            _udpServer.BroadcastSnapshot(snapshot);
+
+            if (_snapshotTask == null || _snapshotTask.IsCompleted)
+            {
+                _snapshotTask = Task.Run(() =>
+                {
+                    try
+                    {
+                        var snapshot = _gameState.GetSnapshot();
+                        _udpServer.BroadcastSnapshot(snapshot);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error during snapshot generation/broadcast: {ex}");
+                    }
+                });
+            }
         }
     }
 }

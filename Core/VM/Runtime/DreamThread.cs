@@ -84,7 +84,7 @@ namespace Core.VM.Runtime
             var proc = frame.Proc;
             var pc = frame.PC;
 
-            while (pc < proc.Bytecode.Length)
+            while (State == DreamThreadState.Running)
             {
                 if (instructionsExecutedThisTick++ >= instructionBudget)
                 {
@@ -98,6 +98,16 @@ namespace Core.VM.Runtime
                     Console.WriteLine("Error: Instruction limit exceeded.");
                     SavePC(pc);
                     return State;
+                }
+
+                // If we've executed past the end of the bytecode, it's an implicit return.
+                if (pc >= proc.Bytecode.Length)
+                {
+                    Push(DreamValue.Null);
+                    Opcode_Return(ref proc, ref pc);
+                    if(State == DreamThreadState.Running)
+                        frame = CallStack.Peek();
+                    continue;
                 }
 
                 try
@@ -164,9 +174,6 @@ namespace Core.VM.Runtime
                     return State;
                 }
             }
-
-            SavePC(pc);
-            State = DreamThreadState.Finished;
             return State;
         }
     }

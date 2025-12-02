@@ -21,6 +21,7 @@ namespace Core.VM.Runtime
             {
                 return new DreamThread(worldNewProc, this, _settings.VmMaxInstructions);
             }
+            Console.WriteLine("Error: /world/proc/New not found. Is the script compiled correctly?");
             return null;
         }
     }

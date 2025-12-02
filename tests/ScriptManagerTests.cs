@@ -1,9 +1,13 @@
 using NUnit.Framework;
 using Core;
-using System;
 using System.IO;
 using Core.VM.Runtime;
 using Server;
+using System.Collections.Generic;
+using Core.Scripting;
+using Core.Scripting.CSharp;
+using Core.Scripting.DM;
+using Core.Scripting.LuaSystem;
 
 namespace Core.Tests
 {
@@ -11,12 +15,7 @@ namespace Core.Tests
     public class ScriptManagerTests
     {
         private ScriptManager _scriptManager = null!;
-        private GameApi _gameApi = null!;
-        private GameState _gameState = null!;
-        private ObjectTypeManager _objectTypeManager = null!;
-        private MapLoader _mapLoader = null!;
         private Project _project = null!;
-        private DreamVM _dreamVM = null!;
         private string _scriptsPath = null!;
 
         [SetUp]
@@ -29,12 +28,23 @@ namespace Core.Tests
             File.WriteAllText(Path.Combine(projectPath, "project.json"), "{\"scripts_root\": \"scripts\"}");
 
             _project = new Project(projectPath);
-            _gameState = new GameState();
-            _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
-            _dreamVM = new DreamVM(new ServerSettings());
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, _mapLoader);
-            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM);
+            var gameState = new GameState();
+            var objectTypeManager = new ObjectTypeManager();
+            var mapLoader = new MapLoader(objectTypeManager);
+            var dreamVM = new DreamVM(new ServerSettings());
+
+            var mapApi = new MapApi(gameState, mapLoader, _project);
+            var objectApi = new ObjectApi(gameState, objectTypeManager, mapApi);
+            var stdLibApi = new StandardLibraryApi(gameState, objectTypeManager, mapApi);
+            var gameApi = new GameApi(mapApi, objectApi, stdLibApi, _project, gameState);
+
+            var systems = new List<IScriptSystem>
+            {
+                new CSharpSystem(gameApi),
+                new LuaSystem(gameApi),
+                new DmSystem(objectTypeManager, _project, dreamVM)
+            };
+            _scriptManager = new ScriptManager(systems, _project);
         }
 
         [TearDown]
@@ -52,11 +62,11 @@ namespace Core.Tests
             // Arrange
             File.WriteAllText(Path.Combine(_scriptsPath, "test.lua"), "print('lua loaded')");
             File.WriteAllText(Path.Combine(_scriptsPath, "test.dm"), "/mob/player");
-            File.WriteAllText(Path.Combine(_scriptsPath, "test.cs"), "Console.WriteLine(\"csharp loaded\");");
+            File.WriteAllText(Path.Combine(_scriptsPath, "test.cs"), "System.Console.WriteLine(\"csharp loaded\");");
 
             // Act & Assert
-            Assert.DoesNotThrow(() => {
-                _scriptManager.Initialize();
+            Assert.DoesNotThrowAsync(async () => {
+                await _scriptManager.Initialize();
             });
         }
 
@@ -67,8 +77,8 @@ namespace Core.Tests
             _scriptManager.Initialize();
 
             // Act & Assert
-            Assert.DoesNotThrow(() => {
-                _scriptManager.ReloadAll();
+            Assert.DoesNotThrowAsync(async () => {
+                await _scriptManager.ReloadAll();
             });
         }
 

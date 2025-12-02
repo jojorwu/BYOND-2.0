@@ -6,9 +6,9 @@ using Core.VM.Types;
 
 namespace Core.VM.Runtime
 {
-    public class DreamThread
+    public partial class DreamThread
     {
-        public List<DreamValue> Stack { get; } = new();
+        public List<DreamValue> Stack { get; } = new(128);
         public Stack<CallFrame> CallStack { get; } = new();
 
         // Convenience properties to access the current frame's data
@@ -24,14 +24,11 @@ namespace Core.VM.Runtime
         private readonly DreamVM _vm;
         private readonly int _maxInstructions;
         private int _totalInstructionsExecuted;
-        private readonly Action[] _opcodeHandlers;
 
         public DreamThread(DreamProc proc, DreamVM vm, int maxInstructions)
         {
             _vm = vm;
             _maxInstructions = maxInstructions;
-            _opcodeHandlers = new Action[256]; // Assuming opcodes are bytes
-            RegisterOpcodes();
 
             CallStack.Push(new CallFrame(proc, -1, 0)); // PC is initialized to 0 inside CallFrame
         }
@@ -91,178 +88,54 @@ namespace Core.VM.Runtime
                     return State;
                 }
 
-                var opcode = ReadByte();
-                var handler = _opcodeHandlers[opcode];
-                if (handler != null)
+                var opcode = (Opcode)ReadByte();
+                switch (opcode)
                 {
-                    handler();
-                    if (State != DreamThreadState.Running) // Check state after handler execution
-                        return State;
+                    case Opcode.PushString: Opcode_PushString(); break;
+                    case Opcode.PushFloat: Opcode_PushFloat(); break;
+                    case Opcode.Add: Opcode_Add(); break;
+                    case Opcode.Subtract: Opcode_Subtract(); break;
+                    case Opcode.Multiply: Opcode_Multiply(); break;
+                    case Opcode.Divide: Opcode_Divide(); break;
+                    case Opcode.CompareEquals: Opcode_CompareEquals(); break;
+                    case Opcode.CompareNotEquals: Opcode_CompareNotEquals(); break;
+                    case Opcode.CompareLessThan: Opcode_CompareLessThan(); break;
+                    case Opcode.CompareGreaterThan: Opcode_CompareGreaterThan(); break;
+                    case Opcode.CompareLessThanOrEqual: Opcode_CompareLessThanOrEqual(); break;
+                    case Opcode.CompareGreaterThanOrEqual: Opcode_CompareGreaterThanOrEqual(); break;
+                    case Opcode.Negate: Opcode_Negate(); break;
+                    case Opcode.BooleanNot: Opcode_BooleanNot(); break;
+                    case Opcode.PushNull: Opcode_PushNull(); break;
+                    case Opcode.Pop: Opcode_Pop(); break;
+                    case Opcode.Initial: Opcode_Initial(); break;
+                    case Opcode.Call: Opcode_Call(); break;
+                    case Opcode.Jump: Opcode_Jump(); break;
+                    case Opcode.JumpIfFalse: Opcode_JumpIfFalse(); break;
+                    case Opcode.Output: Opcode_Output(); break;
+                    case Opcode.Return: Opcode_Return(); break;
+                    case Opcode.BitAnd: Opcode_BitAnd(); break;
+                    case Opcode.BitOr: Opcode_BitOr(); break;
+                    case Opcode.BitXor: Opcode_BitXor(); break;
+                    case Opcode.BitNot: Opcode_BitNot(); break;
+                    case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
+                    case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
+                    case Opcode.PushArgument: Opcode_PushArgument(); break;
+                    case Opcode.SetArgument: Opcode_SetArgument(); break;
+                    case Opcode.PushLocal: Opcode_PushLocal(); break;
+                    case Opcode.SetLocal: Opcode_SetLocal(); break;
+                    case Opcode.CompareEquivalent: Opcode_CompareEquivalent(); break;
+                    case Opcode.CompareNotEquivalent: Opcode_CompareNotEquivalent(); break;
+                    default:
+                        State = DreamThreadState.Error;
+                        throw new Exception($"Unknown opcode: {opcode}");
                 }
-                else
-                {
-                    State = DreamThreadState.Error;
-                    throw new Exception($"Unknown opcode: (Opcode)0x{opcode:X2}");
-                }
+
+                if (State != DreamThreadState.Running) // Check state after handler execution
+                    return State;
             }
 
             State = DreamThreadState.Finished;
             return State;
         }
-
-        private void RegisterOpcodes()
-        {
-            _opcodeHandlers[(int)Opcode.PushString] = Opcode_PushString;
-            _opcodeHandlers[(int)Opcode.PushFloat] = Opcode_PushFloat;
-            _opcodeHandlers[(int)Opcode.Add] = Opcode_Add;
-            _opcodeHandlers[(int)Opcode.Subtract] = Opcode_Subtract;
-            _opcodeHandlers[(int)Opcode.Multiply] = Opcode_Multiply;
-            _opcodeHandlers[(int)Opcode.Divide] = Opcode_Divide;
-            _opcodeHandlers[(int)Opcode.CompareEquals] = Opcode_CompareEquals;
-            _opcodeHandlers[(int)Opcode.CompareNotEquals] = Opcode_CompareNotEquals;
-            _opcodeHandlers[(int)Opcode.Call] = Opcode_Call;
-            _opcodeHandlers[(int)Opcode.Jump] = Opcode_Jump;
-            _opcodeHandlers[(int)Opcode.JumpIfFalse] = Opcode_JumpIfFalse;
-            _opcodeHandlers[(int)Opcode.Output] = Opcode_Output;
-            _opcodeHandlers[(int)Opcode.Return] = Opcode_Return;
-            _opcodeHandlers[(int)Opcode.PushArgument] = Opcode_PushArgument;
-            _opcodeHandlers[(int)Opcode.SetArgument] = Opcode_SetArgument;
-            _opcodeHandlers[(int)Opcode.PushLocal] = Opcode_PushLocal;
-            _opcodeHandlers[(int)Opcode.SetLocal] = Opcode_SetLocal;
-        }
-
-        #region Opcode Handlers
-        private void Opcode_PushString()
-        {
-            var stringId = ReadInt32();
-            Push(new DreamValue(_vm.Strings[stringId]));
-        }
-
-        private void Opcode_PushFloat()
-        {
-            var value = ReadSingle();
-            Push(new DreamValue(value));
-        }
-
-        private void Opcode_Add()
-        {
-            var b = Pop();
-            var a = Pop();
-            Push(a + b);
-        }
-
-        private void Opcode_Subtract()
-        {
-            var b = Pop();
-            var a = Pop();
-            Push(a - b);
-        }
-
-        private void Opcode_Multiply()
-        {
-            var b = Pop();
-            var a = Pop();
-            Push(a * b);
-        }
-
-        private void Opcode_Divide()
-        {
-            var b = Pop();
-            var a = Pop();
-            Push(a / b);
-        }
-
-        private void Opcode_CompareEquals()
-        {
-            var b = Pop();
-            var a = Pop();
-            Push(new DreamValue(a == b ? 1 : 0));
-        }
-
-        private void Opcode_CompareNotEquals()
-        {
-            var b = Pop();
-            var a = Pop();
-            Push(new DreamValue(a != b ? 1 : 0));
-        }
-
-        private void Opcode_Call()
-        {
-            var procId = ReadInt32();
-            var procName = _vm.Strings[procId];
-            var proc = _vm.Procs[procName];
-
-            // The current PC (return address) is already stored in the current frame.
-            // We just need to create the new frame and push it.
-            var frame = new CallFrame(proc, PC, Stack.Count);
-            CallStack.Push(frame);
-            // PC is now automatically pointing to the new frame's PC (which is 0)
-        }
-
-        private void Opcode_Jump()
-        {
-            var address = ReadInt32();
-            PC = address;
-        }
-
-        private void Opcode_JumpIfFalse()
-        {
-            var value = Pop();
-            var address = ReadInt32();
-            if (value.IsFalse())
-                PC = address;
-        }
-
-        private void Opcode_Output()
-        {
-            var value = Pop();
-            Console.WriteLine(value.ToString());
-        }
-
-        private void Opcode_Return()
-        {
-            var returnedFrame = CallStack.Pop();
-            if (CallStack.Count > 0)
-            {
-                // Set the PC of the *new* top frame to the return address we stored.
-                PC = returnedFrame.ReturnAddress;
-            }
-            else
-            {
-                // We've returned from the last proc, thread is finished.
-                State = DreamThreadState.Finished;
-            }
-        }
-
-        private void Opcode_PushArgument()
-        {
-            var argIndex = ReadByte();
-            var frame = CallStack.Peek();
-            Push(Stack[frame.StackBase + argIndex]);
-        }
-
-        private void Opcode_SetArgument()
-        {
-            var argIndex = ReadByte();
-            var value = Pop();
-            var frame = CallStack.Peek();
-            Stack[frame.StackBase + argIndex] = value;
-        }
-
-        private void Opcode_PushLocal()
-        {
-            var localIndex = ReadByte();
-            var frame = CallStack.Peek();
-            Push(Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex]);
-        }
-
-        private void Opcode_SetLocal()
-        {
-            var localIndex = ReadByte();
-            var value = Pop();
-            var frame = CallStack.Peek();
-            Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex] = value;
-        }
-        #endregion
     }
 }

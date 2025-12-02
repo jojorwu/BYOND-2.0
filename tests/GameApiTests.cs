@@ -1,5 +1,6 @@
 using NUnit.Framework;
 using Core;
+using System.IO;
 
 namespace Core.Tests
 {
@@ -9,7 +10,6 @@ namespace Core.Tests
         private GameApi _gameApi = null!;
         private GameState _gameState = null!;
         private ObjectTypeManager _objectTypeManager = null!;
-        private MapLoader _mapLoader = null!;
         private Project _project = null!;
         private string _projectPath = null!;
 
@@ -22,8 +22,13 @@ namespace Core.Tests
 
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, _mapLoader);
+            var mapLoader = new MapLoader(_objectTypeManager);
+
+            var mapApi = new MapApi(_gameState, mapLoader, _project);
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
+            var stdLibApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
+
+            _gameApi = new GameApi(mapApi, objectApi, stdLibApi, _project, _gameState);
             _gameApi.SetMap(new Map());
             _gameApi.SetTurf(0, 0, 0, 1);
 
@@ -80,7 +85,7 @@ namespace Core.Tests
             var invalidPath = "../../../../../../../etc/passwd";
 
             // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _gameApi.LoadMap(invalidPath));
+            Assert.ThrowsAsync<System.Security.SecurityException>(async () => await _gameApi.LoadMapAsync(invalidPath));
         }
 
         [Test]
@@ -90,7 +95,7 @@ namespace Core.Tests
             var invalidPath = "../../../../../../../etc/passwd";
 
             // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _gameApi.SaveMap(invalidPath));
+            Assert.ThrowsAsync<System.Security.SecurityException>(async () => await _gameApi.SaveMapAsync(invalidPath));
         }
     }
 }

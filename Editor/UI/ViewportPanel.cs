@@ -3,7 +3,7 @@ using Silk.NET.OpenGL;
 using ImGuiNET;
 using System.Numerics;
 using Robust.Shared.Maths;
-using System.IO;
+using System.Threading.Tasks;
 
 namespace Editor.UI
 {
@@ -19,9 +19,9 @@ namespace Editor.UI
 
         private string _currentFile = "";
 
-        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, GameApi gameApi)
+        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, GameApi gameApi)
         {
-            _gl = gl;
+            _gl = editorContext.GL;
             _toolManager = toolManager;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
@@ -34,8 +34,17 @@ namespace Editor.UI
         {
             if (_currentFile != filePath)
             {
-                _gameApi.LoadMap(filePath);
-                _currentFile = filePath;
+                _currentFile = filePath; // Prevent repeated load attempts
+                Task.Run(async () => {
+                    try
+                    {
+                        await _gameApi.LoadMapAsync(filePath);
+                    }
+                    catch (System.Exception e)
+                    {
+                        System.Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
+                    }
+                });
             }
 
             ImGui.Begin("Viewport");

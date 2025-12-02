@@ -20,85 +20,32 @@ namespace Core.VM.Runtime
             Push(new DreamValue(value));
         }
 
-        private void Opcode_Add()
+        private void PerformBinaryOperation(Func<DreamValue, DreamValue, DreamValue> operation)
         {
             var b = Stack[^1];
             var a = Stack[^2];
             Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a + b;
+            Stack[^1] = operation(a, b);
+        }
+        private void Opcode_Add() => PerformBinaryOperation((a, b) => a + b);
+        private void Opcode_Subtract() => PerformBinaryOperation((a, b) => a - b);
+        private void Opcode_Multiply() => PerformBinaryOperation((a, b) => a * b);
+        private void Opcode_Divide() => PerformBinaryOperation((a, b) => a / b);
+
+        private void PerformComparisonOperation(Func<DreamValue, DreamValue, bool> operation)
+        {
+            var b = Stack[^1];
+            var a = Stack[^2];
+            Stack.RemoveAt(Stack.Count - 1);
+            Stack[^1] = new DreamValue(operation(a, b) ? 1 : 0);
         }
 
-        private void Opcode_Subtract()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a - b;
-        }
-
-        private void Opcode_Multiply()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a * b;
-        }
-
-        private void Opcode_Divide()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a / b;
-        }
-
-        private void Opcode_CompareEquals()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(a == b ? 1 : 0);
-        }
-
-        private void Opcode_CompareNotEquals()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(a != b ? 1 : 0);
-        }
-
-        private void Opcode_CompareLessThan()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(a < b ? 1 : 0);
-        }
-
-        private void Opcode_CompareGreaterThan()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(a > b ? 1 : 0);
-        }
-
-        private void Opcode_CompareLessThanOrEqual()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(a <= b ? 1 : 0);
-        }
-
-        private void Opcode_CompareGreaterThanOrEqual()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(a >= b ? 1 : 0);
-        }
+        private void Opcode_CompareEquals() => PerformComparisonOperation((a, b) => a == b);
+        private void Opcode_CompareNotEquals() => PerformComparisonOperation((a, b) => a != b);
+        private void Opcode_CompareLessThan() => PerformComparisonOperation((a, b) => a < b);
+        private void Opcode_CompareGreaterThan() => PerformComparisonOperation((a, b) => a > b);
+        private void Opcode_CompareLessThanOrEqual() => PerformComparisonOperation((a, b) => a <= b);
+        private void Opcode_CompareGreaterThanOrEqual() => PerformComparisonOperation((a, b) => a >= b);
 
         private void Opcode_Negate()
         {
@@ -215,50 +162,12 @@ namespace Core.VM.Runtime
             Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex] = value;
         }
 
-        private void Opcode_BitAnd()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a & b;
-        }
-
-        private void Opcode_BitOr()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a | b;
-        }
-
-        private void Opcode_BitXor()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a ^ b;
-        }
-
-        private void Opcode_BitNot()
-        {
-            Stack[^1] = ~Stack[^1];
-        }
-
-        private void Opcode_BitShiftLeft()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a << b;
-        }
-
-        private void Opcode_BitShiftRight()
-        {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = a >> b;
-        }
+        private void Opcode_BitAnd() => PerformBinaryOperation((a, b) => a & b);
+        private void Opcode_BitOr() => PerformBinaryOperation((a, b) => a | b);
+        private void Opcode_BitXor() => PerformBinaryOperation((a, b) => a ^ b);
+        private void Opcode_BitNot() => Stack[^1] = ~Stack[^1];
+        private void Opcode_BitShiftLeft() => PerformBinaryOperation((a, b) => a << b);
+        private void Opcode_BitShiftRight() => PerformBinaryOperation((a, b) => a >> b);
         #endregion
     }
 }

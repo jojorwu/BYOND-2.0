@@ -61,13 +61,13 @@ namespace Server
         {
             ProcessCommandQueue();
 
-            List<DreamThread> threadsToRun;
+            Queue<DreamThread> threadsToRun;
             lock (_scriptLock)
             {
-                threadsToRun = new List<DreamThread>(_threads);
+                threadsToRun = new Queue<DreamThread>(_threads);
             }
 
-            var finishedThreads = new List<DreamThread>();
+            var finishedThreads = new HashSet<DreamThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -76,9 +76,7 @@ namespace Server
                 if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
                     break;
 
-                var thread = threadsToRun[0];
-                threadsToRun.RemoveAt(0);
-
+                var thread = threadsToRun.Dequeue();
                 var state = thread.Run(_settings.Performance.VmInstructionSlice);
 
                 if (state != DreamThreadState.Running)
@@ -88,15 +86,15 @@ namespace Server
                 }
                 else
                 {
-                    threadsToRun.Add(thread);
+                    threadsToRun.Enqueue(thread);
                 }
             }
+
             if (finishedThreads.Count > 0)
             {
                 lock (_scriptLock)
                 {
-                    foreach (var thread in finishedThreads)
-                        _threads.Remove(thread);
+                    _threads.RemoveAll(t => finishedThreads.Contains(t));
                 }
             }
         }

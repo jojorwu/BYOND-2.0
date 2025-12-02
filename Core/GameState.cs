@@ -1,7 +1,7 @@
-using System.Collections.Generic;
-using System.Threading;
-using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using System.Threading;
 
 namespace Core
 {
@@ -33,7 +33,7 @@ namespace Core
                     Map,
                     GameObjects
                 };
-                return JsonConvert.SerializeObject(snapshot);
+                return JsonSerializer.Serialize(snapshot);
             }
         }
 

@@ -1,4 +1,5 @@
 using Core;
+using Silk.NET.OpenGL;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,6 +17,8 @@ namespace Editor
 
     public class EditorContext
     {
+        public GL GL { get; set; } = null!;
+        public Project Project { get; set; } = null!;
         public ObjectType? SelectedObjectType { get; set; }
         public int CurrentZLevel { get; set; } = 0;
 
@@ -25,7 +28,6 @@ namespace Editor
         {
             if (OpenFiles.Any(f => f.Path == path))
             {
-                // TODO: Focus the existing tab instead of reopening
                 return;
             }
 

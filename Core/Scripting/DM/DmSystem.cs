@@ -23,32 +23,34 @@ namespace Core.Scripting.DM
 
         public void Initialize() { }
 
-        public Task LoadScripts(string rootDirectory)
+        public async Task LoadScripts(string rootDirectory)
         {
-            return Task.Run(() =>
+            var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
+            if (dmFiles.Count == 0) return;
+
+            Console.WriteLine($"[DM] Compiling {dmFiles.Count} files...");
+            var (jsonPath, messages) = await Task.Run(() => _compiler.Compile(dmFiles));
+
+            foreach (var msg in messages)
             {
-                var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
-                if (dmFiles.Count == 0) return;
+                Console.WriteLine($"[DM Compiler] {msg}");
+            }
 
-                Console.WriteLine($"[DM] Compiling {dmFiles.Count} files...");
-                var (jsonPath, messages) = _compiler.Compile(dmFiles);
+            if (jsonPath != null && File.Exists(jsonPath))
+            {
+                Console.WriteLine("[DM] Loading compiled JSON...");
+                await using var stream = File.OpenRead(jsonPath);
+                var compiledJson = await JsonSerializer.DeserializeAsync<PublicDreamCompiledJson>(stream);
 
-                foreach (var msg in messages)
+                if (compiledJson != null)
                 {
-                    Console.WriteLine($"[DM Compiler] {msg}");
+                    _loader.Load(compiledJson);
                 }
-
-                if (jsonPath != null && File.Exists(jsonPath))
+                else
                 {
-                    Console.WriteLine("[DM] Loading compiled JSON...");
-                    var json = File.ReadAllText(jsonPath);
-                    var compiledJson = JsonSerializer.Deserialize<PublicDreamCompiledJson>(json);
-                    if (compiledJson != null)
-                    {
-                        _loader.Load(compiledJson);
-                    }
+                    Console.WriteLine("[DM] Error: Failed to deserialize compiled JSON.");
                 }
-            });
+            }
         }
 
         public void InvokeEvent(string eventName, params object[] args)

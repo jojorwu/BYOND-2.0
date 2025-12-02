@@ -7,12 +7,12 @@ namespace Editor.UI
 {
     public class MenuBarPanel
     {
-        private readonly GameApi _gameApi;
+        private readonly IGameApi _gameApi;
         private readonly EditorContext _editorContext;
         private readonly BuildService _buildService;
         private readonly DmmService _dmmService;
 
-        public MenuBarPanel(GameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService)
+        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
@@ -28,13 +28,13 @@ namespace Editor.UI
                 {
                     if (ImGui.MenuItem("Save Map"))
                     {
-                        var map = _gameApi.GetMap();
+                        var map = _gameApi.Map.GetMap();
                         if (map != null)
                         {
                             Task.Run(async () => {
                                 try
                                 {
-                                    await _gameApi.SaveMapAsync("maps/default.json");
+                                    await _gameApi.Map.SaveMapAsync("maps/default.json");
                                 }
                                 catch (Exception e)
                                 {
@@ -48,7 +48,7 @@ namespace Editor.UI
                         Task.Run(async () => {
                             try
                             {
-                                await _gameApi.LoadMapAsync("maps/default.json");
+                                await _gameApi.Map.LoadMapAsync("maps/default.json");
                             }
                             catch (Exception e)
                             {

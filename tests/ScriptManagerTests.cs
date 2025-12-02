@@ -11,7 +11,7 @@ namespace Core.Tests
     public class ScriptManagerTests
     {
         private ScriptManager _scriptManager = null!;
-        private GameApi _gameApi = null!;
+        private IGameApi _gameApi = null!;
         private GameState _gameState = null!;
         private ObjectTypeManager _objectTypeManager = null!;
         private MapLoader _mapLoader = null!;
@@ -33,7 +33,11 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager();
             _mapLoader = new MapLoader(_objectTypeManager);
             _dreamVM = new DreamVM(new ServerSettings());
-            _gameApi = new GameApi(_project, _gameState, _objectTypeManager, _mapLoader);
+            var mapApi = new MapApi(_gameState, _mapLoader, _project);
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
+            var scriptApi = new ScriptApi(_project);
+            var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
+            _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
             _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM);
         }
 

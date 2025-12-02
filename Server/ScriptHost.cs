@@ -16,7 +16,7 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
-        private GameApi _gameApi;
+        private IGameApi _gameApi;
         private ObjectTypeManager _objectTypeManager;
         private DreamVM _dreamVM;
         private readonly ServerSettings _settings;
@@ -25,7 +25,7 @@ namespace Server
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
         private readonly IServiceProvider _serviceProvider;
 
-        public ScriptHost(Project project, GameState gameState, ServerSettings settings, ObjectTypeManager objectTypeManager, DreamVM dreamVM, GameApi gameApi, ScriptManager scriptManager, IServiceProvider serviceProvider)
+        public ScriptHost(Project project, GameState gameState, ServerSettings settings, ObjectTypeManager objectTypeManager, DreamVM dreamVM, IGameApi gameApi, ScriptManager scriptManager, IServiceProvider serviceProvider)
         {
             _project = project;
             _gameState = gameState;
@@ -137,7 +137,7 @@ namespace Server
                     using var scope = _serviceProvider.CreateScope();
                     var newObjectTypeManager = scope.ServiceProvider.GetRequiredService<ObjectTypeManager>();
                     var newDreamVM = scope.ServiceProvider.GetRequiredService<DreamVM>();
-                    var newGameApi = scope.ServiceProvider.GetRequiredService<GameApi>();
+                    var newGameApi = scope.ServiceProvider.GetRequiredService<IGameApi>();
                     var newScriptManager = scope.ServiceProvider.GetRequiredService<ScriptManager>();
 
 

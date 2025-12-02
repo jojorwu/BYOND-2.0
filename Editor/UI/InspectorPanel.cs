@@ -6,11 +6,11 @@ namespace Editor.UI
 {
     public class InspectorPanel
     {
-        private readonly GameApi _gameApi;
+        private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;
         private readonly EditorContext _editorContext;
 
-        public InspectorPanel(GameApi gameApi, SelectionManager selectionManager, EditorContext editorContext)
+        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext)
         {
             _gameApi = gameApi;
             _selectionManager = selectionManager;

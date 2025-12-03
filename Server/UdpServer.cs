@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Core;
 using LiteNetLib;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server
 {
@@ -13,21 +14,21 @@ namespace Server
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly ScriptHost _scriptHost;
+        private readonly IScriptHost _scriptHost;
         private readonly Core.GameState _gameState;
         private readonly ServerSettings _settings;
         private Thread? _networkThread;
 
-        public UdpServer(IPAddress ipAddress, int port, ScriptHost scriptHost, Core.GameState gameState, ServerSettings settings)
+        public UdpServer(IServiceProvider serviceProvider)
         {
-            _settings = settings;
+            _settings = serviceProvider.GetRequiredService<ServerSettings>();
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
-                DisconnectTimeout = settings.Network.DisconnectTimeout
+                DisconnectTimeout = _settings.Network.DisconnectTimeout
             };
-            _scriptHost = scriptHost;
-            _gameState = gameState;
+            _scriptHost = serviceProvider.GetRequiredService<IScriptHost>();
+            _gameState = serviceProvider.GetRequiredService<GameState>();
             _cancellationTokenSource = new CancellationTokenSource();
 
             _listener.ConnectionRequestEvent += OnConnectionRequest;

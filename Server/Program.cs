@@ -34,24 +34,10 @@ class Program
         services.AddScoped<IScriptApi, ScriptApi>();
         services.AddScoped<IStandardLibraryApi, StandardLibraryApi>();
         services.AddScoped<IGameApi, GameApi>();
-        services.AddSingleton<ScriptManager>(provider =>
-            new ScriptManager(
-                provider.GetRequiredService<IGameApi>(),
-                provider.GetRequiredService<ObjectTypeManager>(),
-                provider.GetRequiredService<Project>(),
-                provider.GetRequiredService<DreamVM>(),
-                () => provider.GetRequiredService<IScriptHost>()
-            )
-        );
+        services.AddScoped<ScriptManager>();
         services.AddSingleton<ScriptHost>();
         services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
-        services.AddSingleton<UdpServer>(provider =>
-        {
-            var settings = provider.GetRequiredService<ServerSettings>();
-            var scriptHost = provider.GetRequiredService<ScriptHost>();
-            var gameState = provider.GetRequiredService<GameState>();
-            return new UdpServer(System.Net.IPAddress.Any, settings.Network.UdpPort, scriptHost, gameState, settings);
-        });
+        services.AddSingleton<UdpServer>();
         services.AddSingleton<Game>();
     }
 

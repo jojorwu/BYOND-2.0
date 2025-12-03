@@ -16,25 +16,20 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
-        private IGameApi _gameApi;
-        private ObjectTypeManager _objectTypeManager;
-        private DreamVM _dreamVM;
         private readonly ServerSettings _settings;
         private readonly List<DreamThread> _threads = new();
-        private ScriptManager _scriptManager;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
         private readonly IServiceProvider _serviceProvider;
+        private IServiceScope _activeScope;
 
-        public ScriptHost(Project project, GameState gameState, ServerSettings settings, ObjectTypeManager objectTypeManager, DreamVM dreamVM, IGameApi gameApi, ScriptManager scriptManager, IServiceProvider serviceProvider)
+
+        public ScriptHost(Project project, GameState gameState, ServerSettings settings, IServiceProvider serviceProvider)
         {
             _project = project;
             _gameState = gameState;
             _settings = settings;
-            _objectTypeManager = objectTypeManager;
-            _dreamVM = dreamVM;
-            _gameApi = gameApi;
-            _scriptManager = scriptManager;
             _serviceProvider = serviceProvider;
+            _activeScope = _serviceProvider.CreateScope();
 
             _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
             {
@@ -59,22 +54,31 @@ namespace Server
 
         public void Tick()
         {
-            ProcessCommandQueue();
-
-            Queue<DreamThread> threadsToRun;
+            // Process the command queue using the active script manager
             lock (_scriptLock)
             {
-                threadsToRun = new Queue<DreamThread>(_threads);
+                var scriptManager = _activeScope.ServiceProvider.GetRequiredService<ScriptManager>();
+                ProcessCommandQueue(scriptManager);
+            }
+
+            List<DreamThread> currentThreads;
+            lock (_scriptLock)
+            {
+                currentThreads = new List<DreamThread>(_threads);
             }
 
             var finishedThreads = new HashSet<DreamThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
+            var threadsToRun = new Queue<DreamThread>(currentThreads);
             while (threadsToRun.Count > 0)
             {
                 if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
+                {
+                    Console.WriteLine("Script host tick budget exceeded.");
                     break;
+                }
 
                 var thread = threadsToRun.Dequeue();
                 var state = thread.Run(_settings.Performance.VmInstructionSlice);
@@ -112,12 +116,12 @@ namespace Server
             }
         }
 
-        private void ProcessCommandQueue()
+        private void ProcessCommandQueue(ScriptManager scriptManager)
         {
             while (_commandQueue.TryDequeue(out var commandInfo))
             {
                 var (command, onResult) = commandInfo;
-                _scriptManager.ExecuteCommand(command);
+                scriptManager.ExecuteCommand(command);
                 onResult("Command executed."); // Simplified result
             }
         }
@@ -137,22 +141,17 @@ namespace Server
             Console.WriteLine("Starting background script reload...");
             Task.Run(async () =>
             {
+                var newScope = _serviceProvider.CreateScope();
                 try
                 {
-                    // 1. Create a new script environment in the background using a temporary scope
-                    using var scope = _serviceProvider.CreateScope();
-                    var newObjectTypeManager = scope.ServiceProvider.GetRequiredService<ObjectTypeManager>();
-                    var newDreamVM = scope.ServiceProvider.GetRequiredService<DreamVM>();
-                    var newGameApi = scope.ServiceProvider.GetRequiredService<IGameApi>();
-                    var newScriptManager = scope.ServiceProvider.GetRequiredService<ScriptManager>();
+                    var scriptManager = newScope.ServiceProvider.GetRequiredService<ScriptManager>();
 
-
-                    await newScriptManager.ReloadAll();
+                    await scriptManager.ReloadAll();
                     Console.WriteLine("Invoking OnStart event in new environment...");
-                    newScriptManager.InvokeGlobalEvent("OnStart");
+                    scriptManager.InvokeGlobalEvent("OnStart");
 
                     var newThreads = new List<DreamThread>();
-                    var mainThread = newScriptManager.CreateThread("world.New");
+                    var mainThread = scriptManager.CreateThread("world.New");
                     if (mainThread != null)
                     {
                         newThreads.Add(mainThread);
@@ -163,21 +162,19 @@ namespace Server
                         Console.WriteLine("Warning: Could not create 'world.New' thread in new environment.");
                     }
 
-                    // 2. Hot-swap the old environment with the new one inside a lock
                     lock (_scriptLock)
                     {
-                        _objectTypeManager = newObjectTypeManager;
-                        _dreamVM = newDreamVM;
-                        _gameApi = newGameApi;
-                        _scriptManager = newScriptManager;
                         _threads.Clear();
                         _threads.AddRange(newThreads);
+                        _activeScope.Dispose(); // Dispose the old scope
+                        _activeScope = newScope; // Atomically swap to the new scope
                     }
                     Console.WriteLine("Script reload complete and activated.");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error during background script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    newScope.Dispose(); // Ensure the new scope is disposed on failure
                 }
             });
         }
@@ -188,6 +185,7 @@ namespace Server
             _watcher.Changed -= OnScriptChanged;
             _watcher.Dispose();
             _debounceTimer.Dispose();
+            _activeScope.Dispose();
         }
     }
 }

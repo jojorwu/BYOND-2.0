@@ -1,3 +1,2 @@
-[Bb]in/
-[Oo]bj/
-*.log
+**/[Bb]in/
+**/[Oo]bj/

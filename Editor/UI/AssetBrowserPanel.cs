@@ -11,6 +11,7 @@ namespace Editor.UI
         private readonly Project _project;
         private readonly EditorContext _editorContext;
         private readonly HashSet<string> _ignoredDirectories = new() { ".git", "bin", "obj" };
+        public string SelectedFile { get; private set; } = "";
 
         public AssetBrowserPanel(Project project, EditorContext editorContext)
         {
@@ -22,14 +23,30 @@ namespace Editor.UI
         {
             ImGui.Begin("Assets");
 
-            if (ImGui.BeginPopupContextWindow("AssetBrowserContextMenu", ImGuiPopupFlags.MouseButtonRight | ImGuiPopupFlags.NoOpenOverItems))
+            if (ImGui.BeginPopupModal("DeleteConfirm"))
             {
-                if (ImGui.MenuItem("New Lua Script")) CreateNewScript(_project.RootPath, ".lua");
-                if (ImGui.MenuItem("New DM Script")) CreateNewScript(_project.RootPath, ".dm");
+                ImGui.Text($"Are you sure you want to delete '{Path.GetFileName(_itemToDelete)}'?");
+                if (ImGui.Button("OK"))
+                {
+                    DeleteItem(_itemToDelete);
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Cancel"))
+                {
+                    ImGui.CloseCurrentPopup();
+                }
                 ImGui.EndPopup();
             }
 
-            DrawDirectoryNode(_project.RootPath);
+            if (ImGui.BeginPopupContextWindow("AssetBrowserContextMenu", ImGuiPopupFlags.MouseButtonRight | ImGuiPopupFlags.NoOpenOverItems))
+            {
+                if (ImGui.MenuItem("New Lua Script")) CreateNewScript(_editorContext.ProjectRoot, ".lua");
+                if (ImGui.MenuItem("New DM Script")) CreateNewScript(_editorContext.ProjectRoot, ".dm");
+                ImGui.EndPopup();
+            }
+
+            DrawDirectoryNode(_editorContext.ProjectRoot);
             ImGui.End();
         }
 
@@ -39,16 +56,20 @@ namespace Editor.UI
 
             foreach (var directory in directoryInfo.GetDirectories().Where(d => !_ignoredDirectories.Contains(d.Name) && !d.Attributes.HasFlag(FileAttributes.Hidden)))
             {
-                bool isTreeNodeOpen = ImGui.TreeNodeEx(directory.Name, ImGuiTreeNodeFlags.OpenOnArrow);
+                var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
+                bool isNodeOpen = ImGui.TreeNodeEx(directory.Name, flags);
 
-                if (ImGui.BeginPopupContextItem($"ContextMenu_{directory.FullName}"))
+                if (ImGui.BeginPopupContextItem())
                 {
+                    if (ImGui.MenuItem("Rename")) { /* TODO: Rename logic */ }
+                    if (ImGui.MenuItem("Delete")) { ImGui.OpenPopup("DeleteConfirm"); _itemToDelete = directory.FullName; }
+                    ImGui.Separator();
                     if (ImGui.MenuItem("New Lua Script")) CreateNewScript(directory.FullName, ".lua");
                     if (ImGui.MenuItem("New DM Script")) CreateNewScript(directory.FullName, ".dm");
                     ImGui.EndPopup();
                 }
 
-                if (isTreeNodeOpen)
+                if (isNodeOpen)
                 {
                     DrawDirectoryNode(directory.FullName);
                     ImGui.TreePop();
@@ -57,12 +78,33 @@ namespace Editor.UI
 
             foreach (var file in directoryInfo.GetFiles().Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden)))
             {
-                if (ImGui.Selectable(file.Name, false, ImGuiSelectableFlags.AllowDoubleClick))
+                var flags = ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen;
+                if (file.FullName == SelectedFile)
                 {
-                    if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                    flags |= ImGuiTreeNodeFlags.Selected;
+                }
+
+                ImGui.TreeNodeEx(file.Name, flags);
+
+                if (ImGui.BeginPopupContextItem())
+                {
+                    if (ImGui.MenuItem("Rename")) { /* TODO: Rename logic */ }
+                    if (ImGui.MenuItem("Delete")) { ImGui.OpenPopup("DeleteConfirm"); _itemToDelete = file.FullName; }
+                    ImGui.EndPopup();
+                }
+
+                if (ImGui.IsItemClicked())
+                {
+                    SelectedFile = file.FullName;
+                }
+                if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+                {
+                    var extension = file.Extension.ToLowerInvariant();
+                    if (extension == ".dmm" || extension == ".json")
                     {
-                        _editorContext.OpenFile(file.FullName);
+                        _editorContext.OpenScene(file.FullName);
                     }
+                    // TODO: Open script editor for scripts
                 }
             }
         }
@@ -79,6 +121,18 @@ namespace Editor.UI
                 fileName = $"{baseName}_{i++}{extension}";
             }
             File.WriteAllText(Path.Combine(directoryPath, fileName), "");
+        }
+
+        private void DeleteItem(string path)
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+            else if (Directory.Exists(path))
+            {
+                Directory.Delete(path, true);
+            }
         }
     }
 }

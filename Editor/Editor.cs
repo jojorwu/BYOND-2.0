@@ -33,10 +33,13 @@ namespace Editor
         private ToolboxPanel _toolboxPanel = null!;
         private MapControlsPanel _mapControlsPanel = null!;
         private BuildPanel _buildPanel = null!;
+        private SceneHierarchyPanel _sceneHierarchyPanel = null!;
 
         private BuildService _buildService = null!;
 
         private AppState _appState = AppState.MainMenu;
+        private bool _firstTime = true;
+        private int _sceneToClose = -1;
 
         private readonly EditorContext _editorContext;
 
@@ -64,11 +67,25 @@ namespace Editor
 
         private void OnFileDrop(string[] paths)
         {
-            if (_assetManager != null)
+            if (_appState != AppState.Editing) return;
+
+            foreach (var path in paths)
             {
-                foreach (var path in paths)
+                var extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
+                var fileName = System.IO.Path.GetFileName(path);
+                string destDir = extension switch
                 {
-                    _assetManager.ImportAsset(path);
+                    ".dmm" or ".json" => "maps",
+                    ".dm" => "code",
+                    ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" => "assets",
+                    _ => ""
+                };
+
+                if (!string.IsNullOrEmpty(destDir))
+                {
+                    var destPath = System.IO.Path.Combine(_editorContext.ProjectRoot, destDir, fileName);
+                    System.IO.File.Copy(path, destPath, true);
+                    Console.WriteLine($"Imported '{fileName}' to '{destDir}'");
                 }
             }
         }
@@ -112,10 +129,13 @@ namespace Editor
 
             if (gl != null)
             {
-                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi, gameState);
+                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
             }
             _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
-            _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
+            if (gl != null)
+            {
+                _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, _assetBrowserPanel, gl);
+            }
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel();
             _settingsPanel = new SettingsPanel();
@@ -124,6 +144,7 @@ namespace Editor
             _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService);
             _mapControlsPanel = new MapControlsPanel(_editorContext);
             _buildPanel = new BuildPanel(_buildService);
+            _sceneHierarchyPanel = new SceneHierarchyPanel(gameApi, selectionManager);
 
             _appState = AppState.Editing;
         }
@@ -137,7 +158,7 @@ namespace Editor
             gl.ClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
 
-            ImGui.DockSpaceOverViewport();
+            ImGui.DockSpaceOverViewport(ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
 
             switch (_appState)
             {
@@ -149,41 +170,104 @@ namespace Editor
                     }
                     break;
                 case AppState.Editing:
+                    if (_firstTime)
+                    {
+                        var dockSpaceId = ImGui.GetID("MyDockSpace");
+                        ImGui.DockBuilderRemoveNode(dockSpaceId);
+                        ImGui.DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags.DockSpace);
+                        ImGui.DockBuilderSetNodeSize(dockSpaceId, ImGui.GetMainViewport().Size);
+
+                        var dockMainId = dockSpaceId;
+                        var dockRightId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Right, 0.2f, out _, out dockMainId);
+                        var dockLeftId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Left, 0.2f, out _, out dockMainId);
+                        var dockBottomId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Down, 0.25f, out _, out dockMainId);
+
+                        ImGui.DockBuilderDockWindow("Scene Hierarchy", dockLeftId);
+                        ImGui.DockBuilderDockWindow("Assets", dockLeftId);
+                        ImGui.DockBuilderDockWindow("Object Types", dockLeftId);
+                        ImGui.DockBuilderDockWindow("Inspector", dockRightId);
+                        ImGui.DockBuilderDockWindow("Build", dockBottomId);
+                        ImGui.DockBuilderDockWindow("MainView", dockMainId);
+
+                        ImGui.DockBuilderFinish(dockSpaceId);
+                        _firstTime = false;
+                    }
+
                     _menuBarPanel.Draw();
                     _assetBrowserPanel.Draw();
                     _inspectorPanel.Draw();
                     _objectBrowserPanel.Draw();
                     _toolboxPanel.Draw();
+                    _sceneHierarchyPanel.Draw();
                     _mapControlsPanel.Draw();
                     _buildPanel.Draw();
 
                     ImGui.Begin("MainView");
-                    if (ImGui.BeginTabBar("FileTabs"))
+                    if (ImGui.BeginTabBar("SceneTabs"))
                     {
-                        for (int i = 0; i < _editorContext.OpenFiles.Count; i++)
+                        for (int i = 0; i < _editorContext.OpenScenes.Count; i++)
                         {
-                            var file = _editorContext.OpenFiles[i];
+                            var scene = _editorContext.OpenScenes[i];
                             bool isOpen = true;
-                            if (ImGui.BeginTabItem(System.IO.Path.GetFileName(file.Path), ref isOpen))
+                            var tabName = System.IO.Path.GetFileName(scene.FilePath);
+                            if (scene.IsDirty) tabName += "*";
+                            if (ImGui.BeginTabItem(tabName, ref isOpen))
                             {
-                                switch (file.Type)
-                                {
-                                    case FileType.Map:
-                                        _viewportPanel.Draw(file.Path);
-                                        break;
-                                    case FileType.Script:
-                                        _scriptEditorPanel.Draw(file.Path);
-                                        break;
-                                }
+                                _editorContext.ActiveSceneIndex = i;
+                                _viewportPanel.Draw(scene);
                                 ImGui.EndTabItem();
                             }
 
                             if (!isOpen)
                             {
-                                _editorContext.OpenFiles.RemoveAt(i);
+                                if (scene.IsDirty)
+                                {
+                                    _sceneToClose = i;
+                                    ImGui.OpenPopup("Save Changes?");
+                                }
+                                else
+                                {
+                                    _editorContext.OpenScenes.RemoveAt(i);
+                                    if (_editorContext.ActiveSceneIndex >= i)
+                                    {
+                                        _editorContext.ActiveSceneIndex--;
+                                    }
+                                }
                             }
                         }
                         ImGui.EndTabBar();
+                    }
+
+                    if (ImGui.BeginPopupModal("Save Changes?"))
+                    {
+                        ImGui.Text("You have unsaved changes. Save before closing?");
+                        if (ImGui.Button("Save"))
+                        {
+                            var scene = _editorContext.OpenScenes[_sceneToClose];
+                            _menuBarPanel.SaveScene(scene, false);
+                            _editorContext.OpenScenes.RemoveAt(_sceneToClose);
+                            if (_editorContext.ActiveSceneIndex >= _sceneToClose)
+                            {
+                                _editorContext.ActiveSceneIndex--;
+                            }
+                            ImGui.CloseCurrentPopup();
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.Button("Don't Save"))
+                        {
+                            _editorContext.OpenScenes.RemoveAt(_sceneToClose);
+                            if (_editorContext.ActiveSceneIndex >= _sceneToClose)
+                            {
+                                _editorContext.ActiveSceneIndex--;
+                            }
+                            ImGui.CloseCurrentPopup();
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.Button("Cancel"))
+                        {
+                            ImGui.CloseCurrentPopup();
+                        }
+                        ImGui.EndPopup();
                     }
                     ImGui.End();
                     break;

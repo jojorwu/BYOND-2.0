@@ -11,7 +11,6 @@ BYOND 2.0 is a modern, open-source game engine inspired by BYOND. It is built wi
 
 ## Documentation
 
-For detailed information on how to work with the engine, its architecture, and scripting API, please refer to our documentation.
+For detailed information on how to work with the engine, its architecture, and scripting API, please refer to our comprehensive documentation.
 
-*   [English Documentation](./docs/en/)
-*   [Русская документация](./docs/ru/)
+[**Go to Documentation >>**](./docs/README.md)

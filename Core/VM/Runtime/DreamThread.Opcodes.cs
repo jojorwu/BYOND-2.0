@@ -22,10 +22,9 @@ namespace Core.VM.Runtime
 
         private void PerformBinaryOperation(Func<DreamValue, DreamValue, DreamValue> operation)
         {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = operation(a, b);
+            var b = Pop();
+            var a = Pop();
+            Push(operation(a, b));
         }
         private void Opcode_Add() => PerformBinaryOperation((a, b) => a + b);
         private void Opcode_Subtract() => PerformBinaryOperation((a, b) => a - b);
@@ -34,10 +33,9 @@ namespace Core.VM.Runtime
 
         private void PerformComparisonOperation(Func<DreamValue, DreamValue, bool> operation)
         {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(operation(a, b) ? 1 : 0);
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(operation(a, b) ? 1 : 0));
         }
 
         private void Opcode_CompareEquals() => PerformComparisonOperation((a, b) => a == b);
@@ -67,7 +65,7 @@ namespace Core.VM.Runtime
             Pop();
         }
 
-        private void Opcode_Call(DreamProc proc, ref int pc)
+        private void Opcode_Call(ref CallFrame frame, DreamProc proc, ref int pc)
         {
             var procId = ReadInt32(proc, ref pc);
             var argCount = ReadByte(proc, ref pc);
@@ -77,11 +75,11 @@ namespace Core.VM.Runtime
 
             var stackBase = Stack.Count - argCount;
 
-            var currentFrame = CallStack.Pop();
-            currentFrame.PC = pc;
-            CallStack.Push(currentFrame);
+            frame.PC = pc;
+            CallStack.Pop(); // Pop the old frame, since we're modifying it
+            CallStack.Push(frame); // Push the updated frame back
 
-            var frame = new CallFrame(newProc, 0, stackBase);
+            frame = new CallFrame(newProc, 0, stackBase);
             CallStack.Push(frame);
 
             for (int i = 0; i < newProc.LocalVariableCount; i++)
@@ -110,23 +108,23 @@ namespace Core.VM.Runtime
             Console.WriteLine(value.ToString());
         }
 
-        private void Opcode_Return(ref DreamProc proc, ref int pc)
+        private void Opcode_Return(ref CallFrame frame, ref DreamProc proc, ref int pc)
         {
             var returnValue = Pop();
 
-            var returnedFrame = CallStack.Pop();
+            CallStack.Pop(); // Pop the returning frame
             if (CallStack.Count > 0)
             {
-                var cleanupStart = returnedFrame.StackBase;
+                var cleanupStart = frame.StackBase;
                 var cleanupCount = Stack.Count - cleanupStart;
                 if (cleanupCount > 0)
                     Stack.RemoveRange(cleanupStart, cleanupCount);
 
                 Push(returnValue);
 
-                var newFrame = CallStack.Peek();
-                proc = newFrame.Proc;
-                pc = newFrame.PC;
+                frame = CallStack.Peek();
+                proc = frame.Proc;
+                pc = frame.PC;
             }
             else
             {

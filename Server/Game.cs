@@ -23,7 +23,7 @@ namespace Server
             _settings = settings;
         }
 
-        public void Start()
+        public async Task Start()
         {
             _scriptHost.Start();
             _udpServer.Start();
@@ -39,7 +39,7 @@ namespace Server
                 var sleepTime = tickInterval - elapsed;
                 if (sleepTime > TimeSpan.Zero)
                 {
-                    Thread.Sleep(sleepTime);
+                    await Task.Delay(sleepTime);
                 }
             }
         }

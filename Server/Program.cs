@@ -8,14 +8,14 @@ using Server;
 
 class Program
 {
-    static void Main(string[] args)
+    static async Task Main(string[] args)
     {
         var services = new ServiceCollection();
         ConfigureServices(services);
 
         var serviceProvider = services.BuildServiceProvider();
         var game = serviceProvider.GetRequiredService<Game>();
-        game.Start();
+        await game.Start();
     }
 
     private static void ConfigureServices(IServiceCollection services)
@@ -48,7 +48,7 @@ class Program
         services.AddSingleton<UdpServer>(provider =>
         {
             var settings = provider.GetRequiredService<ServerSettings>();
-            var scriptHost = provider.GetRequiredService<ScriptHost>();
+            var scriptHost = provider.GetRequiredService<IScriptHost>();
             var gameState = provider.GetRequiredService<GameState>();
             return new UdpServer(System.Net.IPAddress.Any, settings.Network.UdpPort, scriptHost, gameState, settings);
         });

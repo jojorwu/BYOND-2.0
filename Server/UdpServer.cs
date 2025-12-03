@@ -13,12 +13,12 @@ namespace Server
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly ScriptHost _scriptHost;
+        private readonly IScriptHost _scriptHost;
         private readonly Core.GameState _gameState;
         private readonly ServerSettings _settings;
         private Thread? _networkThread;
 
-        public UdpServer(IPAddress ipAddress, int port, ScriptHost scriptHost, Core.GameState gameState, ServerSettings settings)
+        public UdpServer(IPAddress ipAddress, int port, IScriptHost scriptHost, Core.GameState gameState, ServerSettings settings)
         {
             _settings = settings;
             _listener = new EventBasedNetListener();
@@ -58,7 +58,7 @@ namespace Server
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(1);
+                Thread.Sleep(15);
             }
         }
 

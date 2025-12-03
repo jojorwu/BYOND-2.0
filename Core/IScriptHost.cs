@@ -5,5 +5,6 @@ namespace Core
     public interface IScriptHost
     {
         void AddThread(DreamThread thread);
+        void EnqueueCommand(string command, Action<string> onResult);
     }
 }

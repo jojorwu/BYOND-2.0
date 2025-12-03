@@ -14,13 +14,21 @@ namespace Editor.UI
         public void Draw()
         {
             ImGui.Begin("Map Controls");
-            ImGui.Text($"Current Z-Level: {_editorContext.CurrentZLevel}");
-            if (ImGui.Button("+"))
+            ImGui.Text("Z-Level");
+            ImGui.SameLine();
+            int zLevel = _editorContext.CurrentZLevel;
+            ImGui.SetNextItemWidth(100);
+            if (ImGui.InputInt("##ZLevel", ref zLevel))
+            {
+                _editorContext.CurrentZLevel = zLevel;
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Up"))
             {
                 _editorContext.CurrentZLevel++;
             }
             ImGui.SameLine();
-            if (ImGui.Button("-") && _editorContext.CurrentZLevel > 0)
+            if (ImGui.Button("Down"))
             {
                 _editorContext.CurrentZLevel--;
             }

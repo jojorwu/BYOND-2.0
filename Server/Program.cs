@@ -34,7 +34,7 @@ class Program
         services.AddScoped<IScriptApi, ScriptApi>();
         services.AddScoped<IStandardLibraryApi, StandardLibraryApi>();
         services.AddScoped<IGameApi, GameApi>();
-        services.AddSingleton<ScriptManager>(provider =>
+        services.AddScoped<ScriptManager>(provider =>
             new ScriptManager(
                 provider.GetRequiredService<IGameApi>(),
                 provider.GetRequiredService<ObjectTypeManager>(),
@@ -43,7 +43,13 @@ class Program
                 () => provider.GetRequiredService<IScriptHost>()
             )
         );
-        services.AddSingleton<ScriptHost>();
+        services.AddSingleton<ScriptHost>(provider =>
+        {
+            var project = provider.GetRequiredService<Project>();
+            var gameState = provider.GetRequiredService<GameState>();
+            var settings = provider.GetRequiredService<ServerSettings>();
+            return new ScriptHost(project, gameState, settings, provider);
+        });
         services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
         services.AddSingleton<UdpServer>(provider =>
         {

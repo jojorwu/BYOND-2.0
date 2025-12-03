@@ -16,25 +16,18 @@ namespace Server
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly GameState _gameState;
-        private IGameApi _gameApi;
-        private ObjectTypeManager _objectTypeManager;
-        private DreamVM _dreamVM;
         private readonly ServerSettings _settings;
-        private readonly List<DreamThread> _threads = new();
-        private ScriptManager _scriptManager;
+        private ScriptEnvironment _activeEnvironment;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
         private readonly IServiceProvider _serviceProvider;
 
-        public ScriptHost(Project project, GameState gameState, ServerSettings settings, ObjectTypeManager objectTypeManager, DreamVM dreamVM, IGameApi gameApi, ScriptManager scriptManager, IServiceProvider serviceProvider)
+        public ScriptHost(Project project, GameState gameState, ServerSettings settings, IServiceProvider serviceProvider)
         {
             _project = project;
             _gameState = gameState;
             _settings = settings;
-            _objectTypeManager = objectTypeManager;
-            _dreamVM = dreamVM;
-            _gameApi = gameApi;
-            _scriptManager = scriptManager;
             _serviceProvider = serviceProvider;
+            _activeEnvironment = new ScriptEnvironment(serviceProvider);
 
             _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
             {
@@ -61,40 +54,37 @@ namespace Server
         {
             ProcessCommandQueue();
 
-            Queue<DreamThread> threadsToRun;
-            lock (_scriptLock)
-            {
-                threadsToRun = new Queue<DreamThread>(_threads);
-            }
-
-            var finishedThreads = new HashSet<DreamThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            ScriptEnvironment currentEnv;
+            lock(_scriptLock)
+                currentEnv = _activeEnvironment;
+
+            // Create a copy of the queue to iterate over, so we can modify the original
+            var threadsToRun = new Queue<DreamThread>(currentEnv.Threads);
+            currentEnv.Threads.Clear();
 
             while (threadsToRun.Count > 0)
             {
                 if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
+                {
+                    // If budget is exceeded, re-queue the remaining threads
+                    while(threadsToRun.Count > 0)
+                        currentEnv.Threads.Enqueue(threadsToRun.Dequeue());
                     break;
+                }
 
                 var thread = threadsToRun.Dequeue();
                 var state = thread.Run(_settings.Performance.VmInstructionSlice);
 
-                if (state != DreamThreadState.Running)
+                if (state == DreamThreadState.Running)
                 {
-                    Console.WriteLine($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
-                    finishedThreads.Add(thread);
+                    currentEnv.Threads.Enqueue(thread); // Re-queue the thread if it's still running
                 }
                 else
                 {
-                    threadsToRun.Enqueue(thread);
-                }
-            }
-
-            if (finishedThreads.Count > 0)
-            {
-                lock (_scriptLock)
-                {
-                    _threads.RemoveAll(t => finishedThreads.Contains(t));
+                    Console.WriteLine($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
                 }
             }
         }
@@ -108,7 +98,7 @@ namespace Server
         {
             lock (_scriptLock)
             {
-                _threads.Add(thread);
+                _activeEnvironment.Threads.Enqueue(thread);
             }
         }
 
@@ -117,7 +107,9 @@ namespace Server
             while (_commandQueue.TryDequeue(out var commandInfo))
             {
                 var (command, onResult) = commandInfo;
-                _scriptManager.ExecuteCommand(command);
+                lock(_scriptLock)
+                    _activeEnvironment.ScriptManager.ExecuteCommand(command);
+
                 onResult("Command executed."); // Simplified result
             }
         }
@@ -137,25 +129,17 @@ namespace Server
             Console.WriteLine("Starting background script reload...");
             Task.Run(async () =>
             {
+                var newEnvironment = new ScriptEnvironment(_serviceProvider);
                 try
                 {
-                    // 1. Create a new script environment in the background using a temporary scope
-                    using var scope = _serviceProvider.CreateScope();
-                    var newObjectTypeManager = scope.ServiceProvider.GetRequiredService<ObjectTypeManager>();
-                    var newDreamVM = scope.ServiceProvider.GetRequiredService<DreamVM>();
-                    var newGameApi = scope.ServiceProvider.GetRequiredService<IGameApi>();
-                    var newScriptManager = scope.ServiceProvider.GetRequiredService<ScriptManager>();
-
-
-                    await newScriptManager.ReloadAll();
+                    await newEnvironment.ScriptManager.ReloadAll();
                     Console.WriteLine("Invoking OnStart event in new environment...");
-                    newScriptManager.InvokeGlobalEvent("OnStart");
+                    newEnvironment.ScriptManager.InvokeGlobalEvent("OnStart");
 
-                    var newThreads = new List<DreamThread>();
-                    var mainThread = newScriptManager.CreateThread("world.New");
+                    var mainThread = newEnvironment.ScriptManager.CreateThread("world.New");
                     if (mainThread != null)
                     {
-                        newThreads.Add(mainThread);
+                        newEnvironment.Threads.Enqueue(mainThread);
                         Console.WriteLine("Successfully created 'world.New' thread in new environment.");
                     }
                     else
@@ -163,21 +147,24 @@ namespace Server
                         Console.WriteLine("Warning: Could not create 'world.New' thread in new environment.");
                     }
 
-                    // 2. Hot-swap the old environment with the new one inside a lock
+                    // Hot-swap the old environment with the new one
+                    ScriptEnvironment oldEnvironment;
                     lock (_scriptLock)
                     {
-                        _objectTypeManager = newObjectTypeManager;
-                        _dreamVM = newDreamVM;
-                        _gameApi = newGameApi;
-                        _scriptManager = newScriptManager;
-                        _threads.Clear();
-                        _threads.AddRange(newThreads);
+                        oldEnvironment = _activeEnvironment;
+                        _activeEnvironment = newEnvironment;
                     }
+
+                    // Dispose of the old environment
+                    oldEnvironment.Dispose();
+
                     Console.WriteLine("Script reload complete and activated.");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error during background script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    // If reload fails, dispose the new environment as it's not being used
+                    newEnvironment.Dispose();
                 }
             });
         }
@@ -188,6 +175,7 @@ namespace Server
             _watcher.Changed -= OnScriptChanged;
             _watcher.Dispose();
             _debounceTimer.Dispose();
+            _activeEnvironment.Dispose();
         }
     }
 }

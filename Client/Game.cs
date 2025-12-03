@@ -78,6 +78,30 @@ namespace Client
             }
 
             _alpha = (float)(_accumulator / LogicThread.TimeStep);
+
+            if (_currentState?.GameObjects != null)
+            {
+                foreach (var currentObj in _currentState.GameObjects.Values)
+                {
+                    var icon = GetIcon(currentObj);
+                    if (!string.IsNullOrEmpty(icon))
+                    {
+                        var (dmiPath, stateName) = IconCache.ParseIconString(icon);
+                        if(!string.IsNullOrEmpty(dmiPath))
+                        {
+                            try
+                            {
+                                var texture = TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                                DmiCache.GetDmi(dmiPath, texture);
+                            }
+                            catch (Exception e)
+                            {
+                                // Ignore errors here, they will be handled in OnRender
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         private void OnRender(double deltaTime)
@@ -107,8 +131,8 @@ namespace Client
                     var icon = GetIcon(currentObj);
                     if (!string.IsNullOrEmpty(icon))
                     {
-                        var (dmiPath, stateName) = ParseIconString(icon);
-                        if(dmiPath != null)
+                        var (dmiPath, stateName) = IconCache.ParseIconString(icon);
+                        if(!string.IsNullOrEmpty(dmiPath))
                         {
                             try
                             {
@@ -133,6 +157,8 @@ namespace Client
                                 Console.WriteLine($"Error rendering icon {icon}: {e.Message}");
                                 _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red); // Draw red square on error
                             }
+                        } else {
+                            _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta); // Draw magenta square for missing dmi
                         }
                     } else {
                          _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White);
@@ -159,20 +185,6 @@ namespace Client
                 return iconStr;
             }
             return null;
-        }
-
-        private (string?, string?) ParseIconString(string icon)
-        {
-            var parts = icon.Split(':');
-            if (parts.Length == 2)
-            {
-                return (parts[0], parts[1]);
-            }
-            if (parts.Length == 1)
-            {
-                return (parts[0], null);
-            }
-            return (null, null);
         }
 
         private void OnClose()

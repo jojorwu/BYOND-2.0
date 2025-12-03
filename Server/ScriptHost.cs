@@ -99,7 +99,7 @@ namespace Server
             }
         }
 
-        public void EnqueueCommand(string command, Action<string> onResult)
+        void IScriptHost.EnqueueCommand(string command, Action<string> onResult)
         {
             _commandQueue.Enqueue((command, onResult));
         }

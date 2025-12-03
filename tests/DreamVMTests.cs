@@ -43,6 +43,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.BitAnd);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -62,6 +63,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.BitOr);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -81,6 +83,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.BitXor);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -96,6 +99,7 @@ namespace tests
             };
             bytecode.AddRange(BitConverter.GetBytes(5f));
             bytecode.Add((byte)Opcode.BitNot);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -115,6 +119,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.BitShiftLeft);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -134,6 +139,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.BitShiftRight);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -152,6 +158,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.CompareLessThan);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -170,6 +177,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.CompareGreaterThan);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -188,6 +196,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.CompareLessThanOrEqual);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -206,6 +215,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(b));
             bytecode.Add((byte)Opcode.CompareGreaterThanOrEqual);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -219,6 +229,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(5f));
             bytecode.Add((byte)Opcode.Negate);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -235,6 +246,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(a));
             bytecode.Add((byte)Opcode.BooleanNot);
+            bytecode.Add((byte)Opcode.Return);
 
             var result = RunTest(bytecode.ToArray());
             Assert.That(result.TryGetValue(out float value), Is.True);
@@ -244,7 +256,7 @@ namespace tests
         [Test]
         public void PushNull_PushesNullOntoStack()
         {
-            var bytecode = new byte[] { (byte)Opcode.PushNull };
+            var bytecode = new byte[] { (byte)Opcode.PushNull, (byte)Opcode.Return };
             var result = RunTest(bytecode);
             Assert.That(result.Type, Is.EqualTo(DreamValueType.Null));
         }
@@ -258,6 +270,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(20f));
             bytecode.Add((byte)Opcode.Pop);
+            bytecode.Add((byte)Opcode.Return);
 
             var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0);
             var thread = new DreamThread(proc, _vm, 1000);

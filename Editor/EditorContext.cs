@@ -5,14 +5,18 @@ using System.Linq;
 
 namespace Editor
 {
-    public enum FileType
+    public class Scene
     {
-        Unknown,
-        Map,
-        Script
-    }
+        public string FilePath { get; set; }
+        public GameState GameState { get; }
+        public bool IsDirty { get; set; } = false;
 
-    public record OpenedFile(string Path, FileType Type);
+        public Scene(string filePath)
+        {
+            FilePath = filePath;
+            GameState = new GameState();
+        }
+    }
 
     public class EditorContext
     {
@@ -22,28 +26,30 @@ namespace Editor
         public Core.ServerSettings ServerSettings { get; set; } = new();
         public Core.ClientSettings ClientSettings { get; set; } = new();
 
-        public List<OpenedFile> OpenFiles { get; } = new();
+        public List<Scene> OpenScenes { get; } = new();
+        public int ActiveSceneIndex { get; set; } = -1;
 
-        public void OpenFile(string path)
+        public Scene? GetActiveScene()
         {
-            if (OpenFiles.Any(f => f.Path == path))
+            if (ActiveSceneIndex >= 0 && ActiveSceneIndex < OpenScenes.Count)
             {
-                // TODO: Focus the existing tab instead of reopening
+                return OpenScenes[ActiveSceneIndex];
+            }
+            return null;
+        }
+
+        public void OpenScene(string path)
+        {
+            var existingScene = OpenScenes.FirstOrDefault(s => s.FilePath == path);
+            if (existingScene != null)
+            {
+                ActiveSceneIndex = OpenScenes.IndexOf(existingScene);
                 return;
             }
 
-            var extension = Path.GetExtension(path).ToLowerInvariant();
-            var type = extension switch
-            {
-                ".dmm" or ".json" => FileType.Map,
-                ".lua" or ".dm" => FileType.Script,
-                _ => FileType.Unknown
-            };
-
-            if (type != FileType.Unknown)
-            {
-                OpenFiles.Add(new OpenedFile(path, type));
-            }
+            var newScene = new Scene(path);
+            OpenScenes.Add(newScene);
+            ActiveSceneIndex = OpenScenes.Count - 1;
         }
     }
 }

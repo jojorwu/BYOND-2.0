@@ -23,29 +23,64 @@ namespace Editor.UI
             _dmmService = dmmService;
         }
 
+        public void SaveScene(Scene scene, bool saveAs)
+        {
+            if (saveAs || !System.IO.File.Exists(scene.FilePath))
+            {
+                using var dialog = new NativeFileDialog().SaveFile().AddFilter("Map Files", "dmm,json");
+                if (dialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                {
+                    scene.FilePath = dialog.Path;
+                }
+                else
+                {
+                    return;
+                }
+            }
+
+            if (scene.GameState.Map != null)
+            {
+                Task.Run(async () =>
+                {
+                    await _gameApi.Map.SaveMapAsync(scene.FilePath, scene.GameState.Map);
+                    scene.IsDirty = false;
+                });
+            }
+        }
+
         public void Draw()
         {
             if (ImGui.BeginMainMenuBar())
             {
                 if (ImGui.BeginMenu("File"))
                 {
-                    if (ImGui.MenuItem("Save Map"))
+                    if (ImGui.MenuItem("New Scene"))
                     {
-                        var map = _gameApi.Map.GetMap();
-                        if (map != null)
+                        var newScene = new Scene("New Scene " + (_editorContext.OpenScenes.Count + 1))
                         {
-                            Task.Run(async () => {
-                                try
-                                {
-                                    await _gameApi.Map.SaveMapAsync("maps/default.json");
-                                }
-                                catch (Exception e)
-                                {
-                                    Console.WriteLine($"[ERROR] Failed to save map: {e.Message}");
-                                }
-                            });
+                            GameState = { Map = new Map() },
+                            IsDirty = true
+                        };
+                        _editorContext.OpenScenes.Add(newScene);
+                        _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
+                    }
+                    if (ImGui.MenuItem("Save Scene"))
+                    {
+                        var scene = _editorContext.GetActiveScene();
+                        if (scene != null)
+                        {
+                            SaveScene(scene, false);
                         }
                     }
+                    if (ImGui.MenuItem("Save Scene As..."))
+                    {
+                        var scene = _editorContext.GetActiveScene();
+                        if (scene != null)
+                        {
+                            SaveScene(scene, true);
+                        }
+                    }
+                    ImGui.Separator();
                     if (ImGui.MenuItem("Load Map"))
                     {
                         Task.Run(async () => {

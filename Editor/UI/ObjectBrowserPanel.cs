@@ -23,6 +23,13 @@ namespace Editor.UI
                 {
                     _editorContext.SelectedObjectType = objectType;
                 }
+
+                if (ImGui.BeginDragDropSource())
+                {
+                    ImGui.SetDragDropPayload("OBJECT_TYPE_PAYLOAD", System.Text.Encoding.UTF8.GetBytes(objectType.Name), (uint)objectType.Name.Length);
+                    ImGui.Text(objectType.Name);
+                    ImGui.EndDragDropSource();
+                }
             }
             ImGui.End();
         }

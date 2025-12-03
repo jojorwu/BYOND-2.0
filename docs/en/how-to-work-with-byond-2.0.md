@@ -4,15 +4,15 @@ This guide will help you set up your development environment, build the project,
 
 ## 1. Environment Setup
 
-To work with the project, you will need the .NET 8.0 SDK.
+To work with the project, you will need the .NET 10.0 SDK.
 
-### Installing the .NET 8.0 SDK
+### Installing the .NET 10.0 SDK
 
-You can install the .NET 8.0 SDK by running the following commands in the root folder of the project:
+You can install the .NET 10.0 SDK by running the following commands in the root folder of the project:
 
 ```bash
 chmod +x ./dotnet-install.sh
-./dotnet-install.sh --channel 8.0
+./dotnet-install.sh --channel 10.0
 ```
 
 After installation, you need to add .NET to the `PATH` for the current session:
@@ -27,7 +27,7 @@ export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools
 After installing the .NET SDK, you can build the project. It is recommended to build the entire solution, but you can also build individual projects. To build the entire solution, run the following command:
 
 ```bash
-dotnet build BYOND2.0.slnx
+dotnet build BYOND2.0.sln
 ```
 
 ## 3. Running the Server

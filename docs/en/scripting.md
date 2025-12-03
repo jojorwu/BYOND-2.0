@@ -1,22 +1,46 @@
 # Scripting
 
-The BYOND 2.0 game engine supports both Lua and C# for scripting. This allows developers to choose the best tool for the job, whether it's the simplicity and dynamic nature of Lua or the performance and strong typing of C#.
+The BYOND 2.0 game engine features a polyglot scripting environment, allowing developers to use multiple languages to define game logic. The primary supported languages are **DM (Dream Maker)**, **Lua**, and **C#**.
 
-## Lua Engine
+## DM (Dream Maker)
 
-Integration with Lua is achieved using the NLua library, which provides a bridge between C# and Lua. This allows for calling C# functions from Lua and vice versa.
+DM is the native language of the BYOND platform and is the recommended choice for most game logic in BYOND 2.0. The engine includes the OpenDream compiler, which compiles `.dme` and `.dm` files into bytecode that the `DreamVM` can execute.
+
+*   **Execution:** DM code is executed by the high-performance `DreamVM`, a stack-based virtual machine.
+*   **Entry Point:** The main entry point for all game logic is the `world.New()` procedure in your DM code.
+
+### DM Example
+
+```dm
+// main.dm
+/world/New()
+    // Load a map
+    world.log << "Loading map..."
+    // Further initialization code
+
+/obj/creature/player
+    var/hp = 100
+
+    proc/TakeDamage(amount)
+        hp -= amount
+        if (hp <= 0)
+            del src
+```
+
+## Lua
+
+Lua provides a lightweight and flexible scripting option. It is well-suited for quick prototyping or for specific tasks that benefit from its dynamic nature.
+
+*   **Integration:** Lua is integrated via the NLua library, which provides a bridge to the .NET runtime.
+*   **API Access:** Lua scripts can access the core engine APIs through a global `GameApi` object.
+*   **Entry Point:** The entry point for Lua is the `scripts/main.lua` file.
 
 ### Lua API Example
-
-Here is an example of how to interact with the game API from a Lua script:
 
 ```lua
 -- scripts/main.lua
 local mapApi = global.GameApi.MapApi
 local objectApi = global.GameApi.ObjectApi
-
--- Load a map
-mapApi:LoadMap("maps/example.dmm")
 
 -- Create a new object
 local player = objectApi:CreateObject("/obj/creature/player")
@@ -24,13 +48,15 @@ player:SetProperty("x", 10)
 player:SetProperty("y", 5)
 ```
 
-## C# Engine
+## C#
 
-C# scripting is supported via Roslyn, allowing for on-the-fly compilation of C# code. This provides a powerful way to extend the engine with high-performance, statically-typed code.
+C# scripting offers the highest performance and the full power of the .NET ecosystem. It is ideal for performance-critical systems or for extending the engine with complex, statically-typed logic.
+
+*   **Integration:** C# scripts are compiled on-the-fly using Roslyn.
+*   **API Access:** C# scripts receive an `IGameApi` instance as an argument to their entry point.
+*   **Entry Point:** The entry point for C# is a static `Main` method in any class within a `.cs` file in the `scripts` directory.
 
 ### C# API Example
-
-Here is the same example, but implemented as a C# script:
 
 ```csharp
 // scripts/main.cs
@@ -40,9 +66,6 @@ public class MainScript
 {
     public static void Main(IGameApi gameApi)
     {
-        // Load a map
-        gameApi.MapApi.LoadMap("maps/example.dmm");
-
         // Create a new object
         var player = gameApi.ObjectApi.CreateObject("/obj/creature/player");
         player.SetProperty("x", 10);
@@ -53,10 +76,4 @@ public class MainScript
 
 ## Hot-Reloading
 
-One of the key features of the engine is the hot-reloading of scripts. The server monitors files in the `scripts` directory for changes and automatically reloads them when changes are detected. This significantly speeds up the development process, as changes to the game logic can be seen in real-time without restarting the server.
-
-The hot-reloading mechanism is implemented using `FileSystemWatcher` and includes debouncing with a `System.Threading.Timer` to prevent multiple reloads from occurring in rapid succession. This feature works for both Lua and C# scripts.
-
-## Entry Points
-
-The main entry point for Lua scripts is the `scripts/main.lua` file. For C# scripts, the entry point is a static `Main` method in a class within a `.cs` file in the `scripts` directory. When the server starts or after a hot-reload, these entry points are executed. They should contain the main logic for initializing the game world and other important components.
+All three scripting systems support hot-reloading. The server monitors files in the `scripts` and project directories for changes and automatically reloads them. This allows for real-time iteration on game logic without restarting the server.

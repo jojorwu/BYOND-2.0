@@ -64,11 +64,25 @@ namespace Editor
 
         private void OnFileDrop(string[] paths)
         {
-            if (_assetManager != null)
+            if (_appState != AppState.Editing) return;
+
+            foreach (var path in paths)
             {
-                foreach (var path in paths)
+                var extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
+                var fileName = System.IO.Path.GetFileName(path);
+                string destDir = extension switch
                 {
-                    _assetManager.ImportAsset(path);
+                    ".dmm" or ".json" => "maps",
+                    ".dm" => "code",
+                    ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" => "assets",
+                    _ => ""
+                };
+
+                if (!string.IsNullOrEmpty(destDir))
+                {
+                    var destPath = System.IO.Path.Combine(_editorContext.ProjectRoot, destDir, fileName);
+                    System.IO.File.Copy(path, destPath, true);
+                    Console.WriteLine($"Imported '{fileName}' to '{destDir}'");
                 }
             }
         }

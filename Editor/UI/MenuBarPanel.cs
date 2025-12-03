@@ -12,15 +12,17 @@ namespace Editor.UI
         private readonly EditorContext _editorContext;
         private readonly BuildService _buildService;
         private readonly DmmService _dmmService;
+        private readonly LocalizationManager _localizationManager;
         private string _newProjectName = "NewProject";
         private string _newProjectPath = "";
 
-        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService)
+        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService, LocalizationManager localizationManager)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
             _buildService = buildService;
             _dmmService = dmmService;
+            _localizationManager = localizationManager;
         }
 
         public void SaveScene(Scene scene, bool saveAs)
@@ -52,9 +54,9 @@ namespace Editor.UI
         {
             if (ImGui.BeginMainMenuBar())
             {
-                if (ImGui.BeginMenu("File"))
+                if (ImGui.BeginMenu(_localizationManager.GetString("File")))
                 {
-                    if (ImGui.MenuItem("New Scene"))
+                    if (ImGui.MenuItem(_localizationManager.GetString("New Scene")))
                     {
                         var newScene = new Scene("New Scene " + (_editorContext.OpenScenes.Count + 1))
                         {
@@ -64,7 +66,7 @@ namespace Editor.UI
                         _editorContext.OpenScenes.Add(newScene);
                         _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
                     }
-                    if (ImGui.MenuItem("Save Scene"))
+                    if (ImGui.MenuItem(_localizationManager.GetString("Save Scene")))
                     {
                         var scene = _editorContext.GetActiveScene();
                         if (scene != null)
@@ -72,7 +74,7 @@ namespace Editor.UI
                             SaveScene(scene, false);
                         }
                     }
-                    if (ImGui.MenuItem("Save Scene As..."))
+                    if (ImGui.MenuItem(_localizationManager.GetString("Save Scene As...")))
                     {
                         var scene = _editorContext.GetActiveScene();
                         if (scene != null)
@@ -98,7 +100,7 @@ namespace Editor.UI
                     {
                         ImGui.OpenPopup("ChooseDmmFileDlgKey");
                     }
-                    if (ImGui.MenuItem("New Project..."))
+                    if (ImGui.MenuItem(_localizationManager.GetString("New Project...")))
                     {
                         _newProjectPath = System.IO.Directory.GetCurrentDirectory(); // Default path
                         ImGui.OpenPopup("NewProjectDlgKey");
@@ -110,18 +112,18 @@ namespace Editor.UI
                     ImGui.EndMenu();
                 }
 
-                if (ImGui.BeginMenu("Edit"))
+                if (ImGui.BeginMenu(_localizationManager.GetString("Edit")))
                 {
-                    if (ImGui.MenuItem("Project Settings..."))
+                    if (ImGui.MenuItem(_localizationManager.GetString("Project Settings")))
                     {
                         ImGui.OpenPopup("ProjectSettingsDlgKey");
                     }
                     ImGui.EndMenu();
                 }
 
-                if (ImGui.BeginMenu("Build"))
+                if (ImGui.BeginMenu(_localizationManager.GetString("Build")))
                 {
-                    if (ImGui.MenuItem("Build Project"))
+                    if (ImGui.MenuItem(_localizationManager.GetString("Build Project")))
                     {
                         _buildService.CompileProject();
                     }
@@ -283,7 +285,7 @@ namespace Editor.UI
 
                 if (ImGui.Button("Create"))
                 {
-                    CreateProject(_newProjectName, _newProjectPath);
+                    CreateProject(_newProjectName, _newProjectPath, _editorContext);
                     ImGui.CloseCurrentPopup();
                 }
                 ImGui.SameLine();
@@ -295,7 +297,7 @@ namespace Editor.UI
             }
         }
 
-        private void CreateProject(string projectName, string projectPath)
+        public static void CreateProject(string projectName, string projectPath, EditorContext editorContext)
         {
             try
             {
@@ -322,8 +324,8 @@ namespace Editor.UI
                 var dmeContent = "// My awesome project\n#include <__DEFINES/std.dm>\n";
                 System.IO.File.WriteAllText(System.IO.Path.Combine(fullProjectPath, $"{projectName}.dme"), dmeContent);
 
-                _editorContext.ProjectRoot = fullProjectPath;
-                _editorContext.ServerSettings = serverConfig;
+                editorContext.ProjectRoot = fullProjectPath;
+                editorContext.ServerSettings = serverConfig;
 
                 Console.WriteLine($"Project '{projectName}' created at '{fullProjectPath}'");
             }

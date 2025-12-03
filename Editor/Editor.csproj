@@ -21,4 +21,9 @@
     <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="assets\lang\en.json" />
+    <EmbeddedResource Include="assets\lang\ru.json" />
+  </ItemGroup>
+
 </Project>

@@ -11,6 +11,9 @@ Welcome to the BYOND 2.0 documentation. Here you will find detailed information 
 *   [Server Guide](./en/server-guide.md)
 *   [Client Guide](./en/client.md)
 *   [Editor Guide](./en/editor.md)
+*   **Tutorials**
+    *   [Creating an Object](./en/tutorial-creating-an-object.md)
+    *   [Creating a Verb](./en/tutorial-creating-a-verb.md)
 
 ## Русский
 
@@ -21,3 +24,6 @@ Welcome to the BYOND 2.0 documentation. Here you will find detailed information 
 *   [Руководство по серверу](./ru/server-guide.md)
 *   [Руководство по клиенту](./ru/client.md)
 *   [Руководство по редактору](./ru/editor.md)
+*   **Руководства**
+    *   [Создание объекта](./ru/tutorial-creating-an-object.md)
+    *   [Создание глагола](./ru/tutorial-creating-a-verb.md)

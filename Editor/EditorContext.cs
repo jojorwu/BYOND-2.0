@@ -16,8 +16,11 @@ namespace Editor
 
     public class EditorContext
     {
+        public string ProjectRoot { get; set; } = Directory.GetCurrentDirectory();
         public ObjectType? SelectedObjectType { get; set; }
         public int CurrentZLevel { get; set; } = 0;
+        public Core.ServerSettings ServerSettings { get; set; } = new();
+        public Core.ClientSettings ClientSettings { get; set; } = new();
 
         public List<OpenedFile> OpenFiles { get; } = new();
 

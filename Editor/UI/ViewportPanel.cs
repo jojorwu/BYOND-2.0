@@ -50,6 +50,25 @@ namespace Editor.UI
 
             ImGui.Begin("Viewport");
 
+            if (ImGui.BeginDragDropTarget())
+            {
+                var payload = ImGui.AcceptDragDropPayload("OBJECT_TYPE_PAYLOAD");
+                unsafe
+                {
+                    if (payload.NativePtr != null)
+                    {
+                        var objectTypeName = System.Text.Encoding.UTF8.GetString((byte*)payload.Data, payload.DataSize);
+                        var mousePos = ImGui.GetMousePos();
+                        var windowPos = ImGui.GetWindowPos();
+                        var localMousePos = new Vector2(mousePos.X - windowPos.X, mousePos.Y - windowPos.Y);
+                        var worldMousePos = Camera.ScreenToWorld(localMousePos, Camera.GetProjectionMatrix(ImGui.GetWindowSize().X, ImGui.GetWindowSize().Y));
+                        var tilePos = new Vector2i((int)(worldMousePos.X / EditorConstants.TileSize), (int)(worldMousePos.Y / EditorConstants.TileSize));
+                        _gameApi.Object.CreateObject(objectTypeName, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
+                    }
+                }
+                ImGui.EndDragDropTarget();
+            }
+
             var windowSize = ImGui.GetWindowSize();
             var projectionMatrix = Camera.GetProjectionMatrix(windowSize.X, windowSize.Y);
 

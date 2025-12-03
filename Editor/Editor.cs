@@ -37,6 +37,7 @@ namespace Editor
         private BuildService _buildService = null!;
 
         private AppState _appState = AppState.MainMenu;
+        private bool _firstTime = true;
 
         private readonly EditorContext _editorContext;
 
@@ -64,11 +65,25 @@ namespace Editor
 
         private void OnFileDrop(string[] paths)
         {
-            if (_assetManager != null)
+            if (_appState != AppState.Editing) return;
+
+            foreach (var path in paths)
             {
-                foreach (var path in paths)
+                var extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
+                var fileName = System.IO.Path.GetFileName(path);
+                string destDir = extension switch
                 {
-                    _assetManager.ImportAsset(path);
+                    ".dmm" or ".json" => "maps",
+                    ".dm" => "code",
+                    ".png" or ".jpg" or ".jpeg" or ".gif" or ".bmp" => "assets",
+                    _ => ""
+                };
+
+                if (!string.IsNullOrEmpty(destDir))
+                {
+                    var destPath = System.IO.Path.Combine(_editorContext.ProjectRoot, destDir, fileName);
+                    System.IO.File.Copy(path, destPath, true);
+                    Console.WriteLine($"Imported '{fileName}' to '{destDir}'");
                 }
             }
         }
@@ -115,7 +130,7 @@ namespace Editor
                 _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi, gameState);
             }
             _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
-            _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext);
+            _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, _assetBrowserPanel);
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel();
             _settingsPanel = new SettingsPanel();
@@ -137,7 +152,7 @@ namespace Editor
             gl.ClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
 
-            ImGui.DockSpaceOverViewport();
+            ImGui.DockSpaceOverViewport(ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
 
             switch (_appState)
             {
@@ -149,6 +164,28 @@ namespace Editor
                     }
                     break;
                 case AppState.Editing:
+                    if (_firstTime)
+                    {
+                        var dockSpaceId = ImGui.GetID("MyDockSpace");
+                        ImGui.DockBuilderRemoveNode(dockSpaceId);
+                        ImGui.DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags.DockSpace);
+                        ImGui.DockBuilderSetNodeSize(dockSpaceId, ImGui.GetMainViewport().Size);
+
+                        var dockMainId = dockSpaceId;
+                        var dockRightId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Right, 0.2f, out _, out dockMainId);
+                        var dockLeftId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Left, 0.2f, out _, out dockMainId);
+                        var dockBottomId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Down, 0.25f, out _, out dockMainId);
+
+                        ImGui.DockBuilderDockWindow("Assets", dockLeftId);
+                        ImGui.DockBuilderDockWindow("Object Types", dockLeftId);
+                        ImGui.DockBuilderDockWindow("Inspector", dockRightId);
+                        ImGui.DockBuilderDockWindow("Build", dockBottomId);
+                        ImGui.DockBuilderDockWindow("MainView", dockMainId);
+
+                        ImGui.DockBuilderFinish(dockSpaceId);
+                        _firstTime = false;
+                    }
+
                     _menuBarPanel.Draw();
                     _assetBrowserPanel.Draw();
                     _inspectorPanel.Draw();

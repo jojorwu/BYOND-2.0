@@ -12,7 +12,6 @@ namespace Editor.UI
         private string _newProjectPath = "";
         private readonly EditorContext _editorContext;
         private readonly ServerBrowserPanel _serverBrowserPanel;
-        private readonly List<string> _recentProjects = new List<string>();
         private readonly LocalizationManager _localizationManager;
 
         public ProjectManagerPanel(EditorContext editorContext, LocalizationManager localizationManager)
@@ -20,7 +19,6 @@ namespace Editor.UI
             _editorContext = editorContext;
             _localizationManager = localizationManager;
             _serverBrowserPanel = new ServerBrowserPanel(localizationManager);
-            LoadRecentProjects();
         }
 
         public string Draw()
@@ -56,7 +54,7 @@ namespace Editor.UI
             {
                 if (ImGui.BeginTabItem(_localizationManager.GetString("Projects")))
                 {
-                    foreach (var project in _recentProjects)
+                    foreach (var project in _editorContext.RecentProjects)
                     {
                         if (ImGui.Selectable(project))
                         {
@@ -101,40 +99,10 @@ namespace Editor.UI
 
             if (projectToLoad != null)
             {
-                AddRecentProject(projectToLoad);
+                _editorContext.AddRecentProject(projectToLoad);
             }
 
             return projectToLoad;
-        }
-
-        private void LoadRecentProjects()
-        {
-            var path = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "BYOND2.0Editor", "recent_projects.txt");
-            if (File.Exists(path))
-            {
-                _recentProjects.AddRange(File.ReadAllLines(path));
-            }
-        }
-
-        private void AddRecentProject(string path)
-        {
-            if (!_recentProjects.Contains(path))
-            {
-                _recentProjects.Insert(0, path);
-                if (_recentProjects.Count > 10)
-                {
-                    _recentProjects.RemoveAt(_recentProjects.Count - 1);
-                }
-                SaveRecentProjects();
-            }
-        }
-
-        private void SaveRecentProjects()
-        {
-            var dir = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "BYOND2.0Editor");
-            Directory.CreateDirectory(dir);
-            var path = Path.Combine(dir, "recent_projects.txt");
-            File.WriteAllLines(path, _recentProjects);
         }
     }
 }

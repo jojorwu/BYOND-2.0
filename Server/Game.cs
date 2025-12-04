@@ -3,35 +3,41 @@ using System.Diagnostics;
 using System.Threading;
 using Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Server
 {
-    public class Game
+    public class Game : IDisposable
     {
         private readonly GameState _gameState;
         private readonly ScriptHost _scriptHost;
         private readonly UdpServer _udpServer;
         private readonly ServerSettings _settings;
+        private readonly ILogger<Game> _logger;
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private Task? _snapshotBroadcastTask;
         private bool _isRunning = true;
-        private Task? _snapshotTask;
 
-        public Game(GameState gameState, ScriptHost scriptHost, UdpServer udpServer, ServerSettings settings)
+        public Game(GameState gameState, ScriptHost scriptHost, UdpServer udpServer, IOptions<ServerSettings> settings, ILogger<Game> logger)
         {
             _gameState = gameState;
             _scriptHost = scriptHost;
             _udpServer = udpServer;
-            _settings = settings;
+            _settings = settings.Value;
+            _logger = logger;
         }
 
         public async Task Start()
         {
             _scriptHost.Start();
             _udpServer.Start();
+            _snapshotBroadcastTask = Task.Run(() => BroadcastSnapshots(_cancellationTokenSource.Token));
 
             var stopwatch = new Stopwatch();
             var tickInterval = TimeSpan.FromSeconds(1.0 / _settings.Performance.TickRate);
 
-            while (_isRunning)
+            while (_isRunning && !_cancellationTokenSource.IsCancellationRequested)
             {
                 stopwatch.Restart();
                 Tick();
@@ -39,7 +45,7 @@ namespace Server
                 var sleepTime = tickInterval - elapsed;
                 if (sleepTime > TimeSpan.Zero)
                 {
-                    await Task.Delay(sleepTime);
+                    await Task.Delay(sleepTime, _cancellationTokenSource.Token);
                 }
             }
         }
@@ -47,27 +53,37 @@ namespace Server
         public void Stop()
         {
             _isRunning = false;
+            _cancellationTokenSource.Cancel();
+            _snapshotBroadcastTask?.Wait(); // Wait for the task to finish
         }
 
         private void Tick()
         {
             _scriptHost.Tick();
+        }
 
-            if (_snapshotTask == null || _snapshotTask.IsCompleted)
+        private async Task BroadcastSnapshots(CancellationToken cancellationToken)
+        {
+            var snapshotInterval = TimeSpan.FromSeconds(1.0 / _settings.Network.SnapshotRate);
+            while (!cancellationToken.IsCancellationRequested)
             {
-                _snapshotTask = Task.Run(() =>
+                try
                 {
-                    try
-                    {
-                        var snapshot = _gameState.GetSnapshot();
-                        _udpServer.BroadcastSnapshot(snapshot);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error during snapshot generation/broadcast: {ex}");
-                    }
-                });
+                    var snapshot = _gameState.GetSnapshot();
+                    _udpServer.BroadcastSnapshot(snapshot);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error during snapshot generation/broadcast");
+                }
+                await Task.Delay(snapshotInterval, cancellationToken);
             }
+        }
+
+        public void Dispose()
+        {
+            Stop();
+            _cancellationTokenSource.Dispose();
         }
     }
 }

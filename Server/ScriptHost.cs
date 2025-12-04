@@ -6,6 +6,8 @@ using Core.VM;
 using Core.VM.Runtime;
 using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Server
 {
@@ -15,26 +17,20 @@ namespace Server
         private readonly FileSystemWatcher _watcher;
         private readonly Timer _debounceTimer;
         private readonly object _scriptLock = new object();
-        private readonly GameState _gameState;
-        private IGameApi _gameApi;
-        private ObjectTypeManager _objectTypeManager;
-        private DreamVM _dreamVM;
         private readonly ServerSettings _settings;
-        private readonly List<DreamThread> _threads = new();
-        private ScriptManager _scriptManager;
+        private readonly ILogger<ScriptHost> _logger;
+        private readonly ILogger<ScriptingEnvironment> _scriptingEnvironmentLogger;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
         private readonly IServiceProvider _serviceProvider;
+        private ScriptingEnvironment? _currentEnvironment;
 
-        public ScriptHost(Project project, GameState gameState, ServerSettings settings, ObjectTypeManager objectTypeManager, DreamVM dreamVM, IGameApi gameApi, ScriptManager scriptManager, IServiceProvider serviceProvider)
+        public ScriptHost(Project project, IOptions<ServerSettings> settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, ILogger<ScriptingEnvironment> scriptingEnvironmentLogger)
         {
             _project = project;
-            _gameState = gameState;
-            _settings = settings;
-            _objectTypeManager = objectTypeManager;
-            _dreamVM = dreamVM;
-            _gameApi = gameApi;
-            _scriptManager = scriptManager;
+            _settings = settings.Value;
             _serviceProvider = serviceProvider;
+            _logger = logger;
+            _scriptingEnvironmentLogger = scriptingEnvironmentLogger;
 
             _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
             {
@@ -48,25 +44,27 @@ namespace Server
 
         public void Start()
         {
-            Console.WriteLine("Starting script host...");
+            _logger.LogInformation("Starting script host...");
             ReloadScripts(null); // Initial script load
             _watcher.Changed += OnScriptChanged;
             _watcher.Created += OnScriptChanged;
             _watcher.Deleted += OnScriptChanged;
             _watcher.Renamed += OnScriptChanged;
-            Console.WriteLine($"Watching for changes in '{_project.GetFullPath(Constants.ScriptsRoot)}' directory.");
+            _logger.LogInformation("Watching for changes in '{ScriptsRoot}' directory.", _project.GetFullPath(Constants.ScriptsRoot));
         }
 
         public void Tick()
         {
             ProcessCommandQueue();
 
-            Queue<DreamThread> threadsToRun;
+            ScriptingEnvironment? environment;
             lock (_scriptLock)
             {
-                threadsToRun = new Queue<DreamThread>(_threads);
+                environment = _currentEnvironment;
             }
+            if (environment == null) return;
 
+            var threadsToRun = new Queue<DreamThread>(environment.Threads);
             var finishedThreads = new HashSet<DreamThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -81,7 +79,7 @@ namespace Server
 
                 if (state != DreamThreadState.Running)
                 {
-                    Console.WriteLine($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
+                    _logger.LogInformation("Thread for proc '{ProcName}' finished with state: {State}", thread.CurrentProc.Name, state);
                     finishedThreads.Add(thread);
                 }
                 else
@@ -94,7 +92,7 @@ namespace Server
             {
                 lock (_scriptLock)
                 {
-                    _threads.RemoveAll(t => finishedThreads.Contains(t));
+                    _currentEnvironment?.Threads.RemoveAll(t => finishedThreads.Contains(t));
                 }
             }
         }
@@ -108,7 +106,7 @@ namespace Server
         {
             lock (_scriptLock)
             {
-                _threads.Add(thread);
+                _currentEnvironment?.Threads.Add(thread);
             }
         }
 
@@ -117,7 +115,10 @@ namespace Server
             while (_commandQueue.TryDequeue(out var commandInfo))
             {
                 var (command, onResult) = commandInfo;
-                _scriptManager.ExecuteCommand(command);
+                lock (_scriptLock)
+                {
+                    _currentEnvironment?.ScriptManager.ExecuteCommand(command);
+                }
                 onResult("Command executed."); // Simplified result
             }
         }
@@ -127,57 +128,31 @@ namespace Server
             var ext = Path.GetExtension(e.FullPath).ToLower();
             if (ext == ".lua" || ext == ".dm" || ext == ".cs")
             {
-                Console.WriteLine($"File {e.FullPath} has been changed. Debouncing reload...");
+                _logger.LogInformation("File {FullPath} has been changed. Debouncing reload...", e.FullPath);
                 _debounceTimer.Change(_settings.Development.ScriptReloadDebounceMs, Timeout.Infinite);
             }
         }
 
         private void ReloadScripts(object? state)
         {
-            Console.WriteLine("Starting background script reload...");
+            _logger.LogInformation("Starting background script reload...");
             Task.Run(async () =>
             {
                 try
                 {
-                    // 1. Create a new script environment in the background using a temporary scope
-                    using var scope = _serviceProvider.CreateScope();
-                    var newObjectTypeManager = scope.ServiceProvider.GetRequiredService<ObjectTypeManager>();
-                    var newDreamVM = scope.ServiceProvider.GetRequiredService<DreamVM>();
-                    var newGameApi = scope.ServiceProvider.GetRequiredService<IGameApi>();
-                    var newScriptManager = scope.ServiceProvider.GetRequiredService<ScriptManager>();
+                    var newEnvironment = new ScriptingEnvironment(_serviceProvider, _scriptingEnvironmentLogger);
+                    await newEnvironment.Initialize();
 
-
-                    await newScriptManager.ReloadAll();
-                    Console.WriteLine("Invoking OnStart event in new environment...");
-                    newScriptManager.InvokeGlobalEvent("OnStart");
-
-                    var newThreads = new List<DreamThread>();
-                    var mainThread = newScriptManager.CreateThread("world.New");
-                    if (mainThread != null)
-                    {
-                        newThreads.Add(mainThread);
-                        Console.WriteLine("Successfully created 'world.New' thread in new environment.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Warning: Could not create 'world.New' thread in new environment.");
-                    }
-
-                    // 2. Hot-swap the old environment with the new one inside a lock
                     lock (_scriptLock)
                     {
-                        _objectTypeManager = newObjectTypeManager;
-                        _dreamVM = newDreamVM;
-                        _gameApi = newGameApi;
-                        _scriptManager = newScriptManager;
-                        _threads.Clear();
-                        _threads.AddRange(newThreads);
+                        _currentEnvironment?.Dispose();
+                        _currentEnvironment = newEnvironment;
                     }
-                    Console.WriteLine("Script reload complete and activated.");
+                    _logger.LogInformation("Script reload complete and activated.");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error during background script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    _logger.LogError(ex, "Error during background script reload");
                 }
             });
         }

@@ -5,6 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Core;
 using LiteNetLib;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Server
 {
@@ -16,15 +18,16 @@ namespace Server
         private readonly IScriptHost _scriptHost;
         private readonly Core.GameState _gameState;
         private readonly ServerSettings _settings;
+        private readonly ILogger<UdpServer> _logger;
         private Thread? _networkThread;
 
-        public UdpServer(IPAddress ipAddress, int port, IScriptHost scriptHost, Core.GameState gameState, ServerSettings settings)
+        public UdpServer(IPAddress ipAddress, int port, IScriptHost scriptHost, Core.GameState gameState, IOptions<ServerSettings> settings, ILogger<UdpServer> logger)
         {
-            _settings = settings;
+            _settings = settings.Value;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
-                DisconnectTimeout = settings.Network.DisconnectTimeout
+                DisconnectTimeout = _settings.Network.DisconnectTimeout
             };
             _scriptHost = scriptHost;
             _gameState = gameState;
@@ -40,7 +43,7 @@ namespace Server
         {
             if (_netManager.Start(_settings.Network.UdpPort))
             {
-                Console.WriteLine($"UDP Server started on port {_settings.Network.UdpPort}");
+                _logger.LogInformation("UDP Server started on port {UdpPort}", _settings.Network.UdpPort);
                 _networkThread = new Thread(() => PollEvents(_cancellationTokenSource.Token))
                 {
                     Name = "NetworkThread"
@@ -49,7 +52,7 @@ namespace Server
             }
             else
             {
-                Console.WriteLine("Failed to start UDP Server.");
+                _logger.LogError("Failed to start UDP Server.");
             }
         }
 
@@ -58,7 +61,7 @@ namespace Server
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(15);
+                Thread.Sleep(1);
             }
         }
 
@@ -66,18 +69,18 @@ namespace Server
         {
             _cancellationTokenSource.Cancel();
             _netManager.Stop();
-            Console.WriteLine("UDP Server stopped.");
+            _logger.LogInformation("UDP Server stopped.");
         }
 
         private void OnConnectionRequest(ConnectionRequest request)
         {
-            Console.WriteLine($"Incoming connection from {request.RemoteEndPoint}");
+            _logger.LogInformation("Incoming connection from {RemoteEndPoint}", request.RemoteEndPoint);
             request.AcceptIfKey(_settings.Network.ConnectionKey);
         }
 
         private void OnPeerConnected(NetPeer peer)
         {
-            Console.WriteLine($"Client connected: {peer}");
+            _logger.LogInformation("Client connected: {Peer}", peer);
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
@@ -85,7 +88,7 @@ namespace Server
             if (reader.AvailableBytes > 0)
             {
                 var command = reader.GetString();
-                Console.WriteLine($"Received command from {peer}: {command}");
+                _logger.LogInformation("Received command from {Peer}: {Command}", peer, command);
 
                 _scriptHost.EnqueueCommand(command, (result) => {
                     var writer = new LiteNetLib.Utils.NetDataWriter();
@@ -98,7 +101,7 @@ namespace Server
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            Console.WriteLine($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
+            _logger.LogInformation("Client disconnected: {Peer}. Reason: {Reason}", peer, disconnectInfo.Reason);
         }
 
         public void BroadcastSnapshot(string snapshot) {

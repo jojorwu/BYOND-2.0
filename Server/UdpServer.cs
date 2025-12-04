@@ -1,24 +1,26 @@
 using System;
 using System.Net;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Core;
 using LiteNetLib;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Server
 {
-    public class UdpServer : IDisposable
+    public class UdpServer : IHostedService, IDisposable
     {
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
-        private readonly CancellationTokenSource _cancellationTokenSource;
+        private readonly CancellationTokenSource _cancellationTokenSource = new();
         private readonly IScriptHost _scriptHost;
-        private readonly Core.GameState _gameState;
+        private readonly GameState _gameState;
         private readonly ServerSettings _settings;
-        private Thread? _networkThread;
+        private readonly ILogger<UdpServer> _logger;
+        private Task? _networkTask;
 
-        public UdpServer(IPAddress ipAddress, int port, IScriptHost scriptHost, Core.GameState gameState, ServerSettings settings)
+        public UdpServer(IScriptHost scriptHost, GameState gameState, ServerSettings settings, ILogger<UdpServer> logger)
         {
             _settings = settings;
             _listener = new EventBasedNetListener();
@@ -28,7 +30,7 @@ namespace Server
             };
             _scriptHost = scriptHost;
             _gameState = gameState;
-            _cancellationTokenSource = new CancellationTokenSource();
+            _logger = logger;
 
             _listener.ConnectionRequestEvent += OnConnectionRequest;
             _listener.PeerConnectedEvent += OnPeerConnected;
@@ -36,48 +38,46 @@ namespace Server
             _listener.PeerDisconnectedEvent += OnPeerDisconnected;
         }
 
-        public void Start()
+        public Task StartAsync(CancellationToken cancellationToken)
         {
             if (_netManager.Start(_settings.Network.UdpPort))
             {
-                Console.WriteLine($"UDP Server started on port {_settings.Network.UdpPort}");
-                _networkThread = new Thread(() => PollEvents(_cancellationTokenSource.Token))
-                {
-                    Name = "NetworkThread"
-                };
-                _networkThread.Start();
+                _logger.LogInformation($"UDP Server started on port {_settings.Network.UdpPort}");
+                _networkTask = Task.Run(() => PollEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
             }
             else
             {
-                Console.WriteLine("Failed to start UDP Server.");
+                _logger.LogError("Failed to start UDP Server.");
             }
+            return Task.CompletedTask;
         }
 
-        private void PollEvents(CancellationToken token)
+        private async Task PollEvents(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(15);
+                await Task.Delay(15, token);
             }
         }
 
-        public void Stop()
+        public Task StopAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource.Cancel();
             _netManager.Stop();
-            Console.WriteLine("UDP Server stopped.");
+            _logger.LogInformation("UDP Server stopped.");
+            return Task.CompletedTask;
         }
 
         private void OnConnectionRequest(ConnectionRequest request)
         {
-            Console.WriteLine($"Incoming connection from {request.RemoteEndPoint}");
+            _logger.LogInformation($"Incoming connection from {request.RemoteEndPoint}");
             request.AcceptIfKey(_settings.Network.ConnectionKey);
         }
 
         private void OnPeerConnected(NetPeer peer)
         {
-            Console.WriteLine($"Client connected: {peer}");
+            _logger.LogInformation($"Client connected: {peer}");
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
@@ -85,7 +85,7 @@ namespace Server
             if (reader.AvailableBytes > 0)
             {
                 var command = reader.GetString();
-                Console.WriteLine($"Received command from {peer}: {command}");
+                _logger.LogDebug($"Received command from {peer}: {command}");
 
                 _scriptHost.EnqueueCommand(command, (result) => {
                     var writer = new LiteNetLib.Utils.NetDataWriter();
@@ -98,10 +98,10 @@ namespace Server
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            Console.WriteLine($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
+            _logger.LogInformation($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
         }
 
-        public void BroadcastSnapshot(string snapshot) {
+        public virtual void BroadcastSnapshot(string snapshot) {
             var writer = new LiteNetLib.Utils.NetDataWriter();
             writer.Put(snapshot);
             _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
@@ -109,7 +109,6 @@ namespace Server
 
         public void Dispose()
         {
-            Stop();
             _cancellationTokenSource.Dispose();
         }
     }

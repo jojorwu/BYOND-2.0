@@ -1,39 +1,41 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using Core;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Server
 {
-    public class Game : IDisposable
+    public class Game : BackgroundService
     {
         private readonly GameState _gameState;
         private readonly ScriptHost _scriptHost;
         private readonly UdpServer _udpServer;
         private readonly ServerSettings _settings;
-        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private readonly ILogger<Game> _logger;
         private Task? _snapshotBroadcastTask;
-        private bool _isRunning = true;
 
-        public Game(GameState gameState, ScriptHost scriptHost, UdpServer udpServer, ServerSettings settings)
+        public Game(GameState gameState, ScriptHost scriptHost, UdpServer udpServer, ServerSettings settings, ILogger<Game> logger)
         {
             _gameState = gameState;
             _scriptHost = scriptHost;
             _udpServer = udpServer;
             _settings = settings;
+            _logger = logger;
         }
 
-        public async Task Start()
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _scriptHost.Start();
-            _udpServer.Start();
-            _snapshotBroadcastTask = Task.Run(() => BroadcastSnapshots(_cancellationTokenSource.Token));
+            _snapshotBroadcastTask = Task.Run(() => BroadcastSnapshots(stoppingToken), stoppingToken);
 
             var stopwatch = new Stopwatch();
             var tickInterval = TimeSpan.FromSeconds(1.0 / _settings.Performance.TickRate);
 
-            while (_isRunning && !_cancellationTokenSource.IsCancellationRequested)
+            _logger.LogInformation("Game loop started.");
+
+            while (!stoppingToken.IsCancellationRequested)
             {
                 stopwatch.Restart();
                 Tick();
@@ -41,16 +43,11 @@ namespace Server
                 var sleepTime = tickInterval - elapsed;
                 if (sleepTime > TimeSpan.Zero)
                 {
-                    await Task.Delay(sleepTime, _cancellationTokenSource.Token);
+                    await Task.Delay(sleepTime, stoppingToken);
                 }
             }
-        }
 
-        public void Stop()
-        {
-            _isRunning = false;
-            _cancellationTokenSource.Cancel();
-            _snapshotBroadcastTask?.Wait(); // Wait for the task to finish
+            _logger.LogInformation("Game loop stopped.");
         }
 
         private void Tick()
@@ -60,7 +57,7 @@ namespace Server
 
         private async Task BroadcastSnapshots(CancellationToken cancellationToken)
         {
-            var snapshotInterval = TimeSpan.FromSeconds(1.0 / _settings.Network.SnapshotRate);
+            var snapshotInterval = TimeSpan.FromMilliseconds(_settings.Performance.SnapshotBroadcastInterval);
             while (!cancellationToken.IsCancellationRequested)
             {
                 try
@@ -70,16 +67,10 @@ namespace Server
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error during snapshot generation/broadcast: {ex}");
+                    _logger.LogError(ex, "Error during snapshot generation/broadcast.");
                 }
                 await Task.Delay(snapshotInterval, cancellationToken);
             }
-        }
-
-        public void Dispose()
-        {
-            Stop();
-            _cancellationTokenSource.Dispose();
         }
     }
 }

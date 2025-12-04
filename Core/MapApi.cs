@@ -39,7 +39,7 @@ namespace Core
             }
         }
 
-        public async Task LoadMapAsync(string filePath)
+        public async Task<Map?> LoadMapAsync(string filePath)
         {
             var safePath = SanitizePath(filePath, Constants.MapsRoot);
             var map = await _mapLoader.LoadMapAsync(safePath);
@@ -47,6 +47,7 @@ namespace Core
             {
                 _gameState.Map = map;
             }
+            return map;
         }
 
         public void SetMap(Map map)

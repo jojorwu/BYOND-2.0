@@ -6,12 +6,12 @@ namespace Editor
     {
         public GameObject? SelectedObject { get; private set; }
 
-        public void SetSelection(GameObject gameObject)
+        public void Select(GameObject gameObject)
         {
             SelectedObject = gameObject;
         }
 
-        public void ClearSelection()
+        public void Deselect()
         {
             SelectedObject = null;
         }

@@ -59,7 +59,7 @@ namespace Editor.UI
                         var localMousePos = new Vector2(mousePos.X - windowPos.X, mousePos.Y - windowPos.Y);
                         var worldMousePos = Camera.ScreenToWorld(localMousePos, Camera.GetProjectionMatrix(ImGui.GetWindowSize().X, ImGui.GetWindowSize().Y));
                         var tilePos = new Vector2i((int)(worldMousePos.X / EditorConstants.TileSize), (int)(worldMousePos.Y / EditorConstants.TileSize));
-                        _gameApi.Object.CreateObject(objectTypeName, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
+                        _gameApi.Objects.CreateObject(objectTypeName, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
                     }
                 }
                 ImGui.EndDragDropTarget();

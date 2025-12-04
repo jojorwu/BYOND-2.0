@@ -1,5 +1,6 @@
 using Core;
 using Robust.Shared.Maths;
+using Editor;
 
 namespace Editor
 {
@@ -20,11 +21,11 @@ namespace Editor
             var turf = gameState.Map.GetTurf(tileX, tileY, context.CurrentZLevel);
             if (turf != null && turf.Contents.Count > 0)
             {
-                selectionManager.SetSelection(turf.Contents[0]);
+                selectionManager.Select(turf.Contents[0]);
             }
             else
             {
-                selectionManager.ClearSelection();
+                selectionManager.Deselect();
             }
         }
 

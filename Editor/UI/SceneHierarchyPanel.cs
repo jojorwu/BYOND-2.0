@@ -1,3 +1,4 @@
+using Editor;
 using Core;
 using ImGuiNET;
 
@@ -33,7 +34,7 @@ namespace Editor.UI
                     {
                         if (ImGui.Selectable(label, _selectionManager.SelectedObject == gameObject))
                         {
-                            _selectionManager.SetSelection(gameObject);
+                        _selectionManager.Select(gameObject);
                         }
                         if (ImGui.BeginPopupContextItem($"ContextMenu_{gameObject.Id}"))
                         {
@@ -57,10 +58,10 @@ namespace Editor.UI
                 ImGui.Text($"Are you sure you want to delete '{_objectToDelete?.ObjectType.Name} ({_objectToDelete?.Id})'?");
                 if (ImGui.Button("Yes"))
                 {
-                    _gameApi.Object.DeleteGameObject(_objectToDelete);
+                    _gameApi.Objects.DestroyObject(_objectToDelete.Id);
                     if (_selectionManager.SelectedObject == _objectToDelete)
                     {
-                        _selectionManager.SetSelection(null);
+                        _selectionManager.Deselect();
                     }
                     _objectToDelete = null;
                     ImGui.CloseCurrentPopup();

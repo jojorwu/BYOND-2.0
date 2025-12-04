@@ -2,6 +2,7 @@ using Core;
 using Core.VM;
 using Core.VM.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -17,6 +18,7 @@ namespace Server
         public List<DreamThread> Threads { get; } = new();
 
         private readonly IServiceScope _scope;
+        private readonly ILogger<ScriptingEnvironment> _logger;
 
         public ScriptingEnvironment(IServiceProvider serviceProvider)
         {
@@ -27,6 +29,7 @@ namespace Server
             ObjectTypeManager = scopeProvider.GetRequiredService<ObjectTypeManager>();
             DreamVM = scopeProvider.GetRequiredService<DreamVM>();
             ScriptManager = scopeProvider.GetRequiredService<ScriptManager>();
+            _logger = scopeProvider.GetRequiredService<ILogger<ScriptingEnvironment>>();
         }
 
         public async Task Initialize()
@@ -38,11 +41,11 @@ namespace Server
             if (mainThread != null)
             {
                 Threads.Add(mainThread);
-                Console.WriteLine("Successfully created 'world.New' thread.");
+                _logger.LogInformation("Successfully created 'world.New' thread.");
             }
             else
             {
-                Console.WriteLine("Warning: Could not create 'world.New' thread.");
+                _logger.LogWarning("Could not create 'world.New' thread.");
             }
         }
 

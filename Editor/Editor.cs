@@ -21,8 +21,9 @@ namespace Editor
         private AssetManager? _assetManager;
         private OpenDreamCompilerService? _compilerService;
         private DmmService? _dmmService;
+        private TextureManager? _textureManager;
 
-        private MainMenuPanel _mainMenuPanel;
+        private ProjectManagerPanel _projectManagerPanel;
         private MenuBarPanel _menuBarPanel = null!;
         private ViewportPanel _viewportPanel = null!;
         private AssetBrowserPanel _assetBrowserPanel = null!;
@@ -42,11 +43,14 @@ namespace Editor
         private int _sceneToClose = -1;
 
         private readonly EditorContext _editorContext;
+        private readonly LocalizationManager _localizationManager;
 
         public Editor()
         {
             _editorContext = new EditorContext();
-            _mainMenuPanel = new MainMenuPanel();
+            _localizationManager = new LocalizationManager();
+            _localizationManager.LoadLanguage("en");
+            _projectManagerPanel = new ProjectManagerPanel(_editorContext, _localizationManager);
         }
 
         public void Run()
@@ -129,19 +133,17 @@ namespace Editor
 
             if (gl != null)
             {
+                _textureManager = new TextureManager(gl);
                 _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
-            }
-            _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext);
-            if (gl != null)
-            {
+                _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext, _textureManager, _localizationManager);
                 _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, _assetBrowserPanel, gl);
             }
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel();
-            _settingsPanel = new SettingsPanel();
+            _settingsPanel = new SettingsPanel(_localizationManager);
             _toolbarPanel = new ToolbarPanel(_editorContext, toolManager);
             _buildService = new BuildService(_project);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService);
+            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService, _localizationManager);
             _mapControlsPanel = new MapControlsPanel(_editorContext);
             _buildPanel = new BuildPanel(_buildService);
             _sceneHierarchyPanel = new SceneHierarchyPanel(gameApi, selectionManager);
@@ -163,7 +165,7 @@ namespace Editor
             switch (_appState)
             {
                 case AppState.MainMenu:
-                    var projectToLoad = _mainMenuPanel.Draw();
+                    var projectToLoad = _projectManagerPanel.Draw();
                     if (!string.IsNullOrEmpty(projectToLoad))
                     {
                         OnProjectLoad(projectToLoad);

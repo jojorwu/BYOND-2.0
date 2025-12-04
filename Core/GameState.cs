@@ -8,9 +8,19 @@ namespace Core
     public class GameState : IDisposable
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
+        private bool _isDirty = true;
+        private string _snapshotCache = string.Empty;
 
         public Map? Map { get; set; }
         public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
+
+        public void SetDirty()
+        {
+            using (WriteLock())
+            {
+                _isDirty = true;
+            }
+        }
 
         public IDisposable ReadLock()
         {
@@ -24,16 +34,42 @@ namespace Core
             return new DisposableAction(() => _lock.ExitWriteLock());
         }
 
-        public string GetSnapshot()
+        public virtual string GetSnapshot()
         {
-            using (ReadLock())
+            _lock.EnterReadLock();
+            try
             {
-                var snapshot = new
+                if (!_isDirty)
+                {
+                    return _snapshotCache;
+                }
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+
+            _lock.EnterWriteLock();
+            try
+            {
+                // Double-check the dirty flag, in case another thread has already updated the cache
+                if (!_isDirty)
+                {
+                    return _snapshotCache;
+                }
+
+                var snapshotData = new
                 {
                     Map,
                     GameObjects
                 };
-                return JsonSerializer.Serialize(snapshot);
+                _snapshotCache = JsonSerializer.Serialize(snapshotData);
+                _isDirty = false;
+                return _snapshotCache;
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
             }
         }
 

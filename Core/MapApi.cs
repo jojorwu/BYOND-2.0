@@ -36,6 +36,7 @@ namespace Core
             using (_gameState.WriteLock())
             {
                 _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
+                _gameState.SetDirty();
             }
         }
 
@@ -46,6 +47,7 @@ namespace Core
             using (_gameState.WriteLock())
             {
                 _gameState.Map = map;
+                _gameState.SetDirty();
             }
         }
 
@@ -54,6 +56,7 @@ namespace Core
             using (_gameState.WriteLock())
             {
                 _gameState.Map = map;
+                _gameState.SetDirty();
             }
         }
 

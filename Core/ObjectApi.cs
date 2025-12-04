@@ -30,6 +30,7 @@ namespace Core
                 {
                     turf.Contents.Add(gameObject);
                 }
+                _gameState.SetDirty();
                 return gameObject;
             }
         }
@@ -56,6 +57,7 @@ namespace Core
                         turf.Contents.Remove(gameObject);
                     }
                     _gameState.GameObjects.Remove(id);
+                    _gameState.SetDirty();
                 }
             }
         }
@@ -82,6 +84,7 @@ namespace Core
                     {
                         newTurf.Contents.Add(gameObject);
                     }
+                    _gameState.SetDirty();
                 }
             }
         }

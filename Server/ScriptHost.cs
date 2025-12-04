@@ -6,26 +6,35 @@ using Core.VM;
 using Core.VM.Runtime;
 using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
 
 namespace Server
 {
-    public class ScriptHost : IDisposable, IScriptHost
+    public class ScriptHost : IHostedService, IDisposable, IScriptHost
     {
         private readonly Project _project;
-        private readonly FileSystemWatcher _watcher;
-        private readonly Timer _debounceTimer;
+        private FileSystemWatcher? _watcher;
+        private Timer? _debounceTimer;
         private readonly object _scriptLock = new object();
         private readonly ServerSettings _settings;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
         private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<ScriptHost> _logger;
         private ScriptingEnvironment? _currentEnvironment;
 
-        public ScriptHost(Project project, ServerSettings settings, IServiceProvider serviceProvider)
+        public ScriptHost(Project project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger)
         {
             _project = project;
             _settings = settings;
             _serviceProvider = serviceProvider;
+            _logger = logger;
+        }
 
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Starting script host...");
             _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
             {
                 Filter = "*.*",
@@ -34,20 +43,23 @@ namespace Server
                 EnableRaisingEvents = true
             };
             _debounceTimer = new Timer(ReloadScripts, null, Timeout.Infinite, Timeout.Infinite);
-        }
 
-        public void Start()
-        {
-            Console.WriteLine("Starting script host...");
             ReloadScripts(null); // Initial script load
             _watcher.Changed += OnScriptChanged;
             _watcher.Created += OnScriptChanged;
             _watcher.Deleted += OnScriptChanged;
             _watcher.Renamed += OnScriptChanged;
-            Console.WriteLine($"Watching for changes in '{_project.GetFullPath(Constants.ScriptsRoot)}' directory.");
+            _logger.LogInformation($"Watching for changes in '{_project.GetFullPath(Constants.ScriptsRoot)}' directory.");
+            return Task.CompletedTask;
         }
 
-        public void Tick()
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+
+        public virtual void Tick()
         {
             ProcessCommandQueue();
 
@@ -73,7 +85,7 @@ namespace Server
 
                 if (state != DreamThreadState.Running)
                 {
-                    Console.WriteLine($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
+                    _logger.LogDebug($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
                     finishedThreads.Add(thread);
                 }
                 else
@@ -122,14 +134,14 @@ namespace Server
             var ext = Path.GetExtension(e.FullPath).ToLower();
             if (ext == ".lua" || ext == ".dm" || ext == ".cs")
             {
-                Console.WriteLine($"File {e.FullPath} has been changed. Debouncing reload...");
-                _debounceTimer.Change(_settings.Development.ScriptReloadDebounceMs, Timeout.Infinite);
+                _logger.LogInformation($"File {e.FullPath} has been changed. Debouncing reload...");
+                _debounceTimer?.Change(_settings.Development.ScriptReloadDebounceMs, Timeout.Infinite);
             }
         }
 
         private void ReloadScripts(object? state)
         {
-            Console.WriteLine("Starting background script reload...");
+            _logger.LogInformation("Starting background script reload...");
             Task.Run(async () =>
             {
                 try
@@ -142,11 +154,11 @@ namespace Server
                         _currentEnvironment?.Dispose();
                         _currentEnvironment = newEnvironment;
                     }
-                    Console.WriteLine("Script reload complete and activated.");
+                    _logger.LogInformation("Script reload complete and activated.");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error during background script reload: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    _logger.LogError(ex, "Error during background script reload.");
                 }
             });
         }
@@ -154,9 +166,15 @@ namespace Server
 
         public void Dispose()
         {
-            _watcher.Changed -= OnScriptChanged;
-            _watcher.Dispose();
-            _debounceTimer.Dispose();
+            if (_watcher != null)
+            {
+                _watcher.Changed -= OnScriptChanged;
+                _watcher.Created -= OnScriptChanged;
+                _watcher.Deleted -= OnScriptChanged;
+                _watcher.Renamed -= OnScriptChanged;
+                _watcher.Dispose();
+            }
+            _debounceTimer?.Dispose();
         }
     }
 }

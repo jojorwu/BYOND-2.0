@@ -28,6 +28,12 @@ namespace Editor
 
         public List<Scene> OpenScenes { get; } = new();
         public int ActiveSceneIndex { get; set; } = -1;
+        public List<string> RecentProjects { get; } = new List<string>();
+
+        public EditorContext()
+        {
+            LoadRecentProjects();
+        }
 
         public Scene? GetActiveScene()
         {
@@ -50,6 +56,36 @@ namespace Editor
             var newScene = new Scene(path);
             OpenScenes.Add(newScene);
             ActiveSceneIndex = OpenScenes.Count - 1;
+        }
+
+        private void LoadRecentProjects()
+        {
+            var path = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "BYOND2.0Editor", "recent_projects.txt");
+            if (File.Exists(path))
+            {
+                RecentProjects.AddRange(File.ReadAllLines(path));
+            }
+        }
+
+        public void AddRecentProject(string path)
+        {
+            if (!RecentProjects.Contains(path))
+            {
+                RecentProjects.Insert(0, path);
+                if (RecentProjects.Count > 10)
+                {
+                    RecentProjects.RemoveAt(RecentProjects.Count - 1);
+                }
+                SaveRecentProjects();
+            }
+        }
+
+        private void SaveRecentProjects()
+        {
+            var dir = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ApplicationData), "BYOND2.0Editor");
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, "recent_projects.txt");
+            File.WriteAllLines(path, RecentProjects);
         }
     }
 }

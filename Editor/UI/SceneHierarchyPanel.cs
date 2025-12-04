@@ -8,6 +8,7 @@ namespace Editor.UI
         private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;
         private string _searchString = "";
+        private GameObject _objectToDelete = null;
 
         public SceneHierarchyPanel(IGameApi gameApi, SelectionManager selectionManager)
         {
@@ -34,8 +35,43 @@ namespace Editor.UI
                         {
                             _selectionManager.SetSelection(gameObject);
                         }
+                        if (ImGui.BeginPopupContextItem($"ContextMenu_{gameObject.Id}"))
+                        {
+                            if (ImGui.MenuItem("Delete"))
+                            {
+                                _objectToDelete = gameObject;
+                            }
+                            ImGui.EndPopup();
+                        }
                     }
                 }
+            }
+
+            if (_objectToDelete != null)
+            {
+                ImGui.OpenPopup("DeleteConfirmation");
+            }
+
+            if (ImGui.BeginPopupModal("DeleteConfirmation"))
+            {
+                ImGui.Text($"Are you sure you want to delete '{_objectToDelete?.ObjectType.Name} ({_objectToDelete?.Id})'?");
+                if (ImGui.Button("Yes"))
+                {
+                    _gameApi.Object.DeleteGameObject(_objectToDelete);
+                    if (_selectionManager.SelectedObject == _objectToDelete)
+                    {
+                        _selectionManager.SetSelection(null);
+                    }
+                    _objectToDelete = null;
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("No"))
+                {
+                    _objectToDelete = null;
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.EndPopup();
             }
 
             ImGui.End();

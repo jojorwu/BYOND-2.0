@@ -197,6 +197,14 @@ namespace Editor
                     }
 
                     _menuBarPanel.Draw();
+                    if (_menuBarPanel.IsExitRequested)
+                    {
+                        window?.Close();
+                    }
+                    if (!string.IsNullOrEmpty(_menuBarPanel.ProjectToLoad))
+                    {
+                        OnProjectLoad(_menuBarPanel.ProjectToLoad);
+                    }
                     _toolbarPanel.Draw();
                     _assetBrowserPanel.Draw();
                     _inspectorPanel.Draw();

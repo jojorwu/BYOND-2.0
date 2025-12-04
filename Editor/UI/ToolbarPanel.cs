@@ -34,7 +34,7 @@ namespace Editor.UI
 
                 foreach (var tool in _toolManager.Tools)
                 {
-                    if (ImGui.Selectable(tool.Name, _toolManager.ActiveTool == tool))
+                    if (ImGui.Selectable(tool.Name, _toolManager.GetActiveTool() == tool))
                     {
                         _toolManager.SetActiveTool(tool, _editorContext);
                     }

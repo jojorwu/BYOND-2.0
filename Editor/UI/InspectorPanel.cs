@@ -1,5 +1,7 @@
+using Editor;
 using Core;
 using ImGuiNET;
+using Silk.NET.OpenGL;
 using System.Collections.Generic;
 
 namespace Editor.UI

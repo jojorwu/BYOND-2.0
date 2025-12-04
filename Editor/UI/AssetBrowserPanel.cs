@@ -24,6 +24,7 @@ namespace Editor.UI
         private readonly uint _fileMapIcon;
         private readonly uint _fileScriptIcon;
         private readonly LocalizationManager _localizationManager;
+        public string? SelectedFile { get; private set; }
 
         public AssetBrowserPanel(Project project, EditorContext editorContext, TextureManager textureManager, LocalizationManager localizationManager)
         {
@@ -193,8 +194,9 @@ namespace Editor.UI
                 var icon = GetIconForFile(file.Extension);
                 ImGui.Image((System.IntPtr)icon, new System.Numerics.Vector2(16, 16));
                 ImGui.SameLine();
-                if (ImGui.Selectable(file.Name, false, ImGuiSelectableFlags.AllowDoubleClick))
+                if (ImGui.Selectable(file.Name, SelectedFile == file.FullName, ImGuiSelectableFlags.AllowDoubleClick))
                 {
+                    SelectedFile = file.FullName;
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                     {
                         _editorContext.OpenFile(file.FullName);

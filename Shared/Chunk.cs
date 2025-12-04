@@ -27,5 +27,16 @@ namespace Core
                 _turfs[x, y] = turf;
             }
         }
+
+        public IEnumerable<Turf> GetTurfs()
+        {
+            for (int y = 0; y < ChunkSize; y++)
+            {
+                for (int x = 0; x < ChunkSize; x++)
+                {
+                    yield return _turfs[x, y];
+                }
+            }
+        }
     }
 }

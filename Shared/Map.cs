@@ -78,5 +78,22 @@ namespace Core
         {
             return _chunksByZ.Keys;
         }
+
+        public IEnumerable<GameObject> GetAllGameObjects()
+        {
+            foreach (var z in _chunksByZ.Keys)
+            {
+                foreach (var chunk in _chunksByZ[z].Values)
+                {
+                    foreach (var turf in chunk.GetTurfs())
+                    {
+                        foreach (var obj in turf.Contents)
+                        {
+                            yield return obj;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

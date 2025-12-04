@@ -1,5 +1,6 @@
 using Core;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -42,6 +43,19 @@ namespace Editor
                 return OpenScenes[ActiveSceneIndex];
             }
             return null;
+        }
+
+        public void OpenFile(string path)
+        {
+            var extension = Path.GetExtension(path);
+            if (extension == ".dmm" || extension == ".json")
+            {
+                OpenScene(path);
+            }
+            else
+            {
+                new Process { StartInfo = new ProcessStartInfo(path) { UseShellExecute = true } }.Start();
+            }
         }
 
         public void OpenScene(string path)

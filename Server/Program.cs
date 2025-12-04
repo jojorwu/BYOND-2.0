@@ -26,15 +26,15 @@ class Program
         services.AddSingleton(settings);
         services.AddSingleton(project);
         services.AddSingleton<GameState>();
-        services.AddScoped<ObjectTypeManager>();
-        services.AddScoped<DreamVM>();
-        services.AddScoped<MapLoader>();
-        services.AddScoped<IMapApi, MapApi>();
-        services.AddScoped<IObjectApi, ObjectApi>();
-        services.AddScoped<IScriptApi, ScriptApi>();
-        services.AddScoped<IStandardLibraryApi, StandardLibraryApi>();
-        services.AddScoped<IGameApi, GameApi>();
-        services.AddSingleton<ScriptManager>(provider =>
+        services.AddTransient<ObjectTypeManager>();
+        services.AddTransient<DreamVM>();
+        services.AddTransient<MapLoader>();
+        services.AddTransient<IMapApi, MapApi>();
+        services.AddTransient<IObjectApi, ObjectApi>();
+        services.AddTransient<IScriptApi, ScriptApi>();
+        services.AddTransient<IStandardLibraryApi, StandardLibraryApi>();
+        services.AddTransient<IGameApi, GameApi>();
+        services.AddTransient<ScriptManager>(provider =>
             new ScriptManager(
                 provider.GetRequiredService<IGameApi>(),
                 provider.GetRequiredService<ObjectTypeManager>(),
@@ -43,7 +43,13 @@ class Program
                 () => provider.GetRequiredService<IScriptHost>()
             )
         );
-        services.AddSingleton<ScriptHost>();
+        services.AddSingleton<ScriptHost>(provider =>
+            new ScriptHost(
+                provider.GetRequiredService<Project>(),
+                provider.GetRequiredService<ServerSettings>(),
+                provider
+            )
+        );
         services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
         services.AddSingleton<UdpServer>(provider =>
         {

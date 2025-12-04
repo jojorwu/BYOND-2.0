@@ -16,7 +16,8 @@ namespace Editor.UI
 
         public void Draw()
         {
-            if (ImGui.Begin("Toolbar", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
+            ImGuiWindowFlags flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
+            if (ImGui.Begin("Toolbar", flags))
             {
                 if (ImGui.Button("Save"))
                 {

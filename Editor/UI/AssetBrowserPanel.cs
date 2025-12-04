@@ -1,8 +1,11 @@
 using Core;
+using Core;
 using ImGuiNET;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Editor.UI
 {
@@ -12,6 +15,7 @@ namespace Editor.UI
         private readonly EditorContext _editorContext;
         private readonly HashSet<string> _ignoredDirectories = new() { ".git", "bin", "obj" };
         private string _renamingPath = null;
+        private string _pathToDelete = null;
         private string _newName = "";
         private readonly TextureManager _textureManager;
         private readonly uint _folderIcon;
@@ -46,6 +50,7 @@ namespace Editor.UI
             }
 
             DrawDirectoryNode(_project.RootPath);
+            DrawDeleteConfirmationModal();
             ImGui.End();
         }
 
@@ -55,99 +60,164 @@ namespace Editor.UI
 
             foreach (var directory in directoryInfo.GetDirectories().Where(d => !_ignoredDirectories.Contains(d.Name) && !d.Attributes.HasFlag(FileAttributes.Hidden)))
             {
-                bool isTreeNodeOpen;
-                if (_renamingPath == directory.FullName)
-                {
-                    ImGui.SetKeyboardFocusHere();
-                    if (ImGui.InputText("##rename", ref _newName, 255, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll))
-                    {
-                        string newPath = Path.Combine(directory.Parent.FullName, _newName);
-                        try
-                        {
-                            if (!Directory.Exists(newPath))
-                            {
-                                Directory.Move(directory.FullName, newPath);
-                            }
-                        }
-                        catch (IOException e)
-                        {
-                            Console.WriteLine($"[ERROR] Failed to rename directory: {e.Message}");
-                        }
-                        _renamingPath = null;
-                    }
-                    isTreeNodeOpen = ImGui.TreeNodeEx(directory.Name, ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.Selected);
-                }
-                else
-                {
-                    ImGui.Image((System.IntPtr)_folderIcon, new System.Numerics.Vector2(16, 16));
-                    ImGui.SameLine();
-                    isTreeNodeOpen = ImGui.TreeNodeEx(directory.Name, ImGuiTreeNodeFlags.OpenOnArrow);
-                }
-
-
-                if (ImGui.BeginPopupContextItem($"ContextMenu_{directory.FullName}"))
-                {
-                    if (ImGui.MenuItem(_localizationManager.GetString("New Lua Script"))) CreateNewScript(directory.FullName, ".lua");
-                    if (ImGui.MenuItem(_localizationManager.GetString("New DM Script"))) CreateNewScript(directory.FullName, ".dm");
-                    if (ImGui.MenuItem(_localizationManager.GetString("Rename")))
-                    {
-                        _renamingPath = directory.FullName;
-                        _newName = directory.Name;
-                    }
-                    ImGui.EndPopup();
-                }
-
-                if (isTreeNodeOpen)
-                {
-                    DrawDirectoryNode(directory.FullName);
-                    ImGui.TreePop();
-                }
+                DrawDirectory(directory);
             }
 
             foreach (var file in directoryInfo.GetFiles().Where(f => !f.Attributes.HasFlag(FileAttributes.Hidden)))
             {
-                if (_renamingPath == file.FullName)
+                DrawFile(file);
+            }
+        }
+
+        private void DrawDirectory(DirectoryInfo directory)
+        {
+            bool isTreeNodeOpen;
+            if (_renamingPath == directory.FullName)
+            {
+                DrawRenameInput(directory);
+                isTreeNodeOpen = ImGui.TreeNodeEx(directory.Name, ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.Selected);
+            }
+            else
+            {
+                ImGui.Image((System.IntPtr)_folderIcon, new System.Numerics.Vector2(16, 16));
+                ImGui.SameLine();
+                isTreeNodeOpen = ImGui.TreeNodeEx(directory.Name, ImGuiTreeNodeFlags.OpenOnArrow);
+            }
+
+
+            if (ImGui.BeginPopupContextItem($"ContextMenu_{directory.FullName}"))
+            {
+                if (ImGui.MenuItem(_localizationManager.GetString("New Lua Script"))) CreateNewScript(directory.FullName, ".lua");
+                if (ImGui.MenuItem(_localizationManager.GetString("New DM Script"))) CreateNewScript(directory.FullName, ".dm");
+                if (ImGui.MenuItem(_localizationManager.GetString("Rename")))
                 {
-                    ImGui.SetKeyboardFocusHere();
-                    if (ImGui.InputText("##rename", ref _newName, 255, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll))
+                    _renamingPath = directory.FullName;
+                    _newName = directory.Name;
+                }
+                if (ImGui.MenuItem(_localizationManager.GetString("Delete")))
+                {
+                    _pathToDelete = directory.FullName;
+                    ImGui.OpenPopup("DeleteConfirmation");
+                }
+                if (ImGui.MenuItem(_localizationManager.GetString("Open in Explorer")))
+                {
+                    OpenInExplorer(directory.FullName);
+                }
+                ImGui.EndPopup();
+            }
+
+            if (isTreeNodeOpen)
+            {
+                DrawDirectoryNode(directory.FullName);
+                ImGui.TreePop();
+            }
+        }
+
+        private void DrawDeleteConfirmationModal()
+        {
+            if (ImGui.BeginPopupModal("DeleteConfirmation"))
+            {
+                ImGui.Text($"Are you sure you want to delete '{_pathToDelete}'?");
+                if (ImGui.Button("Yes"))
+                {
+                    try
                     {
-                        string newPath = Path.Combine(file.Directory.FullName, _newName);
-                        try
+                        if (File.Exists(_pathToDelete))
                         {
-                            if (!File.Exists(newPath))
-                            {
-                                File.Move(file.FullName, newPath);
-                            }
+                            File.Delete(_pathToDelete);
                         }
-                        catch (IOException e)
+                        else if (Directory.Exists(_pathToDelete))
                         {
-                            Console.WriteLine($"[ERROR] Failed to rename file: {e.Message}");
+                            Directory.Delete(_pathToDelete, true);
                         }
-                        _renamingPath = null;
+                    }
+                    catch (IOException e)
+                    {
+                        Console.WriteLine($"[ERROR] Failed to delete: {e.Message}");
+                    }
+                    _pathToDelete = null;
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("No"))
+                {
+                    _pathToDelete = null;
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.EndPopup();
+            }
+        }
+
+        private void DrawRenameInput(FileSystemInfo info)
+        {
+            ImGui.SetKeyboardFocusHere();
+            if (ImGui.InputText("##rename", ref _newName, 255, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll))
+            {
+                string newPath = "";
+                if (info is DirectoryInfo dir)
+                {
+                    newPath = Path.Combine(dir.Parent.FullName, _newName);
+                }
+                else if (info is FileInfo file)
+                {
+                    newPath = Path.Combine(file.Directory.FullName, _newName);
+                }
+
+                try
+                {
+                    if (info is DirectoryInfo && !Directory.Exists(newPath))
+                    {
+                        Directory.Move(info.FullName, newPath);
+                    }
+                    else if (info is FileInfo && !File.Exists(newPath))
+                    {
+                        File.Move(info.FullName, newPath);
                     }
                 }
-                else
+                catch (IOException e)
                 {
-                    var icon = GetIconForFile(file.Extension);
-                    ImGui.Image((System.IntPtr)icon, new System.Numerics.Vector2(16, 16));
-                    ImGui.SameLine();
-                    if (ImGui.Selectable(file.Name, false, ImGuiSelectableFlags.AllowDoubleClick))
+                    Console.WriteLine($"[ERROR] Failed to rename: {e.Message}");
+                }
+                _renamingPath = null;
+            }
+        }
+
+        private void DrawFile(FileInfo file)
+        {
+            if (_renamingPath == file.FullName)
+            {
+                DrawRenameInput(file);
+            }
+            else
+            {
+                var icon = GetIconForFile(file.Extension);
+                ImGui.Image((System.IntPtr)icon, new System.Numerics.Vector2(16, 16));
+                ImGui.SameLine();
+                if (ImGui.Selectable(file.Name, false, ImGuiSelectableFlags.AllowDoubleClick))
+                {
+                    if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                     {
-                        if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
-                        {
-                            _editorContext.OpenFile(file.FullName);
-                        }
+                        _editorContext.OpenFile(file.FullName);
                     }
                 }
-                if (ImGui.BeginPopupContextItem($"ContextMenu_{file.FullName}"))
+            }
+            if (ImGui.BeginPopupContextItem($"ContextMenu_{file.FullName}"))
+            {
+                if (ImGui.MenuItem(_localizationManager.GetString("Rename")))
                 {
-                    if (ImGui.MenuItem(_localizationManager.GetString("Rename")))
-                    {
-                        _renamingPath = file.FullName;
-                        _newName = file.Name;
-                    }
-                    ImGui.EndPopup();
+                    _renamingPath = file.FullName;
+                    _newName = file.Name;
                 }
+                if (ImGui.MenuItem(_localizationManager.GetString("Delete")))
+                {
+                    _pathToDelete = file.FullName;
+                    ImGui.OpenPopup("DeleteConfirmation");
+                }
+                if (ImGui.MenuItem(_localizationManager.GetString("Open in Explorer")))
+                {
+                    OpenInExplorer(file.FullName);
+                }
+                ImGui.EndPopup();
             }
         }
 
@@ -174,6 +244,22 @@ namespace Editor.UI
                 ".dm" or ".lua" => _fileScriptIcon,
                 _ => _fileDefaultIcon,
             };
+        }
+
+        private void OpenInExplorer(string path)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Process.Start("explorer.exe", $"/select,\"{path}\"");
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start("open", $"-R \"{path}\"");
+            }
+            else
+            {
+                Process.Start("xdg-open", $"\"{Path.GetDirectoryName(path)}\"");
+            }
         }
     }
 }

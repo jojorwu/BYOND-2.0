@@ -58,7 +58,7 @@ namespace Server
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(15);
+                Thread.Sleep(1);
             }
         }
 

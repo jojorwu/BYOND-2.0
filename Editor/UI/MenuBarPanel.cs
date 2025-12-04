@@ -15,6 +15,8 @@ namespace Editor.UI
         private readonly LocalizationManager _localizationManager;
         private string _newProjectName = "NewProject";
         private string _newProjectPath = "";
+        public string? ProjectToLoad { get; private set; }
+        public bool IsExitRequested { get; private set; }
 
         public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService, LocalizationManager localizationManager)
         {
@@ -83,20 +85,7 @@ namespace Editor.UI
                         }
                     }
                     ImGui.Separator();
-                    if (ImGui.MenuItem("Load Map"))
-                    {
-                        Task.Run(async () => {
-                            try
-                            {
-                                await _gameApi.Map.LoadMapAsync("maps/default.json");
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
-                            }
-                        });
-                    }
-                    if (ImGui.MenuItem("Load DMM Map"))
+                    if (ImGui.MenuItem(_localizationManager.GetString("Open...")))
                     {
                         ImGui.OpenPopup("ChooseDmmFileDlgKey");
                     }
@@ -105,15 +94,34 @@ namespace Editor.UI
                         _newProjectPath = System.IO.Directory.GetCurrentDirectory(); // Default path
                         ImGui.OpenPopup("NewProjectDlgKey");
                     }
-                    if (ImGui.MenuItem("Import Project..."))
+                    if (ImGui.MenuItem(_localizationManager.GetString("Import Project...")))
                     {
                         ImGui.OpenPopup("ImportProjectDlgKey");
+                    }
+                    if (ImGui.BeginMenu(_localizationManager.GetString("Recent Projects")))
+                    {
+                        foreach (var project in _editorContext.RecentProjects)
+                        {
+                            if (ImGui.MenuItem(project))
+                            {
+                                ProjectToLoad = project;
+                            }
+                        }
+                        ImGui.EndMenu();
+                    }
+                    ImGui.Separator();
+                    if (ImGui.MenuItem(_localizationManager.GetString("Exit")))
+                    {
+                        IsExitRequested = true;
                     }
                     ImGui.EndMenu();
                 }
 
                 if (ImGui.BeginMenu(_localizationManager.GetString("Edit")))
                 {
+                    if (ImGui.MenuItem(_localizationManager.GetString("Undo"))) { }
+                    if (ImGui.MenuItem(_localizationManager.GetString("Redo"))) { }
+                    ImGui.Separator();
                     if (ImGui.MenuItem(_localizationManager.GetString("Project Settings")))
                     {
                         ImGui.OpenPopup("ProjectSettingsDlgKey");
@@ -129,9 +137,28 @@ namespace Editor.UI
                     }
                     ImGui.EndMenu();
                 }
+
+                if (ImGui.BeginMenu(_localizationManager.GetString("Help")))
+                {
+                    if (ImGui.MenuItem(_localizationManager.GetString("About")))
+                    {
+                        ImGui.OpenPopup("AboutDlgKey");
+                    }
+                    ImGui.EndMenu();
+                }
+
                 ImGui.EndMainMenuBar();
             }
 
+            DrawProjectSettingsModal();
+            DrawChooseDmmFileModal();
+            DrawImportProjectModal();
+            DrawNewProjectModal();
+            DrawAboutModal();
+        }
+
+        private void DrawProjectSettingsModal()
+        {
             if (ImGui.BeginPopupModal("ProjectSettingsDlgKey"))
             {
                 if (ImGui.BeginTabBar("SettingsTabs"))
@@ -174,7 +201,10 @@ namespace Editor.UI
                 }
                 ImGui.EndPopup();
             }
+        }
 
+        private void DrawChooseDmmFileModal()
+        {
             if (ImGui.BeginPopupModal("ChooseDmmFileDlgKey"))
             {
                 using var dialog = new NativeFileDialog().SelectFile().AddFilter("DMM Files", "*.dmm");
@@ -185,7 +215,10 @@ namespace Editor.UI
                 ImGui.CloseCurrentPopup();
                 ImGui.EndPopup();
             }
+        }
 
+        private void DrawImportProjectModal()
+        {
             if (ImGui.BeginPopupModal("ImportProjectDlgKey"))
             {
                 // Step 1: Select source folder or zip
@@ -223,7 +256,7 @@ namespace Editor.UI
                             {
                                 var json = System.IO.File.ReadAllText(serverConfigPath);
                                 var settings = System.Text.Json.JsonSerializer.Deserialize<Core.ServerSettings>(json);
-                                if(settings != null) _editorContext.ServerSettings = settings;
+                                if (settings != null) _editorContext.ServerSettings = settings;
                             }
 
                             var clientConfigPath = System.IO.Path.Combine(finalDestPath, "client_config.json");
@@ -237,7 +270,7 @@ namespace Editor.UI
                             Console.WriteLine($"Project imported to '{finalDestPath}'");
                             ImGui.OpenPopup("ImportSuccess");
                         }
-                        catch(Exception e)
+                        catch (Exception e)
                         {
                             Console.WriteLine($"[ERROR] Failed to import project: {e.Message}");
                             ImGui.OpenPopup("ImportError");
@@ -268,7 +301,10 @@ namespace Editor.UI
                 }
                 ImGui.EndPopup();
             }
+        }
 
+        private void DrawNewProjectModal()
+        {
             if (ImGui.BeginPopupModal("NewProjectDlgKey"))
             {
                 ImGui.InputText("Project Name", ref _newProjectName, 256);
@@ -290,6 +326,20 @@ namespace Editor.UI
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Cancel"))
+                {
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.EndPopup();
+            }
+        }
+
+        private void DrawAboutModal()
+        {
+            if (ImGui.BeginPopupModal("AboutDlgKey"))
+            {
+                ImGui.Text("BYOND 2.0 Editor");
+                ImGui.Text("An open-source editor for a new era of 2D games.");
+                if (ImGui.Button("OK"))
                 {
                     ImGui.CloseCurrentPopup();
                 }

@@ -24,7 +24,7 @@ namespace Core
             return new DisposableAction(() => _lock.ExitWriteLock());
         }
 
-        public string GetSnapshot()
+        public virtual string GetSnapshot()
         {
             using (ReadLock())
             {

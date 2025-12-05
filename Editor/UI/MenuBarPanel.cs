@@ -32,9 +32,10 @@ namespace Editor.UI
             if (saveAs || !System.IO.File.Exists(scene.FilePath))
             {
                 using var dialog = new NativeFileDialog().SaveFile().AddFilter("Map Files", "dmm,json");
-                if (dialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                var result = dialog.Open(out string? outPath);
+                if (result == DialogResult.Okay && outPath != null)
                 {
-                    scene.FilePath = dialog.Path;
+                    scene.FilePath = outPath;
                 }
                 else
                 {
@@ -46,7 +47,8 @@ namespace Editor.UI
             {
                 Task.Run(async () =>
                 {
-                    await _gameApi.Map.SaveMapAsync(scene.FilePath, scene.GameState.Map);
+                    _gameApi.Map.SetMap(scene.GameState.Map);
+                    await _gameApi.Map.SaveMapAsync(scene.FilePath);
                     scene.IsDirty = false;
                 });
             }
@@ -169,18 +171,25 @@ namespace Editor.UI
                     if (ImGui.BeginTabItem("Server Settings"))
                     {
                         var serverSettings = _editorContext.ServerSettings;
-                        ImGui.InputText("Server Name", ref serverSettings.ServerName, 256);
-                        ImGui.InputInt("Max Players", ref serverSettings.MaxPlayers);
+                        var serverName = serverSettings.ServerName;
+                        var maxPlayers = serverSettings.MaxPlayers;
+                        if (ImGui.InputText("Server Name", ref serverName, 256)) serverSettings.ServerName = serverName;
+                        if (ImGui.InputInt("Max Players", ref maxPlayers)) serverSettings.MaxPlayers = maxPlayers;
                         ImGui.EndTabItem();
                     }
                     if (ImGui.BeginTabItem("Render Settings"))
                     {
                         var clientSettings = _editorContext.ClientSettings;
-                        ImGui.InputInt("Resolution Width", ref clientSettings.ResolutionWidth);
-                        ImGui.InputInt("Resolution Height", ref clientSettings.ResolutionHeight);
-                        ImGui.Checkbox("Fullscreen", ref clientSettings.Fullscreen);
-                        ImGui.Checkbox("VSync", ref clientSettings.VSync);
-                        ImGui.Checkbox("Remove Background", ref clientSettings.RemoveBackground);
+                        var resolutionWidth = clientSettings.ResolutionWidth;
+                        var resolutionHeight = clientSettings.ResolutionHeight;
+                        var fullscreen = clientSettings.Fullscreen;
+                        var vsync = clientSettings.VSync;
+                        var removeBackground = clientSettings.RemoveBackground;
+                        if (ImGui.InputInt("Resolution Width", ref resolutionWidth)) clientSettings.ResolutionWidth = resolutionWidth;
+                        if (ImGui.InputInt("Resolution Height", ref resolutionHeight)) clientSettings.ResolutionHeight = resolutionHeight;
+                        if (ImGui.Checkbox("Fullscreen", ref fullscreen)) clientSettings.Fullscreen = fullscreen;
+                        if (ImGui.Checkbox("VSync", ref vsync)) clientSettings.VSync = vsync;
+                        if (ImGui.Checkbox("Remove Background", ref removeBackground)) clientSettings.RemoveBackground = removeBackground;
                         ImGui.EndTabItem();
                     }
                     ImGui.EndTabBar();
@@ -211,9 +220,10 @@ namespace Editor.UI
             if (ImGui.BeginPopupModal("ChooseDmmFileDlgKey"))
             {
                 using var dialog = new NativeFileDialog().SelectFile().AddFilter("DMM Files", "*.dmm");
-                if (dialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                var result = dialog.Open(out string[]? outPaths);
+                if (result == DialogResult.Okay && outPaths is { Length: > 0 })
                 {
-                    _dmmService.LoadDmm(dialog.Path);
+                    _dmmService.LoadDmm(outPaths[0]);
                 }
                 ImGui.CloseCurrentPopup();
                 ImGui.EndPopup();
@@ -226,14 +236,16 @@ namespace Editor.UI
             {
                 // Step 1: Select source folder or zip
                 using var sourceDialog = new NativeFileDialog().SelectFile().AddFilter("Project Folder or Zip", "zip");
-                if (sourceDialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                var sourceResult = sourceDialog.Open(out string[]? sourcePaths);
+                if (sourceResult == DialogResult.Okay && sourcePaths is { Length: > 0 })
                 {
                     // Step 2: Select destination folder
                     using var destDialog = new NativeFileDialog().SelectFolder();
-                    if (destDialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                    var destResult = destDialog.Open(out string[]? destPaths);
+                    if (destResult == DialogResult.Okay && destPaths is { Length: > 0 })
                     {
-                        var sourcePath = sourceDialog.Path;
-                        var destPath = destDialog.Path;
+                        var sourcePath = sourcePaths[0];
+                        var destPath = destPaths[0];
                         var projectName = System.IO.Path.GetFileNameWithoutExtension(sourcePath);
                         var finalDestPath = System.IO.Path.Combine(destPath, projectName);
 
@@ -316,9 +328,10 @@ namespace Editor.UI
                 if (ImGui.Button("..."))
                 {
                     using var dialog = new NativeFileDialog().SelectFolder();
-                    if (dialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                    var result = dialog.Open(out string[]? outPaths);
+                    if (result == DialogResult.Okay && outPaths is { Length: > 0 })
                     {
-                        _newProjectPath = dialog.Path;
+                        _newProjectPath = outPaths[0];
                     }
                 }
 

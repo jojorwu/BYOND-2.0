@@ -101,6 +101,7 @@ namespace Editor
                 gl = window.CreateOpenGL();
                 inputContext = window.CreateInput();
                 imGuiController = new ImGuiController(gl, window, inputContext);
+                ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
             }
         }
 
@@ -134,9 +135,10 @@ namespace Editor
             if (gl != null)
             {
                 _textureManager = new TextureManager(gl);
-                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
-                _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext, _textureManager, _localizationManager);
-                _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, _assetBrowserPanel, gl);
+                _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, gl);
+                _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext, _textureManager, _localizationManager, _inspectorPanel);
+                _inspectorPanel.AssetBrowserPanel = _assetBrowserPanel;
+                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi, _dmmService);
             }
             _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel();
@@ -160,8 +162,6 @@ namespace Editor
             gl.ClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
 
-            ImGui.DockSpaceOverViewport(ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
-
             switch (_appState)
             {
                 case AppState.MainMenu:
@@ -172,30 +172,6 @@ namespace Editor
                     }
                     break;
                 case AppState.Editing:
-                    if (_firstTime)
-                    {
-                        var dockSpaceId = ImGui.GetID("MyDockSpace");
-                        ImGui.DockBuilderRemoveNode(dockSpaceId);
-                        ImGui.DockBuilderAddNode(dockSpaceId, ImGuiDockNodeFlags.DockSpace);
-                        ImGui.DockBuilderSetNodeSize(dockSpaceId, ImGui.GetMainViewport().Size);
-
-                        var dockMainId = dockSpaceId;
-                        var dockRightId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Right, 0.2f, out _, out dockMainId);
-                        var dockLeftId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Left, 0.2f, out _, out dockMainId);
-                        var dockBottomId = ImGui.DockBuilderSplitNode(dockMainId, ImGuiDir.Down, 0.25f, out _, out dockMainId);
-
-                        ImGui.DockBuilderDockWindow("Scene Hierarchy", dockLeftId);
-                        ImGui.DockBuilderDockWindow("Assets", dockLeftId);
-                        ImGui.DockBuilderDockWindow("Object Types", dockLeftId);
-                        ImGui.DockBuilderDockWindow("Inspector", dockRightId);
-                        ImGui.DockBuilderDockWindow("Build", dockBottomId);
-                        ImGui.DockBuilderDockWindow("MainView", dockMainId);
-                        // Toolbar is not a dockable window, it will be drawn above the dock space.
-
-                        ImGui.DockBuilderFinish(dockSpaceId);
-                        _firstTime = false;
-                    }
-
                     _menuBarPanel.Draw();
                     if (_menuBarPanel.IsExitRequested)
                     {

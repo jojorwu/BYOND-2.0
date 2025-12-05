@@ -16,10 +16,12 @@ namespace Editor.UI
         private readonly SpriteRenderer _spriteRenderer;
         private readonly TextureManager _textureManager;
         private readonly IGameApi _gameApi;
+        private readonly DmmService _dmmService;
 
-        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi)
+        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, DmmService dmmService)
         {
             _gl = gl;
+            _dmmService = dmmService;
             _toolManager = toolManager;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
@@ -35,7 +37,7 @@ namespace Editor.UI
             {
                 try
                 {
-                    var map = await _gameApi.Map.LoadMapAsync(scene.FilePath);
+                    var map = await Task.Run(() => _dmmService.LoadDmm(scene.FilePath));
                     scene.GameState.Map = map;
                 }
                 catch (System.Exception e)
@@ -59,7 +61,7 @@ namespace Editor.UI
                         var localMousePos = new Vector2(mousePos.X - windowPos.X, mousePos.Y - windowPos.Y);
                         var worldMousePos = Camera.ScreenToWorld(localMousePos, Camera.GetProjectionMatrix(ImGui.GetWindowSize().X, ImGui.GetWindowSize().Y));
                         var tilePos = new Vector2i((int)(worldMousePos.X / EditorConstants.TileSize), (int)(worldMousePos.Y / EditorConstants.TileSize));
-                        _gameApi.Object.CreateObject(objectTypeName, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
+                        _gameApi.Objects.CreateObject(objectTypeName, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
                     }
                 }
                 ImGui.EndDragDropTarget();

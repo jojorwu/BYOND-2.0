@@ -1,6 +1,7 @@
 using Core;
 using ImGuiNET;
 using System.Collections.Generic;
+using Silk.NET.OpenGL;
 
 namespace Editor.UI
 {
@@ -9,15 +10,15 @@ namespace Editor.UI
         private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;
         private readonly EditorContext _editorContext;
-        private readonly AssetBrowserPanel _assetBrowserPanel;
+        public AssetBrowserPanel? AssetBrowserPanel { get; set; }
         private readonly TextureManager _textureManager;
+        public string? SelectedFile { get; set; }
 
-        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext, AssetBrowserPanel assetBrowserPanel, GL gl)
+        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext, GL gl)
         {
             _gameApi = gameApi;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
-            _assetBrowserPanel = assetBrowserPanel;
             _textureManager = new TextureManager(gl);
         }
 
@@ -25,9 +26,9 @@ namespace Editor.UI
         {
             ImGui.Begin("Inspector");
 
-            if (!string.IsNullOrEmpty(_assetBrowserPanel.SelectedFile))
+            if (!string.IsNullOrEmpty(SelectedFile))
             {
-                var fileInfo = new System.IO.FileInfo(_assetBrowserPanel.SelectedFile);
+                var fileInfo = new System.IO.FileInfo(SelectedFile);
                 ImGui.Text("File Inspector");
                 ImGui.Separator();
                 ImGui.LabelText("Name", fileInfo.Name);

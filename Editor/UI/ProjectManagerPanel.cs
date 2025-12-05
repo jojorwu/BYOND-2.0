@@ -37,9 +37,10 @@ namespace Editor.UI
             if (ImGui.Button(_localizationManager.GetString("Open Project")))
             {
                 using var dialog = new NativeFileDialog().SelectFolder();
-                if (dialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                var result = dialog.Open(out string[]? outPaths);
+                if (result == DialogResult.Okay && outPaths is { Length: > 0 })
                 {
-                    projectToLoad = dialog.Path;
+                    projectToLoad = outPaths[0];
                 }
             }
 
@@ -75,9 +76,10 @@ namespace Editor.UI
                 if (ImGui.Button("..."))
                 {
                     using var dialog = new NativeFileDialog().SelectFolder();
-                    if (dialog.ShowDialog() == NativeFileDialog.Result.Okay)
+                    var result = dialog.Open(out string[]? outPaths);
+                    if (result == DialogResult.Okay && outPaths is { Length: > 0 })
                     {
-                        _newProjectPath = dialog.Path;
+                        _newProjectPath = outPaths[0];
                     }
                 }
 

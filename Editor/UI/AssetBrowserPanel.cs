@@ -24,10 +24,12 @@ namespace Editor.UI
         private readonly uint _fileMapIcon;
         private readonly uint _fileScriptIcon;
         private readonly LocalizationManager _localizationManager;
+        private readonly InspectorPanel _inspectorPanel;
 
-        public AssetBrowserPanel(Project project, EditorContext editorContext, TextureManager textureManager, LocalizationManager localizationManager)
+        public AssetBrowserPanel(Project project, EditorContext editorContext, TextureManager textureManager, LocalizationManager localizationManager, InspectorPanel inspectorPanel)
         {
             _project = project;
+            _inspectorPanel = inspectorPanel;
             _editorContext = editorContext;
             _textureManager = textureManager;
             _localizationManager = localizationManager;
@@ -193,11 +195,13 @@ namespace Editor.UI
                 var icon = GetIconForFile(file.Extension);
                 ImGui.Image((System.IntPtr)icon, new System.Numerics.Vector2(16, 16));
                 ImGui.SameLine();
-                if (ImGui.Selectable(file.Name, false, ImGuiSelectableFlags.AllowDoubleClick))
+                if (ImGui.Selectable(file.Name, _inspectorPanel.SelectedFile == file.FullName, ImGuiSelectableFlags.AllowDoubleClick))
                 {
+                    _inspectorPanel.SelectedFile = file.FullName;
+
                     if (ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                     {
-                        _editorContext.OpenFile(file.FullName);
+                        _editorContext.OpenScene(file.FullName);
                     }
                 }
             }

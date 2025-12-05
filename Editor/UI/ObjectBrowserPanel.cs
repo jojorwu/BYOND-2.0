@@ -26,7 +26,15 @@ namespace Editor.UI
 
                 if (ImGui.BeginDragDropSource())
                 {
-                    ImGui.SetDragDropPayload("OBJECT_TYPE_PAYLOAD", System.Text.Encoding.UTF8.GetBytes(objectType.Name), (uint)objectType.Name.Length);
+                    var objectTypeName = objectType.Name;
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(objectTypeName);
+                    unsafe
+                    {
+                        fixed (byte* p = bytes)
+                        {
+                            ImGui.SetDragDropPayload("OBJECT_TYPE_PAYLOAD", (System.IntPtr)p, (uint)bytes.Length);
+                        }
+                    }
                     ImGui.Text(objectType.Name);
                     ImGui.EndDragDropSource();
                 }

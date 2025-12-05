@@ -57,7 +57,7 @@ namespace Editor.UI
                 ImGui.Text($"Are you sure you want to delete '{_objectToDelete?.ObjectType.Name} ({_objectToDelete?.Id})'?");
                 if (ImGui.Button("Yes"))
                 {
-                    _gameApi.Object.DeleteGameObject(_objectToDelete);
+                    _gameApi.Objects.DestroyObject(_objectToDelete.Id);
                     if (_selectionManager.SelectedObject == _objectToDelete)
                     {
                         _selectionManager.SetSelection(null);

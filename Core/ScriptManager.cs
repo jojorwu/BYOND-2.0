@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading.Tasks;
 using Core.Scripting;
 using Core.Scripting.CSharp;
-using Core.Scripting.DM;
 using Core.Scripting.LuaSystem;
 using Core.VM;
 using Core.VM.Runtime;
@@ -21,7 +20,6 @@ namespace Core
 
             _systems.Add(new CSharpSystem(gameApi));
             _systems.Add(new LuaSystem(gameApi));
-            _systems.Add(new DmSystem(typeManager, project, dreamVM, scriptHostFactory));
         }
 
         public async Task Initialize()
@@ -65,18 +63,6 @@ namespace Core
                     return;
                 }
             }
-        }
-
-        public DreamThread? CreateThread(string procName)
-        {
-            foreach (var sys in _systems)
-            {
-                if (sys is DmSystem dmSystem)
-                {
-                    return dmSystem.CreateThread(procName);
-                }
-            }
-            return null;
         }
     }
 }

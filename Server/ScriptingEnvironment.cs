@@ -37,7 +37,7 @@ namespace Server
             await ScriptManager.ReloadAll();
             ScriptManager.InvokeGlobalEvent("OnStart");
 
-            var mainThread = ScriptManager.CreateThread("world.New");
+            var mainThread = DreamVM.CreateWorldNewThread();
             if (mainThread != null)
             {
                 Threads.Add(mainThread);

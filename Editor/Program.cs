@@ -22,7 +22,6 @@ namespace Editor
         private static void ConfigureServices(IServiceCollection services)
         {
             // Core services
-            services.AddSingleton<IGame, Game>();
             services.AddSingleton<GameState>();
             services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
             services.AddSingleton<MapLoader>();

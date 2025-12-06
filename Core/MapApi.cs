@@ -15,7 +15,7 @@ namespace Core
             _project = project;
         }
 
-        public Map? GetMap()
+        public IMap? GetMap()
         {
             using (_gameState.ReadLock())
             {
@@ -23,7 +23,7 @@ namespace Core
             }
         }
 
-        public Turf? GetTurf(int x, int y, int z)
+        public ITurf? GetTurf(int x, int y, int z)
         {
             using (_gameState.ReadLock())
             {
@@ -39,7 +39,7 @@ namespace Core
             }
         }
 
-        public async Task<Map?> LoadMapAsync(string filePath)
+        public async Task<IMap?> LoadMapAsync(string filePath)
         {
             var safePath = SanitizePath(filePath, Constants.MapsRoot);
             var map = await _mapLoader.LoadMapAsync(safePath);
@@ -50,7 +50,7 @@ namespace Core
             return map;
         }
 
-        public void SetMap(Map map)
+        public void SetMap(IMap map)
         {
             using (_gameState.WriteLock())
             {
@@ -60,7 +60,7 @@ namespace Core
 
         public async Task SaveMapAsync(string filePath)
         {
-            Map? mapToSave;
+            IMap? mapToSave;
             using (_gameState.ReadLock())
             {
                 mapToSave = _gameState.Map;

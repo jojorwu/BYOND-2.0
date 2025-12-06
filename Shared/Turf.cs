@@ -5,7 +5,7 @@ namespace Core
     /// <summary>
     /// Represents a tile on the game map.
     /// </summary>
-    public class Turf
+    public class Turf : ITurf
     {
         /// <summary>
         /// Gets or sets the identifier for the turf type.
@@ -15,7 +15,7 @@ namespace Core
         /// <summary>
         /// Gets the list of game objects currently on this turf.
         /// </summary>
-        public List<GameObject> Contents { get; } = new List<GameObject>();
+        public List<IGameObject> Contents { get; } = new List<IGameObject>();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Turf"/> class.

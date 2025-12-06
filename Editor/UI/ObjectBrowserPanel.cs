@@ -5,10 +5,10 @@ namespace Editor.UI
 {
     public class ObjectBrowserPanel
     {
-        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly IObjectTypeManager _objectTypeManager;
         private readonly EditorContext _editorContext;
 
-        public ObjectBrowserPanel(ObjectTypeManager objectTypeManager, EditorContext editorContext)
+        public ObjectBrowserPanel(IObjectTypeManager objectTypeManager, EditorContext editorContext)
         {
             _objectTypeManager = objectTypeManager;
             _editorContext = editorContext;

@@ -11,7 +11,7 @@ namespace Editor.UI
 {
     public class AssetBrowserPanel
     {
-        private readonly Project _project;
+        private readonly IProject _project;
         private readonly EditorContext _editorContext;
         private readonly HashSet<string> _ignoredDirectories = new() { ".git", "bin", "obj" };
         private string _renamingPath = null;
@@ -26,7 +26,7 @@ namespace Editor.UI
         private readonly LocalizationManager _localizationManager;
         public string? SelectedFile { get; private set; }
 
-        public AssetBrowserPanel(Project project, EditorContext editorContext, TextureManager textureManager, LocalizationManager localizationManager)
+        public AssetBrowserPanel(IProject project, EditorContext editorContext, TextureManager textureManager, LocalizationManager localizationManager)
         {
             _project = project;
             _editorContext = editorContext;

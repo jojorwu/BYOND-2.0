@@ -10,11 +10,11 @@ namespace Core
 {
     public class DreamMakerLoader
     {
-        private readonly ObjectTypeManager _typeManager;
-        private readonly Project _project;
+        private readonly IObjectTypeManager _typeManager;
+        private readonly IProject _project;
         private readonly DreamVM? _dreamVM;
 
-        public DreamMakerLoader(ObjectTypeManager typeManager, Project project, DreamVM? dreamVM = null)
+        public DreamMakerLoader(IObjectTypeManager typeManager, IProject project, DreamVM? dreamVM = null)
         {
             _typeManager = typeManager;
             _project = project;

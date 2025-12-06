@@ -9,7 +9,7 @@ namespace Core
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
-        public Map? Map { get; set; }
+        public IMap? Map { get; set; }
         public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
 
         public IDisposable ReadLock()

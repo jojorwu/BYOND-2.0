@@ -18,11 +18,11 @@ namespace Editor
     public class BuildService
     {
         private readonly OpenDreamCompilerService _compilerService;
-        private readonly Project _project;
+        private readonly IProject _project;
 
         public List<BuildMessage> Messages { get; } = new();
 
-        public BuildService(Project project)
+        public BuildService(IProject project)
         {
             _compilerService = new OpenDreamCompilerService(project);
             _project = project;

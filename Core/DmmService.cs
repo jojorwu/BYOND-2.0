@@ -6,18 +6,18 @@ using DMCompiler.Json;
 
 namespace Core
 {
-    public class DmmService
+    public class DmmService : IDmmService
     {
-        private readonly ObjectTypeManager _objectTypeManager;
-        private readonly Project _project;
+        private readonly IObjectTypeManager _objectTypeManager;
+        private readonly IProject _project;
 
-        public DmmService(ObjectTypeManager objectTypeManager, Project project)
+        public DmmService(IObjectTypeManager objectTypeManager, IProject project)
         {
             _objectTypeManager = objectTypeManager;
             _project = project;
         }
 
-        public Map? LoadDmm(string filePath)
+        public IMap? LoadDmm(string filePath)
         {
             if (!File.Exists(filePath))
             {

@@ -7,10 +7,10 @@ namespace Core
 {
     public class DmmLoader
     {
-        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly IObjectTypeManager _objectTypeManager;
         private readonly Dictionary<int, ObjectType> _typeIdMap;
 
-        public DmmLoader(ObjectTypeManager objectTypeManager, Dictionary<int, ObjectType> typeIdMap)
+        public DmmLoader(IObjectTypeManager objectTypeManager, Dictionary<int, ObjectType> typeIdMap)
         {
             _objectTypeManager = objectTypeManager;
             _typeIdMap = typeIdMap;

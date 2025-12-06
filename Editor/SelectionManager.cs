@@ -4,9 +4,9 @@ namespace Editor
 {
     public class SelectionManager
     {
-        public GameObject? SelectedObject { get; private set; }
+        public IGameObject? SelectedObject { get; private set; }
 
-        public void Select(GameObject gameObject)
+        public void Select(IGameObject gameObject)
         {
             SelectedObject = gameObject;
         }

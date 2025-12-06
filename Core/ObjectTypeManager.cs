@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Core
 {
-    public class ObjectTypeManager
+    public class ObjectTypeManager : IObjectTypeManager
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
 

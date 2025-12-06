@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Core
 {
-    public class Map
+    public class Map : IMap
     {
         private readonly Dictionary<int, Dictionary<Vector2i, Chunk>> _chunksByZ = new();
 
@@ -21,7 +21,7 @@ namespace Core
             return (new Vector2i(chunkX, chunkY), new Vector2i(localX, localY));
         }
 
-        public Turf? GetTurf(int x, int y, int z)
+        public ITurf? GetTurf(int x, int y, int z)
         {
             var (chunkCoords, localCoords) = GlobalToChunk(x, y);
 
@@ -33,7 +33,7 @@ namespace Core
             return null;
         }
 
-        public void SetTurf(int x, int y, int z, Turf turf)
+        public void SetTurf(int x, int y, int z, ITurf turf)
         {
             var (chunkCoords, localCoords) = GlobalToChunk(x, y);
 
@@ -79,7 +79,7 @@ namespace Core
             return _chunksByZ.Keys;
         }
 
-        public IEnumerable<GameObject> GetAllGameObjects()
+        public IEnumerable<IGameObject> GetAllGameObjects()
         {
             foreach (var z in _chunksByZ.Keys)
             {

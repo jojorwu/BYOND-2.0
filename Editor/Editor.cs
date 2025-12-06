@@ -127,7 +127,14 @@ namespace Editor
         {
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
-            _game.LoadProject(project);
+
+            var objectTypeManager = _serviceProvider.GetRequiredService<IObjectTypeManager>();
+            var wall = new ObjectType("wall");
+            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
+            objectTypeManager.RegisterObjectType(wall);
+            var floor = new ObjectType("floor");
+            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
+            objectTypeManager.RegisterObjectType(floor);
 
             var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
             var editorContext = _serviceProvider.GetRequiredService<EditorContext>();

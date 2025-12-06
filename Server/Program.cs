@@ -1,5 +1,4 @@
 using Shared;
-using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -27,38 +26,41 @@ class Program
             })
             .ConfigureServices((hostContext, services) =>
             {
-                var settings = LoadSettings(hostContext.Configuration);
-
-                services.AddSingleton(settings);
-                services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
-                services.AddSingleton<GameState>();
-                services.AddTransient<ObjectTypeManager>();
-                services.AddTransient<DreamVM>();
-                services.AddTransient<MapLoader>();
-                services.AddTransient<IMapApi, MapApi>();
-                services.AddTransient<IObjectApi, ObjectApi>();
-                services.AddTransient<IScriptApi, ScriptApi>();
-                services.AddTransient<IStandardLibraryApi, StandardLibraryApi>();
-                services.AddTransient<IGameApi, GameApi>();
-                services.AddTransient<ScriptManager>(provider =>
-                    new ScriptManager(
-                        provider.GetRequiredService<IGameApi>(),
-                        provider.GetRequiredService<ObjectTypeManager>(),
-                        provider.GetRequiredService<IProject>(),
-                        provider.GetRequiredService<DreamVM>(),
-                        () => provider.GetRequiredService<IScriptHost>()
-                    )
-                );
-                services.AddSingleton<ScriptHost>();
-                services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
-                services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
-
-                services.AddSingleton<UdpServer>();
-                services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
-
-                services.AddSingleton<Game>();
-                services.AddHostedService(provider => provider.GetRequiredService<Game>());
+                ConfigureServices(services, hostContext.Configuration);
             });
+
+    private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var settings = LoadSettings(configuration);
+        services.AddSingleton(settings);
+        services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
+
+        // Core services
+        services.AddSingleton<GameState>();
+        services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
+        services.AddSingleton<MapLoader>();
+        services.AddSingleton<IMapApi, MapApi>();
+        services.AddSingleton<IObjectApi, ObjectApi>();
+        services.AddSingleton<IScriptApi, ScriptApi>();
+        services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
+        services.AddSingleton<IGameApi, GameApi>();
+        services.AddSingleton<IDmmService, DmmService>();
+        services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
+        services.AddSingleton<DreamVM>();
+        services.AddSingleton<ScriptManager>();
+
+        // Hosted services
+        services.AddSingleton<ScriptHost>();
+        services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
+        services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
+
+        services.AddSingleton<UdpServer>();
+        services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
+
+        services.AddSingleton<Game>();
+        services.AddHostedService(provider => provider.GetRequiredService<Game>());
+    }
+
 
     private static ServerSettings LoadSettings(IConfiguration configuration)
     {

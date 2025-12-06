@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Core;
 using System;
 using System.IO;
+using Moq;
 using Core.VM.Runtime;
 using Server;
 
@@ -39,7 +40,10 @@ namespace Core.Tests
             var scriptApi = new ScriptApi(_project);
             var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
-            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM, () => null!);
+
+            var serviceProviderMock = new Mock<IServiceProvider>();
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(Mock.Of<IScriptHost>());
+            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM, serviceProviderMock.Object);
         }
 
         [TearDown]

@@ -8,6 +8,8 @@ using Core.Scripting.DM;
 using Core.Scripting.LuaSystem;
 using Core.VM;
 using Core.VM.Runtime;
+using System;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Core
 {
@@ -16,13 +18,13 @@ namespace Core
         private readonly List<IScriptSystem> _systems = new();
         private readonly string _scriptsRoot;
 
-        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, IProject project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
+        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, IProject project, DreamVM dreamVM, IServiceProvider serviceProvider)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
 
             _systems.Add(new CSharpSystem(gameApi));
             _systems.Add(new LuaSystem(gameApi));
-            _systems.Add(new DmSystem(typeManager, project, dreamVM, scriptHostFactory));
+            _systems.Add(new DmSystem(typeManager, project, dreamVM, () => serviceProvider.GetRequiredService<IScriptHost>()));
         }
 
         public async Task Initialize()

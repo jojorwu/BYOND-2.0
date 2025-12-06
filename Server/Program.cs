@@ -36,7 +36,7 @@ class Program
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
         // Core services
-        services.AddSingleton<GameState>();
+        services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
         services.AddSingleton<MapLoader>();
         services.AddSingleton<IMapApi, MapApi>();
@@ -60,8 +60,8 @@ class Program
         services.AddSingleton<UdpServer>();
         services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
-        services.AddSingleton<Game>();
-        services.AddHostedService(provider => provider.GetRequiredService<Game>());
+        services.AddSingleton<GameLoop>();
+        services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
     }
 
 

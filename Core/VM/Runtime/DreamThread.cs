@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
+using Shared;
 
 namespace Core.VM.Runtime
 {
-    public partial class DreamThread
+    public partial class DreamThread : IScriptThread
     {
         public List<DreamValue> Stack { get; } = new(128);
         public Stack<CallFrame> CallStack { get; } = new();

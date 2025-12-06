@@ -1,10 +1,9 @@
-using Core.VM.Runtime;
-
-namespace Core
+namespace Shared
 {
     public interface IScriptHost
     {
-        void AddThread(DreamThread thread);
+        void Tick();
         void EnqueueCommand(string command, Action<string> onResult);
+        void AddThread(IScriptThread thread);
     }
 }

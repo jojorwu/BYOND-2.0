@@ -17,14 +17,14 @@ namespace Editor.UI
         private readonly TextureManager _textureManager;
         private readonly IGameApi _gameApi;
 
-        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi)
+        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager)
         {
             _gl = gl;
             _toolManager = toolManager;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
-            _spriteRenderer = new SpriteRenderer(_gl);
-            _textureManager = new TextureManager(_gl);
+            _spriteRenderer = spriteRenderer;
+            _textureManager = textureManager;
             _gameApi = gameApi;
         }
 

@@ -14,11 +14,11 @@ namespace Editor.UI
         private readonly ServerBrowserPanel _serverBrowserPanel;
         private readonly LocalizationManager _localizationManager;
 
-        public ProjectManagerPanel(EditorContext editorContext, LocalizationManager localizationManager)
+        public ProjectManagerPanel(EditorContext editorContext, LocalizationManager localizationManager, ServerBrowserPanel serverBrowserPanel)
         {
             _editorContext = editorContext;
             _localizationManager = localizationManager;
-            _serverBrowserPanel = new ServerBrowserPanel(localizationManager);
+            _serverBrowserPanel = serverBrowserPanel;
         }
 
         public string Draw()

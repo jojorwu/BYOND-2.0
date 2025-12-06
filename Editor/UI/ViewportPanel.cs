@@ -9,7 +9,7 @@ namespace Editor.UI
 {
     public class ViewportPanel : IDisposable
     {
-        private readonly GL _gl;
+        private GL? _gl;
         private readonly ToolManager _toolManager;
         private readonly SelectionManager _selectionManager;
         private readonly EditorContext _editorContext;
@@ -17,15 +17,19 @@ namespace Editor.UI
         private readonly TextureManager _textureManager;
         private readonly IGameApi _gameApi;
 
-        public ViewportPanel(GL gl, ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi)
+        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager)
         {
-            _gl = gl;
             _toolManager = toolManager;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
-            _spriteRenderer = new SpriteRenderer(_gl);
-            _textureManager = new TextureManager(_gl);
+            _spriteRenderer = spriteRenderer;
+            _textureManager = textureManager;
             _gameApi = gameApi;
+        }
+
+        public void Initialize(GL gl)
+        {
+            _gl = gl;
         }
 
         public async void Draw(Scene scene)

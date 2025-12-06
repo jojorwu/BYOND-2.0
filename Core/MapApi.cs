@@ -6,9 +6,9 @@ namespace Core
     {
         private readonly GameState _gameState;
         private readonly MapLoader _mapLoader;
-        private readonly Project _project;
+        private readonly IProject _project;
 
-        public MapApi(GameState gameState, MapLoader mapLoader, Project project)
+        public MapApi(GameState gameState, MapLoader mapLoader, IProject project)
         {
             _gameState = gameState;
             _mapLoader = mapLoader;

@@ -7,48 +7,62 @@ using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace Editor
 {
     public class Editor
     {
         private IWindow? window;
-        private GL? gl;
+        public GL? gl { get; private set; }
         private IInputContext? inputContext;
         private ImGuiController? imGuiController;
 
-        private IGame _game = null!;
-        private AssetManager? _assetManager;
-        private TextureManager? _textureManager;
+        private readonly IGame _game;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ProjectHolder _projectHolder;
 
-        private ProjectManagerPanel _projectManagerPanel;
-        private MenuBarPanel _menuBarPanel = null!;
-        private ViewportPanel _viewportPanel = null!;
-        private AssetBrowserPanel _assetBrowserPanel = null!;
-        private InspectorPanel _inspectorPanel = null!;
-        private ObjectBrowserPanel _objectBrowserPanel = null!;
-        private ScriptEditorPanel _scriptEditorPanel = null!;
-        private SettingsPanel _settingsPanel = null!;
-        private ToolbarPanel _toolbarPanel = null!;
-        private MapControlsPanel _mapControlsPanel = null!;
-        private BuildPanel _buildPanel = null!;
-        private SceneHierarchyPanel _sceneHierarchyPanel = null!;
-
-        private BuildService _buildService = null!;
+        private readonly ProjectManagerPanel _projectManagerPanel;
+        private readonly MenuBarPanel _menuBarPanel;
+        private readonly ViewportPanel _viewportPanel;
+        private readonly AssetBrowserPanel _assetBrowserPanel;
+        private readonly InspectorPanel _inspectorPanel;
+        private readonly ObjectBrowserPanel _objectBrowserPanel;
+        private readonly ScriptEditorPanel _scriptEditorPanel;
+        private readonly SettingsPanel _settingsPanel;
+        private readonly ToolbarPanel _toolbarPanel;
+        private readonly MapControlsPanel _mapControlsPanel;
+        private readonly BuildPanel _buildPanel;
+        private readonly SceneHierarchyPanel _sceneHierarchyPanel;
+        private readonly TextureManager _textureManager;
 
         private AppState _appState = AppState.MainMenu;
-        private bool _firstTime = true;
         private int _sceneToClose = -1;
 
-        private readonly EditorContext _editorContext;
-        private readonly LocalizationManager _localizationManager;
-
-        public Editor()
+        public Editor(IServiceProvider serviceProvider, IGame game, ProjectHolder projectHolder,
+            ProjectManagerPanel projectManagerPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
+            AssetBrowserPanel assetBrowserPanel, InspectorPanel inspectorPanel, ObjectBrowserPanel objectBrowserPanel,
+            ScriptEditorPanel scriptEditorPanel, SettingsPanel settingsPanel, ToolbarPanel toolbarPanel,
+            MapControlsPanel mapControlsPanel, BuildPanel buildPanel, SceneHierarchyPanel sceneHierarchyPanel,
+            TextureManager textureManager)
         {
-            _editorContext = new EditorContext();
-            _localizationManager = new LocalizationManager();
-            _localizationManager.LoadLanguage("en");
-            _projectManagerPanel = new ProjectManagerPanel(_editorContext, _localizationManager);
+            _serviceProvider = serviceProvider;
+            _game = game;
+            _textureManager = textureManager;
+            _projectHolder = projectHolder;
+            _projectManagerPanel = projectManagerPanel;
+            _menuBarPanel = menuBarPanel;
+            _viewportPanel = viewportPanel;
+            _assetBrowserPanel = assetBrowserPanel;
+            _inspectorPanel = inspectorPanel;
+            _objectBrowserPanel = objectBrowserPanel;
+            _scriptEditorPanel = scriptEditorPanel;
+            _settingsPanel = settingsPanel;
+            _toolbarPanel = toolbarPanel;
+            _mapControlsPanel = mapControlsPanel;
+            _buildPanel = buildPanel;
+            _sceneHierarchyPanel = sceneHierarchyPanel;
         }
 
         public void Run()
@@ -71,6 +85,7 @@ namespace Editor
         {
             if (_appState != AppState.Editing) return;
 
+            var editorContext = _serviceProvider.GetRequiredService<EditorContext>();
             foreach (var path in paths)
             {
                 var extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
@@ -85,7 +100,7 @@ namespace Editor
 
                 if (!string.IsNullOrEmpty(destDir))
                 {
-                    var destPath = System.IO.Path.Combine(_editorContext.ProjectRoot, destDir, fileName);
+                    var destPath = System.IO.Path.Combine(editorContext.ProjectRoot, destDir, fileName);
                     System.IO.File.Copy(path, destPath, true);
                     Console.WriteLine($"Imported '{fileName}' to '{destDir}'");
                 }
@@ -99,38 +114,22 @@ namespace Editor
                 gl = window.CreateOpenGL();
                 inputContext = window.CreateInput();
                 imGuiController = new ImGuiController(gl, window, inputContext);
+
+                _textureManager.Initialize(gl);
+                _viewportPanel.Initialize(gl);
+
                 ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
             }
         }
 
         private void OnProjectLoad(string projectPath)
         {
-            _game = GameFactory.CreateGame();
+            _projectHolder.SetProject(new Project(projectPath));
             _game.LoadProject(projectPath);
-            var gameApi = _game.Api;
 
-            _assetManager = new AssetManager();
-            var selectionManager = new SelectionManager();
-            var toolManager = new ToolManager();
-
-            toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), _editorContext);
-
-            if (gl != null)
-            {
-                _textureManager = new TextureManager(gl);
-                _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
-                _assetBrowserPanel = new AssetBrowserPanel(_game.Project, _editorContext, _textureManager, _localizationManager);
-                _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, _assetBrowserPanel, gl);
-            }
-            _objectBrowserPanel = new ObjectBrowserPanel(_game.ObjectTypeManager, _editorContext);
-            _scriptEditorPanel = new ScriptEditorPanel();
-            _settingsPanel = new SettingsPanel(_localizationManager);
-            _toolbarPanel = new ToolbarPanel(_editorContext, toolManager);
-            _buildService = new BuildService(_game.Project);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _game.DmmService, _localizationManager);
-            _mapControlsPanel = new MapControlsPanel(_editorContext);
-            _buildPanel = new BuildPanel(_buildService);
-            _sceneHierarchyPanel = new SceneHierarchyPanel(gameApi, selectionManager);
+            var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
+            var editorContext = _serviceProvider.GetRequiredService<EditorContext>();
+            toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), editorContext);
 
             _appState = AppState.Editing;
         }
@@ -174,17 +173,18 @@ namespace Editor
                     _buildPanel.Draw();
 
                     ImGui.Begin("MainView");
+                    var editorContext = _serviceProvider.GetRequiredService<EditorContext>();
                     if (ImGui.BeginTabBar("SceneTabs"))
                     {
-                        for (int i = 0; i < _editorContext.OpenScenes.Count; i++)
+                        for (int i = 0; i < editorContext.OpenScenes.Count; i++)
                         {
-                            var scene = _editorContext.OpenScenes[i];
+                            var scene = editorContext.OpenScenes[i];
                             bool isOpen = true;
                             var tabName = System.IO.Path.GetFileName(scene.FilePath);
                             if (scene.IsDirty) tabName += "*";
                             if (ImGui.BeginTabItem(tabName, ref isOpen))
                             {
-                                _editorContext.ActiveSceneIndex = i;
+                                editorContext.ActiveSceneIndex = i;
                                 _viewportPanel.Draw(scene);
                                 ImGui.EndTabItem();
                             }
@@ -198,10 +198,10 @@ namespace Editor
                                 }
                                 else
                                 {
-                                    _editorContext.OpenScenes.RemoveAt(i);
-                                    if (_editorContext.ActiveSceneIndex >= i)
+                                    editorContext.OpenScenes.RemoveAt(i);
+                                    if (editorContext.ActiveSceneIndex >= i)
                                     {
-                                        _editorContext.ActiveSceneIndex--;
+                                        editorContext.ActiveSceneIndex--;
                                     }
                                 }
                             }
@@ -214,22 +214,22 @@ namespace Editor
                         ImGui.Text("You have unsaved changes. Save before closing?");
                         if (ImGui.Button("Save"))
                         {
-                            var scene = _editorContext.OpenScenes[_sceneToClose];
+                            var scene = editorContext.OpenScenes[_sceneToClose];
                             _menuBarPanel.SaveScene(scene, false);
-                            _editorContext.OpenScenes.RemoveAt(_sceneToClose);
-                            if (_editorContext.ActiveSceneIndex >= _sceneToClose)
+                            editorContext.OpenScenes.RemoveAt(_sceneToClose);
+                            if (editorContext.ActiveSceneIndex >= _sceneToClose)
                             {
-                                _editorContext.ActiveSceneIndex--;
+                                editorContext.ActiveSceneIndex--;
                             }
                             ImGui.CloseCurrentPopup();
                         }
                         ImGui.SameLine();
                         if (ImGui.Button("Don't Save"))
                         {
-                            _editorContext.OpenScenes.RemoveAt(_sceneToClose);
-                            if (_editorContext.ActiveSceneIndex >= _sceneToClose)
+                            editorContext.OpenScenes.RemoveAt(_sceneToClose);
+                            if (editorContext.ActiveSceneIndex >= _sceneToClose)
                             {
-                                _editorContext.ActiveSceneIndex--;
+                                editorContext.ActiveSceneIndex--;
                             }
                             ImGui.CloseCurrentPopup();
                         }

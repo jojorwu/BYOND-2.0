@@ -6,9 +6,9 @@ namespace Core
 {
     public class ScriptApi : IScriptApi
     {
-        private readonly Project _project;
+        private readonly IProject _project;
 
-        public ScriptApi(Project project)
+        public ScriptApi(IProject project)
         {
             _project = project;
         }

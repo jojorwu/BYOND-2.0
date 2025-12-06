@@ -3,10 +3,10 @@ namespace Core
     public class ObjectApi : IObjectApi
     {
         private readonly GameState _gameState;
-        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
 
-        public ObjectApi(GameState gameState, ObjectTypeManager objectTypeManager, IMapApi mapApi)
+        public ObjectApi(GameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;

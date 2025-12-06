@@ -14,13 +14,13 @@ namespace Editor.UI
         private readonly AssetBrowserPanel _assetBrowserPanel;
         private readonly TextureManager _textureManager;
 
-        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext, AssetBrowserPanel assetBrowserPanel, GL gl)
+        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext, AssetBrowserPanel assetBrowserPanel, TextureManager textureManager)
         {
             _gameApi = gameApi;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
             _assetBrowserPanel = assetBrowserPanel;
-            _textureManager = new TextureManager(gl);
+            _textureManager = textureManager;
         }
 
         public void Draw()

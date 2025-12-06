@@ -6,7 +6,6 @@ using Editor.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
-using Editor.UI;
 using System.Linq;
 
 namespace Editor
@@ -18,10 +17,8 @@ namespace Editor
         private IInputContext? inputContext;
         private ImGuiController? imGuiController;
 
-        private Project? _project;
+        private IGame _game = null!;
         private AssetManager? _assetManager;
-        private OpenDreamCompilerService? _compilerService;
-        private DmmService? _dmmService;
         private TextureManager? _textureManager;
 
         private ProjectManagerPanel _projectManagerPanel;
@@ -108,28 +105,13 @@ namespace Editor
 
         private void OnProjectLoad(string projectPath)
         {
-            _project = new Project(projectPath);
-            var gameState = new GameState();
-            var objectTypeManager = new ObjectTypeManager();
-            var mapLoader = new MapLoader(objectTypeManager);
+            _game = GameFactory.CreateGame();
+            _game.LoadProject(projectPath);
+            var gameApi = _game.Api;
+
             _assetManager = new AssetManager();
             var selectionManager = new SelectionManager();
             var toolManager = new ToolManager();
-            var mapApi = new MapApi(gameState, mapLoader, _project);
-            var objectApi = new ObjectApi(gameState, objectTypeManager, mapApi);
-            var scriptApi = new ScriptApi(_project);
-            var standardLibraryApi = new StandardLibraryApi(gameState, objectTypeManager, mapApi);
-            var gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
-            _compilerService = new OpenDreamCompilerService(_project);
-            _dmmService = new DmmService(objectTypeManager, _project);
-
-            var wall = new ObjectType("wall");
-            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
-            objectTypeManager.RegisterObjectType(wall);
-
-            var floor = new ObjectType("floor");
-            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
-            objectTypeManager.RegisterObjectType(floor);
 
             toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), _editorContext);
 
@@ -137,15 +119,15 @@ namespace Editor
             {
                 _textureManager = new TextureManager(gl);
                 _viewportPanel = new ViewportPanel(gl, toolManager, selectionManager, _editorContext, gameApi);
-                _assetBrowserPanel = new AssetBrowserPanel(_project, _editorContext, _textureManager, _localizationManager);
+                _assetBrowserPanel = new AssetBrowserPanel(_game.Project, _editorContext, _textureManager, _localizationManager);
                 _inspectorPanel = new InspectorPanel(gameApi, selectionManager, _editorContext, _assetBrowserPanel, gl);
             }
-            _objectBrowserPanel = new ObjectBrowserPanel(objectTypeManager, _editorContext);
+            _objectBrowserPanel = new ObjectBrowserPanel(_game.ObjectTypeManager, _editorContext);
             _scriptEditorPanel = new ScriptEditorPanel();
             _settingsPanel = new SettingsPanel(_localizationManager);
             _toolbarPanel = new ToolbarPanel(_editorContext, toolManager);
-            _buildService = new BuildService(_project);
-            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _dmmService, _localizationManager);
+            _buildService = new BuildService(_game.Project);
+            _menuBarPanel = new MenuBarPanel(gameApi, _editorContext, _buildService, _game.DmmService, _localizationManager);
             _mapControlsPanel = new MapControlsPanel(_editorContext);
             _buildPanel = new BuildPanel(_buildService);
             _sceneHierarchyPanel = new SceneHierarchyPanel(gameApi, selectionManager);

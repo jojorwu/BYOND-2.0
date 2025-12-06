@@ -9,7 +9,7 @@ namespace Editor.UI
         private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;
         private string _searchString = "";
-        private GameObject _objectToDelete = null;
+        private IGameObject _objectToDelete = null;
 
         public SceneHierarchyPanel(IGameApi gameApi, SelectionManager selectionManager)
         {

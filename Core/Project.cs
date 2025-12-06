@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Core
 {
-    public class Project
+    public class Project : IProject
     {
         public string RootPath { get; }
 

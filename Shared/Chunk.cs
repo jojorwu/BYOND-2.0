@@ -4,14 +4,14 @@ namespace Core
     {
         public const int ChunkSize = 16;
 
-        private readonly Turf[,] _turfs;
+        private readonly ITurf[,] _turfs;
 
         public Chunk()
         {
-            _turfs = new Turf[ChunkSize, ChunkSize];
+            _turfs = new ITurf[ChunkSize, ChunkSize];
         }
 
-        public Turf? GetTurf(int x, int y)
+        public ITurf? GetTurf(int x, int y)
         {
             if (x < 0 || x >= ChunkSize || y < 0 || y >= ChunkSize)
             {
@@ -20,7 +20,7 @@ namespace Core
             return _turfs[x, y];
         }
 
-        public void SetTurf(int x, int y, Turf turf)
+        public void SetTurf(int x, int y, ITurf turf)
         {
             if (x >= 0 && x < ChunkSize && y >= 0 && y < ChunkSize)
             {
@@ -28,7 +28,7 @@ namespace Core
             }
         }
 
-        public IEnumerable<Turf> GetTurfs()
+        public IEnumerable<ITurf> GetTurfs()
         {
             for (int y = 0; y < ChunkSize; y++)
             {

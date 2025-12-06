@@ -16,7 +16,7 @@ namespace Core
             _objectTypeManager = objectTypeManager;
         }
 
-        public async Task<Map?> LoadMapAsync(string filePath)
+        public async Task<IMap?> LoadMapAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
@@ -64,7 +64,7 @@ namespace Core
             return map;
         }
 
-        public async Task SaveMapAsync(Map map, string filePath)
+        public async Task SaveMapAsync(IMap map, string filePath)
         {
             var mapData = new MapData();
 

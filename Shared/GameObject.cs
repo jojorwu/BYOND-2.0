@@ -6,7 +6,7 @@ namespace Core
     /// <summary>
     /// Represents an object in the game world.
     /// </summary>
-    public class GameObject
+    public class GameObject : IGameObject
     {
         private static int nextId = 1;
 

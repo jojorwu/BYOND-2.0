@@ -11,14 +11,14 @@ namespace Editor.UI
         private readonly IGameApi _gameApi;
         private readonly EditorContext _editorContext;
         private readonly BuildService _buildService;
-        private readonly DmmService _dmmService;
+        private readonly IDmmService _dmmService;
         private readonly LocalizationManager _localizationManager;
         private string _newProjectName = "NewProject";
         private string _newProjectPath = "";
         public string? ProjectToLoad { get; private set; }
         public bool IsExitRequested { get; private set; }
 
-        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, DmmService dmmService, LocalizationManager localizationManager)
+        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, IDmmService dmmService, LocalizationManager localizationManager)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;

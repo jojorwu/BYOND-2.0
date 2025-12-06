@@ -14,9 +14,9 @@ namespace tests
         private Mock<GameState> _gameStateMock = null!;
         private Mock<ScriptHost> _scriptHostMock = null!;
         private Mock<UdpServer> _udpServerMock = null!;
-        private Mock<ILogger<Game>> _loggerMock = null!;
+        private Mock<ILogger<Server.Game>> _loggerMock = null!;
         private ServerSettings _serverSettings = null!;
-        private Game _game = null!;
+        private Server.Game _game = null!;
         private CancellationTokenSource _cancellationTokenSource = null!;
 
         [SetUp]
@@ -34,10 +34,10 @@ namespace tests
             var scriptHostInterfaceMock = new Mock<IScriptHost>();
             _udpServerMock = new Mock<UdpServer>(scriptHostInterfaceMock.Object, _gameStateMock.Object, settings, udpLoggerMock.Object);
 
-            _loggerMock = new Mock<ILogger<Game>>();
+            _loggerMock = new Mock<ILogger<Server.Game>>();
             _serverSettings = new ServerSettings();
 
-            _game = new Game(_gameStateMock.Object, _scriptHostMock.Object, _udpServerMock.Object, _serverSettings, _loggerMock.Object);
+            _game = new Server.Game(_gameStateMock.Object, _scriptHostMock.Object, _udpServerMock.Object, _serverSettings, _loggerMock.Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

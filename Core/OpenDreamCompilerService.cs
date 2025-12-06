@@ -8,9 +8,9 @@ namespace Core
 {
     public class OpenDreamCompilerService
     {
-        private readonly Project _project;
+        private readonly IProject _project;
 
-        public OpenDreamCompilerService(Project project)
+        public OpenDreamCompilerService(IProject project)
         {
             _project = project;
         }

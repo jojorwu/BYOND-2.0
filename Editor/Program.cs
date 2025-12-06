@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Editor.UI;
 using Silk.NET.OpenGL;
 using System;
+using Core;
+using Core.VM.Runtime;
 
 namespace Editor
 {
@@ -20,7 +22,25 @@ namespace Editor
 
         private static void ConfigureServices(IServiceCollection services)
         {
-            services.AddSingleton<IGame>(sp => GameFactory.CreateGame());
+            // Core services
+            services.AddSingleton<GameState>();
+            services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
+            services.AddSingleton<MapLoader>();
+            services.AddSingleton<IMapApi, MapApi>();
+            services.AddSingleton<IObjectApi, ObjectApi>();
+            services.AddSingleton<IScriptApi, ScriptApi>();
+            services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
+            services.AddSingleton<IGameApi, GameApi>();
+            services.AddSingleton<IDmmService, DmmService>();
+            services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
+            services.AddSingleton<DreamVM>();
+            services.AddSingleton<ScriptManager>();
+            services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
+            services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();
+            services.AddSingleton<IScriptSystem, Core.Scripting.DM.DmSystem>();
+
+
+            // Editor services
             services.AddSingleton<Editor>();
             services.AddSingleton<ProjectHolder>();
             services.AddSingleton<IProject>(sp => sp.GetRequiredService<ProjectHolder>());
@@ -35,9 +55,9 @@ namespace Editor
             services.AddSingleton<AssetManager>();
             services.AddSingleton<SelectionManager>();
             services.AddSingleton<ToolManager>();
-            services.AddSingleton<ICompilerService, Core.OpenDreamCompilerService>();
             services.AddSingleton<BuildService>();
 
+            // UI Panels
             services.AddSingleton<ProjectManagerPanel>();
             services.AddSingleton<MenuBarPanel>();
             services.AddSingleton<ViewportPanel>();

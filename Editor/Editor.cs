@@ -20,7 +20,6 @@ namespace Editor
         private IInputContext? inputContext;
         private ImGuiController? imGuiController;
 
-        private readonly IGame _game;
         private readonly IServiceProvider _serviceProvider;
         private readonly ProjectHolder _projectHolder;
 
@@ -41,7 +40,7 @@ namespace Editor
         private AppState _appState = AppState.MainMenu;
         private int _sceneToClose = -1;
 
-        public Editor(IServiceProvider serviceProvider, IGame game, ProjectHolder projectHolder,
+        public Editor(IServiceProvider serviceProvider, ProjectHolder projectHolder,
             ProjectManagerPanel projectManagerPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
             AssetBrowserPanel assetBrowserPanel, InspectorPanel inspectorPanel, ObjectBrowserPanel objectBrowserPanel,
             ScriptEditorPanel scriptEditorPanel, SettingsPanel settingsPanel, ToolbarPanel toolbarPanel,
@@ -49,7 +48,6 @@ namespace Editor
             TextureManager textureManager)
         {
             _serviceProvider = serviceProvider;
-            _game = game;
             _textureManager = textureManager;
             _projectHolder = projectHolder;
             _projectManagerPanel = projectManagerPanel;
@@ -127,7 +125,14 @@ namespace Editor
         {
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
-            _game.LoadProject(project);
+
+            var objectTypeManager = _serviceProvider.GetRequiredService<IObjectTypeManager>();
+            var wall = new ObjectType("wall");
+            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
+            objectTypeManager.RegisterObjectType(wall);
+            var floor = new ObjectType("floor");
+            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
+            objectTypeManager.RegisterObjectType(floor);
 
             var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
             var editorContext = _serviceProvider.GetRequiredService<EditorContext>();

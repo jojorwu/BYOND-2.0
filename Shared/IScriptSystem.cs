@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Core.Scripting
+namespace Shared
 {
     public interface IScriptSystem
     {

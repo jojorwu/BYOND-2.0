@@ -1,5 +1,6 @@
 using ImGuiNET;
 using System.Numerics;
+using Shared;
 
 namespace Editor.UI
 {

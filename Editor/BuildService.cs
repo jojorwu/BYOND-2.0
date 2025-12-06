@@ -2,19 +2,9 @@ using Shared;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using DMCompiler.Compiler;
 
 namespace Editor
 {
-    public record BuildMessage(string File, int Line, string Text, BuildMessageLevel Level);
-
-    public enum BuildMessageLevel
-    {
-        Info,
-        Warning,
-        Error
-    }
-
     public class BuildService
     {
         private readonly ICompilerService _compilerService;
@@ -40,12 +30,7 @@ namespace Editor
 
             var (jsonPath, compilerMessages) = _compilerService.Compile(dmFiles);
 
-            foreach (var message in compilerMessages)
-            {
-                if (message.Level == ErrorLevel.Disabled)
-                    continue;
-                Messages.Add(ConvertCompilerMessage(message));
-            }
+            Messages.AddRange(compilerMessages);
 
             if (jsonPath != null)
             {
@@ -54,23 +39,11 @@ namespace Editor
             }
             else
             {
-                Messages.Add(new BuildMessage("", 0, "Compilation failed.", BuildMessageLevel.Error));
+                if (!compilerMessages.Any(m => m.Level == BuildMessageLevel.Error))
+                {
+                    Messages.Add(new BuildMessage("", 0, "Compilation failed.", BuildMessageLevel.Error));
+                }
             }
-        }
-
-        private BuildMessage ConvertCompilerMessage(CompilerEmission message)
-        {
-            var level = message.Level switch
-            {
-                ErrorLevel.Error => BuildMessageLevel.Error,
-                ErrorLevel.Warning => BuildMessageLevel.Warning,
-                _ => BuildMessageLevel.Info
-            };
-
-            var file = message.Location.SourceFile ?? "";
-            var line = message.Location.Line ?? 0;
-
-            return new BuildMessage(Path.GetFileName(file), line, message.Message, level);
         }
     }
 }

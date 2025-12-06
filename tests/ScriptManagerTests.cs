@@ -3,8 +3,10 @@ using NUnit.Framework;
 using Core;
 using System;
 using System.IO;
+using Moq;
 using Core.VM.Runtime;
 using Server;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Core.Tests
 {
@@ -39,7 +41,18 @@ namespace Core.Tests
             var scriptApi = new ScriptApi(_project);
             var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
-            _scriptManager = new ScriptManager(_gameApi, _objectTypeManager, _project, _dreamVM, () => null!);
+
+            var serviceProviderMock = new Mock<IServiceProvider>();
+            var scriptHostMock = new Mock<IScriptHost>();
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
+
+            var systems = new IScriptSystem[]
+            {
+                new Core.Scripting.CSharp.CSharpSystem(_gameApi),
+                new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, _project, _dreamVM, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
+            };
+            _scriptManager = new ScriptManager(_project, systems);
         }
 
         [TearDown]

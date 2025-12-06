@@ -124,7 +124,8 @@ internal partial class DMCodeTree {
 
         private bool HandleGlobalVar(DMCompiler compiler, DMObject dmObject, int pass) {
             var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
-            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), varDef.Value, varDef.Type, scope, out var value))
+            var expression = varDef.Value ?? new DMASTConstantNull(varDef.Location);
+            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, varDef.Type, scope, out var value))
                 return false;
 
             int globalId = compiler.DMObjectTree.CreateGlobal(out DMVariable global, varDef.Type, VarName, varDef.IsConst,
@@ -152,7 +153,8 @@ internal partial class DMCodeTree {
         }
 
         private bool HandleInstanceVar(DMCompiler compiler, DMObject dmObject) {
-            if (!TryBuildValue(new(compiler, dmObject, null), varDef.Value, varDef.Type, ScopeMode.Normal, out var value))
+            var expression = varDef.Value ?? new DMASTConstantNull(varDef.Location);
+            if (!TryBuildValue(new(compiler, dmObject, null), expression, varDef.Type, ScopeMode.Normal, out var value))
                 return false;
 
             var variable = new DMVariable(varDef.Type, VarName, false, varDef.IsConst, varDef.IsFinal, varDef.IsTmp, varDef.ValType);
@@ -190,9 +192,9 @@ internal partial class DMCodeTree {
             } else if (dmObject.HasLocalVariable(VarName)) {
                 if (!varDef.Location.InDMStandard) { // Duplicate instance vars are not an error in DMStandard
                     var variable = dmObject.GetVariable(VarName);
-                    if (variable?.Value is not null)
+                    if (variable?.Value?.Location is {} prevLoc)
                         compiler.Emit(WarningCode.InvalidVarDefinition, varDef.Location,
-                        $"Duplicate definition of var \"{VarName}\". Previous definition at {variable.Value.Location}");
+                        $"Duplicate definition of var \"{VarName}\". Previous definition at {prevLoc}");
                     else
                         compiler.Emit(WarningCode.InvalidVarDefinition, varDef.Location,
                         $"Duplicate definition of var \"{VarName}\"");

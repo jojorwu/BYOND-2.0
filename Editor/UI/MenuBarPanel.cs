@@ -33,7 +33,7 @@ namespace Editor.UI
             {
                 using var dialog = new NativeFileDialog().SaveFile().AddFilter("Map Files", "dmm,json");
                 DialogResult result = dialog.Open(out string? path);
-                if (result == DialogResult.Okay)
+                if (result == DialogResult.Okay && path != null)
                 {
                     scene.FilePath = path;
                 }
@@ -43,7 +43,7 @@ namespace Editor.UI
                 }
             }
 
-            if (scene.GameState.Map != null)
+            if (scene.GameState.Map != null && !string.IsNullOrEmpty(scene.FilePath))
             {
                 Task.Run(async () =>
                 {
@@ -221,7 +221,7 @@ namespace Editor.UI
             {
                 using var dialog = new NativeFileDialog().SelectFile().AddFilter("DMM Files", "*.dmm");
                 DialogResult result = dialog.Open(out string? path);
-                if (result == DialogResult.Okay)
+                if (result == DialogResult.Okay && path != null)
                 {
                     _dmmService.LoadDmm(path);
                 }
@@ -237,12 +237,12 @@ namespace Editor.UI
                 // Step 1: Select source folder or zip
                 using var sourceDialog = new NativeFileDialog().SelectFile().AddFilter("Project Folder or Zip", "zip");
                 DialogResult sourceResult = sourceDialog.Open(out string? sourcePath);
-                if (sourceResult == DialogResult.Okay)
+                if (sourceResult == DialogResult.Okay && sourcePath != null)
                 {
                     // Step 2: Select destination folder
                     using var destDialog = new NativeFileDialog().SelectFolder();
                     DialogResult destResult = destDialog.Open(out string? destPath);
-                    if (destResult == DialogResult.Okay)
+                    if (destResult == DialogResult.Okay && destPath != null)
                     {
                         var projectName = System.IO.Path.GetFileNameWithoutExtension(sourcePath);
                         var finalDestPath = System.IO.Path.Combine(destPath, projectName);
@@ -253,7 +253,7 @@ namespace Editor.UI
                             {
                                 CopyDirectory(sourcePath, finalDestPath);
                             }
-                            else if (System.IO.Path.GetExtension(sourcePath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                            else if (System.IO.Path.GetExtension(sourcePath)?.Equals(".zip", StringComparison.OrdinalIgnoreCase) ?? false)
                             {
                                 System.IO.Compression.ZipFile.ExtractToDirectory(sourcePath, finalDestPath);
                             }
@@ -335,7 +335,8 @@ namespace Editor.UI
 
                 if (ImGui.Button("Create"))
                 {
-                    CreateProject(_newProjectName, _newProjectPath, _editorContext);
+                    if(!string.IsNullOrEmpty(_newProjectPath))
+                        CreateProject(_newProjectName, _newProjectPath, _editorContext);
                     ImGui.CloseCurrentPopup();
                 }
                 ImGui.SameLine();

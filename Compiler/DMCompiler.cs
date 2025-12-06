@@ -137,7 +137,7 @@ public class DMCompiler {
                     return null;
                 }
 
-                string includeDir = Path.GetDirectoryName(files[i]);
+                string includeDir = Path.GetDirectoryName(files[i]) ?? string.Empty;
                 string fileName = Path.GetFileName(files[i]);
 
                 preproc.IncludeFile(includeDir, fileName, false);
@@ -287,7 +287,7 @@ public class DMCompiler {
             VerbosePrint($"Converting map {mapPath}");
 
             DMPreprocessor preprocessor = new DMPreprocessor(compiler, false);
-            preprocessor.PreprocessFile(Path.GetDirectoryName(mapPath), Path.GetFileName(mapPath), false);
+            preprocessor.PreprocessFile(Path.GetDirectoryName(mapPath) ?? string.Empty, Path.GetFileName(mapPath), false);
 
             DMLexer lexer = new DMLexer(mapPath, preprocessor);
             DMMParser parser = new DMMParser(this, lexer, zOffset);

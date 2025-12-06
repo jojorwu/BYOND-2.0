@@ -13,8 +13,8 @@ namespace Editor.UI
         private readonly IProject _project;
         private readonly EditorContext _editorContext;
         private readonly HashSet<string> _ignoredDirectories = new() { ".git", "bin", "obj" };
-        private string _renamingPath = null;
-        private string _pathToDelete = null;
+        private string? _renamingPath = null;
+        private string? _pathToDelete = null;
         private string _newName = "";
         private readonly TextureManager _textureManager;
         private readonly uint _folderIcon;
@@ -154,11 +154,11 @@ namespace Editor.UI
             if (ImGui.InputText("##rename", ref _newName, 255, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll))
             {
                 string newPath = "";
-                if (info is DirectoryInfo dir)
+                if (info is DirectoryInfo dir && dir.Parent != null)
                 {
                     newPath = Path.Combine(dir.Parent.FullName, _newName);
                 }
-                else if (info is FileInfo file)
+                else if (info is FileInfo file && file.Directory != null)
                 {
                     newPath = Path.Combine(file.Directory.FullName, _newName);
                 }
@@ -259,7 +259,11 @@ namespace Editor.UI
             }
             else
             {
-                Process.Start("xdg-open", $"\"{Path.GetDirectoryName(path)}\"");
+                var directory = Path.GetDirectoryName(path);
+                if (directory != null)
+                {
+                    Process.Start("xdg-open", $"\"{directory}\"");
+                }
             }
         }
     }

@@ -1,3 +1,4 @@
+using Shared;
 using ImGuiNET;
 
 namespace Editor.UI

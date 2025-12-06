@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Core
+namespace Shared
 {
     public interface IStandardLibraryApi
     {

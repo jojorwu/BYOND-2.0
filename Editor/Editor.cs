@@ -1,9 +1,10 @@
+using Shared;
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
 using Silk.NET.Maths;
-using Core;
 using Editor.UI;
 using ImGuiNET;
+using Core;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
 using System.Linq;
@@ -124,8 +125,9 @@ namespace Editor
 
         private void OnProjectLoad(string projectPath)
         {
-            _projectHolder.SetProject(new Project(projectPath));
-            _game.LoadProject(projectPath);
+            var project = new Project(projectPath);
+            _projectHolder.SetProject(project);
+            _game.LoadProject(project);
 
             var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
             var editorContext = _serviceProvider.GetRequiredService<EditorContext>();

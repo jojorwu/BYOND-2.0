@@ -1,5 +1,5 @@
-using Core;
 using Robust.Shared.Maths;
+using Shared;
 
 namespace Editor
 {

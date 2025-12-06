@@ -1,6 +1,6 @@
 using System.Numerics;
-using Core.Maths;
 using Robust.Shared.Maths;
+using Shared.Maths;
 
 namespace Editor
 {

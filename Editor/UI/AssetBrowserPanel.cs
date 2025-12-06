@@ -1,5 +1,4 @@
-using Core;
-using Core;
+using Shared;
 using ImGuiNET;
 using System.IO;
 using System.Collections.Generic;

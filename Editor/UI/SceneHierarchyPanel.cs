@@ -1,5 +1,5 @@
+using Shared;
 using Editor;
-using Core;
 using ImGuiNET;
 
 namespace Editor.UI

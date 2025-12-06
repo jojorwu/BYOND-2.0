@@ -1,3 +1,4 @@
+using Shared;
 using System;
 using System.IO;
 using System.Text.Json;
@@ -29,7 +30,7 @@ class Program
                 var settings = LoadSettings(hostContext.Configuration);
 
                 services.AddSingleton(settings);
-                services.AddSingleton(new Project(".")); // Assume server runs from project root
+                services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
                 services.AddSingleton<GameState>();
                 services.AddTransient<ObjectTypeManager>();
                 services.AddTransient<DreamVM>();
@@ -43,7 +44,7 @@ class Program
                     new ScriptManager(
                         provider.GetRequiredService<IGameApi>(),
                         provider.GetRequiredService<ObjectTypeManager>(),
-                        provider.GetRequiredService<Project>(),
+                        provider.GetRequiredService<IProject>(),
                         provider.GetRequiredService<DreamVM>(),
                         () => provider.GetRequiredService<IScriptHost>()
                     )

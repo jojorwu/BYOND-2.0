@@ -1,3 +1,4 @@
+using Shared;
 using NUnit.Framework;
 using Core;
 

@@ -1,4 +1,4 @@
-using Core;
+using Shared;
 
 namespace Editor
 {

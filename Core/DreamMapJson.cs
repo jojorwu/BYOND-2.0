@@ -1,3 +1,4 @@
+using Shared;
 // ReSharper disable AutoPropertyCanBeMadeGetOnly.Global
 
 using System.Collections.Generic;

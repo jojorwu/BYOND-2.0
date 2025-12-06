@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Core
+namespace Shared
 {
     /// <summary>
     /// Represents a tile on the game map.

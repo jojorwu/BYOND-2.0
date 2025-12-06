@@ -2,7 +2,6 @@ using Silk.NET.OpenGL;
 using System.IO;
 using System.Numerics;
 using Robust.Shared.Maths;
-using Core.Maths;
 
 namespace Editor
 {

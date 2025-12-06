@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+    <ProjectReference Include="..\Compiler\Compiler.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

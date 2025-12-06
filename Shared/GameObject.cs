@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Core
+namespace Shared
 {
     /// <summary>
     /// Represents an object in the game world.

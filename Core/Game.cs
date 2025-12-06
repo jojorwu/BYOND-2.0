@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Shared;
 
 namespace Core
 {
@@ -11,10 +12,10 @@ namespace Core
         public IObjectTypeManager ObjectTypeManager => _serviceProvider.GetRequiredService<IObjectTypeManager>();
         public IDmmService DmmService => _serviceProvider.GetRequiredService<IDmmService>();
 
-        public void LoadProject(string projectPath)
+        public void LoadProject(IProject project)
         {
             var services = new ServiceCollection();
-            ConfigureServices(services, projectPath);
+            ConfigureServices(services, project);
             _serviceProvider = services.BuildServiceProvider();
 
             var objectTypeManager = _serviceProvider.GetRequiredService<IObjectTypeManager>();
@@ -26,9 +27,9 @@ namespace Core
             objectTypeManager.RegisterObjectType(floor);
         }
 
-        private void ConfigureServices(IServiceCollection services, string projectPath)
+        private void ConfigureServices(IServiceCollection services, IProject project)
         {
-            services.AddSingleton<IProject>(new Project(projectPath));
+            services.AddSingleton<IProject>(project);
             services.AddSingleton<GameState>();
             services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
             services.AddSingleton<MapLoader>();

@@ -1,3 +1,4 @@
+using Shared;
 using Core;
 using Core.VM;
 using Core.VM.Runtime;

@@ -1,3 +1,4 @@
+using Shared;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -15,7 +16,7 @@ namespace Core
         private readonly List<IScriptSystem> _systems = new();
         private readonly string _scriptsRoot;
 
-        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, Project project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
+        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, IProject project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
 

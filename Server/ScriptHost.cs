@@ -1,3 +1,4 @@
+using Shared;
 using Core;
 using System;
 using System.IO;
@@ -14,7 +15,7 @@ namespace Server
 {
     public class ScriptHost : IHostedService, IDisposable, IScriptHost
     {
-        private readonly Project _project;
+        private readonly IProject _project;
         private FileSystemWatcher? _watcher;
         private Timer? _debounceTimer;
         private readonly object _scriptLock = new object();
@@ -24,7 +25,7 @@ namespace Server
         private readonly ILogger<ScriptHost> _logger;
         private ScriptingEnvironment? _currentEnvironment;
 
-        public ScriptHost(Project project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger)
+        public ScriptHost(IProject project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger)
         {
             _project = project;
             _settings = settings;

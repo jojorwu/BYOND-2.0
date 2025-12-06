@@ -48,6 +48,9 @@ class Program
         services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
         services.AddSingleton<DreamVM>();
         services.AddSingleton<ScriptManager>();
+        services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
+        services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();
+        services.AddSingleton<IScriptSystem, Core.Scripting.DM.DmSystem>();
 
         // Hosted services
         services.AddSingleton<ScriptHost>();

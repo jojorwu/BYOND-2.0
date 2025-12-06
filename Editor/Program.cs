@@ -4,6 +4,7 @@ using Editor.UI;
 using Silk.NET.OpenGL;
 using System;
 using Core;
+using Core.VM.Runtime;
 
 namespace Editor
 {
@@ -32,6 +33,12 @@ namespace Editor
             services.AddSingleton<IGameApi, GameApi>();
             services.AddSingleton<IDmmService, DmmService>();
             services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
+            services.AddSingleton<DreamVM>();
+            services.AddSingleton<ScriptManager>();
+            services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
+            services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();
+            services.AddSingleton<IScriptSystem, Core.Scripting.DM.DmSystem>();
+
 
             // Editor services
             services.AddSingleton<Editor>();

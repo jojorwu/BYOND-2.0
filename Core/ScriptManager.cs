@@ -2,29 +2,22 @@ using Shared;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Core.Scripting;
-using Core.Scripting.CSharp;
 using Core.Scripting.DM;
 using Core.Scripting.LuaSystem;
-using Core.VM;
 using Core.VM.Runtime;
-using System;
-using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 
 namespace Core
 {
     public class ScriptManager
     {
-        private readonly List<IScriptSystem> _systems = new();
+        private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
 
-        public ScriptManager(IGameApi gameApi, ObjectTypeManager typeManager, IProject project, DreamVM dreamVM, IServiceProvider serviceProvider)
+        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
-
-            _systems.Add(new CSharpSystem(gameApi));
-            _systems.Add(new LuaSystem(gameApi));
-            _systems.Add(new DmSystem(typeManager, project, dreamVM, () => serviceProvider.GetRequiredService<IScriptHost>()));
+            _systems = systems;
         }
 
         public async Task Initialize()
@@ -60,26 +53,14 @@ namespace Core
 
         public void ExecuteCommand(string command)
         {
-            foreach (var sys in _systems)
-            {
-                if (sys is LuaSystem luaSystem)
-                {
-                    luaSystem.ExecuteString(command);
-                    return;
-                }
-            }
+            var luaSystem = _systems.OfType<LuaSystem>().FirstOrDefault();
+            luaSystem?.ExecuteString(command);
         }
 
         public DreamThread? CreateThread(string procName)
         {
-            foreach (var sys in _systems)
-            {
-                if (sys is DmSystem dmSystem)
-                {
-                    return dmSystem.CreateThread(procName);
-                }
-            }
-            return null;
+            var dmSystem = _systems.OfType<DmSystem>().FirstOrDefault();
+            return dmSystem?.CreateThread(procName);
         }
     }
 }

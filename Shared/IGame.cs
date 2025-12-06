@@ -1,8 +1,8 @@
-namespace Core
+namespace Shared
 {
     public interface IGame
     {
-        void LoadProject(string projectPath);
+        void LoadProject(IProject project);
         IGameApi Api { get; }
         IProject Project { get; }
         IObjectTypeManager ObjectTypeManager { get; }

@@ -1,3 +1,4 @@
+using Shared;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,7 +7,7 @@ using DMCompiler;
 
 namespace Core
 {
-    public class OpenDreamCompilerService
+    public class OpenDreamCompilerService : ICompilerService
     {
         private readonly IProject _project;
 
@@ -15,7 +16,7 @@ namespace Core
             _project = project;
         }
 
-        public (string? OutputPath, List<DMCompiler.Compiler.CompilerEmission> Messages) Compile(List<string> files)
+        public (string?, List<DMCompiler.Compiler.CompilerEmission>) Compile(List<string> files)
         {
             if (files == null || files.Count == 0)
             {

@@ -1,7 +1,7 @@
+using Shared;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Core;
 using DMCompiler.Compiler;
 
 namespace Editor
@@ -17,14 +17,14 @@ namespace Editor
 
     public class BuildService
     {
-        private readonly OpenDreamCompilerService _compilerService;
+        private readonly ICompilerService _compilerService;
         private readonly IProject _project;
 
         public List<BuildMessage> Messages { get; } = new();
 
-        public BuildService(IProject project)
+        public BuildService(IProject project, ICompilerService compilerService)
         {
-            _compilerService = new OpenDreamCompilerService(project);
+            _compilerService = compilerService;
             _project = project;
         }
 

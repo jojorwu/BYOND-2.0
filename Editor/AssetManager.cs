@@ -5,7 +5,7 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace Core
+namespace Editor
 {
     public class AssetManager
     {

@@ -1,7 +1,7 @@
 using Robust.Shared.Maths;
 using System.Collections.Generic;
 
-namespace Core
+namespace Shared
 {
     public interface IMap
     {

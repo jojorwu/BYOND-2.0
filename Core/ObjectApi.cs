@@ -1,3 +1,4 @@
+using Shared;
 namespace Core
 {
     public class ObjectApi : IObjectApi

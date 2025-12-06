@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Core
+namespace Shared
 {
     public interface IMapApi
     {

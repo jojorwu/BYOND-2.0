@@ -1,4 +1,4 @@
-using Core;
+using Shared;
 using ImGuiNET;
 using System;
 using System.Threading.Tasks;
@@ -268,7 +268,7 @@ namespace Editor.UI
                             if (System.IO.File.Exists(serverConfigPath))
                             {
                                 var json = System.IO.File.ReadAllText(serverConfigPath);
-                                var settings = System.Text.Json.JsonSerializer.Deserialize<Core.ServerSettings>(json);
+                                var settings = System.Text.Json.JsonSerializer.Deserialize<ServerSettings>(json);
                                 if (settings != null) _editorContext.ServerSettings = settings;
                             }
 
@@ -276,7 +276,7 @@ namespace Editor.UI
                             if (System.IO.File.Exists(clientConfigPath))
                             {
                                 var json = System.IO.File.ReadAllText(clientConfigPath);
-                                var settings = System.Text.Json.JsonSerializer.Deserialize<Core.ClientSettings>(json);
+                                var settings = System.Text.Json.JsonSerializer.Deserialize<ClientSettings>(json);
                                 if (settings != null) _editorContext.ClientSettings = settings;
                             }
 

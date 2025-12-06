@@ -1,4 +1,4 @@
-namespace Core
+namespace Shared
 {
     public class Chunk
     {

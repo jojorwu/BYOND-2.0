@@ -1,5 +1,5 @@
+using Shared;
 using Microsoft.Extensions.DependencyInjection;
-using Core;
 using Editor.UI;
 using Silk.NET.OpenGL;
 using System;
@@ -20,7 +20,7 @@ namespace Editor
 
         private static void ConfigureServices(IServiceCollection services)
         {
-            services.AddSingleton<IGame>(sp => Core.GameFactory.CreateGame());
+            services.AddSingleton<IGame>(sp => GameFactory.CreateGame());
             services.AddSingleton<Editor>();
             services.AddSingleton<ProjectHolder>();
             services.AddSingleton<IProject>(sp => sp.GetRequiredService<ProjectHolder>());
@@ -35,6 +35,7 @@ namespace Editor
             services.AddSingleton<AssetManager>();
             services.AddSingleton<SelectionManager>();
             services.AddSingleton<ToolManager>();
+            services.AddSingleton<ICompilerService, Core.OpenDreamCompilerService>();
             services.AddSingleton<BuildService>();
 
             services.AddSingleton<ProjectManagerPanel>();

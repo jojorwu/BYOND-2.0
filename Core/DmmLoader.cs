@@ -1,3 +1,4 @@
+using Shared;
 using System;
 using System.Linq;
 using DMCompiler.Json;

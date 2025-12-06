@@ -6,6 +6,7 @@ using System.Text.Json;
 using Core.VM.Runtime;
 using Core.VM.Types;
 using DMCompiler.Json;
+using Shared;
 
 namespace Core.Scripting.DM
 {
@@ -18,7 +19,7 @@ namespace Core.Scripting.DM
         private IScriptHost _scriptHost => _scriptHostFactory();
 
 
-        public DmSystem(ObjectTypeManager typeManager, Project project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
+        public DmSystem(ObjectTypeManager typeManager, IProject project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
         {
             _typeManager = typeManager;
             _compiler = new OpenDreamCompilerService(project);

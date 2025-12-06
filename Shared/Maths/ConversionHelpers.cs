@@ -1,7 +1,7 @@
 using System.Numerics;
 using Robust.Shared.Maths;
 
-namespace Core.Maths
+namespace Shared.Maths
 {
     public static class ConversionHelpers
     {

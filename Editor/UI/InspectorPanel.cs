@@ -1,8 +1,9 @@
+using Shared;
 using Editor;
-using Core;
 using ImGuiNET;
 using Silk.NET.OpenGL;
 using System.Collections.Generic;
+using Core;
 
 namespace Editor.UI
 {

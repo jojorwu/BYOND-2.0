@@ -1,5 +1,8 @@
 
-namespace Core
+using Shared;
+using Core;
+
+namespace Editor
 {
     public static class GameFactory
     {

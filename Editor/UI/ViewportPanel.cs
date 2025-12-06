@@ -1,4 +1,4 @@
-using Core;
+using Shared;
 using Silk.NET.OpenGL;
 using ImGuiNET;
 using System.Numerics;

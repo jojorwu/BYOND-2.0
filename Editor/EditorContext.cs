@@ -1,4 +1,4 @@
-using Core;
+using Shared;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -24,8 +24,8 @@ namespace Editor
         public string ProjectRoot { get; set; } = Directory.GetCurrentDirectory();
         public ObjectType? SelectedObjectType { get; set; }
         public int CurrentZLevel { get; set; } = 0;
-        public Core.ServerSettings ServerSettings { get; set; } = new();
-        public Core.ClientSettings ClientSettings { get; set; } = new();
+        public ServerSettings ServerSettings { get; set; } = new();
+        public ClientSettings ClientSettings { get; set; } = new();
 
         public List<Scene> OpenScenes { get; } = new();
         public int ActiveSceneIndex { get; set; } = -1;

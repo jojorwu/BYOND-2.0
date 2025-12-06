@@ -2,7 +2,7 @@ using Robust.Shared.Maths;
 using System;
 using System.Collections.Generic;
 
-namespace Core
+namespace Shared
 {
     public class Map : IMap
     {

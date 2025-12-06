@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Core;
 using System.IO;
 using System.Linq;
+using Shared;
 
 namespace Core.Tests
 {

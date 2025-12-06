@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace Core
+namespace Editor
 {
     /// <summary>
     /// Provides logic for browsing assets managed by the AssetManager.

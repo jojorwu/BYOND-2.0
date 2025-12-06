@@ -60,8 +60,8 @@ class Program
         services.AddSingleton<UdpServer>();
         services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
-        services.AddSingleton<Game>();
-        services.AddHostedService(provider => provider.GetRequiredService<Game>());
+        services.AddSingleton<GameLoop>();
+        services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
     }
 
 

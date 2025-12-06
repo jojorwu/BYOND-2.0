@@ -44,7 +44,7 @@ namespace Server
             if (_netManager.Start(_settings.Network.UdpPort))
             {
                 _logger.LogInformation($"UDP Server started on port {_settings.Network.UdpPort}");
-                _networkTask = Task.Run(() => PollEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+                _networkTask = PollEvents(_cancellationTokenSource.Token);
             }
             else
             {
@@ -53,21 +53,24 @@ namespace Server
             return Task.CompletedTask;
         }
 
-        private void PollEvents(CancellationToken token)
+        private async Task PollEvents(CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                Thread.Sleep(15);
+                await Task.Delay(15, token);
             }
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource.Cancel();
+            if (_networkTask != null)
+            {
+                await _networkTask;
+            }
             _netManager.Stop();
             _logger.LogInformation("UDP Server stopped.");
-            return Task.CompletedTask;
         }
 
         private void OnConnectionRequest(ConnectionRequest request)

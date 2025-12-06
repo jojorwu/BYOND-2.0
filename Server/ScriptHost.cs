@@ -106,16 +106,19 @@ namespace Server
             }
         }
 
-        void IScriptHost.EnqueueCommand(string command, Action<string> onResult)
+        public void EnqueueCommand(string command, Action<string> onResult)
         {
             _commandQueue.Enqueue((command, onResult));
         }
 
-        public void AddThread(DreamThread thread)
+        public void AddThread(IScriptThread thread)
         {
+            if (thread is not DreamThread dreamThread)
+                throw new ArgumentException("Thread must be a DreamThread for this script host.", nameof(thread));
+
             lock (_scriptLock)
             {
-                _currentEnvironment?.Threads.Add(thread);
+                _currentEnvironment?.Threads.Add(dreamThread);
             }
         }
 

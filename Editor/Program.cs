@@ -20,13 +20,10 @@ namespace Editor
 
         private static void ConfigureServices(IServiceCollection services)
         {
+            services.AddSingleton<IGame>(sp => Core.GameFactory.CreateGame());
             services.AddSingleton<Editor>();
-            services.AddSingleton<IGame, Game>();
-            services.AddSingleton(provider =>
-            {
-                var editor = provider.GetRequiredService<Editor>();
-                return editor.gl;
-            });
+            services.AddSingleton<ProjectHolder>();
+            services.AddSingleton<IProject>(sp => sp.GetRequiredService<ProjectHolder>());
             services.AddSingleton<EditorContext>();
             services.AddSingleton<LocalizationManager>(provider =>
             {

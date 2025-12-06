@@ -9,17 +9,21 @@ namespace Editor
 {
     public class TextureManager : IDisposable
     {
-        private readonly GL _gl;
+        private GL? _gl;
         private readonly Dictionary<string, uint> _textureCache = new Dictionary<string, uint>();
 
-        public TextureManager(GL gl)
+        public TextureManager()
+        {
+        }
+
+        public void Initialize(GL gl)
         {
             _gl = gl;
         }
 
         public uint GetTexture(string assetPath)
         {
-            if (string.IsNullOrEmpty(assetPath) || !File.Exists(assetPath))
+             if (string.IsNullOrEmpty(assetPath) || !File.Exists(assetPath) || _gl == null)
             {
                 return 0;
             }
@@ -73,6 +77,7 @@ namespace Editor
 
         public void Dispose()
         {
+            if (_gl == null) return;
             foreach (var textureId in _textureCache.Values)
             {
                 _gl.DeleteTexture(textureId);

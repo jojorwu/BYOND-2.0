@@ -19,27 +19,50 @@ namespace Editor
         private IInputContext? inputContext;
         private ImGuiController? imGuiController;
 
-        private IGame _game = null!;
-        private IServiceProvider _serviceProvider = null!;
+        private readonly IGame _game;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ProjectHolder _projectHolder;
 
-        private ProjectManagerPanel _projectManagerPanel = null!;
-        private MenuBarPanel _menuBarPanel = null!;
-        private ViewportPanel _viewportPanel = null!;
-        private AssetBrowserPanel _assetBrowserPanel = null!;
-        private InspectorPanel _inspectorPanel = null!;
-        private ObjectBrowserPanel _objectBrowserPanel = null!;
-        private ScriptEditorPanel _scriptEditorPanel = null!;
-        private SettingsPanel _settingsPanel = null!;
-        private ToolbarPanel _toolbarPanel = null!;
-        private MapControlsPanel _mapControlsPanel = null!;
-        private BuildPanel _buildPanel = null!;
-        private SceneHierarchyPanel _sceneHierarchyPanel = null!;
+        private readonly ProjectManagerPanel _projectManagerPanel;
+        private readonly MenuBarPanel _menuBarPanel;
+        private readonly ViewportPanel _viewportPanel;
+        private readonly AssetBrowserPanel _assetBrowserPanel;
+        private readonly InspectorPanel _inspectorPanel;
+        private readonly ObjectBrowserPanel _objectBrowserPanel;
+        private readonly ScriptEditorPanel _scriptEditorPanel;
+        private readonly SettingsPanel _settingsPanel;
+        private readonly ToolbarPanel _toolbarPanel;
+        private readonly MapControlsPanel _mapControlsPanel;
+        private readonly BuildPanel _buildPanel;
+        private readonly SceneHierarchyPanel _sceneHierarchyPanel;
+        private readonly TextureManager _textureManager;
 
         private AppState _appState = AppState.MainMenu;
         private int _sceneToClose = -1;
 
-        public Editor()
+        public Editor(IServiceProvider serviceProvider, IGame game, ProjectHolder projectHolder,
+            ProjectManagerPanel projectManagerPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
+            AssetBrowserPanel assetBrowserPanel, InspectorPanel inspectorPanel, ObjectBrowserPanel objectBrowserPanel,
+            ScriptEditorPanel scriptEditorPanel, SettingsPanel settingsPanel, ToolbarPanel toolbarPanel,
+            MapControlsPanel mapControlsPanel, BuildPanel buildPanel, SceneHierarchyPanel sceneHierarchyPanel,
+            TextureManager textureManager)
         {
+            _serviceProvider = serviceProvider;
+            _game = game;
+            _textureManager = textureManager;
+            _projectHolder = projectHolder;
+            _projectManagerPanel = projectManagerPanel;
+            _menuBarPanel = menuBarPanel;
+            _viewportPanel = viewportPanel;
+            _assetBrowserPanel = assetBrowserPanel;
+            _inspectorPanel = inspectorPanel;
+            _objectBrowserPanel = objectBrowserPanel;
+            _scriptEditorPanel = scriptEditorPanel;
+            _settingsPanel = settingsPanel;
+            _toolbarPanel = toolbarPanel;
+            _mapControlsPanel = mapControlsPanel;
+            _buildPanel = buildPanel;
+            _sceneHierarchyPanel = sceneHierarchyPanel;
         }
 
         public void Run()
@@ -91,73 +114,24 @@ namespace Editor
                 gl = window.CreateOpenGL();
                 inputContext = window.CreateInput();
                 imGuiController = new ImGuiController(gl, window, inputContext);
+
+                _textureManager.Initialize(gl);
+                _viewportPanel.Initialize(gl);
+
                 ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
             }
         }
 
         private void OnProjectLoad(string projectPath)
         {
-            _game = GameFactory.CreateGame();
+            _projectHolder.SetProject(new Project(projectPath));
             _game.LoadProject(projectPath);
-
-            var services = new ServiceCollection();
-            ConfigureServices(services, _game, gl!);
-            _serviceProvider = services.BuildServiceProvider();
-
-            _projectManagerPanel = _serviceProvider.GetRequiredService<ProjectManagerPanel>();
-            _menuBarPanel = _serviceProvider.GetRequiredService<MenuBarPanel>();
-            _viewportPanel = _serviceProvider.GetRequiredService<ViewportPanel>();
-            _assetBrowserPanel = _serviceProvider.GetRequiredService<AssetBrowserPanel>();
-            _inspectorPanel = _serviceProvider.GetRequiredService<InspectorPanel>();
-            _objectBrowserPanel = _serviceProvider.GetRequiredService<ObjectBrowserPanel>();
-            _scriptEditorPanel = _serviceProvider.GetRequiredService<ScriptEditorPanel>();
-            _settingsPanel = _serviceProvider.GetRequiredService<SettingsPanel>();
-            _toolbarPanel = _serviceProvider.GetRequiredService<ToolbarPanel>();
-            _mapControlsPanel = _serviceProvider.GetRequiredService<MapControlsPanel>();
-            _buildPanel = _serviceProvider.GetRequiredService<BuildPanel>();
-            _sceneHierarchyPanel = _serviceProvider.GetRequiredService<SceneHierarchyPanel>();
 
             var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
             var editorContext = _serviceProvider.GetRequiredService<EditorContext>();
             toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), editorContext);
 
             _appState = AppState.Editing;
-        }
-
-        private void ConfigureServices(IServiceCollection services, IGame game, GL gl)
-        {
-            services.AddSingleton(game.Api);
-            services.AddSingleton(game.Project);
-            services.AddSingleton(game.ObjectTypeManager);
-            services.AddSingleton(game.DmmService);
-            services.AddSingleton(gl);
-            services.AddSingleton<EditorContext>();
-            services.AddSingleton<LocalizationManager>(provider =>
-            {
-                var lm = new LocalizationManager();
-                lm.LoadLanguage("en");
-                return lm;
-            });
-            services.AddSingleton<TextureManager>();
-            services.AddSingleton<AssetManager>();
-            services.AddSingleton<SelectionManager>();
-            services.AddSingleton<ToolManager>();
-            services.AddSingleton<BuildService>();
-
-            services.AddSingleton<ProjectManagerPanel>();
-            services.AddSingleton<MenuBarPanel>();
-            services.AddSingleton<ViewportPanel>();
-            services.AddSingleton<AssetBrowserPanel>();
-            services.AddSingleton<InspectorPanel>();
-            services.AddSingleton<ObjectBrowserPanel>();
-            services.AddSingleton<ScriptEditorPanel>();
-            services.AddSingleton<SettingsPanel>();
-            services.AddSingleton<ToolbarPanel>();
-            services.AddSingleton<MapControlsPanel>();
-            services.AddSingleton<BuildPanel>();
-            services.AddSingleton<SceneHierarchyPanel>();
-            services.AddSingleton<ServerBrowserPanel>();
-            services.AddSingleton<SpriteRenderer>();
         }
 
         private void OnRender(double deltaTime)
@@ -172,9 +146,6 @@ namespace Editor
             switch (_appState)
             {
                 case AppState.MainMenu:
-                    var localizationManager = new LocalizationManager();
-                    localizationManager.LoadLanguage("en");
-                    _projectManagerPanel = new ProjectManagerPanel(new EditorContext(),localizationManager, new ServerBrowserPanel(localizationManager));
                     var projectToLoad = _projectManagerPanel.Draw();
                     if (!string.IsNullOrEmpty(projectToLoad))
                     {

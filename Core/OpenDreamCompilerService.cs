@@ -16,11 +16,11 @@ namespace Core
             _project = project;
         }
 
-        public (string?, List<DMCompiler.Compiler.CompilerEmission>) Compile(List<string> files)
+        public (string?, List<BuildMessage>) Compile(List<string> files)
         {
             if (files == null || files.Count == 0)
             {
-                return (null, new List<DMCompiler.Compiler.CompilerEmission>());
+                return (null, new List<BuildMessage>());
             }
 
             var settings = new DMCompilerSettings
@@ -32,12 +32,29 @@ namespace Core
             var compiler = new DMCompiler.DMCompiler();
             var (success, outputPath) = compiler.Compile(settings);
 
+            var messages = compiler.CompilerMessages.Select(ConvertCompilerMessage).ToList();
+
             if (!success)
             {
-                return (null, compiler.CompilerMessages);
+                return (null, messages);
             }
 
-            return (outputPath, compiler.CompilerMessages);
+            return (outputPath, messages);
+        }
+
+        private BuildMessage ConvertCompilerMessage(DMCompiler.Compiler.CompilerEmission message)
+        {
+            var level = message.Level switch
+            {
+                DMCompiler.Compiler.ErrorLevel.Error => BuildMessageLevel.Error,
+                DMCompiler.Compiler.ErrorLevel.Warning => BuildMessageLevel.Warning,
+                _ => BuildMessageLevel.Info
+            };
+
+            var file = message.Location.SourceFile ?? "";
+            var line = message.Location.Line ?? 0;
+
+            return new BuildMessage(Path.GetFileName(file), line, message.Message, level);
         }
     }
 }

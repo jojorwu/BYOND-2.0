@@ -16,12 +16,12 @@ namespace Server
         private readonly EventBasedNetListener _listener;
         private readonly CancellationTokenSource _cancellationTokenSource = new();
         private readonly IScriptHost _scriptHost;
-        private readonly GameState _gameState;
+        private readonly IGameState _gameState;
         private readonly ServerSettings _settings;
         private readonly ILogger<UdpServer> _logger;
         private Task? _networkTask;
 
-        public UdpServer(IScriptHost scriptHost, GameState gameState, ServerSettings settings, ILogger<UdpServer> logger)
+        public UdpServer(IScriptHost scriptHost, IGameState gameState, ServerSettings settings, ILogger<UdpServer> logger)
         {
             _settings = settings;
             _listener = new EventBasedNetListener();

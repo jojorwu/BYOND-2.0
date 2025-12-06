@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace Shared
 {
-    public class GameState : IDisposable
+    public class GameState : IGameState
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 

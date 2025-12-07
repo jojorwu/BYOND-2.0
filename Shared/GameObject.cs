@@ -108,7 +108,7 @@ namespace Shared
         /// </summary>
         /// <param name="propertyName">The name of the property.</param>
         /// <param name="value">The value to set.</param>
-        public void SetProperty(string propertyName, object value)
+        public void SetProperty(string propertyName, object? value)
         {
             Properties[propertyName] = value;
         }

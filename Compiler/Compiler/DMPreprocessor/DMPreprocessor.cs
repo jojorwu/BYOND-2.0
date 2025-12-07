@@ -186,7 +186,7 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
 
     public void DefineMacro(string key, string value) {
         if (key == null) throw new ArgumentNullException(nameof(key));
-        var lexer = new DMPreprocessorLexer(compiler, null, "<command line>", value);
+        var lexer = new DMPreprocessorLexer(compiler, string.Empty, "<command line>", value);
         var list = new List<Token>();
 
         while (lexer.NextToken() is { Type: not TokenType.EndOfFile } token) {
@@ -244,10 +244,10 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
         }
     }
 
-    public void PreprocessFile(string includeDir, string file, bool isDMStandard) {
+    public void PreprocessFile(string? includeDir, string file, bool isDMStandard) {
         file = file.Replace('\\', '/');
 
-        _lexerStack.Push(new DMPreprocessorLexer(compiler, includeDir, file, isDMStandard));
+        _lexerStack.Push(new DMPreprocessorLexer(compiler, includeDir ?? string.Empty, file, isDMStandard));
     }
 
     private bool VerifyDirectiveUsage(Token token) {
@@ -275,8 +275,8 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
         }
 
         DMPreprocessorLexer currentLexer = _lexerStack.Peek();
-        string file = Path.Combine(Path.GetDirectoryName(currentLexer.File.Replace('\\', Path.DirectorySeparatorChar)), includedFileToken.ValueAsString());
-        string directory = currentLexer.IncludeDirectory;
+        string file = Path.Combine(Path.GetDirectoryName(currentLexer.File.Replace('\\', Path.DirectorySeparatorChar)) ?? "", includedFileToken.ValueAsString());
+        string? directory = currentLexer.IncludeDirectory;
 
         IncludeFile(directory, file, includeToken.Location.InDMStandard, includedFrom: includeToken.Location);
     }
@@ -308,7 +308,7 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
             }
 
             DMPreprocessorLexer currentLexer = _lexerStack.Peek();
-            string dir = Path.Combine(currentLexer.IncludeDirectory, dirTokenValue);
+            string dir = Path.Combine(currentLexer.IncludeDirectory ?? "", dirTokenValue);
             compiler.AddResourceDirectory(dir, dirToken.Location);
 
             // In BYOND it goes on to set the FILE_DIR macro's value to the added directory

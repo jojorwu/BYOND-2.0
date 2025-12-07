@@ -273,9 +273,17 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
 
                 DMASTExpression outputExpr;
                 if (statementFor.Expression1 is DMASTVarDeclExpression decl) {
-                    outputExpr = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement!);
-                } else {
+                    if (decl.DeclPath.Path.LastElement is null) {
+                        compiler.ForcedError(decl.Location, "Invalid var declaration");
+                        return;
+                    }
+
+                    outputExpr = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement);
+                } else if (statementFor.Expression1 is not null) {
                     outputExpr = statementFor.Expression1;
+                } else {
+                    compiler.ForcedError(statementFor.Location, "Invalid for loop");
+                    return;
                 }
 
                 var keyVar = _exprBuilder.Create(outputExpr);
@@ -318,7 +326,11 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                 switch (statementFor.Expression1) {
                     case DMASTAssign {LHS: DMASTVarDeclExpression decl, RHS: DMASTExpressionInRange range}: {
                         var initializer = statementFor.Expression1 != null ? _exprBuilder.Create(statementFor.Expression1) : null;
-                        var identifier = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement!);
+                        if (decl.DeclPath.Path.LastElement is null) {
+                            compiler.ForcedError(decl.Location, "Invalid var declaration");
+                            return;
+                        }
+                        var identifier = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement);
                         var outputVar = _exprBuilder.Create(identifier);
 
                         var start = _exprBuilder.Create(range.StartRange);

@@ -154,7 +154,8 @@ internal partial class DMCodeTree {
 
         private bool HandleInstanceVar(DMCompiler compiler, DMObject dmObject) {
             var expression = varDef.Value ?? new DMASTConstantNull(varDef.Location);
-            if (!TryBuildValue(new(compiler, dmObject, null), expression, varDef.Type, ScopeMode.Normal, out var value))
+            var exprContext = new ExpressionContext(compiler, dmObject, compiler.GlobalInitProc);
+            if (!TryBuildValue(exprContext, expression, varDef.Type, ScopeMode.Normal, out var value))
                 return false;
 
             var variable = new DMVariable(varDef.Type, VarName, false, varDef.IsConst, varDef.IsFinal, varDef.IsTmp, varDef.ValType);
@@ -253,7 +254,7 @@ internal partial class DMCodeTree {
             variable = new DMVariable(variable);
 
             var expression = varOverride.Value ?? new DMASTConstantNull(varOverride.Location);
-            if (!TryBuildValue(new(compiler, dmObject, null), expression, variable.Type, ScopeMode.Normal, out var value))
+            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, variable.Type, ScopeMode.Normal, out var value))
                 return false;
 
             if (VarName == "tag" && dmObject.IsSubtypeOf(DreamPath.Datum) && !compiler.Settings.NoStandard)
@@ -285,7 +286,8 @@ internal partial class DMCodeTree {
             var expression = varDecl.Value;
             if (expression != null) {
                 var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
-                if (!TryBuildValue(new(compiler, dmObject, proc), expression, varDecl.Type, scope, out value))
+                var exprContext = new ExpressionContext(compiler, dmObject, proc);
+                if (!TryBuildValue(exprContext, expression, varDecl.Type, scope, out value))
                     return false;
             }
 

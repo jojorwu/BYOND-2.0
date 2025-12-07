@@ -61,9 +61,10 @@ namespace Core.Scripting.CSharp
             // Очистка и повторная загрузка
         }
 
-        public void ExecuteString(string command)
+        public string? ExecuteString(string command)
         {
             // Not supported for C# scripts in this manner
+            return null;
         }
     }
 

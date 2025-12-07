@@ -127,11 +127,12 @@ namespace Server
             while (_commandQueue.TryDequeue(out var commandInfo))
             {
                 var (command, onResult) = commandInfo;
+                string? result;
                 lock (_scriptLock)
                 {
-                    _currentEnvironment?.ScriptManager.ExecuteCommand(command);
+                    result = _currentEnvironment?.ScriptManager.ExecuteCommand(command);
                 }
-                onResult("Command executed."); // Simplified result
+                onResult(result ?? "Command executed, but no result was returned.");
             }
         }
 

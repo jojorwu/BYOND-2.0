@@ -70,9 +70,10 @@ namespace Core.Scripting.LuaSystem
             _lua?.Dispose();
         }
 
-        public void ExecuteString(string command)
+        public string? ExecuteString(string command)
         {
-            _lua?.DoString(command);
+            var result = _lua?.DoString(command);
+            return result?.FirstOrDefault()?.ToString();
         }
     }
 }

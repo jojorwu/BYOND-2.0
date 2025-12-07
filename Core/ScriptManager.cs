@@ -51,10 +51,17 @@ namespace Core
             }
         }
 
-        public void ExecuteCommand(string command)
+        public string? ExecuteCommand(string command)
         {
-            var luaSystem = _systems.OfType<LuaSystem>().FirstOrDefault();
-            luaSystem?.ExecuteString(command);
+            foreach (var system in _systems)
+            {
+                var result = system.ExecuteString(command);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
         }
 
         public DreamThread? CreateThread(string procName)

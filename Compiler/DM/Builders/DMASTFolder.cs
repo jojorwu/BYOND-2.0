@@ -122,7 +122,9 @@ public class DMASTFolder {
         }
     }
 
-    private DMASTExpression FoldExpression(DMASTExpression? expression) {
+    private DMASTExpression? FoldExpression(DMASTExpression? expression) {
+        if (expression == null) return null;
+
         if (expression is DMASTUnary unary) {
             unary.Value = FoldExpression(unary.Value);
         } else if (expression is DMASTBinary binary) {

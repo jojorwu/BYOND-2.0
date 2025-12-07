@@ -40,7 +40,7 @@ namespace DMCompiler
             }
 
             var preprocessor = new DMPreprocessor(compiler, false);
-            preprocessor.PreprocessFile(Path.GetDirectoryName(dmmPath), Path.GetFileName(dmmPath), false);
+            preprocessor.PreprocessFile(Path.GetDirectoryName(dmmPath) ?? string.Empty, Path.GetFileName(dmmPath), false);
 
             var lexer = new DMLexer(dmmPath, preprocessor);
             var parser = new DMMParser(compiler, lexer, 0);
@@ -105,10 +105,10 @@ namespace DMCompiler
                 Globals = new GlobalListJson {
                     GlobalCount = compiler.DMObjectTree.Globals.Count,
                     Names = compiler.DMObjectTree.Globals.Select(g => g.Name).ToList(),
-                    Globals = compiler.DMObjectTree.Globals.Select((g, i) => new { g, i }).ToDictionary(x => x.i, x => {
-                        x.g.TryAsJsonRepresentation(compiler, out var json);
-                        return json;
-                    })
+                    Globals = compiler.DMObjectTree.Globals.Select((g, i) => {
+                        g.TryAsJsonRepresentation(compiler, out var json);
+                        return new { i, json };
+                    }).Where(x => x.json != null).ToDictionary(x => x.i, x => x.json!)
                 }
             };
 

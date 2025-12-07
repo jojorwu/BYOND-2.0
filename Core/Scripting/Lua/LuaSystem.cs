@@ -24,6 +24,7 @@ namespace Core.Scripting.LuaSystem
 
         public Task LoadScripts(string rootDirectory)
         {
+            if (_lua == null) return Task.CompletedTask;
             return Task.Run(() =>
             {
                 var luaFiles = Directory.GetFiles(rootDirectory, "*.lua", SearchOption.AllDirectories);
@@ -43,6 +44,7 @@ namespace Core.Scripting.LuaSystem
 
         public void InvokeEvent(string eventName, params object[] args)
         {
+            if (_lua == null) return;
             var function = _lua[eventName] as LuaFunction;
             if (function != null)
             {
@@ -59,7 +61,7 @@ namespace Core.Scripting.LuaSystem
 
         public void Reload()
         {
-            _lua.Close();
+            _lua?.Close();
             Initialize();
         }
 

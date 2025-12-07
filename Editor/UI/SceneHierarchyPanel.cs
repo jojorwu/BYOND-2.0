@@ -9,7 +9,7 @@ namespace Editor.UI
         private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;
         private string _searchString = "";
-        private IGameObject _objectToDelete = null;
+        private IGameObject? _objectToDelete = null;
 
         public SceneHierarchyPanel(IGameApi gameApi, SelectionManager selectionManager)
         {
@@ -58,7 +58,10 @@ namespace Editor.UI
                 ImGui.Text($"Are you sure you want to delete '{_objectToDelete?.ObjectType.Name} ({_objectToDelete?.Id})'?");
                 if (ImGui.Button("Yes"))
                 {
-                    _gameApi.Objects.DestroyObject(_objectToDelete.Id);
+                    if (_objectToDelete != null)
+                    {
+                        _gameApi.Objects.DestroyObject(_objectToDelete.Id);
+                    }
                     if (_selectionManager.SelectedObject == _objectToDelete)
                     {
                         _selectionManager.Deselect();

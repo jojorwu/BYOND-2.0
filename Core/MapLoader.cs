@@ -153,7 +153,7 @@ namespace Core
         private class GameObjectData
         {
             public string TypeName { get; set; } = string.Empty;
-            public Dictionary<string, object> Properties { get; set; } = new Dictionary<string, object>();
+            public Dictionary<string, object?> Properties { get; set; } = new Dictionary<string, object?>();
         }
     }
 }

@@ -38,7 +38,7 @@ namespace Shared
         /// <summary>
         /// Gets the instance-specific properties of this game object.
         /// </summary>
-        public Dictionary<string, object> Properties { get; } = new();
+        public Dictionary<string, object?> Properties { get; } = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameObject"/> class.

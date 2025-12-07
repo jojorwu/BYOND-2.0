@@ -21,9 +21,9 @@ namespace Editor.UI
             _serverBrowserPanel = serverBrowserPanel;
         }
 
-        public string Draw()
+        public string? Draw()
         {
-            string projectToLoad = null;
+            string? projectToLoad = null;
 
             ImGui.Begin(_localizationManager.GetString("Project Manager"));
 
@@ -38,7 +38,7 @@ namespace Editor.UI
             {
                 using var dialog = new NativeFileDialog().SelectFolder();
                 DialogResult result = dialog.Open(out string? path);
-                if (result == DialogResult.Okay)
+                if (result == DialogResult.Okay && path != null)
                 {
                     projectToLoad = path;
                 }
@@ -77,7 +77,7 @@ namespace Editor.UI
                 {
                     using var dialog = new NativeFileDialog().SelectFolder();
                     DialogResult result = dialog.Open(out string? path);
-                    if (result == DialogResult.Okay)
+                    if (result == DialogResult.Okay && path != null)
                     {
                         _newProjectPath = path;
                     }
@@ -85,8 +85,11 @@ namespace Editor.UI
 
                 if (ImGui.Button(_localizationManager.GetString("Create")))
                 {
-                    MenuBarPanel.CreateProject(_newProjectName, _newProjectPath, _editorContext);
-                    projectToLoad = System.IO.Path.Combine(_newProjectPath, _newProjectName);
+                    if (!string.IsNullOrEmpty(_newProjectPath))
+                    {
+                        MenuBarPanel.CreateProject(_newProjectName, _newProjectPath, _editorContext);
+                        projectToLoad = System.IO.Path.Combine(_newProjectPath, _newProjectName);
+                    }
                     ImGui.CloseCurrentPopup();
                 }
                 ImGui.SameLine();

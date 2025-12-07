@@ -257,7 +257,7 @@ namespace Core.VM.Types
             if (Type == DreamValueType.Float && _floatValue == 0)
                 return true;
 
-            if (Type == DreamValueType.String && (string)_objectValue == "")
+            if (Type == DreamValueType.String && (string)_objectValue! == "")
                 return true;
 
             return false;

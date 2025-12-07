@@ -89,7 +89,7 @@ namespace Core
                                 Contents = turf.Contents.Select(obj => new GameObjectData
                                 {
                                     TypeName = obj.ObjectType.Name,
-                                    Properties = obj.Properties
+                                    Properties = new Dictionary<string, object?>(obj.Properties)
                                 }).ToList()
                             });
                         }

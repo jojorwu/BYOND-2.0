@@ -73,11 +73,15 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                         if (!varOverride.ObjectPath.Equals(DreamPath.Root))
                             Compiler.ForcedError(statement.Location, $"Invalid var name '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
-                        var exprBuilder = new DMExpressionBuilder(new(Compiler, type, null));
-                        var value = exprBuilder.Create(varOverride.Value);
-                        if (!value.TryAsJsonRepresentation(Compiler, out var valueJson))
-                            Compiler.ForcedError(statement.Location, $"Failed to serialize value to json ({value})");
-                        else if (!mapObject.AddVarOverride(varOverride.VarName, valueJson))
+                        if (type != null) {
+                            var exprBuilder = new DMExpressionBuilder(new(Compiler, type, null));
+                            var expression = varOverride.Value ?? new DMASTConstantNull(varOverride.Location);
+                            var value = exprBuilder.Create(expression);
+                            if (!value.TryAsJsonRepresentation(Compiler, out var valueJson))
+                                Compiler.ForcedError(statement.Location, $"Failed to serialize value to json ({value})");
+                            else if (!mapObject.AddVarOverride(varOverride.VarName, valueJson))
+                                Compiler.ForcedWarning(statement.Location, $"Duplicate var override '{varOverride.VarName}' in DMM on type {objectType.Path}");
+                        }
                             Compiler.ForcedWarning(statement.Location, $"Duplicate var override '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
                         CurrentPath = DreamPath.Root;

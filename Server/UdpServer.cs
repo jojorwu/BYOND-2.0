@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Server
 {
-    public class UdpServer : IHostedService, IDisposable
+    public class UdpServer : IHostedService, IDisposable, IUdpServer
     {
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;

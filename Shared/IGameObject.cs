@@ -12,6 +12,6 @@ namespace Shared
         Dictionary<string, object?> Properties { get; }
         void SetPosition(int x, int y, int z);
         T? GetProperty<T>(string propertyName);
-        void SetProperty(string propertyName, object value);
+        void SetProperty(string propertyName, object? value);
     }
 }

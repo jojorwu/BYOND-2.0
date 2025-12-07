@@ -1,3 +1,4 @@
+using System.Linq;
 using DMCompiler.Compiler;
 using Resource = DMCompiler.DM.Expressions.Resource;
 using DMCompiler.Compiler.DM.AST;
@@ -432,6 +433,11 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 result = new Abs(abs.Location, BuildExpression(abs.Value, inferredPath));
                 break;
             case DMASTVarDeclExpression varDeclExpr:
+                if (varDeclExpr.DeclPath.Path.LastElement is null) {
+                    result = BadExpression(WarningCode.BadExpression, expression.Location, "Invalid var declaration");
+                    break;
+                }
+
                 var declIdentifier = new DMASTIdentifier(expression.Location, varDeclExpr.DeclPath.Path.LastElement);
 
                 result = BuildIdentifier(declIdentifier, inferredPath);
@@ -460,14 +466,14 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             case DMASTConstantPath constPath: return BuildPath(constant.Location, constPath.Value.Path);
             case DMASTUpwardPathSearch upwardSearch:
                 BuildExpression(upwardSearch.Path).TryAsConstant(Compiler, out var pathExpr);
-                if (pathExpr is not IConstantPath expr)
+                if (pathExpr is not IConstantPath constantPath)
                     return BadExpression(WarningCode.BadExpression, constant.Location,
                         $"Cannot do an upward path search on {pathExpr}");
 
-                var path = expr.Path;
+                var path = constantPath.Path;
                 if (path == null)
                     return UnknownReference(constant.Location,
-                        $"Cannot search on {expr}");
+                        $"Cannot search on {pathExpr}");
 
                 DreamPath? foundPath = ObjectTree.UpwardSearch(path.Value, upwardSearch.Search.Path);
                 if (foundPath == null)
@@ -526,7 +532,9 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         if (procIndex != -1) {
             DreamPath withoutProcElement = path.RemoveElement(procIndex);
             DreamPath ownerPath = withoutProcElement.FromElements(0, -2);
-            string procName = path.LastElement!;
+            string? procName = path.LastElement;
+            if (procName is null)
+                return UnknownReference(location, $"the path {path} has no last element");
 
             if (!ObjectTree.TryGetDMObject(ownerPath, out var owner))
                 return UnknownReference(location, $"Type {ownerPath} does not exist");
@@ -686,7 +694,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 $"Identifier \"{expression.GetNameof(ctx)}\" does not have a type");
 
         if (!ObjectTree.TryGetDMObject(expression.Path.Value, out var owner)) {
-            if (expression is ConstantProcReference procReference) {
+            if (expression.Path.Value.LastElement is not null && expression is ConstantProcReference procReference) {
                 if (bIdentifier == "name")
                     return new String(expression.Location, procReference.Value.Name);
 
@@ -695,7 +703,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             }
 
             return BadExpression(WarningCode.ItemDoesntExist, expression.Location,
-                $"Type {expression.Path.Value} does not exist");
+                $"Type {expression.Path} does not exist");
         }
 
         if (scopeIdentifier.IsProcRef) { // A::B()
@@ -959,7 +967,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                             return UnknownIdentifier(deref.Location, field);
                         if (!ObjectTree.TryGetDMObject(prevPath.Value, out var fromObject))
                             return UnknownReference(fieldOperation.Location,
-                                $"Type {prevPath.Value} does not exist");
+                                $"Type {prevPath} does not exist");
 
                         property = fromObject.GetVariable(field);
                         if (!fieldOperation.Safe && fromObject.IsSubtypeOf(DreamPath.Client)) {
@@ -979,12 +987,12 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
 
                             if (property.ValType.IsUnimplemented) {
                                 Compiler.UnimplementedWarning(deref.Location,
-                                    $"{prevPath}.{field} is not implemented and will have unexpected behavior");
+                                    $"{prevPath.Value}.{field} is not implemented and will have unexpected behavior");
                             }
 
                             if (property.ValType.IsUnsupported) {
                                 Compiler.UnsupportedWarning(deref.Location,
-                                    $"{prevPath}.{field} will not be supported");
+                                    $"{prevPath.Value}.{field} will not be supported");
                             }
 
                             operations = new Dereference.Operation[newOperationCount];
@@ -1003,12 +1011,12 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
 
                             if (property.ValType.IsUnimplemented) {
                                 Compiler.UnimplementedWarning(deref.Location,
-                                    $"{prevPath}.{field} is not implemented and will have unexpected behavior");
+                                    $"{prevPath.Value}.{field} is not implemented and will have unexpected behavior");
                             }
 
                             if (property.ValType.IsUnsupported){
                                 Compiler.UnsupportedWarning(deref.Location,
-                                    $"{prevPath}.{field} will not be supported");
+                                    $"{prevPath.Value}.{field} will not be supported");
                             }
 
                             operations = new Dereference.Operation[newOperationCount];
@@ -1057,7 +1065,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                         }
 
                         if (!ObjectTree.TryGetDMObject(prevPath.Value, out var fromObject))
-                            return UnknownReference(callOperation.Location, $"Type {prevPath.Value} does not exist");
+                            return UnknownReference(callOperation.Location, $"Type {prevPath} does not exist");
                         if (!fromObject.HasProc(field))
                             return UnknownIdentifier(callOperation.Location, field);
 
@@ -1139,7 +1147,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         }
 
         if (list.IsAList) {
-            return new AList(list.Location, values!);
+            return new AList(list.Location, values.Select(v => (v.Key!, v.Value)).ToArray());
         } else {
             return new List(list.Location, values);
         }

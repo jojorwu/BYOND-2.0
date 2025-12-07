@@ -12,13 +12,13 @@ public class DMASTFolder {
         switch (ast) {
             case DMASTFile file: FoldAst(file.BlockInner); break;
             case DMASTObjectDefinition { InnerBlock: not null } objectDef: FoldAst(objectDef.InnerBlock); break;
-            case DMASTObjectVarDefinition objectVarDef: objectVarDef.Value = FoldExpression(objectVarDef.Value); break;
-            case DMASTObjectVarOverride objectVarOverride: objectVarOverride.Value = FoldExpression(objectVarOverride.Value); break;
-            case DMASTProcStatementExpression procExpr: procExpr.Expression = FoldExpression(procExpr.Expression); break;
-            case DMASTProcStatementReturn procRet: procRet.Value = FoldExpression(procRet.Value); break;
-            case DMASTProcStatementDel procDel: procDel.Value = FoldExpression(procDel.Value); break;
-            case DMASTProcStatementThrow procThrow: procThrow.Value = FoldExpression(procThrow.Value); break;
-            case DMASTProcStatementVarDeclaration procVarDecl: procVarDecl.Value = FoldExpression(procVarDecl.Value); break;
+            case DMASTObjectVarDefinition objectVarDef: objectVarDef.Value = FoldExpression(objectVarDef.Value) ?? objectVarDef.Value; break;
+            case DMASTObjectVarOverride objectVarOverride: objectVarOverride.Value = FoldExpression(objectVarOverride.Value) ?? objectVarOverride.Value; break;
+            case DMASTProcStatementExpression procExpr: procExpr.Expression = FoldExpression(procExpr.Expression) ?? procExpr.Expression; break;
+            case DMASTProcStatementReturn procRet: procRet.Value = FoldExpression(procRet.Value) ?? procRet.Value; break;
+            case DMASTProcStatementDel procDel: procDel.Value = FoldExpression(procDel.Value) ?? procDel.Value; break;
+            case DMASTProcStatementThrow procThrow: procThrow.Value = FoldExpression(procThrow.Value) ?? procThrow.Value; break;
+            case DMASTProcStatementVarDeclaration procVarDecl: procVarDecl.Value = FoldExpression(procVarDecl.Value) ?? procVarDecl.Value; break;
             case DMASTMultipleObjectVarDefinitions objectVarDefs:
                 foreach (DMASTObjectVarDefinition varDefinition in objectVarDefs.VarDefinitions) {
                     FoldAst(varDefinition);
@@ -45,31 +45,31 @@ public class DMASTFolder {
                 break;
             case DMASTProcDefinition procDef:
                 foreach (DMASTDefinitionParameter parameter in procDef.Parameters) {
-                    parameter.Value = FoldExpression(parameter.Value);
+                    parameter.Value = FoldExpression(parameter.Value) ?? parameter.Value;
                 }
 
                 FoldAst(procDef.Body);
                 break;
             case DMASTProcStatementIf statementIf:
-                statementIf.Condition = FoldExpression(statementIf.Condition);
+                statementIf.Condition = FoldExpression(statementIf.Condition) ?? statementIf.Condition;
                 FoldAst(statementIf.Body);
                 FoldAst(statementIf.ElseBody);
 
                 break;
             case DMASTProcStatementFor statementFor:
-                statementFor.Expression1 = FoldExpression(statementFor.Expression1);
-                statementFor.Expression2 = FoldExpression(statementFor.Expression2);
-                statementFor.Expression3 = FoldExpression(statementFor.Expression3);
+                statementFor.Expression1 = FoldExpression(statementFor.Expression1) ?? statementFor.Expression1;
+                statementFor.Expression2 = FoldExpression(statementFor.Expression2) ?? statementFor.Expression2;
+                statementFor.Expression3 = FoldExpression(statementFor.Expression3) ?? statementFor.Expression3;
                 FoldAst(statementFor.Body);
 
                 break;
             case DMASTProcStatementWhile statementWhile:
-                statementWhile.Conditional = FoldExpression(statementWhile.Conditional);
+                statementWhile.Conditional = FoldExpression(statementWhile.Conditional) ?? statementWhile.Conditional;
                 FoldAst(statementWhile.Body);
 
                 break;
             case DMASTProcStatementDoWhile statementDoWhile:
-                statementDoWhile.Conditional = FoldExpression(statementDoWhile.Conditional);
+                statementDoWhile.Conditional = FoldExpression(statementDoWhile.Conditional) ?? statementDoWhile.Conditional;
                 FoldAst(statementDoWhile.Body);
 
                 break;
@@ -78,12 +78,12 @@ public class DMASTFolder {
 
                 break;
             case DMASTProcStatementSwitch statementSwitch:
-                statementSwitch.Value = FoldExpression(statementSwitch.Value);
+                statementSwitch.Value = FoldExpression(statementSwitch.Value) ?? statementSwitch.Value;
 
                 foreach (DMASTProcStatementSwitch.SwitchCase switchCase in statementSwitch.Cases) {
                     if (switchCase is DMASTProcStatementSwitch.SwitchCaseValues switchCaseValues) {
                         for (var i = 0; i < switchCaseValues.Values.Length; i++) {
-                            switchCaseValues.Values[i] = FoldExpression(switchCaseValues.Values[i]);
+                            switchCaseValues.Values[i] = FoldExpression(switchCaseValues.Values[i]) ?? switchCaseValues.Values[i];
                         }
                     }
 
@@ -92,26 +92,26 @@ public class DMASTFolder {
 
                 break;
             case DMASTProcStatementSpawn statementSpawn:
-                statementSpawn.Delay = FoldExpression(statementSpawn.Delay);
+                statementSpawn.Delay = FoldExpression(statementSpawn.Delay) ?? statementSpawn.Delay;
                 FoldAst(statementSpawn.Body);
 
                 break;
             case DMASTProcStatementBrowse statementBrowse:
-                statementBrowse.Receiver = FoldExpression(statementBrowse.Receiver);
-                statementBrowse.Body = FoldExpression(statementBrowse.Body);
-                statementBrowse.Options = FoldExpression(statementBrowse.Options);
+                statementBrowse.Receiver = FoldExpression(statementBrowse.Receiver) ?? statementBrowse.Receiver;
+                statementBrowse.Body = FoldExpression(statementBrowse.Body) ?? statementBrowse.Body;
+                statementBrowse.Options = FoldExpression(statementBrowse.Options) ?? statementBrowse.Options;
 
                 break;
             case DMASTProcStatementBrowseResource statementBrowseResource:
-                statementBrowseResource.Receiver = FoldExpression(statementBrowseResource.Receiver);
-                statementBrowseResource.File = FoldExpression(statementBrowseResource.File);
-                statementBrowseResource.Filename = FoldExpression(statementBrowseResource.Filename);
+                statementBrowseResource.Receiver = FoldExpression(statementBrowseResource.Receiver) ?? statementBrowseResource.Receiver;
+                statementBrowseResource.File = FoldExpression(statementBrowseResource.File) ?? statementBrowseResource.File;
+                statementBrowseResource.Filename = FoldExpression(statementBrowseResource.Filename) ?? statementBrowseResource.Filename;
 
                 break;
             case DMASTProcStatementOutputControl statementOutputControl:
-                statementOutputControl.Receiver = FoldExpression(statementOutputControl.Receiver);
-                statementOutputControl.Message = FoldExpression(statementOutputControl.Message);
-                statementOutputControl.Control = FoldExpression(statementOutputControl.Control);
+                statementOutputControl.Receiver = FoldExpression(statementOutputControl.Receiver) ?? statementOutputControl.Receiver;
+                statementOutputControl.Message = FoldExpression(statementOutputControl.Message) ?? statementOutputControl.Message;
+                statementOutputControl.Control = FoldExpression(statementOutputControl.Control) ?? statementOutputControl.Control;
 
                 break;
             case DMASTProcStatementTryCatch tryCatch:
@@ -126,38 +126,38 @@ public class DMASTFolder {
         if (expression == null) return null;
 
         if (expression is DMASTUnary unary) {
-            unary.Value = FoldExpression(unary.Value);
+            unary.Value = FoldExpression(unary.Value) ?? unary.Value;
         } else if (expression is DMASTBinary binary) {
-            binary.LHS = FoldExpression(binary.LHS);
-            binary.RHS = FoldExpression(binary.RHS);
+            binary.LHS = FoldExpression(binary.LHS) ?? binary.LHS;
+            binary.RHS = FoldExpression(binary.RHS) ?? binary.RHS;
         }
 
         switch (expression) {
             case DMASTExpressionInRange inRange:
-                inRange.Value = FoldExpression(inRange.Value);
-                inRange.StartRange = FoldExpression(inRange.StartRange);
-                inRange.EndRange = FoldExpression(inRange.EndRange);
+                inRange.Value = FoldExpression(inRange.Value) ?? inRange.Value;
+                inRange.StartRange = FoldExpression(inRange.StartRange) ?? inRange.StartRange;
+                inRange.EndRange = FoldExpression(inRange.EndRange) ?? inRange.EndRange;
                 break;
             case DMASTSwitchCaseRange switchCaseRange:
-                switchCaseRange.RangeStart = FoldExpression(switchCaseRange.RangeStart);
-                switchCaseRange.RangeEnd = FoldExpression(switchCaseRange.RangeEnd);
+                switchCaseRange.RangeStart = FoldExpression(switchCaseRange.RangeStart) ?? switchCaseRange.RangeStart;
+                switchCaseRange.RangeEnd = FoldExpression(switchCaseRange.RangeEnd) ?? switchCaseRange.RangeEnd;
                 break;
             case DMASTList list:
                 foreach (DMASTCallParameter parameter in list.Values) {
-                    parameter.Value = FoldExpression(parameter.Value);
+                    parameter.Value = FoldExpression(parameter.Value) ?? parameter.Value;
                 }
 
                 break;
             case DMASTAddText addText:
                 foreach (DMASTCallParameter parameter in addText.Parameters) {
-                    parameter.Value = FoldExpression(parameter.Value);
+                    parameter.Value = FoldExpression(parameter.Value) ?? parameter.Value;
                 }
 
                 break;
             case DMASTNewPath newPath:
                 if (newPath.Parameters != null) {
                     foreach (DMASTCallParameter parameter in newPath.Parameters) {
-                        parameter.Value = FoldExpression(parameter.Value);
+                        parameter.Value = FoldExpression(parameter.Value) ?? parameter.Value;
                     }
                 }
 
@@ -165,20 +165,20 @@ public class DMASTFolder {
             case DMASTNewExpr newExpr:
                 if (newExpr.Parameters != null) {
                     foreach (DMASTCallParameter parameter in newExpr.Parameters) {
-                        parameter.Value = FoldExpression(parameter.Value);
+                        parameter.Value = FoldExpression(parameter.Value) ?? parameter.Value;
                     }
                 }
 
                 break;
             case DMASTProcCall procCall:
                 foreach (DMASTCallParameter parameter in procCall.Parameters) {
-                    parameter.Value = FoldExpression(parameter.Value);
+                    parameter.Value = FoldExpression(parameter.Value) ?? parameter.Value;
                 }
 
                 break;
             case DMASTStringFormat stringFormat:
                 for (int i = 0; i < stringFormat.InterpolatedValues.Length; i++) {
-                    stringFormat.InterpolatedValues[i] = FoldExpression(stringFormat.InterpolatedValues[i]);
+                    stringFormat.InterpolatedValues[i] = FoldExpression(stringFormat.InterpolatedValues[i]) ?? stringFormat.InterpolatedValues[i];
                 }
 
                 break;

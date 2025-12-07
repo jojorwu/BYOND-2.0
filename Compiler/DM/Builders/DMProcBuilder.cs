@@ -318,7 +318,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                 switch (statementFor.Expression1) {
                     case DMASTAssign {LHS: DMASTVarDeclExpression decl, RHS: DMASTExpressionInRange range}: {
                         var initializer = statementFor.Expression1 != null ? _exprBuilder.Create(statementFor.Expression1) : null;
-                        var identifier = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement);
+                        var identifier = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement!);
                         var outputVar = _exprBuilder.Create(identifier);
 
                         var start = _exprBuilder.Create(range.StartRange);
@@ -338,7 +338,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
 
                         DMASTExpression outputExpr;
                         if (decl != null) {
-                            outputExpr = new DMASTIdentifier(exprRange.Value.Location, decl.DeclPath.Path.LastElement);
+                            outputExpr = new DMASTIdentifier(exprRange.Value.Location, decl.DeclPath.Path.LastElement!);
                         } else {
                             outputExpr = exprRange.Value;
                         }
@@ -370,7 +370,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                     case DMASTExpressionIn exprIn: {
                         DMASTExpression outputExpr;
                         if (exprIn.LHS is DMASTVarDeclExpression decl) {
-                            outputExpr = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement);
+                            outputExpr = new DMASTIdentifier(decl.Location, decl.DeclPath.Path.LastElement!);
                         } else {
                             outputExpr = exprIn.LHS;
                         }
@@ -396,14 +396,16 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
         }
         proc.EndScope();
 
-        IEnumerable<DMASTVarDeclExpression> FindVarDecls(DMASTExpression expr) {
+        IEnumerable<DMASTVarDeclExpression> FindVarDecls(DMASTExpression? expr) {
             if (expr is DMASTVarDeclExpression p) {
                 yield return p;
             }
 
-            foreach (var leaf in expr.Leaves()) {
-                foreach(var decl in FindVarDecls(leaf)) {
-                    yield return decl;
+            if (expr != null) {
+                foreach (var leaf in expr.Leaves()) {
+                    foreach(var decl in FindVarDecls(leaf)) {
+                        yield return decl;
+                    }
                 }
             }
         }

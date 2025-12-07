@@ -170,7 +170,7 @@ public class DMCompiler {
                     result.Append(t.Text);
                 }
 
-                string outputDir = Path.GetDirectoryName(Settings.Files[0]);
+                string outputDir = Path.GetDirectoryName(Settings.Files[0]) ?? string.Empty;
                 string outputPath = Path.Combine(outputDir, "preprocessor_dump.dm");
 
                 File.WriteAllText(outputPath, result.ToString());

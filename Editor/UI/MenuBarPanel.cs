@@ -327,7 +327,7 @@ namespace Editor.UI
                 {
                     using var dialog = new NativeFileDialog().SelectFolder();
                     DialogResult result = dialog.Open(out string? path);
-                    if (result == DialogResult.Okay)
+                    if (result == DialogResult.Okay && path != null)
                     {
                         _newProjectPath = path;
                     }

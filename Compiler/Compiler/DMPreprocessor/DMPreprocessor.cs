@@ -185,6 +185,7 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
     }
 
     public void DefineMacro(string key, string value) {
+        if (key == null) throw new ArgumentNullException(nameof(key));
         var lexer = new DMPreprocessorLexer(compiler, null, "<command line>", value);
         var list = new List<Token>();
 
@@ -197,8 +198,8 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
 
     // NB: Pushes files to a stack, so call in reverse order if you are
     // including multiple files.
-    public void IncludeFile(string includeDir, string file, bool isDMStandard, Location? includedFrom = null) {
-        string filePath = Path.Combine(includeDir, file);
+    public void IncludeFile(string? includeDir, string file, bool isDMStandard, Location? includedFrom = null) {
+        string filePath = Path.Combine(includeDir ?? string.Empty, file);
         filePath = filePath.Replace('\\', Path.DirectorySeparatorChar);
         filePath = Path.GetFullPath(filePath); // Strips out path operators
 

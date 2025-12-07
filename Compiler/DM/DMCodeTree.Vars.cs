@@ -252,11 +252,8 @@ internal partial class DMCodeTree {
 
             variable = new DMVariable(variable);
 
-            if (varOverride.Value is null) { // This can happen.
-                compiler.Emit(WarningCode.BadExpression, varOverride.Location, "Cannot override var with a null expression");
-                return false;
-            }
-            if (!TryBuildValue(new(compiler, dmObject, null), varOverride.Value, variable.Type, ScopeMode.Normal, out var value))
+            var expression = varOverride.Value ?? new DMASTConstantNull(varOverride.Location);
+            if (!TryBuildValue(new(compiler, dmObject, null), expression, variable.Type, ScopeMode.Normal, out var value))
                 return false;
 
             if (VarName == "tag" && dmObject.IsSubtypeOf(DreamPath.Datum) && !compiler.Settings.NoStandard)
@@ -285,9 +282,10 @@ internal partial class DMCodeTree {
                 return false;
 
             DMExpression? value = null;
-            if (varDecl.Value != null) {
+            var expression = varDecl.Value;
+            if (expression != null) {
                 var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
-                if (!TryBuildValue(new(compiler, dmObject, proc), varDecl.Value, varDecl.Type, scope, out value))
+                if (!TryBuildValue(new(compiler, dmObject, proc), expression, varDecl.Type, scope, out value))
                     return false;
             }
 
@@ -334,7 +332,8 @@ internal partial class DMCodeTree {
             }
 
             if (varOverride.Value is not DMASTConstantPath parentType) {
-                _compiler.Emit(WarningCode.BadExpression, varOverride.Value.Location, "Expected a constant path");
+                if (varOverride.Value != null)
+                    _compiler.Emit(WarningCode.BadExpression, varOverride.Value.Location, "Expected a constant path");
                 return;
             }
 

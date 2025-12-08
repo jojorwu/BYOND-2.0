@@ -9,13 +9,13 @@ namespace Server
     public class GameLoop : IHostedService, IDisposable
     {
         private readonly IScriptHost _scriptHost;
-        private readonly UdpServer _udpServer;
+        private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
         private readonly ServerSettings _settings;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IScriptHost scriptHost, UdpServer udpServer, IGameState gameState, ServerSettings settings)
+        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings)
         {
             _scriptHost = scriptHost;
             _udpServer = udpServer;

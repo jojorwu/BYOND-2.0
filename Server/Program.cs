@@ -58,6 +58,7 @@ class Program
         services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
 
         services.AddSingleton<UdpServer>();
+        services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
         services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
         services.AddSingleton<GameLoop>();

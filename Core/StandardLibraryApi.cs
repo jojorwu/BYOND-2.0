@@ -7,11 +7,11 @@ namespace Core
 {
     public class StandardLibraryApi : IStandardLibraryApi
     {
-        private readonly GameState _gameState;
+        private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
 
-        public StandardLibraryApi(GameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
+        public StandardLibraryApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;

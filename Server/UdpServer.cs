@@ -10,18 +10,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Server
 {
-    public class UdpServer : IHostedService, IDisposable
+    public class UdpServer : IHostedService, IDisposable, IUdpServer
     {
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly CancellationTokenSource _cancellationTokenSource = new();
         private readonly IScriptHost _scriptHost;
-        private readonly IGameState _gameState;
         private readonly ServerSettings _settings;
         private readonly ILogger<UdpServer> _logger;
         private Task? _networkTask;
 
-        public UdpServer(IScriptHost scriptHost, IGameState gameState, ServerSettings settings, ILogger<UdpServer> logger)
+        public UdpServer(IScriptHost scriptHost, ServerSettings settings, ILogger<UdpServer> logger)
         {
             _settings = settings;
             _listener = new EventBasedNetListener();
@@ -30,7 +29,6 @@ namespace Server
                 DisconnectTimeout = settings.Network.DisconnectTimeout
             };
             _scriptHost = scriptHost;
-            _gameState = gameState;
             _logger = logger;
 
             _listener.ConnectionRequestEvent += OnConnectionRequest;
@@ -67,7 +65,14 @@ namespace Server
             _cancellationTokenSource.Cancel();
             if (_networkTask != null)
             {
-                await _networkTask;
+                try
+                {
+                    await _networkTask;
+                }
+                catch (TaskCanceledException)
+                {
+                    // This is expected
+                }
             }
             _netManager.Stop();
             _logger.LogInformation("UDP Server stopped.");
@@ -105,7 +110,7 @@ namespace Server
             _logger.LogInformation($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
         }
 
-        public virtual void BroadcastSnapshot(string snapshot) {
+        public void BroadcastSnapshot(string snapshot) {
             var writer = new LiteNetLib.Utils.NetDataWriter();
             writer.Put(snapshot);
             _netManager.SendToAll(writer, DeliveryMethod.Unreliable);

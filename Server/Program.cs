@@ -13,13 +13,19 @@ namespace Server;
 
 class Program
 {
+    private const string ConfigFileName = "server_config.json";
     static async Task Main(string[] args)
     {
+        EnsureServerConfigFileExists();
         await CreateHostBuilder(args).Build().RunAsync();
     }
 
     private static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration((hostingContext, config) =>
+            {
+                config.AddJsonFile(ConfigFileName, optional: false, reloadOnChange: true);
+            })
             .UseSerilog((context, configuration) =>
             {
                 configuration.ReadFrom.Configuration(context.Configuration);
@@ -31,7 +37,7 @@ class Program
 
     private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var settings = LoadSettings(configuration);
+        var settings = configuration.GetSection("ServerSettings").Get<ServerSettings>() ?? new ServerSettings();
         services.AddSingleton(settings);
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
@@ -58,25 +64,21 @@ class Program
         services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
 
         services.AddSingleton<UdpServer>();
+        services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
         services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
         services.AddSingleton<GameLoop>();
         services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
     }
 
-
-    private static ServerSettings LoadSettings(IConfiguration configuration)
+    private static void EnsureServerConfigFileExists()
     {
-        var settings = new ServerSettings();
-        configuration.GetSection("ServerSettings").Bind(settings);
+        if (File.Exists(ConfigFileName))
+            return;
 
-        var configPath = "server_config.json";
-        if (!File.Exists(configPath))
-        {
-            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(configPath, json);
-        }
-
-        return settings;
+        var serverSettings = new ServerSettings();
+        var serverSettingsSection = new { ServerSettings = serverSettings };
+        var json = JsonSerializer.Serialize(serverSettingsSection, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(ConfigFileName, json);
     }
 }

@@ -10,9 +10,9 @@ namespace Core
 {
     public class MapLoader
     {
-        private readonly ObjectTypeManager _objectTypeManager;
+        private readonly IObjectTypeManager _objectTypeManager;
 
-        public MapLoader(ObjectTypeManager objectTypeManager)
+        public MapLoader(IObjectTypeManager objectTypeManager)
         {
             _objectTypeManager = objectTypeManager;
         }
@@ -67,7 +67,11 @@ namespace Core
 
         public async Task SaveMapAsync(IMap map, string filePath)
         {
-            var mapData = new MapData();
+            await using var stream = File.Create(filePath);
+            await using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
+
+            writer.WriteStartObject();
+            writer.WriteStartArray("Turfs");
 
             foreach (var z in map.GetZLevels())
             {
@@ -80,25 +84,32 @@ namespace Core
                             var turf = chunk.GetTurf(x, y);
                             if (turf == null) continue;
 
-                            mapData.Turfs.Add(new TurfData
+                            writer.WriteStartObject();
+                            writer.WriteNumber("X", chunkCoords.X * Chunk.ChunkSize + x);
+                            writer.WriteNumber("Y", chunkCoords.Y * Chunk.ChunkSize + y);
+                            writer.WriteNumber("Z", z);
+                            writer.WriteNumber("Id", turf.Id);
+                            writer.WriteStartArray("Contents");
+
+                            foreach (var obj in turf.Contents)
                             {
-                                X = chunkCoords.X * Chunk.ChunkSize + x,
-                                Y = chunkCoords.Y * Chunk.ChunkSize + y,
-                                Z = z,
-                                Id = turf.Id,
-                                Contents = turf.Contents.Select(obj => new GameObjectData
-                                {
-                                    TypeName = obj.ObjectType.Name,
-                                    Properties = obj.Properties
-                                }).ToList()
-                            });
+                                writer.WriteStartObject();
+                                writer.WriteString("TypeName", obj.ObjectType.Name);
+                                writer.WritePropertyName("Properties");
+                                JsonSerializer.Serialize(writer, obj.Properties);
+                                writer.WriteEndObject();
+                            }
+
+                            writer.WriteEndArray();
+                            writer.WriteEndObject();
                         }
                     }
                 }
             }
 
-            await using var stream = File.Create(filePath);
-            await JsonSerializer.SerializeAsync(stream, mapData, new JsonSerializerOptions { WriteIndented = true });
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            await writer.FlushAsync();
         }
 
         private object? GetValueFromJsonElement(JsonElement element)

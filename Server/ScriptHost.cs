@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Server
 {
@@ -77,12 +78,12 @@ namespace Server
             }
             if (environment == null) return;
 
-            var threadsToRun = new List<DreamThread>(environment.Threads);
-            var nextThreads = new List<DreamThread>();
+            var dreamThreads = environment.Threads.OfType<DreamThread>().ToList();
+            var nextThreads = new List<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            foreach (var thread in threadsToRun)
+            foreach (var thread in dreamThreads)
             {
                 if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
                 {
@@ -101,6 +102,9 @@ namespace Server
                 }
             }
 
+            // Re-add non-DreamThreads to the list for next tick
+            nextThreads.AddRange(environment.Threads.Where(t => t is not DreamThread));
+
             lock (_scriptLock)
             {
                 if (_currentEnvironment != null)
@@ -118,12 +122,9 @@ namespace Server
 
         public void AddThread(IScriptThread thread)
         {
-            if (thread is not DreamThread dreamThread)
-                throw new ArgumentException("Thread must be a DreamThread for this script host.", nameof(thread));
-
             lock (_scriptLock)
             {
-                _currentEnvironment?.Threads.Add(dreamThread);
+                _currentEnvironment?.Threads.Add(thread);
             }
         }
 

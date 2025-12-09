@@ -13,7 +13,7 @@ namespace Core.Tests
     [TestFixture]
     public class ScriptManagerTests
     {
-        private ScriptManager _scriptManager = null!;
+        private IScriptManager _scriptManager = null!;
         private IGameApi _gameApi = null!;
         private GameState _gameState = null!;
         private ObjectTypeManager _objectTypeManager = null!;

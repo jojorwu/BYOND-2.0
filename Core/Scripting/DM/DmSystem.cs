@@ -10,7 +10,7 @@ using Shared;
 
 namespace Core.Scripting.DM
 {
-    public class DmSystem : IScriptSystem
+    public class DmSystem : IThreadSupportingScriptSystem
     {
         private readonly OpenDreamCompilerService _compiler;
         private readonly ObjectTypeManager _typeManager;
@@ -62,19 +62,19 @@ namespace Core.Scripting.DM
         public void InvokeEvent(string eventName, params object[] args)
         {
             var thread = CreateThread(eventName);
-            if (thread == null)
+            if (thread is not DreamThread dreamThread)
             {
-                Console.WriteLine($"[DM] Event '{eventName}' not found.");
+                Console.WriteLine($"[DM] Event '{eventName}' not found or thread is of incompatible type.");
                 return;
             }
 
             // Push arguments onto the stack in reverse order
             for (int i = args.Length - 1; i >= 0; i--)
             {
-                thread.Push(DreamValue.FromObject(args[i]));
+                dreamThread.Push(DreamValue.FromObject(args[i]));
             }
 
-            _scriptHost.AddThread(thread);
+            _scriptHost.AddThread(dreamThread);
             Console.WriteLine($"[DM] Invoked event '{eventName}'");
         }
 
@@ -90,7 +90,7 @@ namespace Core.Scripting.DM
             return null;
         }
 
-        public DreamThread? CreateThread(string procName)
+        public IScriptThread? CreateThread(string procName)
         {
             return _loader.CreateThread(procName);
         }

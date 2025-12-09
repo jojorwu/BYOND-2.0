@@ -26,7 +26,7 @@ namespace Core
             {
                 var gameObject = new GameObject(objectType, x, y, z);
                 _gameState.GameObjects.Add(gameObject.Id, gameObject);
-                var turf = _mapApi.GetTurf(x, y, z);
+                var turf = _gameState.Map?.GetTurf(x, y, z);
                 if (turf != null)
                 {
                     turf.Contents.Add(gameObject);
@@ -48,10 +48,9 @@ namespace Core
         {
             using (_gameState.WriteLock())
             {
-                var gameObject = GetObject(id);
-                if (gameObject != null)
+                if (_gameState.GameObjects.TryGetValue(id, out var gameObject))
                 {
-                    var turf = _mapApi.GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+                    var turf = _gameState.Map?.GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
                     if (turf != null)
                     {
                         turf.Contents.Remove(gameObject);
@@ -65,10 +64,9 @@ namespace Core
         {
             using (_gameState.WriteLock())
             {
-                var gameObject = GetObject(id);
-                if (gameObject != null)
+                if (_gameState.GameObjects.TryGetValue(id, out var gameObject))
                 {
-                    var oldTurf = _mapApi.GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+                    var oldTurf = _gameState.Map?.GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
                     if (oldTurf != null)
                     {
                         oldTurf.Contents.Remove(gameObject);
@@ -78,7 +76,7 @@ namespace Core
                     gameObject.Y = y;
                     gameObject.Z = z;
 
-                    var newTurf = _mapApi.GetTurf(x, y, z);
+                    var newTurf = _gameState.Map?.GetTurf(x, y, z);
                     if (newTurf != null)
                     {
                         newTurf.Contents.Add(gameObject);

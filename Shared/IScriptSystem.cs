@@ -27,6 +27,6 @@ namespace Shared
         /// <summary>
         /// Executes a string command.
         /// </summary>
-        void ExecuteString(string command);
+        string? ExecuteString(string command);
     }
 }

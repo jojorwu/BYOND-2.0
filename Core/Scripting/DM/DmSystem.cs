@@ -84,9 +84,10 @@ namespace Core.Scripting.DM
             // LoadScripts будет вызван менеджером
         }
 
-        public void ExecuteString(string command)
+        public string? ExecuteString(string command)
         {
             // Not supported for DM scripts in this manner
+            return null;
         }
 
         public DreamThread? CreateThread(string procName)

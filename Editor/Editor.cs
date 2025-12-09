@@ -127,10 +127,10 @@ namespace Editor
             _projectHolder.SetProject(project);
 
             var objectTypeManager = _serviceProvider.GetRequiredService<IObjectTypeManager>();
-            var wall = new ObjectType("wall");
+            var wall = new ObjectType(1, "wall");
             wall.DefaultProperties["SpritePath"] = "assets/wall.png";
             objectTypeManager.RegisterObjectType(wall);
-            var floor = new ObjectType("floor");
+            var floor = new ObjectType(2, "floor");
             floor.DefaultProperties["SpritePath"] = "assets/floor.png";
             objectTypeManager.RegisterObjectType(floor);
 

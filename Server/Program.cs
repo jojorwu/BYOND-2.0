@@ -69,6 +69,9 @@ class Program
 
         services.AddSingleton<GameLoop>();
         services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
+
+        services.AddSingleton<HttpServer>();
+        services.AddHostedService<HttpServer>();
     }
 
     private static void EnsureServerConfigFileExists()

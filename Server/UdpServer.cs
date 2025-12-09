@@ -4,12 +4,21 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Core;
+using System.Text.Json;
 using LiteNetLib;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Server
 {
+    public class ServerInfo
+    {
+        public required string ServerName { get; set; }
+        public required string ServerDescription { get; set; }
+        public int MaxPlayers { get; set; }
+        public required string AssetUrl { get; set; }
+    }
+
     public class UdpServer : IHostedService, IDisposable, IUdpServer
     {
         private readonly NetManager _netManager;
@@ -88,6 +97,18 @@ namespace Server
         private void OnPeerConnected(NetPeer peer)
         {
             _logger.LogInformation($"Client connected: {peer}");
+
+            var serverInfo = new ServerInfo
+            {
+                ServerName = _settings.ServerName,
+                ServerDescription = _settings.ServerDescription,
+                MaxPlayers = _settings.MaxPlayers,
+                AssetUrl = $"http://{_settings.Network.IpAddress}:{_settings.HttpServer.Port}"
+            };
+
+            var writer = new LiteNetLib.Utils.NetDataWriter();
+            writer.Put(JsonSerializer.Serialize(serverInfo));
+            peer.Send(writer, DeliveryMethod.ReliableOrdered);
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)

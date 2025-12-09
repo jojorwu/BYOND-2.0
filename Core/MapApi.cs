@@ -65,7 +65,7 @@ namespace Core
 
         public async Task<IMap?> LoadMapAsync(string filePath)
         {
-            var safePath = SanitizePath(filePath, Constants.MapsRoot);
+            var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
             var map = await _mapLoader.LoadMapAsync(safePath);
             using (_gameState.WriteLock())
             {
@@ -92,25 +92,9 @@ namespace Core
 
             if (mapToSave != null)
             {
-                var safePath = SanitizePath(filePath, Constants.MapsRoot);
+                var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
                 await _mapLoader.SaveMapAsync(mapToSave, safePath);
             }
-        }
-
-        private string SanitizePath(string userProvidedPath, string expectedRootFolder)
-        {
-            // Get the full path of the project's root for the given type (e.g., /tmp/proj/scripts)
-            var fullRootPath = System.IO.Path.GetFullPath(_project.GetFullPath(expectedRootFolder));
-
-            // Get the full path of the user-provided file relative to the project root
-            var fullUserPath = System.IO.Path.GetFullPath(_project.GetFullPath(userProvidedPath));
-
-
-            if (!fullUserPath.StartsWith(fullRootPath))
-            {
-                throw new System.Security.SecurityException("Access to path is denied.");
-            }
-            return fullUserPath;
         }
     }
 }

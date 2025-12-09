@@ -56,10 +56,20 @@ namespace Server
             }
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
+            if (_gameLoopTask == null)
+                return;
+
             _cancellationTokenSource?.Cancel();
-            return Task.CompletedTask;
+            try
+            {
+                await _gameLoopTask;
+            }
+            catch (TaskCanceledException)
+            {
+                // This is expected
+            }
         }
 
         public void Dispose()

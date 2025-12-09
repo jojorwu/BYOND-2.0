@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -34,22 +35,24 @@ namespace Server
         {
             var tickRate = _settings.Performance.TickRate;
             var interval = TimeSpan.FromSeconds(1.0 / tickRate);
-            var lastTick = DateTime.UtcNow;
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
 
             while (!token.IsCancellationRequested)
             {
-                var now = DateTime.UtcNow;
-                var elapsed = now - lastTick;
+                var elapsed = stopwatch.Elapsed;
 
                 if (elapsed >= interval)
                 {
                     _scriptHost.Tick();
                     var snapshot = _gameState.GetSnapshot();
-                    _udpServer.BroadcastSnapshot(snapshot);
-                    lastTick = now;
+                    // Don't block the main game loop with network operations
+                    _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
+                    stopwatch.Restart();
                 }
 
-                await Task.Delay(5, token);
+                // Yield the thread to prevent busy-waiting
+                await Task.Delay(1, token);
             }
         }
 

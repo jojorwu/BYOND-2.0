@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Core
 {
-    public class MapLoader
+    public class MapLoader : IMapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
 

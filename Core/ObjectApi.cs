@@ -3,20 +3,20 @@ namespace Core
 {
     public class ObjectApi : IObjectApi
     {
-        private readonly GameState _gameState;
+        private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
 
-        public ObjectApi(GameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
+        public ObjectApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
             _mapApi = mapApi;
         }
 
-        public GameObject? CreateObject(string typeName, int x, int y, int z)
+        public GameObject? CreateObject(int typeId, int x, int y, int z)
         {
-            var objectType = _objectTypeManager.GetObjectType(typeName);
+            var objectType = _objectTypeManager.GetObjectType(typeId);
             if (objectType == null)
             {
                 return null;

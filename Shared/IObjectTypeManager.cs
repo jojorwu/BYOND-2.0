@@ -6,6 +6,7 @@ namespace Shared
     {
         void RegisterObjectType(ObjectType objectType);
         ObjectType? GetObjectType(string name);
+        ObjectType? GetObjectType(int id);
         IEnumerable<ObjectType> GetAllObjectTypes();
         void Clear();
     }

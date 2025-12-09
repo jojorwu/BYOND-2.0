@@ -7,13 +7,14 @@ namespace Core
     public class ObjectTypeManager : IObjectTypeManager
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
+        private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();
         private readonly ConcurrentDictionary<string, List<ObjectType>> _unlinkedChildren = new();
 
         public void RegisterObjectType(ObjectType objectType)
         {
-            if (!_objectTypes.TryAdd(objectType.Name, objectType))
+            if (!_objectTypes.TryAdd(objectType.Name, objectType) || !_objectTypesById.TryAdd(objectType.Id, objectType))
             {
-                throw new System.InvalidOperationException($"Object type '{objectType.Name}' is already registered.");
+                throw new System.InvalidOperationException($"Object type '{objectType.Name}' with ID {objectType.Id} is already registered.");
             }
 
             // Link to parent
@@ -66,6 +67,12 @@ namespace Core
             return objectType;
         }
 
+        public ObjectType? GetObjectType(int id)
+        {
+            _objectTypesById.TryGetValue(id, out var objectType);
+            return objectType;
+        }
+
         public IEnumerable<ObjectType> GetAllObjectTypes()
         {
             return _objectTypes.Values;
@@ -74,6 +81,7 @@ namespace Core
         public void Clear()
         {
             _objectTypes.Clear();
+            _objectTypesById.Clear();
             _unlinkedChildren.Clear();
         }
     }

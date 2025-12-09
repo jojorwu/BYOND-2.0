@@ -27,14 +27,16 @@ namespace Core.Tests
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
             _mapLoader = new MapLoader(_objectTypeManager);
-            _mapApi = new MapApi(_gameState, _mapLoader, _project);
+            _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
             _scriptApi = new ScriptApi(_project);
             _standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, _mapApi);
             _mapApi.SetMap(new Map());
+            var turfType = new ObjectType(1, "/turf");
+            _objectTypeManager.RegisterObjectType(turfType);
             _mapApi.SetTurf(0, 0, 0, 1);
 
-            var testObjectType = new ObjectType("test");
+            var testObjectType = new ObjectType(2, "test");
             _objectTypeManager.RegisterObjectType(testObjectType);
         }
 
@@ -55,7 +57,7 @@ namespace Core.Tests
             var turf = _mapApi.GetTurf(0, 0, 0);
 
             // Act
-            var obj = _objectApi.CreateObject("test", 0, 0, 0);
+            var obj = _objectApi.CreateObject(2, 0, 0, 0);
 
             // Assert
             Assert.That(turf, Is.Not.Null);
@@ -66,7 +68,7 @@ namespace Core.Tests
         public void DestroyObject_RemovesObjectFromGameStateAndTurf()
         {
             // Arrange
-            var obj = _objectApi.CreateObject("test", 0, 0, 0);
+            var obj = _objectApi.CreateObject(2, 0, 0, 0);
             Assert.That(obj, Is.Not.Null, "CreateObject returned null");
 
             var turf = _mapApi.GetTurf(0, 0, 0);

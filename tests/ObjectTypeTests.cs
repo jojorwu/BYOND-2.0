@@ -11,7 +11,7 @@ namespace tests
         public void GetProperty_WhenInstancePropertyExists_ReturnsInstanceValue()
         {
             // Arrange
-            var objectType = new ObjectType("test");
+            var objectType = new ObjectType(1, "test");
             objectType.DefaultProperties["SpritePath"] = "default.png";
             var gameObject = new GameObject(objectType);
             gameObject.Properties["SpritePath"] = "instance.png";
@@ -27,7 +27,7 @@ namespace tests
         public void GetProperty_WhenInstancePropertyDoesNotExist_ReturnsDefaultValue()
         {
             // Arrange
-            var objectType = new ObjectType("test");
+            var objectType = new ObjectType(1, "test");
             objectType.DefaultProperties["SpritePath"] = "default.png";
             var gameObject = new GameObject(objectType);
 
@@ -42,7 +42,7 @@ namespace tests
         public void GetProperty_WhenPropertyDoesNotExist_ReturnsNull()
         {
             // Arrange
-            var objectType = new ObjectType("test");
+            var objectType = new ObjectType(1, "test");
             var gameObject = new GameObject(objectType);
 
             // Act
@@ -57,7 +57,7 @@ namespace tests
         {
             // Arrange
             var manager = new ObjectTypeManager();
-            var objectType = new ObjectType("test");
+            var objectType = new ObjectType(1, "test");
 
             // Act
             manager.RegisterObjectType(objectType);
@@ -72,9 +72,9 @@ namespace tests
         {
             // Arrange
             var manager = new ObjectTypeManager();
-            var typeA = new ObjectType("A") { ParentName = "C" };
-            var typeB = new ObjectType("B") { ParentName = "A" };
-            var typeC = new ObjectType("C") { ParentName = "B" };
+            var typeA = new ObjectType(1, "A") { ParentName = "C" };
+            var typeB = new ObjectType(2, "B") { ParentName = "A" };
+            var typeC = new ObjectType(3, "C") { ParentName = "B" };
 
             // Act
             manager.RegisterObjectType(typeA);
@@ -89,11 +89,11 @@ namespace tests
         {
             // Arrange
             var manager = new ObjectTypeManager();
-            var typeA = new ObjectType("A");
-            var typeB = new ObjectType("B") { ParentName = "A" };
-            var typeC = new ObjectType("C") { ParentName = "B" };
-            var typeD = new ObjectType("D") { ParentName = "C" };
-            var typeE = new ObjectType("E") { ParentName = "D" };
+            var typeA = new ObjectType(1, "A");
+            var typeB = new ObjectType(2, "B") { ParentName = "A" };
+            var typeC = new ObjectType(3, "C") { ParentName = "B" };
+            var typeD = new ObjectType(4, "D") { ParentName = "C" };
+            var typeE = new ObjectType(5, "E") { ParentName = "D" };
 
             // Act & Assert
             Assert.DoesNotThrow(() =>

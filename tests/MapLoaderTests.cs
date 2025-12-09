@@ -32,7 +32,7 @@ namespace tests
         public async Task SaveAndLoadMap_PreservesGameObjectsAndProperties()
         {
             // Arrange
-            var objectType = new ObjectType("test_object");
+            var objectType = new ObjectType(1, "test_object");
             objectType.DefaultProperties["SpritePath"] = "default.png";
             _objectTypeManager.RegisterObjectType(objectType);
 

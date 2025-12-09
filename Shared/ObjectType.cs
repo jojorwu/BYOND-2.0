@@ -5,6 +5,7 @@ namespace Shared
 {
     public class ObjectType
     {
+        public int Id { get; }
         public string Name { get; set; }
         public string? ParentName { get; set; }
 
@@ -12,8 +13,9 @@ namespace Shared
         public ObjectType? Parent { get; set; }
         public Dictionary<string, object?> DefaultProperties { get; set; }
 
-        public ObjectType(string name)
+        public ObjectType(int id, string name)
         {
+            Id = id;
             Name = name;
             DefaultProperties = new Dictionary<string, object?>();
         }

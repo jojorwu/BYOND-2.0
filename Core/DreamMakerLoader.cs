@@ -64,9 +64,10 @@ namespace Core
             }
 
             // Load types and their properties
-            foreach (var typeJson in compiledJson.Types)
+            for (int i = 0; i < compiledJson.Types.Length; i++)
             {
-                var newType = new ObjectType(typeJson.Path);
+                var typeJson = compiledJson.Types[i];
+                var newType = new ObjectType(i, typeJson.Path);
 
                 if (typeJson.Parent.HasValue)
                 {

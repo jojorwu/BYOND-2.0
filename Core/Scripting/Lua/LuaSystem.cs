@@ -1,6 +1,7 @@
 using Shared;
 using System;
 using System.IO;
+using System.Linq;
 using NLua;
 
 namespace Core.Scripting.LuaSystem
@@ -70,9 +71,17 @@ namespace Core.Scripting.LuaSystem
             _lua?.Dispose();
         }
 
-        public void ExecuteString(string command)
+        public string? ExecuteString(string command)
         {
-            _lua?.DoString(command);
+            try
+            {
+                var result = _lua?.DoString(command);
+                return result?.FirstOrDefault()?.ToString();
+            }
+            catch (Exception ex)
+            {
+                return $"[Lua Error] {ex.Message}";
+            }
         }
     }
 }

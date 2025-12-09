@@ -24,6 +24,7 @@ namespace Server
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ScriptHost> _logger;
         private ScriptingEnvironment? _currentEnvironment;
+        private CancellationTokenSource? _cancellationTokenSource;
 
         public ScriptHost(IProject project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger)
         {
@@ -36,6 +37,8 @@ namespace Server
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Starting script host...");
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
             _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
             {
                 Filter = "*.*",
@@ -56,6 +59,7 @@ namespace Server
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            _cancellationTokenSource?.Cancel();
             _watcher?.Dispose();
             _debounceTimer?.Dispose();
             return Task.CompletedTask;
@@ -128,11 +132,12 @@ namespace Server
             while (_commandQueue.TryDequeue(out var commandInfo))
             {
                 var (command, onResult) = commandInfo;
+                string? result;
                 lock (_scriptLock)
                 {
-                    _currentEnvironment?.ScriptManager.ExecuteCommand(command);
+                    result = _currentEnvironment?.ScriptManager.ExecuteCommand(command);
                 }
-                onResult("Command executed."); // Simplified result
+                onResult(result ?? "Command executed with no result.");
             }
         }
 
@@ -151,6 +156,8 @@ namespace Server
             _logger.LogInformation("Starting background script reload...");
             Task.Run(async () =>
             {
+                if (_cancellationTokenSource?.IsCancellationRequested ?? true)
+                    return;
                 try
                 {
                     var newEnvironment = new ScriptingEnvironment(_serviceProvider);
@@ -173,6 +180,7 @@ namespace Server
 
         public void Dispose()
         {
+            _cancellationTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
     }

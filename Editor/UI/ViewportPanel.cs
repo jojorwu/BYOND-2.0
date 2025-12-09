@@ -58,12 +58,16 @@ namespace Editor.UI
                     if (payload.NativePtr != null)
                     {
                         var objectTypeName = System.Text.Encoding.UTF8.GetString((byte*)payload.Data, payload.DataSize);
+                        var objectType = _editorContext.ObjectTypeManager.GetObjectType(objectTypeName);
+                        if(objectType == null)
+                            continue;
+
                         var mousePos = ImGui.GetMousePos();
                         var windowPos = ImGui.GetWindowPos();
                         var localMousePos = new Vector2(mousePos.X - windowPos.X, mousePos.Y - windowPos.Y);
                         var worldMousePos = Camera.ScreenToWorld(localMousePos, Camera.GetProjectionMatrix(ImGui.GetWindowSize().X, ImGui.GetWindowSize().Y));
                         var tilePos = new Vector2i((int)(worldMousePos.X / EditorConstants.TileSize), (int)(worldMousePos.Y / EditorConstants.TileSize));
-                        _gameApi.Objects.CreateObject(objectTypeName, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
+                        _gameApi.Objects.CreateObject(objectType.Id, tilePos.X, tilePos.Y, _editorContext.CurrentZLevel);
                     }
                 }
                 ImGui.EndDragDropTarget();

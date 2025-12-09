@@ -4,17 +4,26 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Core;
+using System.Text.Json;
 using LiteNetLib;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Server
 {
+    public class ServerInfo
+    {
+        public required string ServerName { get; set; }
+        public required string ServerDescription { get; set; }
+        public int MaxPlayers { get; set; }
+        public required string AssetUrl { get; set; }
+    }
+
     public class UdpServer : IHostedService, IDisposable, IUdpServer
     {
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
-        private readonly CancellationTokenSource _cancellationTokenSource = new();
+        private CancellationTokenSource? _cancellationTokenSource;
         private readonly IScriptHost _scriptHost;
         private readonly ServerSettings _settings;
         private readonly ILogger<UdpServer> _logger;
@@ -39,6 +48,7 @@ namespace Server
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             if (_netManager.Start(_settings.Network.UdpPort))
             {
                 _logger.LogInformation($"UDP Server started on port {_settings.Network.UdpPort}");
@@ -62,17 +72,17 @@ namespace Server
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            _cancellationTokenSource.Cancel();
-            if (_networkTask != null)
+            if (_networkTask == null)
+                return;
+
+            _cancellationTokenSource?.Cancel();
+            try
             {
-                try
-                {
-                    await _networkTask;
-                }
-                catch (TaskCanceledException)
-                {
-                    // This is expected
-                }
+                await _networkTask;
+            }
+            catch (TaskCanceledException)
+            {
+                // This is expected
             }
             _netManager.Stop();
             _logger.LogInformation("UDP Server stopped.");
@@ -87,6 +97,18 @@ namespace Server
         private void OnPeerConnected(NetPeer peer)
         {
             _logger.LogInformation($"Client connected: {peer}");
+
+            var serverInfo = new ServerInfo
+            {
+                ServerName = _settings.ServerName,
+                ServerDescription = _settings.ServerDescription,
+                MaxPlayers = _settings.MaxPlayers,
+                AssetUrl = $"http://{_settings.Network.IpAddress}:{_settings.HttpServer.Port}"
+            };
+
+            var writer = new LiteNetLib.Utils.NetDataWriter();
+            writer.Put(JsonSerializer.Serialize(serverInfo));
+            peer.Send(writer, DeliveryMethod.ReliableOrdered);
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
@@ -118,7 +140,7 @@ namespace Server
 
         public void Dispose()
         {
-            _cancellationTokenSource.Dispose();
+            _cancellationTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
     }

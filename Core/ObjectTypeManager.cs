@@ -7,17 +7,17 @@ namespace Core
     public class ObjectTypeManager : IObjectTypeManager
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
+        private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();
+        private readonly ConcurrentDictionary<string, List<ObjectType>> _unlinkedChildren = new();
 
         public void RegisterObjectType(ObjectType objectType)
         {
-            if (_objectTypes.ContainsKey(objectType.Name))
+            if (!_objectTypes.TryAdd(objectType.Name, objectType) || !_objectTypesById.TryAdd(objectType.Id, objectType))
             {
-                throw new System.InvalidOperationException($"Object type '{objectType.Name}' is already registered.");
+                throw new System.InvalidOperationException($"Object type '{objectType.Name}' with ID {objectType.Id} is already registered.");
             }
 
-            _objectTypes[objectType.Name] = objectType;
-
-            // Link this object type to its parent if the parent is already registered.
+            // Link to parent
             if (!string.IsNullOrEmpty(objectType.ParentName))
             {
                 if (_objectTypes.TryGetValue(objectType.ParentName, out var parentType))
@@ -25,15 +25,21 @@ namespace Core
                     objectType.Parent = parentType;
                     ValidateCircularDependencies(objectType);
                 }
+                else
+                {
+                    _unlinkedChildren.AddOrUpdate(objectType.ParentName,
+                        new List<ObjectType> { objectType },
+                        (key, list) => { list.Add(objectType); return list; });
+                }
             }
 
-            // Link any existing object types that are children of this new type.
-            foreach (var childType in _objectTypes.Values)
+            // Link any unlinked children to this new type
+            if (_unlinkedChildren.TryRemove(objectType.Name, out var children))
             {
-                if (childType.ParentName == objectType.Name)
+                foreach (var child in children)
                 {
-                    childType.Parent = objectType;
-                    ValidateCircularDependencies(childType);
+                    child.Parent = objectType;
+                    ValidateCircularDependencies(child);
                 }
             }
         }
@@ -61,6 +67,12 @@ namespace Core
             return objectType;
         }
 
+        public ObjectType? GetObjectType(int id)
+        {
+            _objectTypesById.TryGetValue(id, out var objectType);
+            return objectType;
+        }
+
         public IEnumerable<ObjectType> GetAllObjectTypes()
         {
             return _objectTypes.Values;
@@ -69,6 +81,8 @@ namespace Core
         public void Clear()
         {
             _objectTypes.Clear();
+            _objectTypesById.Clear();
+            _unlinkedChildren.Clear();
         }
     }
 }

@@ -13,7 +13,7 @@ namespace Server
     public class ScriptingEnvironment : IDisposable
     {
         public IGameApi GameApi { get; }
-        public ObjectTypeManager ObjectTypeManager { get; }
+        public IObjectTypeManager ObjectTypeManager { get; }
         public DreamVM DreamVM { get; }
         public ScriptManager ScriptManager { get; }
         public List<DreamThread> Threads { get; } = new();
@@ -27,7 +27,7 @@ namespace Server
             var scopeProvider = _scope.ServiceProvider;
 
             GameApi = scopeProvider.GetRequiredService<IGameApi>();
-            ObjectTypeManager = scopeProvider.GetRequiredService<ObjectTypeManager>();
+            ObjectTypeManager = scopeProvider.GetRequiredService<IObjectTypeManager>();
             DreamVM = scopeProvider.GetRequiredService<DreamVM>();
             ScriptManager = scopeProvider.GetRequiredService<ScriptManager>();
             _logger = scopeProvider.GetRequiredService<ILogger<ScriptingEnvironment>>();

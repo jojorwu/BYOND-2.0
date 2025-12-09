@@ -11,11 +11,11 @@ namespace tests
         public void GetProperty_ShouldResolveFromInstance_ThenDirectType_ThenParentType()
         {
             // Arrange
-            var parentType = new ObjectType("/obj/parent");
+            var parentType = new ObjectType(1, "/obj/parent");
             parentType.DefaultProperties["parentProperty"] = "parentValue";
             parentType.DefaultProperties["overrideProperty"] = "parentOverride";
 
-            var childType = new ObjectType("/obj/child") { Parent = parentType };
+            var childType = new ObjectType(2, "/obj/child") { Parent = parentType };
             childType.DefaultProperties["childProperty"] = "childValue";
             childType.DefaultProperties["overrideProperty"] = "childOverride";
 

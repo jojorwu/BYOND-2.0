@@ -29,7 +29,7 @@ namespace Core
         {
             try
             {
-                var safePath = SanitizePath(filename, Constants.ScriptsRoot);
+                var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
                 return File.Exists(safePath);
             }
             catch (System.Security.SecurityException)
@@ -40,36 +40,20 @@ namespace Core
 
         public string ReadScriptFile(string filename)
         {
-            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
+            var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
             return File.ReadAllText(safePath);
         }
 
         public void WriteScriptFile(string filename, string content)
         {
-            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
+            var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
             File.WriteAllText(safePath, content);
         }
 
         public void DeleteScriptFile(string filename)
         {
-            var safePath = SanitizePath(filename, Constants.ScriptsRoot);
+            var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
             File.Delete(safePath);
-        }
-
-        private string SanitizePath(string userProvidedPath, string expectedRootFolder)
-        {
-            // Get the full path of the project's root for the given type (e.g., /tmp/proj/scripts)
-            var fullRootPath = Path.GetFullPath(_project.GetFullPath(expectedRootFolder));
-
-            // Get the full path of the user-provided file relative to the project root
-            var fullUserPath = Path.GetFullPath(_project.GetFullPath(userProvidedPath));
-
-
-            if (!fullUserPath.StartsWith(fullRootPath))
-            {
-                throw new System.Security.SecurityException("Access to path is denied.");
-            }
-            return fullUserPath;
         }
     }
 }

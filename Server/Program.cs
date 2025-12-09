@@ -44,7 +44,7 @@ class Program
         // Core services
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
-        services.AddSingleton<MapLoader>();
+        services.AddSingleton<IMapLoader, MapLoader>();
         services.AddSingleton<IMapApi, MapApi>();
         services.AddSingleton<IObjectApi, ObjectApi>();
         services.AddSingleton<IScriptApi, ScriptApi>();
@@ -69,6 +69,9 @@ class Program
 
         services.AddSingleton<GameLoop>();
         services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
+
+        services.AddSingleton<HttpServer>();
+        services.AddHostedService<HttpServer>();
     }
 
     private static void EnsureServerConfigFileExists()

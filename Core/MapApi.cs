@@ -5,15 +5,17 @@ namespace Core
 {
     public class MapApi : IMapApi
     {
-        private readonly GameState _gameState;
-        private readonly MapLoader _mapLoader;
+        private readonly IGameState _gameState;
+        private readonly IMapLoader _mapLoader;
         private readonly IProject _project;
+        private readonly IObjectTypeManager _objectTypeManager;
 
-        public MapApi(GameState gameState, MapLoader mapLoader, IProject project)
+        public MapApi(IGameState gameState, IMapLoader mapLoader, IProject project, IObjectTypeManager objectTypeManager)
         {
             _gameState = gameState;
             _mapLoader = mapLoader;
             _project = project;
+            _objectTypeManager = objectTypeManager;
         }
 
         public IMap? GetMap()
@@ -34,15 +36,36 @@ namespace Core
 
         public void SetTurf(int x, int y, int z, int turfId)
         {
+            var turfType = _objectTypeManager.GetObjectType(turfId);
+            if (turfType == null || !IsTurfType(turfType))
+            {
+                // Maybe just log a warning? For now, an exception is better to signal API misuse.
+                throw new System.ArgumentException($"Invalid or non-turf type ID: {turfId}", nameof(turfId));
+            }
+
             using (_gameState.WriteLock())
             {
                 _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
             }
         }
 
+        private bool IsTurfType(ObjectType? type)
+        {
+            var current = type;
+            while (current != null)
+            {
+                if (current.Name == "/turf")
+                {
+                    return true;
+                }
+                current = current.Parent;
+            }
+            return false;
+        }
+
         public async Task<IMap?> LoadMapAsync(string filePath)
         {
-            var safePath = SanitizePath(filePath, Constants.MapsRoot);
+            var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
             var map = await _mapLoader.LoadMapAsync(safePath);
             using (_gameState.WriteLock())
             {
@@ -69,25 +92,9 @@ namespace Core
 
             if (mapToSave != null)
             {
-                var safePath = SanitizePath(filePath, Constants.MapsRoot);
+                var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
                 await _mapLoader.SaveMapAsync(mapToSave, safePath);
             }
-        }
-
-        private string SanitizePath(string userProvidedPath, string expectedRootFolder)
-        {
-            // Get the full path of the project's root for the given type (e.g., /tmp/proj/scripts)
-            var fullRootPath = System.IO.Path.GetFullPath(_project.GetFullPath(expectedRootFolder));
-
-            // Get the full path of the user-provided file relative to the project root
-            var fullUserPath = System.IO.Path.GetFullPath(_project.GetFullPath(userProvidedPath));
-
-
-            if (!fullUserPath.StartsWith(fullRootPath))
-            {
-                throw new System.Security.SecurityException("Access to path is denied.");
-            }
-            return fullUserPath;
         }
     }
 }

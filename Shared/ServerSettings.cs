@@ -9,9 +9,17 @@ namespace Shared
         public int VmMaxInstructions { get; set; } = 1000000;
 
         public NetworkSettings Network { get; set; } = new();
+        public HttpServerSettings HttpServer { get; set; } = new();
         public ThreadingSettings Threading { get; set; } = new();
         public PerformanceSettings Performance { get; set; } = new();
         public DevelopmentSettings Development { get; set; } = new();
+    }
+
+    public class HttpServerSettings
+    {
+        public bool Enabled { get; set; } = true;
+        public int Port { get; set; } = 9051;
+        public string AssetsRoot { get; set; } = "assets";
     }
 
     public class NetworkSettings

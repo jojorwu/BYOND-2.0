@@ -73,7 +73,11 @@ namespace Core.VM.Runtime
             var argCount = ReadByte(proc, ref pc);
 
             var procName = _vm.Strings[procId];
-            var newProc = _vm.Procs[procName];
+            if (!_vm.Procs.TryGetValue(procName, out var newProc) || newProc is not DreamProc dreamProc)
+            {
+                State = DreamThreadState.Error;
+                throw new Exception($"Attempted to call non-existent proc: {procName}");
+            }
 
             var stackBase = Stack.Count - argCount;
 
@@ -81,10 +85,10 @@ namespace Core.VM.Runtime
             currentFrame.PC = pc;
             CallStack.Push(currentFrame);
 
-            var frame = new CallFrame(newProc, 0, stackBase);
+            var frame = new CallFrame(dreamProc, 0, stackBase);
             CallStack.Push(frame);
 
-            for (int i = 0; i < newProc.LocalVariableCount; i++)
+            for (int i = 0; i < dreamProc.LocalVariableCount; i++)
             {
                 Push(DreamValue.Null);
             }

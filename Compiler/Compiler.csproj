@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+    <ProjectReference Include="..\Shared\Shared.csproj" />
   </ItemGroup>
 
 </Project>

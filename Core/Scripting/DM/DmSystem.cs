@@ -12,18 +12,18 @@ namespace Core.Scripting.DM
 {
     public class DmSystem : IThreadSupportingScriptSystem
     {
-        private readonly OpenDreamCompilerService _compiler;
-        private readonly ObjectTypeManager _typeManager;
-        private readonly DreamMakerLoader _loader;
+        private readonly ICompilerService _compiler;
+        private readonly IObjectTypeManager _typeManager;
+        private readonly IDreamMakerLoader _loader;
         private readonly Func<IScriptHost> _scriptHostFactory;
         private IScriptHost _scriptHost => _scriptHostFactory();
 
 
-        public DmSystem(ObjectTypeManager typeManager, IProject project, DreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
+        public DmSystem(IObjectTypeManager typeManager, IProject project, IDreamMakerLoader loader, ICompilerService compiler, Func<IScriptHost> scriptHostFactory)
         {
             _typeManager = typeManager;
-            _compiler = new OpenDreamCompilerService(project);
-            _loader = new DreamMakerLoader(_typeManager, project, dreamVM);
+            _compiler = compiler;
+            _loader = loader;
             _scriptHostFactory = scriptHostFactory;
         }
 

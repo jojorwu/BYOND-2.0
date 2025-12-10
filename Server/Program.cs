@@ -53,6 +53,8 @@ class Program
         services.AddSingleton<IDmmService, DmmService>();
         services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
         services.AddSingleton<DreamVM>();
+        services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
+        services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
         services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();

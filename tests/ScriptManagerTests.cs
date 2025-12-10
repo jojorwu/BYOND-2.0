@@ -46,11 +46,14 @@ namespace Core.Tests
             var scriptHostMock = new Mock<IScriptHost>();
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
+            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
+            var compilerService = new OpenDreamCompilerService(_project);
+
             var systems = new IScriptSystem[]
             {
                 new Core.Scripting.CSharp.CSharpSystem(_gameApi),
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
-                new Core.Scripting.DM.DmSystem(_objectTypeManager, _project, _dreamVM, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, _project, dreamMakerLoader, compilerService, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
             };
             _scriptManager = new ScriptManager(_project, systems);
         }

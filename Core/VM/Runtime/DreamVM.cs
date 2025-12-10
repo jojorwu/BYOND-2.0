@@ -5,10 +5,10 @@ using Core.VM.Procs;
 
 namespace Core.VM.Runtime
 {
-    public class DreamVM
+    public class DreamVM : IDreamVM
     {
         public List<string> Strings { get; } = new();
-        public Dictionary<string, DreamProc> Procs { get; } = new();
+        public Dictionary<string, IDreamProc> Procs { get; } = new();
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)
@@ -18,9 +18,9 @@ namespace Core.VM.Runtime
 
         public DreamThread? CreateWorldNewThread()
         {
-            if (Procs.TryGetValue("/world/proc/New", out var worldNewProc))
+            if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
-                return new DreamThread(worldNewProc, this, _settings.VmMaxInstructions);
+                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions);
             }
             Console.WriteLine("Error: /world/proc/New not found. Is the script compiled correctly?");
             return null;

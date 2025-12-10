@@ -1,6 +1,8 @@
+using Shared;
+
 namespace Core.VM.Procs
 {
-    public class DreamProc
+    public class DreamProc : IDreamProc
     {
         public byte[] Bytecode { get; }
         public string Name { get; }

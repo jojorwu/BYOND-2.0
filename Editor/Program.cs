@@ -25,7 +25,7 @@ namespace Editor
             // Core services
             services.AddSingleton<IGameState, GameState>();
             services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
-            services.AddSingleton<MapLoader>();
+            services.AddSingleton<IMapLoader, MapLoader>();
             services.AddSingleton<IMapApi, MapApi>();
             services.AddSingleton<IObjectApi, ObjectApi>();
             services.AddSingleton<IScriptApi, ScriptApi>();
@@ -34,6 +34,8 @@ namespace Editor
             services.AddSingleton<IDmmService, DmmService>();
             services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
             services.AddSingleton<DreamVM>();
+            services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
+            services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
             services.AddSingleton<IScriptManager, ScriptManager>();
             services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
             services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();

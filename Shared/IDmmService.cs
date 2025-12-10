@@ -2,6 +2,6 @@ namespace Shared
 {
     public interface IDmmService
     {
-        IMap? LoadDmm(string filePath);
+        IMap? LoadMap(string filePath);
     }
 }

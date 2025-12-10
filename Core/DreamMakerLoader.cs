@@ -130,21 +130,5 @@ namespace Core
             return element;
         }
 
-        public IScriptThread? CreateThread(string procName)
-        {
-            if (_dreamVM is not DreamVM dreamVM)
-            {
-                Console.WriteLine("Warning: DreamVM is not available or of the wrong type. Cannot create a thread.");
-                return null;
-            }
-
-            if (dreamVM.Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
-            {
-                return new DreamThread(dreamProc, dreamVM, 100000); // Using a default instruction limit for now
-            }
-
-            Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");
-            return null;
-        }
     }
 }

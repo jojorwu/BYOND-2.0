@@ -6,5 +6,6 @@ namespace Shared
     {
         List<string> Strings { get; }
         Dictionary<string, IDreamProc> Procs { get; }
+        IScriptThread? CreateThread(string procName);
     }
 }

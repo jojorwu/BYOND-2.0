@@ -15,15 +15,17 @@ namespace Core.Scripting.DM
         private readonly ICompilerService _compiler;
         private readonly IObjectTypeManager _typeManager;
         private readonly IDreamMakerLoader _loader;
+        private readonly IDreamVM _dreamVM;
         private readonly Func<IScriptHost> _scriptHostFactory;
         private IScriptHost _scriptHost => _scriptHostFactory();
 
 
-        public DmSystem(IObjectTypeManager typeManager, IProject project, IDreamMakerLoader loader, ICompilerService compiler, Func<IScriptHost> scriptHostFactory)
+        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
         {
             _typeManager = typeManager;
             _compiler = compiler;
             _loader = loader;
+            _dreamVM = dreamVM;
             _scriptHostFactory = scriptHostFactory;
         }
 
@@ -92,7 +94,7 @@ namespace Core.Scripting.DM
 
         public IScriptThread? CreateThread(string procName)
         {
-            return _loader.CreateThread(procName);
+            return _dreamVM.CreateThread(procName);
         }
     }
 }

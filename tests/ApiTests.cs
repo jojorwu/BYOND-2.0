@@ -26,7 +26,7 @@ namespace Core.Tests
 
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
             _scriptApi = new ScriptApi(_project);

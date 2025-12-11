@@ -42,9 +42,15 @@ class Program
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
         // Core services
+        services.AddSingleton<Ss14MapLoader>(provider => new Ss14MapLoader(provider.GetRequiredService<IObjectTypeManager>()));
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
-        services.AddSingleton<IMapLoader, MapLoader>();
+        services.AddSingleton<IMapLoader>(provider =>
+            new MapLoader(
+                provider.GetRequiredService<IObjectTypeManager>(),
+                provider.GetRequiredService<Ss14MapLoader>()
+            )
+        );
         services.AddSingleton<IMapApi, MapApi>();
         services.AddSingleton<IObjectApi, ObjectApi>();
         services.AddSingleton<IScriptApi, ScriptApi>();

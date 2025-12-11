@@ -3,6 +3,8 @@ using NUnit.Framework;
 using Core;
 using System.IO;
 
+using Moq;
+
 namespace tests
 {
     [TestFixture]
@@ -16,7 +18,7 @@ namespace tests
         public void SetUp()
         {
             _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
         }
 
         [TearDown]

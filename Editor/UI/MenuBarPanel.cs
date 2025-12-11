@@ -219,7 +219,7 @@ namespace Editor.UI
         {
             if (ImGui.BeginPopupModal("ChooseDmmFileDlgKey"))
             {
-                using var dialog = new NativeFileDialog().SelectFile().AddFilter("DMM Files", "*.dmm");
+                using var dialog = new NativeFileDialog().SelectFile().AddFilter("Map Files", "dmm,yml,json");
                 DialogResult result = dialog.Open(out string? path);
                 if (result == DialogResult.Okay && path != null)
                 {

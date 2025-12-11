@@ -26,11 +26,11 @@ namespace Core.VM.Runtime
             return null;
         }
 
-        public IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null)
+        public IScriptThread? CreateThread(string procName)
         {
             if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions, associatedObject);
+                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions);
             }
 
             Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");

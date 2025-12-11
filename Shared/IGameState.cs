@@ -10,6 +10,5 @@ namespace Shared
         IDisposable ReadLock();
         IDisposable WriteLock();
         string GetSnapshot();
-        string GetSnapshot(Region region);
     }
 }

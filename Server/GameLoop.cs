@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Shared;
-using Server;
 
 namespace Server
 {
@@ -14,17 +13,15 @@ namespace Server
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
         private readonly ServerSettings _settings;
-        private readonly RegionManager? _regionManager;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings, RegionManager? regionManager = null)
+        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings)
         {
             _scriptHost = scriptHost;
             _udpServer = udpServer;
             _gameState = gameState;
             _settings = settings;
-            _regionManager = regionManager;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -47,29 +44,10 @@ namespace Server
 
                 if (elapsed >= interval)
                 {
-                    if (_settings.Performance.EnableRegionalProcessing && _regionManager != null)
-                    {
-                        _scriptHost.Tick(Enumerable.Empty<IGameObject>(), true); // Tick global threads
-                        _regionManager.Tick();
-                    }
-                    else
-                    {
-                        _scriptHost.Tick();
-                    }
-
-                    if (_settings.Performance.EnableRegionalProcessing && _regionManager != null)
-                    {
-                        foreach(var region in _regionManager.GetRegions())
-                        {
-                             var snapshot = _gameState.GetSnapshot(region);
-                            _ = Task.Run(() => _udpServer.BroadcastSnapshot(region, snapshot), token);
-                        }
-                    }
-                    else
-                    {
-                        var snapshot = _gameState.GetSnapshot();
-                        _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
-                    }
+                    _scriptHost.Tick();
+                    var snapshot = _gameState.GetSnapshot();
+                    // Don't block the main game loop with network operations
+                    _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
                     stopwatch.Restart();
                 }
 

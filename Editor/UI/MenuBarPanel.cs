@@ -223,7 +223,18 @@ namespace Editor.UI
                 DialogResult result = dialog.Open(out string? path);
                 if (result == DialogResult.Okay && path != null)
                 {
-                    _dmmService.LoadDmm(path);
+                    var map = _dmmService.LoadMap(path);
+                    if (map != null)
+                    {
+                        var newScene = new Scene(System.IO.Path.GetFileName(path))
+                        {
+                            FilePath = path,
+                            GameState = { Map = map },
+                            IsDirty = false
+                        };
+                        _editorContext.OpenScenes.Add(newScene);
+                        _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
+                    }
                 }
                 ImGui.CloseCurrentPopup();
                 ImGui.EndPopup();

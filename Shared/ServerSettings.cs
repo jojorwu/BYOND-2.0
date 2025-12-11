@@ -54,7 +54,6 @@ namespace Shared
         public int TickRate { get; set; } = 60;
         public int VmInstructionSlice { get; set; } = 100;
         public int SnapshotBroadcastInterval { get; set; } = 100; // ms
-        public bool EnableRegionalProcessing { get; set; } = false;
         public TimeBudgetSettings TimeBudgeting { get; set; } = new();
     }
 

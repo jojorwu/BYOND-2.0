@@ -70,7 +70,17 @@ namespace Editor
             // UI Panels
             services.AddSingleton<ProjectManagerPanel>();
             services.AddSingleton<MenuBarPanel>();
-            services.AddSingleton<ViewportPanel>();
+            services.AddSingleton<ViewportPanel>(provider =>
+                new ViewportPanel(
+                    provider.GetRequiredService<ToolManager>(),
+                    provider.GetRequiredService<SelectionManager>(),
+                    provider.GetRequiredService<EditorContext>(),
+                    provider.GetRequiredService<IGameApi>(),
+                    provider.GetRequiredService<SpriteRenderer>(),
+                    provider.GetRequiredService<TextureManager>(),
+                    provider.GetRequiredService<IObjectTypeManager>()
+                )
+            );
             services.AddSingleton<AssetBrowserPanel>();
             services.AddSingleton<InspectorPanel>();
             services.AddSingleton<ObjectBrowserPanel>();

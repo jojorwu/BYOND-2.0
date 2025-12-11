@@ -7,7 +7,7 @@ using Shared;
 namespace Core.Tests
 {
     [TestFixture]
-    public class DmmLoaderTests
+    public class DmmServiceTests
     {
         private GameState _gameState = null!;
         private ObjectTypeManager _objectTypeManager = null!;
@@ -26,7 +26,8 @@ namespace Core.Tests
             _project = new Project(_projectPath);
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            _dmmService = new DmmService(_objectTypeManager, _project);
+            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project);
+            _dmmService = new DmmService(_objectTypeManager, _project, dreamMakerLoader);
         }
 
         [TearDown]
@@ -40,7 +41,7 @@ namespace Core.Tests
         }
 
         [Test]
-        public void LoadDmmMap_WithValidDmmAndDmFiles_LoadsMapCorrectly()
+        public void LoadMap_WithValidDmmAndDmFiles_LoadsMapCorrectly()
         {
             // Arrange
             var dmContent = @"
@@ -61,7 +62,7 @@ ab
             File.WriteAllText(dmmFullPath, dmmContent);
 
             // Act
-            var map = _dmmService.LoadDmm(dmmFullPath);
+            var map = _dmmService.LoadMap(dmmFullPath);
             _gameState.Map = map;
 
             // Assert

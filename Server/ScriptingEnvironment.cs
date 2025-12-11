@@ -15,8 +15,8 @@ namespace Server
         public IGameApi GameApi { get; }
         public IObjectTypeManager ObjectTypeManager { get; }
         public DreamVM DreamVM { get; }
-        public ScriptManager ScriptManager { get; }
-        public List<DreamThread> Threads { get; } = new();
+        public IScriptManager ScriptManager { get; }
+        public List<IScriptThread> Threads { get; } = new();
 
         private readonly IServiceScope _scope;
         private readonly ILogger<ScriptingEnvironment> _logger;
@@ -29,7 +29,7 @@ namespace Server
             GameApi = scopeProvider.GetRequiredService<IGameApi>();
             ObjectTypeManager = scopeProvider.GetRequiredService<IObjectTypeManager>();
             DreamVM = scopeProvider.GetRequiredService<DreamVM>();
-            ScriptManager = scopeProvider.GetRequiredService<ScriptManager>();
+            ScriptManager = scopeProvider.GetRequiredService<IScriptManager>();
             _logger = scopeProvider.GetRequiredService<ILogger<ScriptingEnvironment>>();
         }
 

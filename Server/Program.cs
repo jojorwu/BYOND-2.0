@@ -53,10 +53,20 @@ class Program
         services.AddSingleton<IDmmService, DmmService>();
         services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
         services.AddSingleton<DreamVM>();
-        services.AddSingleton<ScriptManager>();
+        services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
+        services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
+        services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
         services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();
-        services.AddSingleton<IScriptSystem, Core.Scripting.DM.DmSystem>();
+        services.AddSingleton<IScriptSystem>(provider =>
+            new Core.Scripting.DM.DmSystem(
+                provider.GetRequiredService<IObjectTypeManager>(),
+                provider.GetRequiredService<IDreamMakerLoader>(),
+                provider.GetRequiredService<ICompilerService>(),
+                provider.GetRequiredService<IDreamVM>(),
+                () => provider.GetRequiredService<IScriptHost>()
+            )
+        );
 
         // Hosted services
         services.AddSingleton<ScriptHost>();

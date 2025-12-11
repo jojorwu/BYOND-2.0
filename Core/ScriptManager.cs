@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace Core
 {
-    public class ScriptManager
+    public class ScriptManager : IScriptManager
     {
         private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
@@ -64,17 +64,14 @@ namespace Core
             return null;
         }
 
-        public DreamThread? CreateThread(string procName)
+        public IScriptThread? CreateThread(string procName)
         {
-            foreach (var system in _systems)
+            foreach (var system in _systems.OfType<IThreadSupportingScriptSystem>())
             {
-                if (system is DmSystem dmSystem)
+                var thread = system.CreateThread(procName);
+                if (thread != null)
                 {
-                    var thread = dmSystem.CreateThread(procName);
-                    if (thread != null)
-                    {
-                        return thread;
-                    }
+                    return thread;
                 }
             }
             return null;

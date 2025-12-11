@@ -9,28 +9,31 @@ using DMCompiler.Json;
 
 namespace Core
 {
-    public class DreamMakerLoader
+    public class DreamMakerLoader : IDreamMakerLoader
     {
         private readonly IObjectTypeManager _typeManager;
         private readonly IProject _project;
-        private readonly DreamVM? _dreamVM;
+        private readonly IDreamVM? _dreamVM;
 
-        public DreamMakerLoader(IObjectTypeManager typeManager, IProject project, DreamVM? dreamVM = null)
+        public DreamMakerLoader(IObjectTypeManager typeManager, IProject project, IDreamVM? dreamVM = null)
         {
             _typeManager = typeManager;
             _project = project;
             _dreamVM = dreamVM;
         }
 
-        public void Load(PublicDreamCompiledJson compiledJson)
+        public void Load(IPublicDreamCompiledJson compiledJson)
         {
+            if (compiledJson is not PublicDreamCompiledJson json)
+                throw new ArgumentException("Invalid compiled json object", nameof(compiledJson));
+
             if (_dreamVM != null)
             {
                 // Load strings
                 _dreamVM.Strings.Clear();
-                if (compiledJson.Strings != null)
+                if (json.Strings != null)
                 {
-                    foreach (var str in compiledJson.Strings)
+                    foreach (var str in json.Strings)
                     {
                         if(str != null)
                             _dreamVM.Strings.Add(str);
@@ -39,9 +42,9 @@ namespace Core
 
                 // Load procs
                 _dreamVM.Procs.Clear();
-                if (compiledJson.Procs != null)
+                if (json.Procs != null)
                 {
-                    foreach (var procJson in compiledJson.Procs)
+                    foreach (var procJson in json.Procs)
                     {
                         var bytecode = procJson.Bytecode ?? Array.Empty<byte>();
                         var arguments = new string[procJson.Arguments?.Count ?? 0];
@@ -64,17 +67,17 @@ namespace Core
             }
 
             // Load types and their properties
-            for (int i = 0; i < compiledJson.Types.Length; i++)
+            for (int i = 0; i < json.Types.Length; i++)
             {
-                var typeJson = compiledJson.Types[i];
+                var typeJson = json.Types[i];
                 var newType = new ObjectType(i, typeJson.Path);
 
                 if (typeJson.Parent.HasValue)
                 {
                     var parentId = typeJson.Parent.Value;
-                    if (parentId < compiledJson.Types.Length)
+                    if (parentId < json.Types.Length)
                     {
-                        newType.ParentName = compiledJson.Types[parentId].Path;
+                        newType.ParentName = json.Types[parentId].Path;
                     }
                 }
                 _typeManager.RegisterObjectType(newType);
@@ -127,21 +130,5 @@ namespace Core
             return element;
         }
 
-        public DreamThread? CreateThread(string procName)
-        {
-            if (_dreamVM == null)
-            {
-                Console.WriteLine("Warning: DreamVM is not available. Cannot create a thread.");
-                return null;
-            }
-
-            if (_dreamVM.Procs.TryGetValue(procName, out var proc))
-            {
-                return new DreamThread(proc, _dreamVM, 100000); // Using a default instruction limit for now
-            }
-
-            Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");
-            return null;
-        }
     }
 }

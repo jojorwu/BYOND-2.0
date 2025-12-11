@@ -13,7 +13,7 @@ namespace Core.Tests
     [TestFixture]
     public class ScriptManagerTests
     {
-        private ScriptManager _scriptManager = null!;
+        private IScriptManager _scriptManager = null!;
         private IGameApi _gameApi = null!;
         private GameState _gameState = null!;
         private ObjectTypeManager _objectTypeManager = null!;
@@ -46,11 +46,14 @@ namespace Core.Tests
             var scriptHostMock = new Mock<IScriptHost>();
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
+            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
+            var compilerService = new OpenDreamCompilerService(_project);
+
             var systems = new IScriptSystem[]
             {
                 new Core.Scripting.CSharp.CSharpSystem(_gameApi),
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
-                new Core.Scripting.DM.DmSystem(_objectTypeManager, _project, _dreamVM, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
             };
             _scriptManager = new ScriptManager(_project, systems);
         }

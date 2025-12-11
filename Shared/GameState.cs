@@ -1,6 +1,7 @@
 using Shared;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 
@@ -33,6 +34,24 @@ namespace Shared
                 {
                     Map,
                     GameObjects
+                };
+                return JsonSerializer.Serialize(snapshot);
+            }
+        }
+
+        public string GetSnapshot(Region region)
+        {
+            using (ReadLock())
+            {
+                var regionChunks = region.GetChunks().ToHashSet();
+                var regionGameObjects = region.GetGameObjects()
+                    .OfType<GameObject>()
+                    .ToDictionary(go => go.Id);
+
+                var snapshot = new
+                {
+                    Chunks = regionChunks,
+                    GameObjects = regionGameObjects
                 };
                 return JsonSerializer.Serialize(snapshot);
             }

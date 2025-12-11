@@ -184,5 +184,58 @@ namespace Server
             _cancellationTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
+
+        public void Tick(IEnumerable<IGameObject> objectsToTick)
+        {
+            ProcessCommandQueue();
+
+            ScriptingEnvironment? environment;
+            lock (_scriptLock)
+            {
+                environment = _currentEnvironment;
+            }
+            if (environment == null) return;
+
+            var objectsSet = new HashSet<IGameObject>(objectsToTick);
+            var threadsToRun = environment.Threads
+                .Where(t => t.AssociatedObject == null || objectsSet.Contains(t.AssociatedObject))
+                .OfType<DreamThread>()
+                .ToList();
+
+            var nextThreads = new List<IScriptThread>();
+            var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            foreach (var thread in threadsToRun)
+            {
+                if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
+                {
+                    nextThreads.Add(thread);
+                    continue;
+                }
+
+                var state = thread.Run(_settings.Performance.VmInstructionSlice);
+                if (state == DreamThreadState.Running)
+                {
+                    nextThreads.Add(thread);
+                }
+                else
+                {
+                    _logger.LogDebug($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
+                }
+            }
+
+            // Re-add unprocessed threads and non-DreamThreads to the list for next tick
+            nextThreads.AddRange(environment.Threads.Except(threadsToRun));
+
+            lock (_scriptLock)
+            {
+                if (_currentEnvironment != null)
+                {
+                    _currentEnvironment.Threads.Clear();
+                    _currentEnvironment.Threads.AddRange(nextThreads);
+                }
+            }
+        }
     }
 }

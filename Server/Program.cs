@@ -7,6 +7,7 @@ using Core.VM.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Serilog;
 
 namespace Server;
@@ -42,6 +43,7 @@ class Program
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
         // Core services
+        services.AddSingleton<IPlayerManager, PlayerManager>();
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
         services.AddSingleton<IMapLoader, MapLoader>();
@@ -69,11 +71,22 @@ class Program
         );
 
         // Hosted services
+        if (settings.Performance.EnableRegionalProcessing)
+        {
+            services.AddSingleton<RegionManager>();
+        }
         services.AddSingleton<ScriptHost>();
         services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
         services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
 
-        services.AddSingleton<UdpServer>();
+        services.AddSingleton<UdpServer>(provider =>
+            new UdpServer(
+                provider.GetRequiredService<IScriptHost>(),
+                provider.GetRequiredService<IPlayerManager>(),
+                provider.GetRequiredService<ServerSettings>(),
+                provider.GetRequiredService<ILogger<UdpServer>>()
+            )
+        );
         services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
         services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+    <PackageReference Include="LiteNetLib" Version="1.2.0" />
   </ItemGroup>
 
   <PropertyGroup>

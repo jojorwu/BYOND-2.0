@@ -102,5 +102,35 @@ namespace Core.Tests
             // Act & Assert
             Assert.ThrowsAsync<System.Security.SecurityException>(async () => await _mapApi.SaveMapAsync(invalidPath));
         }
+
+        [Test]
+        public void ReadScriptFile_WhenPathIsInvalid_ThrowsSecurityException()
+        {
+            // Arrange
+            var invalidPath = "../../../../../../../etc/passwd";
+
+            // Act & Assert
+            Assert.Throws<System.Security.SecurityException>(() => _scriptApi.ReadScriptFile(invalidPath));
+        }
+
+        [Test]
+        public void WriteScriptFile_WhenPathIsInvalid_ThrowsSecurityException()
+        {
+            // Arrange
+            var invalidPath = "../../../../../../../etc/passwd";
+
+            // Act & Assert
+            Assert.Throws<System.Security.SecurityException>(() => _scriptApi.WriteScriptFile(invalidPath, "test"));
+        }
+
+        [Test]
+        public void DeleteScriptFile_WhenPathIsInvalid_ThrowsSecurityException()
+        {
+            // Arrange
+            var invalidPath = "../../../../../../../etc/passwd";
+
+            // Act & Assert
+            Assert.Throws<System.Security.SecurityException>(() => _scriptApi.DeleteScriptFile(invalidPath));
+        }
     }
 }

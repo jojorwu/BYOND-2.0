@@ -10,12 +10,19 @@ namespace Core
         private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
+        private readonly IRestartService _restartService;
 
-        public StandardLibraryApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
+        public StandardLibraryApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi, IRestartService restartService)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
             _mapApi = mapApi;
+            _restartService = restartService;
+        }
+
+        public void Restart()
+        {
+            _restartService.RequestRestart();
         }
 
         public GameObject? Locate(string typePath, List<GameObject> container)

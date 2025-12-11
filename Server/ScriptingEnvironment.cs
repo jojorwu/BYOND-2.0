@@ -33,21 +33,9 @@ namespace Server
             _logger = scopeProvider.GetRequiredService<ILogger<ScriptingEnvironment>>();
         }
 
-        public async Task Initialize()
+        public async Task LoadScriptsAsync()
         {
             await ScriptManager.ReloadAll();
-            ScriptManager.InvokeGlobalEvent("OnStart");
-
-            var mainThread = ScriptManager.CreateThread("world.New");
-            if (mainThread != null)
-            {
-                Threads.Add(mainThread);
-                _logger.LogInformation("Successfully created 'world.New' thread.");
-            }
-            else
-            {
-                _logger.LogWarning("Could not create 'world.New' thread.");
-            }
         }
 
         public void Dispose()

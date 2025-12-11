@@ -30,7 +30,7 @@ namespace Core.Tests
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
             _scriptApi = new ScriptApi(_project);
-            _standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, _mapApi);
+            _standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, _mapApi, new Moq.Mock<IRestartService>().Object);
             _mapApi.SetMap(new Map());
             var turfType = new ObjectType(1, "/turf");
             _objectTypeManager.RegisterObjectType(turfType);

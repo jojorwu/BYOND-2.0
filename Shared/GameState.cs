@@ -43,6 +43,15 @@ namespace Shared
             _lock.Dispose();
         }
 
+        public void Reset()
+        {
+            using (WriteLock())
+            {
+                GameObjects.Clear();
+                Map = null;
+            }
+        }
+
         private sealed class DisposableAction : IDisposable
         {
             private readonly Action _action;

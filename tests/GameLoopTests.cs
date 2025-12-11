@@ -15,6 +15,7 @@ namespace tests
         private Mock<IGameState> _gameStateMock = null!;
         private Mock<IScriptHost> _scriptHostMock = null!;
         private Mock<IUdpServer> _udpServerMock = null!;
+        private Mock<IRestartService> _restartServiceMock = null!;
         private ServerSettings _serverSettings = null!;
         private GameLoop _gameLoop = null!;
         private CancellationTokenSource _cancellationTokenSource = null!;
@@ -25,9 +26,10 @@ namespace tests
             _gameStateMock = new Mock<IGameState>();
             _scriptHostMock = new Mock<IScriptHost>();
             _udpServerMock = new Mock<IUdpServer>();
+            _restartServiceMock = new Mock<IRestartService>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
 
-            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, _serverSettings);
+            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, _serverSettings, _restartServiceMock.Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

@@ -13,15 +13,17 @@ namespace Server
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
         private readonly ServerSettings _settings;
+        private readonly IRestartService _restartService;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings)
+        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings, IRestartService restartService)
         {
             _scriptHost = scriptHost;
             _udpServer = udpServer;
             _gameState = gameState;
             _settings = settings;
+            _restartService = restartService;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -49,6 +51,16 @@ namespace Server
                     // Don't block the main game loop with network operations
                     _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
                     stopwatch.Restart();
+                }
+
+                if (_restartService.IsRestartRequested)
+                {
+                    Console.WriteLine("Restart requested. Resetting game state and re-initializing script host...");
+                    _gameState.Reset();
+                    _scriptHost.Initialize();
+                    _restartService.Reset();
+                    Console.WriteLine("Restart complete.");
+                    stopwatch.Restart(); // Reset timer after restart
                 }
 
                 // Yield the thread to prevent busy-waiting

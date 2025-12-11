@@ -44,6 +44,7 @@ class Program
         // Core services
         services.AddSingleton<Ss14MapLoader>(provider => new Ss14MapLoader(provider.GetRequiredService<IObjectTypeManager>()));
         services.AddSingleton<IGameState, GameState>();
+        services.AddSingleton<IRestartService, RestartService>();
         services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
         services.AddSingleton<IMapLoader>(provider =>
             new MapLoader(

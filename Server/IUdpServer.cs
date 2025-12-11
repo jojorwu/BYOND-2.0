@@ -1,7 +1,8 @@
 using LiteNetLib;
 using Robust.Shared.Maths;
+using Shared;
 
-namespace Shared
+namespace Server
 {
     public interface IUdpServer
     {

@@ -20,7 +20,7 @@ namespace Shared
         public void Tick()
         {
             var gameObjectsInRegion = GetGameObjects();
-            _scriptHost.Tick(gameObjectsInRegion);
+            _scriptHost.Tick(gameObjectsInRegion, false);
         }
 
         public IEnumerable<Chunk> GetChunks()

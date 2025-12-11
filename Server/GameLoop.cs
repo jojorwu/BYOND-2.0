@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Shared;
+using Server;
 
 namespace Server
 {
@@ -48,6 +49,7 @@ namespace Server
                 {
                     if (_settings.Performance.EnableRegionalProcessing && _regionManager != null)
                     {
+                        _scriptHost.Tick(Enumerable.Empty<IGameObject>(), true); // Tick global threads
                         _regionManager.Tick();
                     }
                     else

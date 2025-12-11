@@ -185,7 +185,7 @@ namespace Server
             GC.SuppressFinalize(this);
         }
 
-        public void Tick(IEnumerable<IGameObject> objectsToTick)
+        public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
         {
             ProcessCommandQueue();
 
@@ -198,7 +198,7 @@ namespace Server
 
             var objectsSet = new HashSet<IGameObject>(objectsToTick);
             var threadsToRun = environment.Threads
-                .Where(t => t.AssociatedObject == null || objectsSet.Contains(t.AssociatedObject))
+                .Where(t => (processGlobals && t.AssociatedObject == null) || (t.AssociatedObject != null && objectsSet.Contains(t.AssociatedObject)))
                 .OfType<DreamThread>()
                 .ToList();
 

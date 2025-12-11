@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Server;
 using Serilog;
 
 namespace Server;
@@ -43,7 +44,14 @@ class Program
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
         // Core services
-        services.AddSingleton<IPlayerManager, PlayerManager>();
+        services.AddSingleton<IPlayerManager>(provider =>
+            new PlayerManager(
+                provider.GetRequiredService<IGameState>(),
+                provider.GetRequiredService<IUdpServer>(),
+                provider.GetRequiredService<IObjectApi>(),
+                provider.GetRequiredService<IObjectTypeManager>()
+            )
+        );
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
         services.AddSingleton<IMapLoader, MapLoader>();

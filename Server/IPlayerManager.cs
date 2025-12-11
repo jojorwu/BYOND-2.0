@@ -1,6 +1,6 @@
 using LiteNetLib;
 
-namespace Shared
+namespace Server
 {
     public interface IPlayerManager
     {

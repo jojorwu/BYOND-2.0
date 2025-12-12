@@ -26,7 +26,8 @@ namespace Core.Tests
 
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
+            var dmmServiceMock = new Moq.Mock<IDmmService>();
+            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager), dmmServiceMock.Object);
 
             // Register essential types BEFORE creating APIs that depend on them.
             var turfType = new ObjectType(1, "/turf");

@@ -12,11 +12,13 @@ namespace Core
     {
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly Ss14MapLoader _ss14MapLoader;
+        private readonly IDmmService _dmmService;
 
-        public MapLoader(IObjectTypeManager objectTypeManager, Ss14MapLoader ss14MapLoader)
+        public MapLoader(IObjectTypeManager objectTypeManager, Ss14MapLoader ss14MapLoader, IDmmService dmmService)
         {
             _objectTypeManager = objectTypeManager;
             _ss14MapLoader = ss14MapLoader;
+            _dmmService = dmmService;
         }
 
         public async Task<IMap?> LoadMapAsync(string filePath)
@@ -30,6 +32,10 @@ namespace Core
             if (extension == ".yml")
             {
                 return await _ss14MapLoader.LoadMapAsync(filePath);
+            }
+            if (extension == ".dmm")
+            {
+                return await _dmmService.LoadMapAsync(filePath);
             }
 
             await using var stream = File.OpenRead(filePath);

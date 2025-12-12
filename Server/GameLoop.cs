@@ -38,6 +38,9 @@ namespace Server
             var tickRate = _settings.Performance.TickRate;
             var interval = TimeSpan.FromSeconds(1.0 / tickRate);
             var stopwatch = new Stopwatch();
+            var fullSnapshotIntervalTicks = tickRate * 10; // Send full snapshot every 10 seconds
+            long tickCounter = 0;
+
             stopwatch.Start();
 
             while (!token.IsCancellationRequested)
@@ -47,10 +50,25 @@ namespace Server
                 if (elapsed >= interval)
                 {
                     _scriptHost.Tick();
-                    var snapshot = _gameState.GetSnapshot();
-                    // Don't block the main game loop with network operations
-                    _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
+
+                    string snapshot;
+                    if (tickCounter % fullSnapshotIntervalTicks == 0)
+                    {
+                        snapshot = _gameState.GetSnapshot();
+                    }
+                    else
+                    {
+                        snapshot = _gameState.GetDeltaSnapshot();
+                    }
+
+                    if (!string.IsNullOrEmpty(snapshot))
+                    {
+                        // Don't block the main game loop with network operations
+                        _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
+                    }
+
                     stopwatch.Restart();
+                    tickCounter++;
                 }
 
                 if (_restartService.IsRestartRequested)

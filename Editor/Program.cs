@@ -25,6 +25,7 @@ namespace Editor
             // Core services
             services.AddSingleton<IGameState, GameState>();
             services.AddSingleton<IObjectTypeManager, ObjectTypeManager>();
+            services.AddSingleton<Ss14MapLoader>();
             services.AddSingleton<IMapLoader, MapLoader>();
             services.AddSingleton<IMapApi, MapApi>();
             services.AddSingleton<IObjectApi, ObjectApi>();

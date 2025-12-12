@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Core;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Shared;
 
 namespace Core.Tests
@@ -41,7 +42,7 @@ namespace Core.Tests
         }
 
         [Test]
-        public void LoadMap_WithValidDmmAndDmFiles_LoadsMapCorrectly()
+        public async Task LoadMap_WithValidDmmAndDmFiles_LoadsMapCorrectly()
         {
             // Arrange
             var dmContent = @"
@@ -56,13 +57,13 @@ namespace Core.Tests
 ab
 ""}
 ";
-            File.WriteAllText(Path.Combine(_project.GetFullPath(Constants.ScriptsRoot), "types.dm"), dmContent);
+            await File.WriteAllTextAsync(Path.Combine(_project.GetFullPath(Constants.ScriptsRoot), "types.dm"), dmContent);
             var dmmRelativePath = Path.Combine("maps", "test.dmm");
             var dmmFullPath = _project.GetFullPath(dmmRelativePath);
-            File.WriteAllText(dmmFullPath, dmmContent);
+            await File.WriteAllTextAsync(dmmFullPath, dmmContent);
 
             // Act
-            var map = _dmmService.LoadMap(dmmFullPath);
+            var map = await _dmmService.LoadMapAsync(dmmFullPath);
             _gameState.Map = map;
 
             // Assert

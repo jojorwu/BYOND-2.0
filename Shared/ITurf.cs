@@ -6,5 +6,6 @@ namespace Shared
     {
         int Id { get; set; }
         List<IGameObject> Contents { get; }
+        bool IsDirty { get; set; }
     }
 }

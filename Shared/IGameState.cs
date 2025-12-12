@@ -11,6 +11,7 @@ namespace Shared
         IDisposable ReadLock();
         IDisposable WriteLock();
         string GetSnapshot();
+        string GetDeltaSnapshot();
         void Reset();
     }
 }

@@ -2,6 +2,6 @@ namespace Shared
 {
     public interface IDmmService
     {
-        IMap? LoadMap(string filePath);
+        Task<IMap?> LoadMapAsync(string filePath);
     }
 }

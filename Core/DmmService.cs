@@ -2,6 +2,7 @@ using Shared;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using DMCompiler;
 using DMCompiler.Json;
 using Robust.Shared.Maths;
@@ -21,16 +22,16 @@ namespace Core
             _dreamMakerLoader = dreamMakerLoader;
         }
 
-        public IMap? LoadMap(string filePath)
+        public async Task<IMap?> LoadMapAsync(string filePath)
         {
-            if (!File.Exists(filePath))
+            if (!File.Exists(filePath)) // Keep sync check for early exit
             {
                 throw new FileNotFoundException("DMM file not found.", filePath);
             }
 
             var dmFiles = _project.GetDmFiles();
             var parserService = new DMMParserService();
-            var (publicDreamMapJson, compiledJson) = parserService.ParseDmm(dmFiles, filePath);
+            var (publicDreamMapJson, compiledJson) = await parserService.ParseDmmAsync(dmFiles, filePath);
 
             if (publicDreamMapJson == null || compiledJson == null)
             {

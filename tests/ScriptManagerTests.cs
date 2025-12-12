@@ -34,7 +34,8 @@ namespace Core.Tests
             _project = new Project(projectPath);
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
+            var dmmServiceMock = new Mock<IDmmService>();
+            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager), dmmServiceMock.Object);
             _dreamVM = new DreamVM(new ServerSettings());
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, new ServerSettings());

@@ -18,7 +18,8 @@ namespace tests
         public void SetUp()
         {
             _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
+            var dmmServiceMock = new Mock<IDmmService>();
+            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager), dmmServiceMock.Object);
         }
 
         [TearDown]

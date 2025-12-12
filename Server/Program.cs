@@ -49,7 +49,8 @@ class Program
         services.AddSingleton<IMapLoader>(provider =>
             new MapLoader(
                 provider.GetRequiredService<IObjectTypeManager>(),
-                provider.GetRequiredService<Ss14MapLoader>()
+                provider.GetRequiredService<Ss14MapLoader>(),
+                provider.GetRequiredService<IDmmService>()
             )
         );
         services.AddSingleton<IMapApi, MapApi>();

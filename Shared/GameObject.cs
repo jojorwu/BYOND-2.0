@@ -9,6 +9,7 @@ namespace Shared
     public class GameObject : IGameObject
     {
         private static int nextId = 1;
+        private int _x, _y, _z;
 
         /// <summary>
         /// Gets the unique identifier for the game object.
@@ -18,17 +19,17 @@ namespace Shared
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
-        public int X { get; set; }
+        public int X { get => _x; set { if(_x != value) { _x = value; IsDirty = true; } } }
 
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
-        public int Y { get; set; }
+        public int Y { get => _y; set { if(_y != value) { _y = value; IsDirty = true; } } }
 
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
-        public int Z { get; set; }
+        public int Z { get => _z; set { if(_z != value) { _z = value; IsDirty = true; } } }
 
         /// <summary>
         /// Gets the ObjectType of this game object.
@@ -39,6 +40,11 @@ namespace Shared
         /// Gets the instance-specific properties of this game object.
         /// </summary>
         public Dictionary<string, object?> Properties { get; } = new();
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the object has changed since the last snapshot.
+        /// </summary>
+        public bool IsDirty { get; set; } = true;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameObject"/> class.
@@ -59,9 +65,9 @@ namespace Shared
         /// <param name="z">The Z-coordinate of the game object.</param>
         public GameObject(ObjectType objectType, int x, int y, int z) : this(objectType)
         {
-            X = x;
-            Y = y;
-            Z = z;
+            _x = x;
+            _y = y;
+            _z = z;
         }
 
         /// <summary>
@@ -110,7 +116,11 @@ namespace Shared
         /// <param name="value">The value to set.</param>
         public void SetProperty(string propertyName, object? value)
         {
-            Properties[propertyName] = value;
+            if (!Properties.TryGetValue(propertyName, out var oldValue) || !Equals(oldValue, value))
+            {
+                Properties[propertyName] = value;
+                IsDirty = true;
+            }
         }
     }
 }

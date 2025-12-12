@@ -47,12 +47,6 @@ namespace Core
             return null;
         }
 
-        public void Sleep(int milliseconds)
-        {
-            Console.WriteLine($"[Warning] Game:Sleep({milliseconds}) is a blocking operation and will freeze the server thread. Use with caution.");
-            Thread.Sleep(milliseconds);
-        }
-
         public List<GameObject> Range(int distance, int centerX, int centerY, int centerZ)
         {
             using (_gameState.ReadLock())

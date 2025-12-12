@@ -1,10 +1,23 @@
 using System;
-using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
 
 namespace Core.VM.Runtime
 {
+    public enum Opcode : byte
+    {
+        PushString, PushFloat, PushNull,
+        Add, Subtract, Multiply, Divide,
+        Negate,
+        CompareEquals, CompareNotEquals, CompareLessThan, CompareGreaterThan, CompareLessThanOrEqual, CompareGreaterThanOrEqual,
+        BooleanNot,
+        Pop,
+        Call, Jump, JumpIfFalse, Return,
+        Output,
+        Sleep,
+        BitAnd, BitOr, BitXor, BitNot, BitShiftLeft, BitShiftRight,
+        PushArgument, SetArgument, PushLocal, SetLocal
+    }
     public partial class DreamThread
     {
         #region Opcode Handlers
@@ -137,6 +150,21 @@ namespace Core.VM.Runtime
                 Stack.Clear();
                 Push(returnValue);
                 State = DreamThreadState.Finished;
+            }
+        }
+
+        private void Opcode_Sleep()
+        {
+            var duration = Pop();
+            if(duration.TryGetValueAsFloat(out var milliseconds))
+            {
+                WakeUpTime = DateTime.UtcNow.AddMilliseconds(milliseconds);
+                State = DreamThreadState.Sleeping;
+            }
+            else
+            {
+                // Push a null return value for the failed sleep call
+                Push(DreamValue.Null);
             }
         }
 

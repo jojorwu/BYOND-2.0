@@ -5,6 +5,7 @@ namespace Shared
         public string ServerName { get; set; } = "BYOND 2.0 Server";
         public string ServerDescription { get; set; } = "A default server instance.";
         public int MaxPlayers { get; set; } = 32;
+        public int MaxObjects { get; set; } = 10000;
         public bool EnableVm { get; set; } = false;
         public int VmMaxInstructions { get; set; } = 1000000;
 

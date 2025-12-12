@@ -10,6 +10,7 @@ namespace Shared
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
+        public SpatialGrid SpatialGrid { get; } = new();
         public IMap? Map { get; set; }
         public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
 
@@ -41,6 +42,16 @@ namespace Shared
         public void Dispose()
         {
             _lock.Dispose();
+        }
+
+        public void Reset()
+        {
+            using (WriteLock())
+            {
+                GameObjects.Clear();
+                SpatialGrid.Clear();
+                Map = null;
+            }
         }
 
         private sealed class DisposableAction : IDisposable

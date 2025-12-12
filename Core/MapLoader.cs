@@ -11,10 +11,12 @@ namespace Core
     public class MapLoader : IMapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly Ss14MapLoader _ss14MapLoader;
 
-        public MapLoader(IObjectTypeManager objectTypeManager)
+        public MapLoader(IObjectTypeManager objectTypeManager, Ss14MapLoader ss14MapLoader)
         {
             _objectTypeManager = objectTypeManager;
+            _ss14MapLoader = ss14MapLoader;
         }
 
         public async Task<IMap?> LoadMapAsync(string filePath)
@@ -22,6 +24,12 @@ namespace Core
             if (!File.Exists(filePath))
             {
                 return null;
+            }
+
+            var extension = Path.GetExtension(filePath);
+            if (extension == ".yml")
+            {
+                return await _ss14MapLoader.LoadMapAsync(filePath);
             }
 
             await using var stream = File.OpenRead(filePath);
@@ -41,7 +49,8 @@ namespace Core
                     var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
                     if (objectType != null)
                     {
-                        var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
+                        var gameObject = new GameObject(objectType);
+                        gameObject.SetPosition(turfData.X, turfData.Y, turfData.Z);
                         foreach (var prop in objData.Properties)
                         {
                             // Note: Deserializing object properties may require a custom converter

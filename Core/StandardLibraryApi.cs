@@ -1,7 +1,7 @@
 using Shared;
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
 
 namespace Core
 {
@@ -10,15 +10,22 @@ namespace Core
         private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
+        private readonly IRestartService _restartService;
 
-        public StandardLibraryApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
+        public StandardLibraryApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi, IRestartService restartService)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
             _mapApi = mapApi;
+            _restartService = restartService;
         }
 
-        public GameObject? Locate(string typePath, List<GameObject> container)
+        public void Restart()
+        {
+            _restartService.RequestRestart();
+        }
+
+        public IGameObject? Locate(string typePath, List<IGameObject> container)
         {
             var targetType = _objectTypeManager.GetObjectType(typePath);
             if (targetType == null) return null;
@@ -32,26 +39,22 @@ namespace Core
                     {
                         return obj;
                     }
-                    if (currentType.ParentName == null) break;
-                    currentType = _objectTypeManager.GetObjectType(currentType.ParentName);
+                    if (currentType.Parent == null) break;
+                    currentType = currentType.Parent;
                 }
             }
 
             return null;
         }
 
-        public void Sleep(int milliseconds)
-        {
-            Console.WriteLine($"[Warning] Game:Sleep({milliseconds}) is a blocking operation and will freeze the server thread. Use with caution.");
-            Thread.Sleep(milliseconds);
-        }
-
-        public List<GameObject> Range(int distance, int centerX, int centerY, int centerZ)
+        public List<IGameObject> Range(float distance, int centerX, int centerY, int centerZ)
         {
             using (_gameState.ReadLock())
             {
-                var results = new List<GameObject>();
-                foreach (var obj in _gameState.GameObjects.Values)
+                var candidates = _gameState.SpatialGrid.Query(centerX, centerY, (int)Math.Ceiling(distance));
+
+                var results = new List<IGameObject>();
+                foreach (var obj in candidates)
                 {
                     if (GetDistance(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distance)
                     {
@@ -62,14 +65,16 @@ namespace Core
             }
         }
 
-        public List<GameObject> View(int distance, GameObject viewer)
+        public List<IGameObject> View(int distance, IGameObject viewer)
         {
             using (_gameState.ReadLock())
             {
-                var results = new List<GameObject>();
-                foreach (var obj in _gameState.GameObjects.Values)
+                var candidates = _gameState.SpatialGrid.Query(viewer.X, viewer.Y, distance);
+
+                var results = new List<IGameObject>();
+                foreach (var obj in candidates)
                 {
-                    if (obj == viewer) continue; // Can't see yourself
+                    if (obj == viewer) continue;
 
                     if (GetDistance(viewer, obj) <= distance)
                     {
@@ -83,7 +88,7 @@ namespace Core
             }
         }
 
-        private bool HasLineOfSight(GameObject from, GameObject to)
+        private bool HasLineOfSight(IGameObject from, IGameObject to)
         {
             int x0 = from.X, y0 = from.Y;
             int x1 = to.X, y1 = to.Y;
@@ -129,7 +134,7 @@ namespace Core
             return true; // No obstructions
         }
 
-        private double GetDistance(GameObject a, GameObject b)
+        private double GetDistance(IGameObject a, IGameObject b)
         {
             return GetDistance(a.X, a.Y, a.Z, b.X, b.Y, b.Z);
         }

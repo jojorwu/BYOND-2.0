@@ -1,4 +1,5 @@
 using Shared;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Core
@@ -9,6 +10,7 @@ namespace Core
         private readonly IMapLoader _mapLoader;
         private readonly IProject _project;
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly string _mapsBasePath;
 
         public MapApi(IGameState gameState, IMapLoader mapLoader, IProject project, IObjectTypeManager objectTypeManager)
         {
@@ -16,6 +18,11 @@ namespace Core
             _mapLoader = mapLoader;
             _project = project;
             _objectTypeManager = objectTypeManager;
+            _mapsBasePath = Path.Combine(_project.RootPath, Constants.MapsRoot);
+            if (!Directory.Exists(_mapsBasePath))
+            {
+                Directory.CreateDirectory(_mapsBasePath);
+            }
         }
 
         public IMap? GetMap()
@@ -65,11 +72,14 @@ namespace Core
 
         public async Task<IMap?> LoadMapAsync(string filePath)
         {
-            var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
+            var safePath = PathSanitizer.Sanitize(_mapsBasePath, filePath);
             var map = await _mapLoader.LoadMapAsync(safePath);
-            using (_gameState.WriteLock())
+            if(map != null)
             {
-                _gameState.Map = map;
+                using (_gameState.WriteLock())
+                {
+                    _gameState.Map = map;
+                }
             }
             return map;
         }
@@ -92,7 +102,7 @@ namespace Core
 
             if (mapToSave != null)
             {
-                var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
+                var safePath = PathSanitizer.Sanitize(_mapsBasePath, filePath);
                 await _mapLoader.SaveMapAsync(mapToSave, safePath);
             }
         }

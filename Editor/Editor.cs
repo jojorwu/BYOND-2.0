@@ -114,6 +114,8 @@ namespace Editor
                 inputContext = window.CreateInput();
                 imGuiController = new ImGuiController(gl, window, inputContext);
 
+                Theme.ApplyTheme();
+
                 _textureManager.Initialize(gl);
                 _viewportPanel.Initialize(gl);
 

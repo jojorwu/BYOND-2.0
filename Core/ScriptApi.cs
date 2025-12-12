@@ -8,20 +8,22 @@ namespace Core
     public class ScriptApi : IScriptApi
     {
         private readonly IProject _project;
+        private readonly string _scriptsBasePath;
 
         public ScriptApi(IProject project)
         {
             _project = project;
+            _scriptsBasePath = Path.Combine(_project.RootPath, Constants.ScriptsRoot);
+            if (!Directory.Exists(_scriptsBasePath))
+            {
+                Directory.CreateDirectory(_scriptsBasePath);
+            }
         }
 
         public List<string> ListScriptFiles()
         {
-            var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
-            if (!Directory.Exists(rootPath))
-                return new List<string>();
-
-            return Directory.GetFiles(rootPath, "*.lua", SearchOption.AllDirectories)
-                .Select(path => Path.GetRelativePath(rootPath, path))
+            return Directory.GetFiles(_scriptsBasePath, "*.*", SearchOption.AllDirectories)
+                .Select(path => Path.GetRelativePath(_scriptsBasePath, path))
                 .ToList();
         }
 
@@ -29,7 +31,7 @@ namespace Core
         {
             try
             {
-                var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
+                var safePath = PathSanitizer.Sanitize(_scriptsBasePath, filename);
                 return File.Exists(safePath);
             }
             catch (System.Security.SecurityException)
@@ -40,19 +42,19 @@ namespace Core
 
         public string ReadScriptFile(string filename)
         {
-            var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
+            var safePath = PathSanitizer.Sanitize(_scriptsBasePath, filename);
             return File.ReadAllText(safePath);
         }
 
         public void WriteScriptFile(string filename, string content)
         {
-            var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
+            var safePath = PathSanitizer.Sanitize(_scriptsBasePath, filename);
             File.WriteAllText(safePath, content);
         }
 
         public void DeleteScriptFile(string filename)
         {
-            var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
+            var safePath = PathSanitizer.Sanitize(_scriptsBasePath, filename);
             File.Delete(safePath);
         }
     }

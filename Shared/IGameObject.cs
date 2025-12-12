@@ -13,5 +13,6 @@ namespace Shared
         void SetPosition(int x, int y, int z);
         T? GetProperty<T>(string propertyName);
         void SetProperty(string propertyName, object? value);
+        void Reset(ObjectType newType);
     }
 }

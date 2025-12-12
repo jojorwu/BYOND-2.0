@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Shared;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -12,45 +13,52 @@ namespace Core
     public class Ss14MapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
-        private readonly ISet<string> _turfTypes = new HashSet<string> { "Wall", "Floor" }; // Easily extendable
 
         public Ss14MapLoader(IObjectTypeManager objectTypeManager)
         {
             _objectTypeManager = objectTypeManager;
         }
 
-        public IMap LoadMap(string filePath)
+        public async Task<IMap> LoadMapAsync(string filePath)
         {
             var deserializer = new DeserializerBuilder()
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)
                 .Build();
-            var yaml = File.ReadAllText(filePath);
+            var yaml = await File.ReadAllTextAsync(filePath);
             var entities = deserializer.Deserialize<List<Ss14Entity>>(yaml);
 
             var map = new Map();
+            var baseTurfType = _objectTypeManager.GetObjectType("/turf");
+            if(baseTurfType == null) {
+                Console.WriteLine("[SS14 Loader] Error: Base turf type '/turf' not found. Cannot load map.");
+                return map;
+            }
 
-            // First pass: Lay down all the turfs (walls, floors, etc.)
-            foreach (var entity in entities.Where(e => _turfTypes.Contains(e.Id)))
+            // First pass: Lay down all the turfs
+            foreach (var entity in entities)
             {
                 var objectType = _objectTypeManager.GetObjectType(entity.Id);
                 if (objectType == null)
                 {
-                    Console.WriteLine($"[SS14 Loader] Warning: ObjectType '{entity.Id}' not found. Skipping turf.");
+                    // Warning for unfound type is good, but let's not spam for non-turf objects yet
                     continue;
                 }
 
-                if (!TryParsePosition(entity, out var x, out var y))
-                    continue;
+                if (objectType.IsSubtypeOf(baseTurfType))
+                {
+                    if (!TryParsePosition(entity, out var x, out var y))
+                        continue;
 
-                // In this model, the turf itself is the object.
-                var turf = new Turf(objectType.Id);
-                var turfObject = new GameObject(objectType, x, y, 0);
-                turf.Contents.Add(turfObject);
-                map.SetTurf(x, y, 0, turf);
+                    var turf = new Turf(objectType.Id);
+                    var turfObject = new GameObject(objectType);
+                    turfObject.SetPosition(x, y, 0);
+                    turf.Contents.Add(turfObject);
+                    map.SetTurf(x, y, 0, turf);
+                }
             }
 
             // Second pass: Place all other objects on top of the turfs
-            foreach (var entity in entities.Where(e => !_turfTypes.Contains(e.Id)))
+            foreach (var entity in entities)
             {
                 var objectType = _objectTypeManager.GetObjectType(entity.Id);
                 if (objectType == null)
@@ -59,18 +67,22 @@ namespace Core
                     continue;
                 }
 
-                if (!TryParsePosition(entity, out var x, out var y))
-                    continue;
-
-                var turf = map.GetTurf(x, y, 0);
-                if (turf == null)
+                if (!objectType.IsSubtypeOf(baseTurfType))
                 {
-                    Console.WriteLine($"[SS14 Loader] Warning: Trying to place object '{entity.Id}' at ({x},{y}) but no turf exists there. Skipping.");
-                    continue;
-                }
+                    if (!TryParsePosition(entity, out var x, out var y))
+                        continue;
 
-                var gameObject = new GameObject(objectType, x, y, 0);
-                turf.Contents.Add(gameObject);
+                    var turf = map.GetTurf(x, y, 0);
+                    if (turf == null)
+                    {
+                        Console.WriteLine($"[SS14 Loader] Warning: Trying to place object '{entity.Id}' at ({x},{y}) but no turf exists there. Skipping.");
+                        continue;
+                    }
+
+                    var gameObject = new GameObject(objectType);
+                    gameObject.SetPosition(x,y,0);
+                    turf.Contents.Add(gameObject);
+                }
             }
 
             return map;

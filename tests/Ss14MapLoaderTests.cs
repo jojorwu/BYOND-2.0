@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Shared;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Core.Tests
 {
@@ -16,9 +17,18 @@ namespace Core.Tests
         public void SetUp()
         {
             _objectTypeManager = new ObjectTypeManager();
-            // Register types that are expected to exist, simulating a real project environment.
-            _objectTypeManager.RegisterObjectType(new ObjectType(1, "Floor"));
-            _objectTypeManager.RegisterObjectType(new ObjectType(2, "Wall"));
+
+            // Register a base turf type
+            var turfType = new ObjectType(100, "/turf");
+            _objectTypeManager.RegisterObjectType(turfType);
+
+            // Register types that inherit from /turf
+            var floorType = new ObjectType(1, "Floor") { Parent = turfType };
+            var wallType = new ObjectType(2, "Wall") { Parent = turfType };
+            _objectTypeManager.RegisterObjectType(floorType);
+            _objectTypeManager.RegisterObjectType(wallType);
+
+            // Register a non-turf type
             _objectTypeManager.RegisterObjectType(new ObjectType(3, "Window"));
 
             _ss14MapLoader = new Ss14MapLoader(_objectTypeManager);
@@ -34,7 +44,7 @@ namespace Core.Tests
         }
 
         [Test]
-        public void LoadMap_CorrectlySeparatesTurfsAndObjects()
+        public async Task LoadMap_CorrectlySeparatesTurfsAndObjects()
         {
             // Arrange
             var yaml = @"
@@ -56,10 +66,10 @@ namespace Core.Tests
   - type: Transform
     pos: 6, 5
 ";
-            File.WriteAllText(TestMapPath, yaml);
+            await File.WriteAllTextAsync(TestMapPath, yaml);
 
             // Act
-            var map = _ss14MapLoader.LoadMap(TestMapPath);
+            var map = await _ss14MapLoader.LoadMapAsync(TestMapPath);
 
             // Assert
             Assert.That(map, Is.Not.Null);

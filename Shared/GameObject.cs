@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading;
 
 namespace Shared
 {
@@ -8,13 +7,12 @@ namespace Shared
     /// </summary>
     public class GameObject : IGameObject
     {
-        private static int nextId = 1;
         private int _x, _y, _z;
 
         /// <summary>
         /// Gets the unique identifier for the game object.
         /// </summary>
-        public int Id { get; }
+        public int Id { get; internal set; }
 
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
@@ -34,7 +32,7 @@ namespace Shared
         /// <summary>
         /// Gets the ObjectType of this game object.
         /// </summary>
-        public ObjectType ObjectType { get; }
+        public ObjectType ObjectType { get; private set; }
 
         /// <summary>
         /// Gets the instance-specific properties of this game object.
@@ -44,7 +42,7 @@ namespace Shared
         /// <summary>
         /// Gets or sets a value indicating whether the object has changed since the last snapshot.
         /// </summary>
-        public bool IsDirty { get; set; } = true;
+        public bool IsDirty { get; set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameObject"/> class.
@@ -52,22 +50,18 @@ namespace Shared
         /// <param name="objectType">The ObjectType of the game object.</param>
         public GameObject(ObjectType objectType)
         {
-            Id = Interlocked.Increment(ref nextId);
             ObjectType = objectType;
+            Reset(objectType);
         }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="GameObject"/> class.
-        /// </summary>
-        /// <param name="objectType">The ObjectType of the game object.</param>
-        /// <param name="x">The X-coordinate of the game object.</param>
-        /// <param name="y">The Y-coordinate of the game object.</param>
-        /// <param name="z">The Z-coordinate of the game object.</param>
-        public GameObject(ObjectType objectType, int x, int y, int z) : this(objectType)
+        public void Reset(ObjectType newType)
         {
-            _x = x;
-            _y = y;
-            _z = z;
+            ObjectType = newType;
+            _x = 0;
+            _y = 0;
+            _z = 0;
+            Properties.Clear();
+            IsDirty = true;
         }
 
         /// <summary>
@@ -86,9 +80,6 @@ namespace Shared
         /// <summary>
         /// Gets a property value, checking instance properties first, then falling back to the ObjectType's default properties.
         /// </summary>
-        /// <typeparam name="T">The type of the property.</typeparam>
-        /// <param name="propertyName">The name of the property.</param>
-        /// <returns>The value of the property, or default(T) if not found.</returns>
         public T? GetProperty<T>(string propertyName)
         {
             if (Properties.TryGetValue(propertyName, out var value) && value is T tValue)
@@ -112,8 +103,6 @@ namespace Shared
         /// <summary>
         /// Sets an instance-specific property value.
         /// </summary>
-        /// <param name="propertyName">The name of the property.</param>
-        /// <param name="value">The value to set.</param>
         public void SetProperty(string propertyName, object? value)
         {
             if (!Properties.TryGetValue(propertyName, out var oldValue) || !Equals(oldValue, value))

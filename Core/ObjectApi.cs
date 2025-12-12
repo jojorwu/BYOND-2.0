@@ -1,12 +1,16 @@
 using Shared;
+using System.Threading;
+
 namespace Core
 {
     public class ObjectApi : IObjectApi
     {
+        private static int _nextId = 1;
         private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
         private readonly ServerSettings _settings;
+        private readonly ObjectPool<GameObject> _gameObjectPool;
 
         public ObjectApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi, ServerSettings settings)
         {
@@ -14,11 +18,17 @@ namespace Core
             _objectTypeManager = objectTypeManager;
             _mapApi = mapApi;
             _settings = settings;
+            _gameObjectPool = new ObjectPool<GameObject>(() => {
+                var rootType = _objectTypeManager.GetObjectType("/obj");
+                if (rootType == null)
+                    throw new System.InvalidOperationException("Root object type '/obj' not found.");
+                return new GameObject(rootType);
+            });
         }
 
-        public GameObject? CreateObject(int typeId, int x, int y, int z)
+        public IGameObject? CreateObject(int typeId, int x, int y, int z)
         {
-            using (_gameState.ReadLock()) // Read lock to check count
+            using (_gameState.ReadLock())
             {
                 if (_gameState.GameObjects.Count >= _settings.MaxObjects)
                 {
@@ -33,9 +43,13 @@ namespace Core
                 return null;
             }
 
+            var gameObject = _gameObjectPool.Get();
+            gameObject.Reset(objectType);
+            gameObject.Id = Interlocked.Increment(ref _nextId);
+            gameObject.SetPosition(x, y, z);
+
             using (_gameState.WriteLock())
             {
-                var gameObject = new GameObject(objectType, x, y, z);
                 _gameState.GameObjects.Add(gameObject.Id, gameObject);
                 _gameState.SpatialGrid.Add(gameObject);
                 var turf = _gameState.Map?.GetTurf(x, y, z);
@@ -47,7 +61,7 @@ namespace Core
             }
         }
 
-        public GameObject? GetObject(int id)
+        public IGameObject? GetObject(int id)
         {
             using (_gameState.ReadLock())
             {
@@ -69,6 +83,7 @@ namespace Core
                         turf.Contents.Remove(gameObject);
                     }
                     _gameState.GameObjects.Remove(id);
+                    _gameObjectPool.Return(gameObject);
                 }
             }
         }

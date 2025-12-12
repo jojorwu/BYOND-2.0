@@ -46,9 +46,9 @@ namespace Editor
             colors[(int)ImGuiCol.ResizeGripActive]       = new Vector4(0.26f, 0.59f, 0.98f, 0.95f);
             colors[(int)ImGuiCol.Tab]                    = new Vector4(0.18f, 0.20f, 0.22f, 1.00f);
             colors[(int)ImGuiCol.TabHovered]             = new Vector4(0.28f, 0.31f, 0.34f, 1.00f);
-            colors[(int)ImGuiCol.TabActive]              = new Vector4(0.24f, 0.26f, 0.29f, 1.00f);
-            colors[(int)ImGuiCol.TabUnfocused]           = new Vector4(0.16f, 0.17f, 0.18f, 1.00f);
-            colors[(int)ImGuiCol.TabUnfocusedActive]     = new Vector4(0.21f, 0.23f, 0.25f, 1.00f);
+            colors[35]              = new Vector4(0.24f, 0.26f, 0.29f, 1.00f); // TabActive
+            colors[36]           = new Vector4(0.16f, 0.17f, 0.18f, 1.00f); // TabUnfocused
+            colors[37]     = new Vector4(0.21f, 0.23f, 0.25f, 1.00f); // TabUnfocusedActive
             colors[(int)ImGuiCol.DockingPreview]         = new Vector4(0.40f, 0.60f, 0.80f, 0.70f);
             colors[(int)ImGuiCol.DockingEmptyBg]         = new Vector4(0.20f, 0.20f, 0.20f, 1.00f);
             colors[(int)ImGuiCol.PlotLines]              = new Vector4(0.61f, 0.61f, 0.61f, 1.00f);
@@ -62,7 +62,7 @@ namespace Editor
             colors[(int)ImGuiCol.TableRowBgAlt]          = new Vector4(1.00f, 1.00f, 1.00f, 0.06f);
             colors[(int)ImGuiCol.TextSelectedBg]         = new Vector4(0.26f, 0.59f, 0.98f, 0.35f);
             colors[(int)ImGuiCol.DragDropTarget]         = new Vector4(1.00f, 1.00f, 0.00f, 0.90f);
-            colors[(int)ImGuiCol.NavHighlight]           = new Vector4(0.26f, 0.59f, 0.98f, 1.00f);
+            colors[49]           = new Vector4(0.26f, 0.59f, 0.98f, 1.00f); // NavHighlight
             colors[(int)ImGuiCol.NavWindowingHighlight]  = new Vector4(1.00f, 1.00f, 1.00f, 0.70f);
             colors[(int)ImGuiCol.NavWindowingDimBg]      = new Vector4(0.80f, 0.80f, 0.80f, 0.20f);
             colors[(int)ImGuiCol.ModalWindowDimBg]       = new Vector4(0.20f, 0.20f, 0.20f, 0.35f);

@@ -10,6 +10,7 @@ namespace Shared
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
+        public SpatialGrid SpatialGrid { get; } = new();
         public IMap? Map { get; set; }
         public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
 
@@ -48,6 +49,7 @@ namespace Shared
             using (WriteLock())
             {
                 GameObjects.Clear();
+                SpatialGrid.Clear();
                 Map = null;
             }
         }

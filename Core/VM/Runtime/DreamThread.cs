@@ -11,7 +11,7 @@ namespace Core.VM.Runtime
     {
         public List<DreamValue> Stack { get; } = new(128);
         public Stack<CallFrame> CallStack { get; } = new();
-        public DateTime WakeUpTime { get; private set; } = DateTime.MinValue;
+
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
 
@@ -76,13 +76,6 @@ namespace Core.VM.Runtime
 
         public DreamThreadState Run(int instructionBudget)
         {
-            if (State == DreamThreadState.Sleeping)
-            {
-                if (DateTime.UtcNow < WakeUpTime)
-                    return DreamThreadState.Sleeping;
-                State = DreamThreadState.Running;
-            }
-
             if (State != DreamThreadState.Running)
                 return State;
 
@@ -108,6 +101,7 @@ namespace Core.VM.Runtime
                     return State;
                 }
 
+                // If we've executed past the end of the bytecode, it's an implicit return.
                 if (pc >= proc.Bytecode.Length)
                 {
                     Push(DreamValue.Null);
@@ -123,49 +117,48 @@ namespace Core.VM.Runtime
                     switch (opcode)
                     {
                         case Opcode.PushString: Opcode_PushString(proc, ref pc); break;
-                        case Opcode.PushFloat: Opcode_PushFloat(proc, ref pc); break;
-                        case Opcode.Add: Opcode_Add(); break;
-                        case Opcode.Subtract: Opcode_Subtract(); break;
-                        case Opcode.Multiply: Opcode_Multiply(); break;
-                        case Opcode.Divide: Opcode_Divide(); break;
-                        case Opcode.CompareEquals: Opcode_CompareEquals(); break;
-                        case Opcode.CompareNotEquals: Opcode_CompareNotEquals(); break;
-                        case Opcode.CompareLessThan: Opcode_CompareLessThan(); break;
-                        case Opcode.CompareGreaterThan: Opcode_CompareGreaterThan(); break;
-                        case Opcode.CompareLessThanOrEqual: Opcode_CompareLessThanOrEqual(); break;
-                        case Opcode.CompareGreaterThanOrEqual: Opcode_CompareGreaterThanOrEqual(); break;
-                        case Opcode.Negate: Opcode_Negate(); break;
-                        case Opcode.BooleanNot: Opcode_BooleanNot(); break;
-                        case Opcode.PushNull: Opcode_PushNull(); break;
-                        case Opcode.Pop: Opcode_Pop(); break;
-                        case Opcode.Call:
-                            Opcode_Call(proc, ref pc);
+                    case Opcode.PushFloat: Opcode_PushFloat(proc, ref pc); break;
+                    case Opcode.Add: Opcode_Add(); break;
+                    case Opcode.Subtract: Opcode_Subtract(); break;
+                    case Opcode.Multiply: Opcode_Multiply(); break;
+                    case Opcode.Divide: Opcode_Divide(); break;
+                    case Opcode.CompareEquals: Opcode_CompareEquals(); break;
+                    case Opcode.CompareNotEquals: Opcode_CompareNotEquals(); break;
+                    case Opcode.CompareLessThan: Opcode_CompareLessThan(); break;
+                    case Opcode.CompareGreaterThan: Opcode_CompareGreaterThan(); break;
+                    case Opcode.CompareLessThanOrEqual: Opcode_CompareLessThanOrEqual(); break;
+                    case Opcode.CompareGreaterThanOrEqual: Opcode_CompareGreaterThanOrEqual(); break;
+                    case Opcode.Negate: Opcode_Negate(); break;
+                    case Opcode.BooleanNot: Opcode_BooleanNot(); break;
+                    case Opcode.PushNull: Opcode_PushNull(); break;
+                    case Opcode.Pop: Opcode_Pop(); break;
+                    case Opcode.Call:
+                        Opcode_Call(proc, ref pc);
+                        frame = CallStack.Peek();
+                        proc = frame.Proc;
+                        pc = frame.PC;
+                        break;
+                    case Opcode.Jump: Opcode_Jump(proc, ref pc); break;
+                    case Opcode.JumpIfFalse: Opcode_JumpIfFalse(proc, ref pc); break;
+                    case Opcode.Output: Opcode_Output(); break;
+                    case Opcode.Return:
+                        Opcode_Return(ref proc, ref pc);
+                        if(State == DreamThreadState.Running)
                             frame = CallStack.Peek();
-                            proc = frame.Proc;
-                            pc = frame.PC;
-                            break;
-                        case Opcode.Jump: Opcode_Jump(proc, ref pc); break;
-                        case Opcode.JumpIfFalse: Opcode_JumpIfFalse(proc, ref pc); break;
-                        case Opcode.Output: Opcode_Output(); break;
-                        case Opcode.Return:
-                            Opcode_Return(ref proc, ref pc);
-                            if(State == DreamThreadState.Running)
-                                frame = CallStack.Peek();
-                            break;
-                        case Opcode.Sleep: Opcode_Sleep(); break;
-                        case Opcode.BitAnd: Opcode_BitAnd(); break;
-                        case Opcode.BitOr: Opcode_BitOr(); break;
-                        case Opcode.BitXor: Opcode_BitXor(); break;
-                        case Opcode.BitNot: Opcode_BitNot(); break;
-                        case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
-                        case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
-                        case Opcode.PushArgument: Opcode_PushArgument(proc, frame, ref pc); break;
-                        case Opcode.SetArgument: Opcode_SetArgument(proc, frame, ref pc); break;
-                        case Opcode.PushLocal: Opcode_PushLocal(proc, frame, ref pc); break;
-                        case Opcode.SetLocal: Opcode_SetLocal(proc, frame, ref pc); break;
-                        default:
-                            State = DreamThreadState.Error;
-                            throw new Exception($"Unknown opcode: {opcode}");
+                        break;
+                    case Opcode.BitAnd: Opcode_BitAnd(); break;
+                    case Opcode.BitOr: Opcode_BitOr(); break;
+                    case Opcode.BitXor: Opcode_BitXor(); break;
+                    case Opcode.BitNot: Opcode_BitNot(); break;
+                    case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
+                    case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
+                    case Opcode.PushArgument: Opcode_PushArgument(proc, frame, ref pc); break;
+                    case Opcode.SetArgument: Opcode_SetArgument(proc, frame, ref pc); break;
+                    case Opcode.PushLocal: Opcode_PushLocal(proc, frame, ref pc); break;
+                    case Opcode.SetLocal: Opcode_SetLocal(proc, frame, ref pc); break;
+                    default:
+                        State = DreamThreadState.Error;
+                        throw new Exception($"Unknown opcode: {opcode}");
                     }
                 }
                 catch (Exception e)
@@ -176,7 +169,7 @@ namespace Core.VM.Runtime
                     return State;
                 }
 
-                if (State != DreamThreadState.Running)
+                if (State != DreamThreadState.Running) // Check state after handler execution
                 {
                     SavePC(pc);
                     return State;

@@ -53,7 +53,12 @@ class Program
             )
         );
         services.AddSingleton<IMapApi, MapApi>();
-        services.AddSingleton<IObjectApi, ObjectApi>();
+        services.AddSingleton<IObjectApi>(provider => new ObjectApi(
+            provider.GetRequiredService<IGameState>(),
+            provider.GetRequiredService<IObjectTypeManager>(),
+            provider.GetRequiredService<IMapApi>(),
+            provider.GetRequiredService<ServerSettings>()
+        ));
         services.AddSingleton<IScriptApi, ScriptApi>();
         services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
         services.AddSingleton<IGameApi, GameApi>();

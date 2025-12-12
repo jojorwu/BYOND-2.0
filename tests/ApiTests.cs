@@ -28,7 +28,7 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager();
             _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
+            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, new ServerSettings());
             _scriptApi = new ScriptApi(_project);
             _standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, _mapApi, new Moq.Mock<IRestartService>().Object);
             _mapApi.SetMap(new Map());

@@ -37,7 +37,7 @@ namespace Core.Tests
             _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager));
             _dreamVM = new DreamVM(new ServerSettings());
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, new ServerSettings());
             var scriptApi = new ScriptApi(_project);
             var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi, new Mock<IRestartService>().Object);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);

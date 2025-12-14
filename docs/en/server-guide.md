@@ -43,20 +43,6 @@ The server's behavior can be customized through the `server_config.json` file. B
 *   `VmInstructionSlice` (integer): The number of instructions a VM thread executes in one go before yielding to other threads. Default: `100`.
 *   `SnapshotBroadcastInterval` (integer): The interval in milliseconds at which game state snapshots are sent to clients. Default: `100`.
 
-*   `EnableRegionalProcessing` (boolean): Enables or disables regional processing. When enabled, the server only processes regions of the map that are active (near players), significantly improving performance in large worlds. Default: `false`.
-
-#### Regional Processing (`Performance.RegionalProcessing`)
-
-These settings are only active if `EnableRegionalProcessing` is set to `true`.
-
-*   `RegionSize` (integer): The size of a single region in chunks. For example, a value of 8 means each region is 8x8 chunks. Default: `8`.
-*   `MaxThreads` (integer): The maximum number of threads to use for processing regions in parallel. If set to `0`, the number of threads will be determined automatically. Default: `0`.
-*   `ActivationRange` (integer): The distance, in regions, around a player that is considered "active". For example, a value of 1 means a 3x3 grid of regions around the player is active. Default: `1`.
-*   `ZActivationRange` (integer): The activation range for Z-levels (height). A value of 0 means only the player's current Z-level is activated. A value of 1 would activate the level above and below as well. Default: `0`.
-*   `EnableRegionMerging` (boolean): Enables the merging of adjacent active regions into a single processing unit, which can improve performance by reducing overhead. Default: `false`.
-*   `MinRegionsToMerge` (integer): The minimum number of adjacent active regions required to form a merged region. Default: `2`.
-*   `ScriptActiveRegionTimeout` (integer): The time in seconds that a region activated by a script (not a player) will remain active before being automatically deactivated. Default: `60`.
-
 #### Time Budgeting (`TimeBudgeting.ScriptHost`)
 
 *   `Enabled` (boolean): Enables or disables time budgeting for the script host. Default: `true`.

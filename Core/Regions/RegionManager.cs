@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using Robust.Shared.Maths;
 using Shared;
 
@@ -63,6 +64,17 @@ namespace Core.Regions
             return new List<Region>();
         }
 
+        public bool TryGetRegion(int z, Vector2i coords, [NotNullWhen(true)] out Region? region)
+        {
+            if (_regionsByZ.TryGetValue(z, out var regions))
+            {
+                return regions.TryGetValue(coords, out region);
+            }
+
+            region = null;
+            return false;
+        }
+
         public HashSet<Region> GetActiveRegions()
         {
             CleanupExpiredScriptActivations();
@@ -87,58 +99,6 @@ namespace Core.Regions
             {
                 _scriptActivatedRegions.Remove(region);
             }
-        }
-
-        public List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)
-        {
-            if (!_settings.Performance.RegionalProcessing.EnableRegionMerging || activeRegions.Count < _settings.Performance.RegionalProcessing.MinRegionsToMerge)
-            {
-                return activeRegions.Select(r => new MergedRegion(new List<Region> { r })).ToList();
-            }
-
-            var mergedRegions = new List<MergedRegion>();
-            var visited = new HashSet<Region>();
-
-            var regionsByZ = activeRegions.GroupBy(r => r.Z)
-                .ToDictionary(g => g.Key, g => g.ToHashSet());
-
-            foreach (var z in regionsByZ.Keys)
-            {
-                foreach (var region in regionsByZ[z])
-                {
-                    if (visited.Contains(region))
-                        continue;
-
-                    var group = new List<Region>();
-                    var queue = new Queue<Region>();
-
-                    queue.Enqueue(region);
-                    visited.Add(region);
-
-                    while (queue.Count > 0)
-                    {
-                        var current = queue.Dequeue();
-                        group.Add(current);
-
-                        for (int dx = -1; dx <= 1; dx++)
-                        {
-                            for (int dy = -1; dy <= 1; dy++)
-                            {
-                                if (Math.Abs(dx) == Math.Abs(dy)) continue;
-
-                                var neighborCoords = new Vector2i(current.Coords.X + dx, current.Coords.Y + dy);
-                                if (_regionsByZ[z].TryGetValue(neighborCoords, out var neighbor) && regionsByZ[z].Contains(neighbor) && !visited.Contains(neighbor))
-                                {
-                                    visited.Add(neighbor);
-                                    queue.Enqueue(neighbor);
-                                }
-                            }
-                        }
-                    }
-                    mergedRegions.Add(new MergedRegion(group));
-                }
-            }
-            return mergedRegions;
         }
 
         public void SetRegionActive(int x, int y, int z, bool active)

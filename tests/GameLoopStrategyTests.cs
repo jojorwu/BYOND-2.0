@@ -57,10 +57,8 @@ namespace tests
             // Arrange
             var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _udpServerMock.Object, _gameStateMock.Object, _serverSettings);
             var activeRegions = new HashSet<Region> { new Region(new Robust.Shared.Maths.Vector2i(0,0), 0) };
-            var mergedRegions = new List<MergedRegion> { new MergedRegion(new List<Region>()) };
 
             _regionManagerMock.Setup(rm => rm.GetActiveRegions()).Returns(activeRegions);
-            _regionManagerMock.Setup(rm => rm.MergeRegions(activeRegions)).Returns(mergedRegions);
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
             _gameStateMock.Setup(gs => gs.GetSnapshot(It.IsAny<MergedRegion>())).Returns("snapshot");
 
@@ -69,10 +67,45 @@ namespace tests
 
             // Assert
             _regionManagerMock.Verify(rm => rm.GetActiveRegions(), Times.Once);
-            _regionManagerMock.Verify(rm => rm.MergeRegions(activeRegions), Times.Once);
             _gameStateMock.Verify(gs => gs.GetSnapshot(It.IsAny<MergedRegion>()), Times.AtLeastOnce);
             _scriptHostMock.Verify(s => s.ExecuteThreads(It.IsAny<List<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>()), Times.AtLeastOnce());
             _udpServerMock.Verify(u => u.BroadcastSnapshot(It.IsAny<MergedRegion>(), "snapshot"), Times.AtLeastOnce);
         }
+
+        [Test]
+        public void MergeRegions_MergesAdjacentRegions()
+        {
+            // Arrange
+            _serverSettings.Performance.RegionalProcessing.EnableRegionMerging = true;
+            _serverSettings.Performance.RegionalProcessing.MinRegionsToMerge = 2;
+            var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _udpServerMock.Object, _gameStateMock.Object, _serverSettings);
+
+            var region1 = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
+            var region2 = new Region(new Robust.Shared.Maths.Vector2i(1, 0), 0);
+            var region3 = new Region(new Robust.Shared.Maths.Vector2i(3, 3), 0); // Non-adjacent
+            var activeRegions = new HashSet<Region> { region1, region2, region3 };
+
+            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(1, 0), out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = region2; return true; }));
+            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(-1, 0), out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = null; return false; }));
+             _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(0, 1), out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = null; return false; }));
+            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(0, -1), out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = null; return false; }));
+
+            // Act
+            var mergedRegions = strategy.MergeRegions(activeRegions);
+
+            // Assert
+            Assert.That(mergedRegions.Count, Is.EqualTo(2)); // region1 and region2 should merge, region3 remains separate
+
+            var mergedGroup = mergedRegions.First(mr => mr.Regions.Count > 1);
+            var mergedChunkCount = mergedGroup.Regions.SelectMany(r => r.GetChunks()).Count();
+            var originalChunkCount = region1.GetChunks().Count() + region2.GetChunks().Count();
+            Assert.That(mergedChunkCount, Is.EqualTo(originalChunkCount));
+        }
+
+        private delegate bool TryGetRegionDelegate(int z, Robust.Shared.Maths.Vector2i coords, out Region? region);
     }
 }

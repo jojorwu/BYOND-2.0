@@ -13,6 +13,7 @@ namespace Core
         private readonly ServerSettings _settings;
         private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ = new();
         private readonly HashSet<Region> _scriptActivatedRegions = new();
+        private IRegionActivationStrategy _activationStrategy = null!;
 
         public RegionManager(IMap map, IScriptHost scriptHost, IGameState gameState, IPlayerManager playerManager, ServerSettings settings)
         {
@@ -47,6 +48,7 @@ namespace Core
                     region.AddChunk(chunk);
                 }
             }
+            _activationStrategy = new PlayerBasedActivationStrategy(_playerManager, _settings, _regionsByZ, _scriptActivatedRegions);
         }
 
         public IEnumerable<Region> GetRegions(int z)
@@ -60,7 +62,7 @@ namespace Core
 
         public async Task<IEnumerable<(MergedRegion, string, IEnumerable<IGameObject>)>> Tick()
         {
-            var activeRegions = GetActiveRegions();
+            var activeRegions = _activationStrategy.GetActiveRegions();
             var mergedRegions = MergeRegions(activeRegions);
             var snapshots = new System.Collections.Concurrent.ConcurrentBag<(MergedRegion, string, IEnumerable<IGameObject>)>();
             var options = new ParallelOptions
@@ -82,37 +84,53 @@ namespace Core
         private List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)
         {
             if (!_settings.Performance.RegionalProcessing.EnableRegionMerging || activeRegions.Count < _settings.Performance.RegionalProcessing.MinRegionsToMerge)
+            {
+                // If merging is disabled or not enough regions, return each region as a single-region group.
                 return activeRegions.Select(r => new MergedRegion(new List<Region> { r })).ToList();
+            }
 
             var mergedRegions = new List<MergedRegion>();
             var visited = new HashSet<Region>();
 
-            foreach (var region in activeRegions)
+            var regionsByZ = activeRegions.GroupBy(r => r.Z)
+                .ToDictionary(g => g.Key, g => g.ToHashSet());
+
+            foreach (var z in regionsByZ.Keys)
             {
-                if (visited.Contains(region))
-                    continue;
-
-                var group = new List<Region>();
-                var queue = new Queue<Region>();
-
-                queue.Enqueue(region);
-                visited.Add(region);
-
-                while (queue.Count > 0)
+                foreach (var region in regionsByZ[z])
                 {
-                    var current = queue.Dequeue();
-                    group.Add(current);
+                    if (visited.Contains(region))
+                        continue;
 
-                    foreach (var other in activeRegions)
+                    var group = new List<Region>();
+                    var queue = new Queue<Region>();
+
+                    queue.Enqueue(region);
+                    visited.Add(region);
+
+                    while (queue.Count > 0)
                     {
-                        if (!visited.Contains(other) && AreAdjacent(current, other))
+                        var current = queue.Dequeue();
+                        group.Add(current);
+
+                        // Check neighbors
+                        for (int dx = -1; dx <= 1; dx++)
                         {
-                            visited.Add(other);
-                            queue.Enqueue(other);
+                            for (int dy = -1; dy <= 1; dy++)
+                            {
+                                if (Math.Abs(dx) == Math.Abs(dy)) continue; // Skip diagonals and self
+
+                                var neighborCoords = new Vector2i(current.Coords.X + dx, current.Coords.Y + dy);
+                                if (_regionsByZ[z].TryGetValue(neighborCoords, out var neighbor) && regionsByZ[z].Contains(neighbor) && !visited.Contains(neighbor))
+                                {
+                                    visited.Add(neighbor);
+                                    queue.Enqueue(neighbor);
+                                }
+                            }
                         }
                     }
+                    mergedRegions.Add(new MergedRegion(group));
                 }
-                mergedRegions.Add(new MergedRegion(group));
             }
             return mergedRegions;
         }
@@ -143,38 +161,6 @@ namespace Core
                 else
                     _scriptActivatedRegions.Remove(region);
             }
-        }
-
-        private HashSet<Region> GetActiveRegions()
-        {
-            var activeRegions = new HashSet<Region>(_scriptActivatedRegions);
-            _playerManager.ForEachPlayerObject(playerObject =>
-            {
-                var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
-                var regionCoords = new Vector2i(
-                    (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
-                    (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
-                );
-
-                var z = playerObject.Z;
-                var zRange = _settings.Performance.RegionalProcessing.ZActivationRange;
-
-                for(int zOffset = -zRange; zOffset <= zRange; zOffset++)
-                {
-                    var currentZ = z + zOffset;
-                    for (int x = -_settings.Performance.RegionalProcessing.ActivationRange; x <= _settings.Performance.RegionalProcessing.ActivationRange; x++)
-                    {
-                        for (int y = -_settings.Performance.RegionalProcessing.ActivationRange; y <= _settings.Performance.RegionalProcessing.ActivationRange; y++)
-                        {
-                            if (_regionsByZ.TryGetValue(currentZ, out var regions) && regions.TryGetValue(new Vector2i(regionCoords.X + x, regionCoords.Y + y), out var region))
-                            {
-                                activeRegions.Add(region);
-                            }
-                        }
-                    }
-                }
-            });
-            return activeRegions;
         }
     }
 }

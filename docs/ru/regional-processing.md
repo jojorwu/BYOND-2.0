@@ -39,10 +39,10 @@
 ```json
 {
   "EnableRegionalProcessing": true,
-  "EnableRegionMerging": true,
+  "EnableRegionMerging": false,
   "MinRegionsToMerge": 2,
   "ActivationRange": 1,
-  "ZActivationRange": 1
+  "ZActivationRange": 0
 }
 ```
 

@@ -118,7 +118,7 @@ namespace Core
             return map;
         }
 
-    private IGameObject? CreateGameObject(PublicMapObjectJson mapObjectJson, int x, int y, int z, Dictionary<int, ObjectType> typeIdMap)
+        private GameObject? CreateGameObject(PublicMapObjectJson mapObjectJson, int x, int y, int z, Dictionary<int, ObjectType> typeIdMap)
         {
             if (!typeIdMap.TryGetValue(mapObjectJson.Type, out var objectType))
             {
@@ -126,8 +126,7 @@ namespace Core
                 return null;
             }
 
-        var gameObject = new GameObject(objectType);
-        gameObject.SetPosition(x, y, z);
+            var gameObject = new GameObject(objectType, x, y, z);
 
             if (mapObjectJson.VarOverrides != null)
             {

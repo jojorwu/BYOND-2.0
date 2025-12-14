@@ -3,6 +3,7 @@ using Core;
 using System;
 using System.IO;
 using System.Threading;
+using Core.VM;
 using Core.VM.Runtime;
 using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,9 +47,9 @@ namespace Server
                 IncludeSubdirectories = true,
                 EnableRaisingEvents = true
             };
-            _debounceTimer = new Timer((_) => ReloadScripts(), null, Timeout.Infinite, Timeout.Infinite);
+            _debounceTimer = new Timer(ReloadScripts, null, Timeout.Infinite, Timeout.Infinite);
 
-            ReloadScripts(); // Initial script load and initialization
+            ReloadScripts(null); // Initial script load
             _watcher.Changed += OnScriptChanged;
             _watcher.Created += OnScriptChanged;
             _watcher.Deleted += OnScriptChanged;
@@ -65,31 +66,6 @@ namespace Server
             return Task.CompletedTask;
         }
 
-        public void Initialize()
-        {
-            lock (_scriptLock)
-            {
-                if (_currentEnvironment == null)
-                {
-                    _logger.LogError("Cannot initialize scripts, the scripting environment is not loaded.");
-                    return;
-                }
-
-                _logger.LogInformation("Initializing script environment...");
-                _currentEnvironment.Threads.Clear();
-
-                var mainThread = _currentEnvironment.ScriptManager.CreateThread("world.New");
-                if (mainThread != null)
-                {
-                    _currentEnvironment.Threads.Add(mainThread);
-                    _logger.LogInformation("Successfully created 'world.New' thread.");
-                }
-                else
-                {
-                    _logger.LogWarning("Could not create 'world.New' thread.");
-                }
-            }
-        }
 
         public virtual void Tick()
         {
@@ -176,7 +152,7 @@ namespace Server
             }
         }
 
-        private void ReloadScripts()
+        private void ReloadScripts(object? state)
         {
             _logger.LogInformation("Starting background script reload...");
             Task.Run(async () =>
@@ -186,17 +162,14 @@ namespace Server
                 try
                 {
                     var newEnvironment = new ScriptingEnvironment(_serviceProvider);
-                    await newEnvironment.LoadScriptsAsync();
+                    await newEnvironment.Initialize();
 
                     lock (_scriptLock)
                     {
                         _currentEnvironment?.Dispose();
                         _currentEnvironment = newEnvironment;
                     }
-
-                    Initialize(); // Initialize the new environment
-
-                    _logger.LogInformation("Script reload and initialization complete.");
+                    _logger.LogInformation("Script reload complete and activated.");
                 }
                 catch (Exception ex)
                 {
@@ -204,6 +177,7 @@ namespace Server
                 }
             });
         }
+
 
         public void Dispose()
         {

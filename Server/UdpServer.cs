@@ -21,17 +21,20 @@ namespace Server
 
     public class UdpServer : IHostedService, IDisposable, IUdpServer
     {
+        private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly IScriptHost _scriptHost;
+        private readonly IPlayerManager _playerManager;
         private readonly ServerSettings _settings;
         private readonly ILogger<UdpServer> _logger;
         private Task? _networkTask;
 
-        public UdpServer(IScriptHost scriptHost, ServerSettings settings, ILogger<UdpServer> logger)
+        public UdpServer(IScriptHost scriptHost, IPlayerManager playerManager, ServerSettings settings, ILogger<UdpServer> logger)
         {
             _settings = settings;
+            _playerManager = playerManager;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
@@ -97,6 +100,9 @@ namespace Server
         private void OnPeerConnected(NetPeer peer)
         {
             _logger.LogInformation($"Client connected: {peer}");
+            var networkPeer = new UdpNetworkPeer(peer);
+            _peers[peer] = networkPeer;
+            _playerManager.AddPlayer(networkPeer);
 
             var serverInfo = new ServerInfo
             {
@@ -130,12 +136,23 @@ namespace Server
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             _logger.LogInformation($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
+            if(_peers.TryGetValue(peer, out var networkPeer))
+            {
+                _playerManager.RemovePlayer(networkPeer);
+                _peers.Remove(peer);
+            }
         }
 
         public void BroadcastSnapshot(string snapshot) {
             var writer = new LiteNetLib.Utils.NetDataWriter();
             writer.Put(snapshot);
             _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
+        }
+
+        public void BroadcastSnapshot(MergedRegion region, string snapshot)
+        {
+            foreach(var r in region.Regions)
+                _playerManager.ForEachPlayerInRegion(r, peer => peer.Send(snapshot));
         }
 
         public void Dispose()

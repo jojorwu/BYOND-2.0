@@ -25,9 +25,10 @@ namespace tests
             _gameStateMock = new Mock<IGameState>();
             _scriptHostMock = new Mock<IScriptHost>();
             _udpServerMock = new Mock<IUdpServer>();
+            var regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
 
-            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, _serverSettings);
+            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, regionManagerMock.Object, _serverSettings);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 
@@ -43,11 +44,11 @@ namespace tests
         public async Task StartAsync_CallsTickOnScriptHost()
         {
             // Arrange
-            _cancellationTokenSource.CancelAfter(100);
+            _cancellationTokenSource.CancelAfter(200);
 
             // Act
             await _gameLoop.StartAsync(_cancellationTokenSource.Token);
-            await Task.Delay(50, _cancellationTokenSource.Token); // Give it a moment to tick
+            await Task.Delay(100, _cancellationTokenSource.Token); // Give it a moment to tick
 
             // Assert
             _scriptHostMock.Verify(s => s.Tick(), Times.AtLeastOnce);

@@ -13,6 +13,7 @@ namespace Shared
         public ThreadingSettings Threading { get; set; } = new();
         public PerformanceSettings Performance { get; set; } = new();
         public DevelopmentSettings Development { get; set; } = new();
+        public string PlayerObjectTypePath { get; set; } = "/obj/player";
     }
 
     public class HttpServerSettings
@@ -52,9 +53,20 @@ namespace Shared
     public class PerformanceSettings
     {
         public int TickRate { get; set; } = 60;
+        public bool EnableRegionalProcessing { get; set; } = false;
+        public RegionalProcessingSettings RegionalProcessing { get; set; } = new();
         public int VmInstructionSlice { get; set; } = 100;
         public int SnapshotBroadcastInterval { get; set; } = 100; // ms
         public TimeBudgetSettings TimeBudgeting { get; set; } = new();
+    }
+
+    public class RegionalProcessingSettings
+    {
+        public int MaxThreads { get; set; } = 0; // 0 for auto
+        public int ActivationRange { get; set; } = 1; // in regions
+        public int ZActivationRange { get; set; } = 0; // in regions, 0 means only the current z-level
+        public bool EnableRegionMerging { get; set; } = false;
+        public int MinRegionsToMerge { get; set; } = 2;
     }
 
     public class TimeBudgetSettings

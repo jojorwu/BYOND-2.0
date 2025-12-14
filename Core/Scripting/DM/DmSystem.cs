@@ -92,9 +92,9 @@ namespace Core.Scripting.DM
             return null;
         }
 
-        public IScriptThread? CreateThread(string procName)
+        public IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null)
         {
-            return _dreamVM.CreateThread(procName);
+            return _dreamVM.CreateThread(procName, associatedObject);
         }
     }
 }

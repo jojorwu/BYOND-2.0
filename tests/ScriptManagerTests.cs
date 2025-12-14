@@ -55,7 +55,7 @@ namespace Core.Tests
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
                 new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
             };
-            _scriptManager = new ScriptManager(_project, systems);
+            _scriptManager = new ScriptManager(_project, systems, _gameState);
         }
 
         [TearDown]

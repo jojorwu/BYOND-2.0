@@ -1,79 +1,93 @@
 # Scripting
 
-The BYOND 2.0 game engine features a polyglot scripting environment, allowing developers to use multiple languages to define game logic. The primary supported languages are **DM (Dream Maker)**, **Lua**, and **C#**.
+The BYOND 2.0 game engine features a polyglot scripting environment. While **DM (Dream Maker)** is the primary language, **Lua** and **C#** are also supported for specialized use cases.
+
+## Language Recommendations
+
+*   **DM:** Recommended for all general game logic. Its syntax is tailored for defining game objects and interactions.
+*   **Lua:** Ideal for dynamic scenarios, rapid prototyping, or implementing complex AI behaviors that benefit from its lightweight nature.
+*   **C#:** Best for performance-critical systems, complex data processing, or integrating with external .NET libraries.
 
 ## DM (Dream Maker)
 
-DM is the native language of the BYOND platform and is the recommended choice for most game logic in BYOND 2.0. The engine includes the OpenDream compiler, which compiles `.dme` and `.dm` files into bytecode that the `DreamVM` can execute.
+DM is the native language of the BYOND platform. The engine uses the OpenDream compiler to transform `.dm` files into bytecode executed by the `DreamVM`.
 
-*   **Execution:** DM code is executed by the high-performance `DreamVM`, a stack-based virtual machine.
-*   **Entry Point:** The main entry point for all game logic is the `world.New()` procedure in your DM code.
+*   **Execution:** Executed by the high-performance `DreamVM`, a stack-based virtual machine.
+*   **Entry Point:** The server automatically executes the `/world/New()` procedure when the game world is created.
 
 ### DM Example
 
-```dm
-// main.dm
-/world/New()
-    // Load a map
-    world.log << "Loading map..."
-    // Further initialization code
+This example shows a player object that logs a message to the world log when it takes damage, demonstrating interaction with a core API.
 
+```dm
+// scripts/player.dm
 /obj/creature/player
     var/hp = 100
 
     proc/TakeDamage(amount)
         hp -= amount
+        world.log << "[src] took [amount] damage! [hp] HP remaining."
         if (hp <= 0)
             del src
 ```
 
 ## Lua
 
-Lua provides a lightweight and flexible scripting option. It is well-suited for quick prototyping or for specific tasks that benefit from its dynamic nature.
+Lua is a lightweight and flexible scripting language integrated via the NLua library.
 
-*   **Integration:** Lua is integrated via the NLua library, which provides a bridge to the .NET runtime.
-*   **API Access:** Lua scripts can access the core engine APIs through a global `GameApi` object.
-*   **Entry Point:** The entry point for Lua is the `scripts/main.lua` file.
+*   **API Access:** Lua scripts can access engine APIs through a global `GameApi` object.
+*   **Entry Point:** The server executes the `main()` function in the `scripts/main.lua` file on startup.
 
 ### Lua API Example
 
+This example demonstrates a more advanced task: finding all player objects and giving them a "healing potion".
+
 ```lua
 -- scripts/main.lua
-local mapApi = global.GameApi.MapApi
-local objectApi = global.GameApi.ObjectApi
+function main()
+    local objectApi = global.GameApi.ObjectApi
+    local players = objectApi:GetObjects("/obj/creature/player")
 
--- Create a new object
-local player = objectApi:CreateObject("/obj/creature/player")
-player:SetProperty("x", 10)
-player:SetProperty("y", 5)
+    for i, player in ipairs(players) do
+        local potion = objectApi:CreateObject("/obj/item/potion/healing")
+        potion:SetProperty("x", player:GetProperty("x"))
+        potion:SetProperty("y", player:GetProperty("y"))
+        print("Gave a healing potion to player "..tostring(player.Id))
+    end
+end
 ```
 
 ## C#
 
-C# scripting offers the highest performance and the full power of the .NET ecosystem. It is ideal for performance-critical systems or for extending the engine with complex, statically-typed logic.
+C# scripting offers the highest performance by leveraging Roslyn for on-the-fly compilation.
 
-*   **Integration:** C# scripts are compiled on-the-fly using Roslyn.
-*   **API Access:** C# scripts receive an `IGameApi` instance as an argument to their entry point.
-*   **Entry Point:** The entry point for C# is a static `Main` method in any class within a `.cs` file in the `scripts` directory.
+*   **API Access:** C# script entry points receive an `IGameApi` instance.
+*   **Entry Point:** The server looks for a static `Main(IGameApi gameApi)` method in any class within `.cs` files in the `scripts` directory.
 
 ### C# API Example
 
-```csharp
-// scripts/main.cs
-using BYOND2.Core.Api;
+This example showcases a performance-oriented task: calculating the average health of all players using LINQ from the .NET library.
 
-public class MainScript
+```csharp
+// scripts/health_checker.cs
+using System.Linq;
+using BYOND2.Core.Api;
+using BYOND2.Shared.GameObjects;
+
+public class HealthChecker
 {
     public static void Main(IGameApi gameApi)
     {
-        // Create a new object
-        var player = gameApi.ObjectApi.CreateObject("/obj/creature/player");
-        player.SetProperty("x", 10);
-        player.SetProperty("y", 5);
+        var players = gameApi.ObjectApi.GetObjects("/obj/creature/player");
+        if (!players.Any()) return;
+
+        double averageHp = players.Average(p => (double)p.GetProperty("hp"));
+
+        gameApi.WorldApi.Log($"Average player HP: {averageHp:F2}");
     }
 }
 ```
 
 ## Hot-Reloading
 
-All three scripting systems support hot-reloading. The server monitors files in the `scripts` and project directories for changes and automatically reloads them. This allows for real-time iteration on game logic without restarting the server.
+All three scripting systems support hot-reloading. The server monitors files in the `scripts` directory for changes and automatically reloads them, allowing for real-time iteration on game logic without restarting the server.

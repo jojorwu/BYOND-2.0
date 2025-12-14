@@ -26,7 +26,10 @@ The server uses a dual-protocol approach:
 2.  **HTTP:** The Kestrel web server is used to serve static game assets (e.g., textures, sounds) to clients on demand.
 
 ### Configuration
-Server settings are managed through a `server_config.json` file. This allows operators to easily configure parameters like the server port, regional processing settings, and other runtime options without recompiling the code.
+Server settings are managed through a `server_config.json` file. This allows operators to easily configure parameters like the server port and other runtime options without recompiling the code.
+
+### Game Loop and Regional Processing
+The server can run in two modes: a simple global loop that processes every object, or a high-performance mode that uses **Regional Processing** to only process areas of the world near players. This is a key feature for performance scaling in large worlds. For a detailed explanation, see the [Game Loop and Regional Processing](./regional-processing.md) document.
 
 ### Scripting and the Virtual Machine (VM)
 The engine primarily uses **Dream Maker (DM)** for game logic. The OpenDream compiler transforms DM code into an intermediate bytecode. The server's Virtual Machine (VM) then executes this bytecode at runtime. This architecture decouples the game logic from the core engine, allowing for features like hot-reloading. For more in-depth information, see the [VM Internals](./vm_internals.md) document.

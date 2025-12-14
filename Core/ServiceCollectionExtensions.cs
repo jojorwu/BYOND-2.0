@@ -28,7 +28,14 @@ namespace Core
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
-            services.AddSingleton<IDmmService, DmmService>();
+            services.AddSingleton<IDmmService>(provider =>
+                new DmmService(
+                    provider.GetRequiredService<IObjectTypeManager>(),
+                    provider.GetRequiredService<IProject>(),
+                    provider.GetRequiredService<IDreamMakerLoader>(),
+                    provider.GetRequiredService<ILogger<DmmService>>()
+                )
+            );
             services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());

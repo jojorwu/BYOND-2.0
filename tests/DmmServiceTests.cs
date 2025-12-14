@@ -1,10 +1,11 @@
 using NUnit.Framework;
-using Core;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Shared;
 using Core.Objects;
 using Core.Maps;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Core.Tests
 {
@@ -29,7 +30,8 @@ namespace Core.Tests
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
             var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project);
-            _dmmService = new DmmService(_objectTypeManager, _project, dreamMakerLoader);
+            var logger = new NullLogger<DmmService>();
+            _dmmService = new DmmService(_objectTypeManager, _project, dreamMakerLoader, logger);
         }
 
         [TearDown]
@@ -43,7 +45,7 @@ namespace Core.Tests
         }
 
         [Test]
-        public void LoadMap_WithValidDmmAndDmFiles_LoadsMapCorrectly()
+        public async Task LoadMap_WithValidDmmAndDmFiles_LoadsMapCorrectly()
         {
             // Arrange
             var dmContent = @"
@@ -64,7 +66,7 @@ ab
             File.WriteAllText(dmmFullPath, dmmContent);
 
             // Act
-            var map = _dmmService.LoadMap(dmmFullPath);
+            var map = await _dmmService.LoadMapAsync(dmmFullPath);
             _gameState.Map = map;
 
             // Assert

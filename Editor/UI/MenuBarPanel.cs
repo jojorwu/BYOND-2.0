@@ -3,6 +3,7 @@ using ImGuiNET;
 using System;
 using System.Threading.Tasks;
 using NativeFileDialogNET;
+using Core.Maps;
 
 namespace Editor.UI
 {
@@ -12,22 +13,24 @@ namespace Editor.UI
         private readonly EditorContext _editorContext;
         private readonly BuildService _buildService;
         private readonly IDmmService _dmmService;
+        private readonly IMapLoader _mapLoader;
         private readonly LocalizationManager _localizationManager;
         private string _newProjectName = "NewProject";
         private string _newProjectPath = "";
         public string? ProjectToLoad { get; private set; }
         public bool IsExitRequested { get; private set; }
 
-        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, IDmmService dmmService, LocalizationManager localizationManager)
+        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, IDmmService dmmService, IMapLoader mapLoader, LocalizationManager localizationManager)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
             _buildService = buildService;
             _dmmService = dmmService;
+            _mapLoader = mapLoader;
             _localizationManager = localizationManager;
         }
 
-        public void SaveScene(Scene scene, bool saveAs)
+        public async Task SaveScene(Scene scene, bool saveAs)
         {
             if (saveAs || !System.IO.File.Exists(scene.FilePath))
             {
@@ -45,12 +48,8 @@ namespace Editor.UI
 
             if (scene.GameState.Map != null && !string.IsNullOrEmpty(scene.FilePath))
             {
-                Task.Run(async () =>
-                {
-                    _gameApi.Map.SetMap(scene.GameState.Map);
-                    await _gameApi.Map.SaveMapAsync(scene.FilePath);
-                    scene.IsDirty = false;
-                });
+                await _mapLoader.SaveMapAsync(scene.GameState.Map, scene.FilePath);
+                scene.IsDirty = false;
             }
         }
 
@@ -78,7 +77,7 @@ namespace Editor.UI
                         var scene = _editorContext.GetActiveScene();
                         if (scene != null)
                         {
-                            SaveScene(scene, false);
+                            _ = SaveScene(scene, false);
                         }
                     }
                     if (ImGui.MenuItem(_localizationManager.GetString("Save Scene As...")))
@@ -86,13 +85,13 @@ namespace Editor.UI
                         var scene = _editorContext.GetActiveScene();
                         if (scene != null)
                         {
-                            SaveScene(scene, true);
+                            _ = SaveScene(scene, true);
                         }
                     }
                     ImGui.Separator();
                     if (ImGui.MenuItem(_localizationManager.GetString("Open...")))
                     {
-                        ImGui.OpenPopup("ChooseDmmFileDlgKey");
+                        ImGui.OpenPopup("ChooseMapFileDlgKey");
                     }
                     if (ImGui.MenuItem(_localizationManager.GetString("New Project...")))
                     {
@@ -156,7 +155,7 @@ namespace Editor.UI
             }
 
             DrawProjectSettingsModal();
-            DrawChooseDmmFileModal();
+            DrawChooseMapFileModal();
             DrawImportProjectModal();
             DrawNewProjectModal();
             DrawAboutModal();
@@ -215,34 +214,56 @@ namespace Editor.UI
             }
         }
 
-        private void DrawChooseDmmFileModal()
+        private void DrawChooseMapFileModal()
         {
-            if (ImGui.BeginPopupModal("ChooseDmmFileDlgKey"))
+            if (ImGui.BeginPopupModal("ChooseMapFileDlgKey"))
             {
                 using var dialog = new NativeFileDialog().SelectFile().AddFilter("Map Files", "dmm,yml,json");
                 DialogResult result = dialog.Open(out string? path);
                 if (result == DialogResult.Okay && path != null)
                 {
-                    Task.Run(async () =>
-                    {
-                        var map = await _gameApi.Map.LoadMapAsync(path);
-                        if (map != null)
-                        {
-                            var newScene = new Scene(System.IO.Path.GetFileName(path))
-                            {
-                                FilePath = path,
-                                GameState = { Map = map },
-                                IsDirty = false
-                            };
-                            _editorContext.OpenScenes.Add(newScene);
-                            _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
-                        }
-                    });
+                    _ = LoadMapAsync(path);
                 }
                 ImGui.CloseCurrentPopup();
                 ImGui.EndPopup();
             }
         }
+
+        private async Task LoadMapAsync(string path)
+        {
+            IMap? map = null;
+            var extension = System.IO.Path.GetExtension(path);
+
+            try
+            {
+                if (extension == ".dmm")
+                {
+                    map = await _dmmService.LoadMapAsync(path);
+                }
+                else
+                {
+                    map = await _mapLoader.LoadMapAsync(path);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
+                // Optionally, show an error popup to the user
+            }
+
+            if (map != null)
+            {
+                var newScene = new Scene(System.IO.Path.GetFileName(path))
+                {
+                    FilePath = path,
+                    GameState = { Map = map },
+                    IsDirty = false
+                };
+                _editorContext.OpenScenes.Add(newScene);
+                _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
+            }
+        }
+
 
         private void DrawImportProjectModal()
         {

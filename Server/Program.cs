@@ -50,6 +50,7 @@ class Program
         services.AddSingleton<IScriptApi, ScriptApi>();
         services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
         services.AddSingleton<IGameApi, GameApi>();
+        services.AddSingleton<IRegionApi, RegionApi>();
         services.AddSingleton<IDmmService, DmmService>();
         services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
         services.AddSingleton<DreamVM>();

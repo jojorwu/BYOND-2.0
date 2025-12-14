@@ -89,5 +89,50 @@ namespace tests
             // Assert
             Assert.That(regionData.Count(), Is.EqualTo(1));
         }
+
+        [Test]
+        public async Task Tick_ScriptActivatedRegionsAreAlwaysActive()
+        {
+            // Arrange
+            var chunks = new List<(Vector2i, Chunk)>
+            {
+                (new Vector2i(0, 0), new Chunk()),
+                (new Vector2i(Region.RegionSize * 2, Region.RegionSize * 2), new Chunk())
+            };
+            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
+            _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
+            _playerManagerMock.Setup(p => p.GetAllPlayerObjects()).Returns(new List<IGameObject>()); // No players
+            _regionManager.Initialize();
+            _regionManager.SetRegionActive(0, 0, 0, true);
+
+            // Act
+            var regionData = await _regionManager.Tick();
+
+            // Assert
+            Assert.That(regionData.Count(), Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task Tick_ZActivationRangeWorks()
+        {
+            // Arrange
+            var chunks = new List<(Vector2i, Chunk)>
+            {
+                (new Vector2i(0, 0), new Chunk()), // z = 0
+                (new Vector2i(0, 0), new Chunk())  // z = 1
+            };
+            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0, 1 });
+            _mapMock.Setup(m => m.GetChunks(0)).Returns(new List<(Vector2i, Chunk)> { chunks[0] });
+            _mapMock.Setup(m => m.GetChunks(1)).Returns(new List<(Vector2i, Chunk)> { chunks[1] });
+            _playerManagerMock.Setup(p => p.GetAllPlayerObjects()).Returns(new List<IGameObject> { new GameObject(new ObjectType(1, "player"), 0, 0, 0) });
+            _serverSettings.Performance.RegionalProcessing.ZActivationRange = 1;
+            _regionManager.Initialize();
+
+            // Act
+            var regionData = await _regionManager.Tick();
+
+            // Assert
+            Assert.That(regionData.Count(), Is.EqualTo(2));
+        }
     }
 }

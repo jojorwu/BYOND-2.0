@@ -12,6 +12,7 @@ namespace Core
         private readonly IPlayerManager _playerManager;
         private readonly ServerSettings _settings;
         private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ = new();
+        private readonly HashSet<Region> _scriptActivatedRegions = new();
 
         public RegionManager(IMap map, IScriptHost scriptHost, IGameState gameState, IPlayerManager playerManager, ServerSettings settings)
         {
@@ -77,9 +78,26 @@ namespace Core
             return snapshots;
         }
 
+        public void SetRegionActive(int x, int y, int z, bool active)
+        {
+            var (chunkCoords, _) = Map.GlobalToChunk(x, y);
+            var regionCoords = new Vector2i(
+                (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
+                (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+            );
+
+            if (_regionsByZ.TryGetValue(z, out var regions) && regions.TryGetValue(regionCoords, out var region))
+            {
+                if (active)
+                    _scriptActivatedRegions.Add(region);
+                else
+                    _scriptActivatedRegions.Remove(region);
+            }
+        }
+
         private HashSet<Region> GetActiveRegions()
         {
-            var activeRegions = new HashSet<Region>();
+            var activeRegions = new HashSet<Region>(_scriptActivatedRegions);
             foreach (var playerObject in _playerManager.GetAllPlayerObjects())
             {
                 var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
@@ -89,14 +107,19 @@ namespace Core
                 );
 
                 var z = playerObject.Z;
+                var zRange = _settings.Performance.RegionalProcessing.ZActivationRange;
 
-                for (int x = -_settings.Performance.RegionalProcessing.ActivationRange; x <= _settings.Performance.RegionalProcessing.ActivationRange; x++)
+                for(int zOffset = -zRange; zOffset <= zRange; zOffset++)
                 {
-                    for (int y = -_settings.Performance.RegionalProcessing.ActivationRange; y <= _settings.Performance.RegionalProcessing.ActivationRange; y++)
+                    var currentZ = z + zOffset;
+                    for (int x = -_settings.Performance.RegionalProcessing.ActivationRange; x <= _settings.Performance.RegionalProcessing.ActivationRange; x++)
                     {
-                        if (_regionsByZ.TryGetValue(z, out var regions) && regions.TryGetValue(new Vector2i(regionCoords.X + x, regionCoords.Y + y), out var region))
+                        for (int y = -_settings.Performance.RegionalProcessing.ActivationRange; y <= _settings.Performance.RegionalProcessing.ActivationRange; y++)
                         {
-                            activeRegions.Add(region);
+                            if (_regionsByZ.TryGetValue(currentZ, out var regions) && regions.TryGetValue(new Vector2i(regionCoords.X + x, regionCoords.Y + y), out var region))
+                            {
+                                activeRegions.Add(region);
+                            }
                         }
                     }
                 }

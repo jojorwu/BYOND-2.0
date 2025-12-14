@@ -64,6 +64,7 @@ namespace Shared
     {
         public int MaxThreads { get; set; } = 0; // 0 for auto
         public int ActivationRange { get; set; } = 1; // in regions
+        public int ZActivationRange { get; set; } = 0; // in regions, 0 means only the current z-level
     }
 
     public class TimeBudgetSettings

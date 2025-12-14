@@ -75,7 +75,15 @@ namespace Server
             services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
             services.AddSingleton<GlobalGameLoopStrategy>();
-            services.AddSingleton<RegionalGameLoopStrategy>();
+            services.AddSingleton(provider =>
+                new RegionalGameLoopStrategy(
+                    provider.GetRequiredService<IScriptHost>(),
+                    provider.GetRequiredService<IRegionManager>(),
+                    provider.GetRequiredService<IUdpServer>(),
+                    provider.GetRequiredService<IGameState>(),
+                    provider.GetRequiredService<ServerSettings>()
+                )
+            );
             services.AddSingleton<IGameLoopStrategy>(provider =>
             {
                 var settings = provider.GetRequiredService<ServerSettings>();

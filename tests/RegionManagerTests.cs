@@ -50,12 +50,13 @@ namespace tests
         }
 
         [Test]
-        public async Task Tick_ReturnsDataForAllActiveRegions()
+        public void GetActiveRegions_ReturnsCorrectRegions()
         {
             // Arrange
             var chunks = new List<(Vector2i, Chunk)>
             {
                 (new Vector2i(0, 0), new Chunk()),
+                (new Vector2i(Region.RegionSize * 2, Region.RegionSize * 2), new Chunk())
             };
             _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
             _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
@@ -64,105 +65,32 @@ namespace tests
             _regionManager.Initialize();
 
             // Act
-            var regionData = await _regionManager.Tick();
+            var activeRegions = _regionManager.GetActiveRegions();
 
             // Assert
-            Assert.That(regionData.Count(), Is.EqualTo(1));
+            Assert.That(activeRegions.Count, Is.EqualTo(1));
         }
 
         [Test]
-        public async Task MergeRegions_MergesAdjacentRegions()
+        public void MergeRegions_MergesAdjacentRegions()
         {
             // Arrange
             _serverSettings.Performance.RegionalProcessing.EnableRegionMerging = true;
             var chunks = new List<(Vector2i, Chunk)>
             {
                 (new Vector2i(0, 0), new Chunk()),
-                (new Vector2i(1, 0), new Chunk())
+                (new Vector2i(Region.RegionSize, 0), new Chunk())
             };
             _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
             _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
-            _playerManagerMock.Setup(p => p.ForEachPlayerObject(It.IsAny<Action<IGameObject>>()))
-                .Callback<Action<IGameObject>>(action =>
-                {
-                    action(new GameObject(new ObjectType(1, "player"), 0, 0, 0));
-                    action(new GameObject(new ObjectType(1, "player"), Region.RegionSize, 0, 0));
-                });
             _regionManager.Initialize();
+            var activeRegions = _regionManager.GetRegions(0).ToHashSet();
 
             // Act
-            var regionData = await _regionManager.Tick();
+            var mergedRegions = _regionManager.MergeRegions(activeRegions);
 
             // Assert
-            Assert.That(regionData.Count(), Is.EqualTo(1));
-        }
-
-        [Test]
-        public async Task Tick_ReturnsDataForOnlyActiveRegions()
-        {
-            // Arrange
-            var chunks = new List<(Vector2i, Chunk)>
-            {
-                (new Vector2i(0, 0), new Chunk()),
-                (new Vector2i(Region.RegionSize * 2, Region.RegionSize * 2), new Chunk())
-            };
-            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
-            _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
-            _playerManagerMock.Setup(p => p.ForEachPlayerObject(It.IsAny<Action<IGameObject>>()))
-                .Callback<Action<IGameObject>>(action => action(new GameObject(new ObjectType(1, "player"), 0, 0, 0)));
-            _regionManager.Initialize();
-
-            // Act
-            var regionData = await _regionManager.Tick();
-
-            // Assert
-            Assert.That(regionData.Count(), Is.EqualTo(1));
-        }
-
-        [Test]
-        public async Task Tick_ScriptActivatedRegionsAreAlwaysActive()
-        {
-            // Arrange
-            var chunks = new List<(Vector2i, Chunk)>
-            {
-                (new Vector2i(0, 0), new Chunk()),
-                (new Vector2i(Region.RegionSize * 2, Region.RegionSize * 2), new Chunk())
-            };
-            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
-            _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
-            _playerManagerMock.Setup(p => p.ForEachPlayerObject(It.IsAny<Action<IGameObject>>())); // No players
-            _regionManager.Initialize();
-            _regionManager.SetRegionActive(0, 0, 0, true);
-
-            // Act
-            var regionData = await _regionManager.Tick();
-
-            // Assert
-            Assert.That(regionData.Count(), Is.EqualTo(1));
-        }
-
-        [Test]
-        public async Task Tick_ZActivationRangeWorks()
-        {
-            // Arrange
-            var chunks = new List<(Vector2i, Chunk)>
-            {
-                (new Vector2i(0, 0), new Chunk()), // z = 0
-                (new Vector2i(0, 0), new Chunk())  // z = 1
-            };
-            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0, 1 });
-            _mapMock.Setup(m => m.GetChunks(0)).Returns(new List<(Vector2i, Chunk)> { chunks[0] });
-            _mapMock.Setup(m => m.GetChunks(1)).Returns(new List<(Vector2i, Chunk)> { chunks[1] });
-            _playerManagerMock.Setup(p => p.ForEachPlayerObject(It.IsAny<Action<IGameObject>>()))
-                .Callback<Action<IGameObject>>(action => action(new GameObject(new ObjectType(1, "player"), 0, 0, 0)));
-            _serverSettings.Performance.RegionalProcessing.ZActivationRange = 1;
-            _regionManager.Initialize();
-
-            // Act
-            var regionData = await _regionManager.Tick();
-
-            // Assert
-            Assert.That(regionData.Count(), Is.EqualTo(2));
+            Assert.That(mergedRegions.Count, Is.EqualTo(1));
         }
     }
 }

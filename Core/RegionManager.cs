@@ -60,28 +60,12 @@ namespace Core
             return new List<Region>();
         }
 
-        public async Task<IEnumerable<(MergedRegion, string, IEnumerable<IGameObject>)>> Tick()
+        public HashSet<Region> GetActiveRegions()
         {
-            var activeRegions = _activationStrategy.GetActiveRegions();
-            var mergedRegions = MergeRegions(activeRegions);
-            var snapshots = new System.Collections.Concurrent.ConcurrentBag<(MergedRegion, string, IEnumerable<IGameObject>)>();
-            var options = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = _settings.Performance.RegionalProcessing.MaxThreads > 0
-                    ? _settings.Performance.RegionalProcessing.MaxThreads
-                    : -1
-            };
-
-            await Parallel.ForEachAsync(mergedRegions, options, (mergedRegion, token) =>
-            {
-                var gameObjects = mergedRegion.GetGameObjects().ToList();
-                snapshots.Add((mergedRegion, _gameState.GetSnapshot(mergedRegion), gameObjects));
-                return ValueTask.CompletedTask;
-            });
-            return snapshots;
+            return _activationStrategy.GetActiveRegions();
         }
 
-        private List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)
+        public List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)
         {
             if (!_settings.Performance.RegionalProcessing.EnableRegionMerging || activeRegions.Count < _settings.Performance.RegionalProcessing.MinRegionsToMerge)
             {

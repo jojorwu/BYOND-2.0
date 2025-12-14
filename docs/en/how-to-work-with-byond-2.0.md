@@ -4,15 +4,15 @@ This guide will help you set up your development environment, build the project,
 
 ## 1. Environment Setup
 
-To work with the project, you will need the .NET 10.0 SDK.
+To work with the project, you will need the .NET 8.0 SDK.
 
-### Installing the .NET 10.0 SDK
+### Installing the .NET 8.0 SDK
 
-You can install the .NET 10.0 SDK by running the following commands in the root folder of the project:
+The repository includes a script to install the correct .NET SDK version. Run the following commands from the project root:
 
 ```bash
 chmod +x ./dotnet-install.sh
-./dotnet-install.sh --channel 10.0
+./dotnet-install.sh --channel 8.0
 ```
 
 After installation, you need to add .NET to the `PATH` for the current session:
@@ -24,7 +24,7 @@ export PATH=$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools
 
 ## 2. Building the Project
 
-After installing the .NET SDK, you can build the project. It is recommended to build the entire solution, but you can also build individual projects. To build the entire solution, run the following command:
+After installing the .NET SDK, you can build the project. To build the entire solution, run the following command from the project root:
 
 ```bash
 dotnet build BYOND2.0.sln
@@ -32,10 +32,10 @@ dotnet build BYOND2.0.sln
 
 ## 3. Running the Server
 
-To run the game server, execute the following command:
+The easiest way to run the server is by using the provided shell script:
 
 ```bash
-dotnet run --project Server/Server.csproj
+./run_server.sh
 ```
 
-After launching, the server will start monitoring the `scripts` directory for changes and will automatically reload them as needed.
+This script will build the necessary projects and launch the server. After starting, the server will monitor the `scripts` directory and automatically hot-reload any changes you make to the script files.

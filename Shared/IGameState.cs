@@ -13,6 +13,7 @@ namespace Shared
         IDisposable WriteLock();
         string GetSnapshot();
         string GetSnapshot(Region region);
+        string GetSnapshot(MergedRegion region);
         IEnumerable<IGameObject> GetAllGameObjects();
     }
 }

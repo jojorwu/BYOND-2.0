@@ -71,6 +71,33 @@ namespace tests
         }
 
         [Test]
+        public async Task MergeRegions_MergesAdjacentRegions()
+        {
+            // Arrange
+            _serverSettings.Performance.RegionalProcessing.EnableRegionMerging = true;
+            var chunks = new List<(Vector2i, Chunk)>
+            {
+                (new Vector2i(0, 0), new Chunk()),
+                (new Vector2i(1, 0), new Chunk())
+            };
+            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
+            _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
+            _playerManagerMock.Setup(p => p.ForEachPlayerObject(It.IsAny<Action<IGameObject>>()))
+                .Callback<Action<IGameObject>>(action =>
+                {
+                    action(new GameObject(new ObjectType(1, "player"), 0, 0, 0));
+                    action(new GameObject(new ObjectType(1, "player"), Region.RegionSize, 0, 0));
+                });
+            _regionManager.Initialize();
+
+            // Act
+            var regionData = await _regionManager.Tick();
+
+            // Assert
+            Assert.That(regionData.Count(), Is.EqualTo(1));
+        }
+
+        [Test]
         public async Task Tick_ReturnsDataForOnlyActiveRegions()
         {
             // Arrange

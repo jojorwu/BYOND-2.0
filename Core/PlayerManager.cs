@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Robust.Shared.Maths;
 using Shared;
 
 namespace Core
@@ -59,10 +60,15 @@ namespace Core
             _lock.EnterReadLock();
             try
             {
-                var regionObjects = new HashSet<IGameObject>(region.GetGameObjects());
                 foreach (var (peer, playerObject) in _players)
                 {
-                    if (regionObjects.Contains(playerObject))
+                    var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
+                    var regionCoords = new Vector2i(
+                        (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
+                        (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+                    );
+
+                    if (region.Coords == regionCoords && region.Z == playerObject.Z)
                     {
                         action(peer);
                     }

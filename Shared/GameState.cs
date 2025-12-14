@@ -38,6 +38,18 @@ namespace Shared
             }
         }
 
+        public string GetSnapshot(MergedRegion region)
+        {
+            using (ReadLock())
+            {
+                var snapshot = new
+                {
+                    GameObjects = region.GetGameObjects()
+                };
+                return JsonSerializer.Serialize(snapshot);
+            }
+        }
+
         public void Dispose()
         {
             _lock.Dispose();

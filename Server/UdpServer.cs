@@ -149,9 +149,10 @@ namespace Server
             _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
         }
 
-        public void BroadcastSnapshot(Region region, string snapshot)
+        public void BroadcastSnapshot(MergedRegion region, string snapshot)
         {
-            _playerManager.ForEachPlayerInRegion(region, peer => peer.Send(snapshot));
+            foreach(var r in region.Regions)
+                _playerManager.ForEachPlayerInRegion(r, peer => peer.Send(snapshot));
         }
 
         public void Dispose()

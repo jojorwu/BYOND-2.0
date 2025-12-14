@@ -1,11 +1,20 @@
 using System.Collections.Generic;
+using Robust.Shared.Maths;
 
 namespace Shared
 {
     public class Region
     {
         public const int RegionSize = 8; // in chunks
+        public Vector2i Coords { get; }
+        public int Z { get; }
         private readonly List<Chunk> _chunks = new();
+
+        public Region(Vector2i coords, int z)
+        {
+            Coords = coords;
+            Z = z;
+        }
 
         public void AddChunk(Chunk chunk)
         {

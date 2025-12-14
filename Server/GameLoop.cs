@@ -54,10 +54,11 @@ namespace Server
 
                         var regionData = await _regionManager.Tick();
                         var tasks = new List<Task<IEnumerable<IScriptThread>>>();
-                        foreach(var (region, snapshot, gameObjects) in regionData)
+                        var allThreads = _scriptHost.GetThreads();
+                        foreach(var (mergedRegion, snapshot, gameObjects) in regionData)
                         {
-                            tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(_scriptHost.GetThreads(), gameObjects), token));
-                            _ = Task.Run(() => _udpServer.BroadcastSnapshot(region, snapshot), token);
+                            tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(allThreads, gameObjects), token));
+                            _ = Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
                         }
 
                         var remainingThreads = new List<IScriptThread>(remainingGlobals);

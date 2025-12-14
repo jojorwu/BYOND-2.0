@@ -2,26 +2,30 @@ using Shared;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using DMCompiler;
 using DMCompiler.Json;
+using Microsoft.Extensions.Logging;
 using Robust.Shared.Maths;
 
-namespace Core
+namespace Core.Maps
 {
     public class DmmService : IDmmService
     {
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IProject _project;
         private readonly IDreamMakerLoader _dreamMakerLoader;
+        private readonly ILogger<DmmService> _logger;
 
-        public DmmService(IObjectTypeManager objectTypeManager, IProject project, IDreamMakerLoader dreamMakerLoader)
+        public DmmService(IObjectTypeManager objectTypeManager, IProject project, IDreamMakerLoader dreamMakerLoader, ILogger<DmmService> logger)
         {
             _objectTypeManager = objectTypeManager;
             _project = project;
             _dreamMakerLoader = dreamMakerLoader;
+            _logger = logger;
         }
 
-        public IMap? LoadMap(string filePath)
+        public async Task<IMap?> LoadMapAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
@@ -30,7 +34,8 @@ namespace Core
 
             var dmFiles = _project.GetDmFiles();
             var parserService = new DMMParserService();
-            var (publicDreamMapJson, compiledJson) = parserService.ParseDmm(dmFiles, filePath);
+
+            var (publicDreamMapJson, compiledJson) = await Task.Run(() => parserService.ParseDmm(dmFiles, filePath));
 
             if (publicDreamMapJson == null || compiledJson == null)
             {
@@ -122,7 +127,7 @@ namespace Core
         {
             if (!typeIdMap.TryGetValue(mapObjectJson.Type, out var objectType))
             {
-                Console.WriteLine($"Warning: Invalid object type ID '{mapObjectJson.Type}' in DMM file.");
+                _logger.LogWarning($"Warning: Invalid object type ID '{mapObjectJson.Type}' in DMM file.");
                 return null;
             }
 

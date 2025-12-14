@@ -1,6 +1,9 @@
 using Shared;
 using NUnit.Framework;
 using Core;
+using Core.Objects;
+using Core.Maps;
+using Core.Api;
 
 namespace Core.Tests
 {

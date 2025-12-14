@@ -6,7 +6,8 @@ namespace Shared
     {
         void Initialize();
         IEnumerable<Region> GetRegions(int z);
-        Task<IEnumerable<(MergedRegion, string, IEnumerable<IGameObject>)>> Tick();
+        HashSet<Region> GetActiveRegions();
+        List<MergedRegion> MergeRegions(HashSet<Region> activeRegions);
         void SetRegionActive(int x, int y, int z, bool active);
     }
 }

@@ -1,5 +1,5 @@
 using Shared;
-namespace Core
+namespace Core.Objects
 {
     public class ObjectApi : IObjectApi
     {

@@ -5,7 +5,6 @@ namespace Shared
 {
     public class Region
     {
-        public const int RegionSize = 8; // in chunks
         public Vector2i Coords { get; }
         public int Z { get; }
         private readonly List<Chunk> _chunks = new();

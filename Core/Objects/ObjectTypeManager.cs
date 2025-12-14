@@ -2,7 +2,7 @@ using Shared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
-namespace Core
+namespace Core.Objects
 {
     public class ObjectTypeManager : IObjectTypeManager
     {

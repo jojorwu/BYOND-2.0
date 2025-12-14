@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace Core
+namespace Core.Maps
 {
     public class MapLoader : IMapLoader
     {

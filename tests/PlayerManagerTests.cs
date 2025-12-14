@@ -3,6 +3,7 @@ using Moq;
 using Shared;
 using Server;
 using Core;
+using Core.Players;
 using LiteNetLib;
 using System.Collections.Generic;
 

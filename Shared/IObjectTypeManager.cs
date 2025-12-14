@@ -8,6 +8,7 @@ namespace Shared
         ObjectType? GetObjectType(string name);
         ObjectType? GetObjectType(int id);
         IEnumerable<ObjectType> GetAllObjectTypes();
+        ObjectType GetTurfType();
         void Clear();
     }
 }

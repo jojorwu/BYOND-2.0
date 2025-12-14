@@ -78,6 +78,11 @@ namespace Core.Objects
             return _objectTypes.Values;
         }
 
+        public ObjectType GetTurfType()
+        {
+            return GetObjectType("/turf") ?? throw new System.InvalidOperationException("Base turf type '/turf' is not registered.");
+        }
+
         public void Clear()
         {
             _objectTypes.Clear();

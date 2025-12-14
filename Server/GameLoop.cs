@@ -9,19 +9,15 @@ namespace Server
 {
     public class GameLoop : IHostedService, IDisposable
     {
-        private readonly IScriptHost _scriptHost;
-        private readonly IUdpServer _udpServer;
-        private readonly IGameState _gameState;
+        private readonly IGameLoopStrategy _strategy;
         private readonly IRegionManager _regionManager;
         private readonly ServerSettings _settings;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, IRegionManager regionManager, ServerSettings settings)
+        public GameLoop(IGameLoopStrategy strategy, IRegionManager regionManager, ServerSettings settings)
         {
-            _scriptHost = scriptHost;
-            _udpServer = udpServer;
-            _gameState = gameState;
+            _strategy = strategy;
             _regionManager = regionManager;
             _settings = settings;
         }
@@ -47,33 +43,7 @@ namespace Server
 
                 if (elapsed >= interval)
                 {
-                    if (_settings.Performance.EnableRegionalProcessing)
-                    {
-                        var globals = _scriptHost.GetThreads().Where(t => t.AssociatedObject == null).ToList();
-                        var remainingGlobals = _scriptHost.ExecuteThreads(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
-
-                        var regionData = await _regionManager.Tick();
-                        var tasks = new List<Task<IEnumerable<IScriptThread>>>();
-                        var allThreads = _scriptHost.GetThreads();
-                        foreach(var (mergedRegion, snapshot, gameObjects) in regionData)
-                        {
-                            tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(allThreads, gameObjects), token));
-                            _ = Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
-                        }
-
-                        var remainingThreads = new List<IScriptThread>(remainingGlobals);
-                        foreach (var task in tasks)
-                        {
-                            remainingThreads.AddRange(await task);
-                        }
-                        _scriptHost.UpdateThreads(remainingThreads.Distinct());
-                    }
-                    else
-                    {
-                        _scriptHost.Tick();
-                        var snapshot = _gameState.GetSnapshot();
-                        _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
-                    }
+                    await _strategy.TickAsync(token);
                     stopwatch.Restart();
                 }
                 await Task.Delay(1, token);

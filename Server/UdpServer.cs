@@ -11,14 +11,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Server
 {
-    public class ServerInfo
-    {
-        public required string ServerName { get; set; }
-        public required string ServerDescription { get; set; }
-        public int MaxPlayers { get; set; }
-        public required string AssetUrl { get; set; }
-    }
-
     public class UdpServer : IHostedService, IDisposable, IUdpServer
     {
         private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();

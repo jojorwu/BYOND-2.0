@@ -12,9 +12,8 @@ namespace tests
     [TestFixture]
     public class GameLoopTests
     {
-        private Mock<IGameState> _gameStateMock = null!;
-        private Mock<IScriptHost> _scriptHostMock = null!;
-        private Mock<IUdpServer> _udpServerMock = null!;
+        private Mock<IGameLoopStrategy> _strategyMock = null!;
+        private Mock<IRegionManager> _regionManagerMock = null!;
         private ServerSettings _serverSettings = null!;
         private GameLoop _gameLoop = null!;
         private CancellationTokenSource _cancellationTokenSource = null!;
@@ -22,13 +21,11 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _gameStateMock = new Mock<IGameState>();
-            _scriptHostMock = new Mock<IScriptHost>();
-            _udpServerMock = new Mock<IUdpServer>();
-            var regionManagerMock = new Mock<IRegionManager>();
+            _strategyMock = new Mock<IGameLoopStrategy>();
+            _regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
 
-            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, regionManagerMock.Object, _serverSettings);
+            _gameLoop = new GameLoop(_strategyMock.Object, _regionManagerMock.Object, _serverSettings);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 
@@ -41,7 +38,7 @@ namespace tests
         }
 
         [Test]
-        public async Task StartAsync_CallsTickOnScriptHost()
+        public async Task StartAsync_CallsTickOnStrategy()
         {
             // Arrange
             _cancellationTokenSource.CancelAfter(200);
@@ -51,22 +48,7 @@ namespace tests
             await Task.Delay(100, _cancellationTokenSource.Token); // Give it a moment to tick
 
             // Assert
-            _scriptHostMock.Verify(s => s.Tick(), Times.AtLeastOnce);
-        }
-
-        [Test]
-        public async Task StartAsync_BroadcastsSnapshots()
-        {
-            // Arrange
-            _cancellationTokenSource.CancelAfter(200);
-            _gameStateMock.Setup(gs => gs.GetSnapshot()).Returns("snapshot");
-
-            // Act
-            await _gameLoop.StartAsync(_cancellationTokenSource.Token);
-            await Task.Delay(100, _cancellationTokenSource.Token); // Give it a moment to tick and broadcast
-
-            // Assert
-            _udpServerMock.Verify(s => s.BroadcastSnapshot("snapshot"), Times.AtLeastOnce);
+            _strategyMock.Verify(s => s.TickAsync(It.IsAny<CancellationToken>()), Times.AtLeastOnce);
         }
     }
 }

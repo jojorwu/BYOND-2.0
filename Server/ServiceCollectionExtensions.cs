@@ -68,6 +68,8 @@ namespace Server
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
 
+            services.AddSingleton<INetworkService, NetworkService>();
+            services.AddSingleton<NetworkEventHandler>();
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
             services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());

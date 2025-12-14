@@ -74,25 +74,38 @@ namespace Server
 
         public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
         {
-            if(processGlobals)
+            if (processGlobals)
                 ProcessCommandQueue();
 
-            ScriptingEnvironment? environment;
+            var threads = GetThreads();
+            var remainingThreads = ExecuteThreads(threads, objectsToTick, processGlobals);
+            UpdateThreads(remainingThreads);
+        }
+
+        public List<IScriptThread> GetThreads()
+        {
             lock (_scriptLock)
             {
-                environment = _currentEnvironment;
+                return _currentEnvironment?.Threads.ToList() ?? new List<IScriptThread>();
             }
-            if (environment == null) return;
+        }
 
-            var objectIds = new HashSet<int>(objectsToTick.Select(o => o.Id));
-
-            var allThreads = new List<IScriptThread>();
-            lock(_scriptLock)
+        public void UpdateThreads(IEnumerable<IScriptThread> threads)
+        {
+            lock (_scriptLock)
             {
-                allThreads.AddRange(environment.Threads);
+                if (_currentEnvironment != null)
+                {
+                    _currentEnvironment.Threads.Clear();
+                    _currentEnvironment.Threads.AddRange(threads);
+                }
             }
+        }
 
-            var dreamThreads = allThreads.OfType<DreamThread>().ToList();
+        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+        {
+            var objectIds = new HashSet<int>(objectsToTick.Select(o => o.Id));
+            var dreamThreads = threads.OfType<DreamThread>().ToList();
             var nextThreads = new System.Collections.Concurrent.ConcurrentBag<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -107,7 +120,7 @@ namespace Server
 
                 bool shouldProcess = (processGlobals && thread.AssociatedObject == null) || (thread.AssociatedObject != null && objectIds.Contains(thread.AssociatedObject.Id));
 
-                if(shouldProcess)
+                if (shouldProcess)
                 {
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
                     if (state == DreamThreadState.Running)
@@ -118,25 +131,19 @@ namespace Server
                     {
                         _logger.LogDebug($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
                     }
-                } else {
+                }
+                else
+                {
                     nextThreads.Add(thread);
                 }
             }
 
-            foreach(var thread in allThreads.Where(t => t is not DreamThread))
+            foreach (var thread in threads.Where(t => t is not DreamThread))
             {
                 nextThreads.Add(thread);
             }
 
-            lock (_scriptLock)
-            {
-                if (_currentEnvironment != null)
-                {
-                    var newThreadList = nextThreads.ToList();
-                    _currentEnvironment.Threads.Clear();
-                    _currentEnvironment.Threads.AddRange(newThreadList);
-                }
-            }
+            return nextThreads;
         }
 
         public void EnqueueCommand(string command, Action<string> onResult)

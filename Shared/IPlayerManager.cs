@@ -6,7 +6,7 @@ namespace Shared
     {
         void AddPlayer(INetworkPeer peer);
         void RemovePlayer(INetworkPeer peer);
-        IEnumerable<INetworkPeer> GetPlayersInRegion(Region region);
-        IEnumerable<IGameObject> GetAllPlayerObjects();
+        void ForEachPlayerInRegion(Region region, Action<INetworkPeer> action);
+        void ForEachPlayerObject(Action<IGameObject> action);
     }
 }

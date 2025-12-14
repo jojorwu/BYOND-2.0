@@ -98,7 +98,7 @@ namespace Core
         private HashSet<Region> GetActiveRegions()
         {
             var activeRegions = new HashSet<Region>(_scriptActivatedRegions);
-            foreach (var playerObject in _playerManager.GetAllPlayerObjects())
+            _playerManager.ForEachPlayerObject(playerObject =>
             {
                 var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
                 var regionCoords = new Vector2i(
@@ -123,7 +123,7 @@ namespace Core
                         }
                     }
                 }
-            }
+            });
             return activeRegions;
         }
     }

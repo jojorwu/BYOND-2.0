@@ -54,21 +54,19 @@ namespace Core
             }
         }
 
-        public IEnumerable<INetworkPeer> GetPlayersInRegion(Region region)
+        public void ForEachPlayerInRegion(Region region, Action<INetworkPeer> action)
         {
             _lock.EnterReadLock();
             try
             {
                 var regionObjects = new HashSet<IGameObject>(region.GetGameObjects());
-                var playersInRegion = new List<INetworkPeer>();
                 foreach (var (peer, playerObject) in _players)
                 {
                     if (regionObjects.Contains(playerObject))
                     {
-                        playersInRegion.Add(peer);
+                        action(peer);
                     }
                 }
-                return playersInRegion;
             }
             finally
             {
@@ -76,12 +74,15 @@ namespace Core
             }
         }
 
-        public IEnumerable<IGameObject> GetAllPlayerObjects()
+        public void ForEachPlayerObject(Action<IGameObject> action)
         {
             _lock.EnterReadLock();
             try
             {
-                return new List<IGameObject>(_players.Values);
+                foreach (var playerObject in _players.Values)
+                {
+                    action(playerObject);
+                }
             }
             finally
             {

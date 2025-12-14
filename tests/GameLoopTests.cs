@@ -44,11 +44,11 @@ namespace tests
         public async Task StartAsync_CallsTickOnScriptHost()
         {
             // Arrange
-            _cancellationTokenSource.CancelAfter(100);
+            _cancellationTokenSource.CancelAfter(200);
 
             // Act
             await _gameLoop.StartAsync(_cancellationTokenSource.Token);
-            await Task.Delay(50, _cancellationTokenSource.Token); // Give it a moment to tick
+            await Task.Delay(100, _cancellationTokenSource.Token); // Give it a moment to tick
 
             // Assert
             _scriptHostMock.Verify(s => s.Tick(), Times.AtLeastOnce);

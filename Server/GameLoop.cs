@@ -49,13 +49,23 @@ namespace Server
                 {
                     if (_settings.Performance.EnableRegionalProcessing)
                     {
-                        _scriptHost.Tick(System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
+                        var globals = _scriptHost.GetThreads().Where(t => t.AssociatedObject == null).ToList();
+                        var remainingGlobals = _scriptHost.ExecuteThreads(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
+
                         var regionData = await _regionManager.Tick();
+                        var tasks = new List<Task<IEnumerable<IScriptThread>>>();
                         foreach(var (region, snapshot, gameObjects) in regionData)
                         {
-                            _scriptHost.Tick(gameObjects);
+                            tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(_scriptHost.GetThreads(), gameObjects), token));
                             _ = Task.Run(() => _udpServer.BroadcastSnapshot(region, snapshot), token);
                         }
+
+                        var remainingThreads = new List<IScriptThread>(remainingGlobals);
+                        foreach (var task in tasks)
+                        {
+                            remainingThreads.AddRange(await task);
+                        }
+                        _scriptHost.UpdateThreads(remainingThreads.Distinct());
                     }
                     else
                     {

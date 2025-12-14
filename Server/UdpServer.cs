@@ -151,10 +151,7 @@ namespace Server
 
         public void BroadcastSnapshot(Region region, string snapshot)
         {
-            foreach (var peer in _playerManager.GetPlayersInRegion(region))
-            {
-                peer.Send(snapshot);
-            }
+            _playerManager.ForEachPlayerInRegion(region, peer => peer.Send(snapshot));
         }
 
         public void Dispose()

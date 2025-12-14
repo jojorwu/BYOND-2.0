@@ -67,9 +67,15 @@ namespace Server
         }
 
 
-        public virtual void Tick()
+        public void Tick()
         {
-            ProcessCommandQueue();
+            Tick(_currentEnvironment?.ScriptManager.GetAllGameObjects() ?? Enumerable.Empty<IGameObject>(), processGlobals: true);
+        }
+
+        public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+        {
+            if(processGlobals)
+                ProcessCommandQueue();
 
             ScriptingEnvironment? environment;
             lock (_scriptLock)
@@ -77,6 +83,8 @@ namespace Server
                 environment = _currentEnvironment;
             }
             if (environment == null) return;
+
+            var objectIds = new HashSet<int>(objectsToTick.Select(o => o.Id));
 
             var dreamThreads = environment.Threads.OfType<DreamThread>().ToList();
             var nextThreads = new List<IScriptThread>();
@@ -91,18 +99,24 @@ namespace Server
                     continue;
                 }
 
-                var state = thread.Run(_settings.Performance.VmInstructionSlice);
-                if (state == DreamThreadState.Running)
+                bool shouldProcess = (processGlobals && thread.AssociatedObject == null) || (thread.AssociatedObject != null && objectIds.Contains(thread.AssociatedObject.Id));
+
+                if(shouldProcess)
                 {
+                    var state = thread.Run(_settings.Performance.VmInstructionSlice);
+                    if (state == DreamThreadState.Running)
+                    {
+                        nextThreads.Add(thread);
+                    }
+                    else
+                    {
+                        _logger.LogDebug($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
+                    }
+                } else {
                     nextThreads.Add(thread);
-                }
-                else
-                {
-                    _logger.LogDebug($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
                 }
             }
 
-            // Re-add non-DreamThreads to the list for next tick
             nextThreads.AddRange(environment.Threads.Where(t => t is not DreamThread));
 
             lock (_scriptLock)

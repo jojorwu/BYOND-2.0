@@ -43,6 +43,26 @@ namespace Shared
             _lock.Dispose();
         }
 
+        public IEnumerable<IGameObject> GetAllGameObjects()
+        {
+            using (ReadLock())
+            {
+                return new List<IGameObject>(GameObjects.Values);
+            }
+        }
+
+        public string GetSnapshot(Region region)
+        {
+            using (ReadLock())
+            {
+                var snapshot = new
+                {
+                    GameObjects = region.GetGameObjects()
+                };
+                return JsonSerializer.Serialize(snapshot);
+            }
+        }
+
         private sealed class DisposableAction : IDisposable
         {
             private readonly Action _action;

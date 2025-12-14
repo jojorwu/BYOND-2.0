@@ -12,15 +12,17 @@ namespace Server
         private readonly IScriptHost _scriptHost;
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
+        private readonly IRegionManager _regionManager;
         private readonly ServerSettings _settings;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings)
+        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, IRegionManager regionManager, ServerSettings settings)
         {
             _scriptHost = scriptHost;
             _udpServer = udpServer;
             _gameState = gameState;
+            _regionManager = regionManager;
             _settings = settings;
         }
 
@@ -33,6 +35,7 @@ namespace Server
 
         private async Task Loop(CancellationToken token)
         {
+            _regionManager.Initialize();
             var tickRate = _settings.Performance.TickRate;
             var interval = TimeSpan.FromSeconds(1.0 / tickRate);
             var stopwatch = new Stopwatch();
@@ -44,14 +47,23 @@ namespace Server
 
                 if (elapsed >= interval)
                 {
-                    _scriptHost.Tick();
-                    var snapshot = _gameState.GetSnapshot();
-                    // Don't block the main game loop with network operations
-                    _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
+                    if (_settings.Performance.EnableRegionalProcessing)
+                    {
+                        _scriptHost.Tick(System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
+                        var snapshots = _regionManager.Tick();
+                        foreach(var (region, snapshot) in snapshots)
+                        {
+                            _ = Task.Run(() => _udpServer.BroadcastSnapshot(region, snapshot), token);
+                        }
+                    }
+                    else
+                    {
+                        _scriptHost.Tick();
+                        var snapshot = _gameState.GetSnapshot();
+                        _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
+                    }
                     stopwatch.Restart();
                 }
-
-                // Yield the thread to prevent busy-waiting
                 await Task.Delay(1, token);
             }
         }

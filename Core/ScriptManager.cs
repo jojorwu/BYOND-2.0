@@ -12,12 +12,14 @@ namespace Core
     public class ScriptManager : IScriptManager
     {
         private readonly IEnumerable<IScriptSystem> _systems;
+        private readonly IGameState _gameState;
         private readonly string _scriptsRoot;
 
-        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems)
+        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems, IGameState gameState)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
             _systems = systems;
+            _gameState = gameState;
         }
 
         public async Task Initialize()
@@ -64,17 +66,22 @@ namespace Core
             return null;
         }
 
-        public IScriptThread? CreateThread(string procName)
+        public IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null)
         {
             foreach (var system in _systems.OfType<IThreadSupportingScriptSystem>())
             {
-                var thread = system.CreateThread(procName);
+                var thread = system.CreateThread(procName, associatedObject);
                 if (thread != null)
                 {
                     return thread;
                 }
             }
             return null;
+        }
+
+        public IEnumerable<IGameObject> GetAllGameObjects()
+        {
+            return _gameState.GetAllGameObjects();
         }
     }
 }

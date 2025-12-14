@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Shared
@@ -8,6 +9,7 @@ namespace Shared
         Task ReloadAll();
         void InvokeGlobalEvent(string eventName);
         string? ExecuteCommand(string command);
-        IScriptThread? CreateThread(string procName);
+        IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
+        IEnumerable<IGameObject> GetAllGameObjects();
     }
 }

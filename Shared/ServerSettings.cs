@@ -13,6 +13,7 @@ namespace Shared
         public ThreadingSettings Threading { get; set; } = new();
         public PerformanceSettings Performance { get; set; } = new();
         public DevelopmentSettings Development { get; set; } = new();
+        public string PlayerObjectTypePath { get; set; } = "/obj/player";
     }
 
     public class HttpServerSettings
@@ -52,6 +53,7 @@ namespace Shared
     public class PerformanceSettings
     {
         public int TickRate { get; set; } = 60;
+        public bool EnableRegionalProcessing { get; set; } = false;
         public int VmInstructionSlice { get; set; } = 100;
         public int SnapshotBroadcastInterval { get; set; } = 100; // ms
         public TimeBudgetSettings TimeBudgeting { get; set; } = new();

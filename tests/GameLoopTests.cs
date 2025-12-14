@@ -25,9 +25,10 @@ namespace tests
             _gameStateMock = new Mock<IGameState>();
             _scriptHostMock = new Mock<IScriptHost>();
             _udpServerMock = new Mock<IUdpServer>();
+            var regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
 
-            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, _serverSettings);
+            _gameLoop = new GameLoop(_scriptHostMock.Object, _udpServerMock.Object, _gameStateMock.Object, regionManagerMock.Object, _serverSettings);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

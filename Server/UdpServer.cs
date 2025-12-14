@@ -25,13 +25,15 @@ namespace Server
         private readonly EventBasedNetListener _listener;
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly IScriptHost _scriptHost;
+        private readonly Server.IPlayerManager _playerManager;
         private readonly ServerSettings _settings;
         private readonly ILogger<UdpServer> _logger;
         private Task? _networkTask;
 
-        public UdpServer(IScriptHost scriptHost, ServerSettings settings, ILogger<UdpServer> logger)
+        public UdpServer(IScriptHost scriptHost, Server.IPlayerManager playerManager, ServerSettings settings, ILogger<UdpServer> logger)
         {
             _settings = settings;
+            _playerManager = playerManager;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
@@ -97,6 +99,7 @@ namespace Server
         private void OnPeerConnected(NetPeer peer)
         {
             _logger.LogInformation($"Client connected: {peer}");
+            _playerManager.AddPlayer(peer);
 
             var serverInfo = new ServerInfo
             {
@@ -130,12 +133,23 @@ namespace Server
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             _logger.LogInformation($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
+            _playerManager.RemovePlayer(peer);
         }
 
         public void BroadcastSnapshot(string snapshot) {
             var writer = new LiteNetLib.Utils.NetDataWriter();
             writer.Put(snapshot);
             _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
+        }
+
+        public void BroadcastSnapshot(Region region, string snapshot)
+        {
+            var writer = new LiteNetLib.Utils.NetDataWriter();
+            writer.Put(snapshot);
+            foreach (var peer in _playerManager.GetPlayersInRegion(region))
+            {
+                peer.Send(writer, DeliveryMethod.Unreliable);
+            }
         }
 
         public void Dispose()

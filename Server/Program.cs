@@ -55,7 +55,27 @@ class Program
         services.AddSingleton<DreamVM>();
         services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
         services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
-        services.AddSingleton<IScriptManager, ScriptManager>();
+        services.AddSingleton<IScriptManager>(provider =>
+            new ScriptManager(
+                provider.GetRequiredService<IProject>(),
+                provider.GetServices<IScriptSystem>(),
+                provider.GetRequiredService<IGameState>()
+            )
+        );
+        services.AddSingleton<Server.IPlayerManager>(provider =>
+            new Server.PlayerManager(
+                provider.GetRequiredService<IObjectApi>(),
+                provider.GetRequiredService<IObjectTypeManager>(),
+                provider.GetRequiredService<ServerSettings>()
+            )
+        );
+        services.AddSingleton<IRegionManager>(provider =>
+            new RegionManager(
+                provider.GetRequiredService<IMap>(),
+                provider.GetRequiredService<IScriptHost>(),
+                provider.GetRequiredService<IGameState>()
+            )
+        );
         services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
         services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();
         services.AddSingleton<IScriptSystem>(provider =>

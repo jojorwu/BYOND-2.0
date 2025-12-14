@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+using System.Collections.Generic;
+
 namespace Shared
 {
     public interface IGameState : IDisposable
@@ -10,5 +12,7 @@ namespace Shared
         IDisposable ReadLock();
         IDisposable WriteLock();
         string GetSnapshot();
+        string GetSnapshot(Region region);
+        IEnumerable<IGameObject> GetAllGameObjects();
     }
 }

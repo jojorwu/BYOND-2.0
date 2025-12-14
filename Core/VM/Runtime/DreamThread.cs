@@ -14,15 +14,17 @@ namespace Core.VM.Runtime
 
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
+        public IGameObject? AssociatedObject { get; }
 
         private readonly DreamVM _vm;
         private readonly int _maxInstructions;
         private int _totalInstructionsExecuted;
 
-        public DreamThread(DreamProc proc, DreamVM vm, int maxInstructions)
+        public DreamThread(DreamProc proc, DreamVM vm, int maxInstructions, IGameObject? associatedObject = null)
         {
             _vm = vm;
             _maxInstructions = maxInstructions;
+            AssociatedObject = associatedObject;
 
             CallStack.Push(new CallFrame(proc, 0, 0));
         }

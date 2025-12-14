@@ -3,7 +3,7 @@ using System.Diagnostics;
 using Robust.Shared.Maths;
 using Shared;
 
-namespace Core
+namespace Core.Regions
 {
     public class RegionManager : IRegionManager
     {

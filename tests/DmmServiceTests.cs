@@ -3,6 +3,8 @@ using Core;
 using System.IO;
 using System.Linq;
 using Shared;
+using Core.Objects;
+using Core.Maps;
 
 namespace Core.Tests
 {

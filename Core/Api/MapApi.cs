@@ -1,7 +1,7 @@
 using Shared;
 using System.Threading.Tasks;
 
-namespace Core
+namespace Core.Api
 {
     public class MapApi : IMapApi
     {

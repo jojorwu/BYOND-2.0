@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Robust.Shared.Maths;
 using Shared;
 
-namespace Core
+namespace Core.Players
 {
     public class PlayerManager : IPlayerManager
     {

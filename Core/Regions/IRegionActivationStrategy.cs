@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Shared;
 
-namespace Core
+namespace Core.Regions
 {
     public interface IRegionActivationStrategy
     {

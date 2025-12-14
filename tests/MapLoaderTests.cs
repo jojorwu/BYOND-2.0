@@ -2,6 +2,8 @@ using Shared;
 using NUnit.Framework;
 using Core;
 using System.IO;
+using Core.Objects;
+using Core.Maps;
 
 namespace tests
 {

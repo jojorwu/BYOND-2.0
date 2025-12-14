@@ -1,3 +1,8 @@
+using Core.Api;
+using Core.Maps;
+using Core.Objects;
+using Core.Players;
+using Core.Regions;
 using Core.VM.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
@@ -35,7 +40,7 @@ namespace Core
                 )
             );
             services.AddSingleton<IPlayerManager>(provider =>
-                new Core.PlayerManager(
+                new PlayerManager(
                     provider.GetRequiredService<IObjectApi>(),
                     provider.GetRequiredService<IObjectTypeManager>(),
                     provider.GetRequiredService<ServerSettings>()

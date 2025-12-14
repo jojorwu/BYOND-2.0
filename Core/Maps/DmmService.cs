@@ -6,7 +6,7 @@ using DMCompiler;
 using DMCompiler.Json;
 using Robust.Shared.Maths;
 
-namespace Core
+namespace Core.Maps
 {
     public class DmmService : IDmmService
     {

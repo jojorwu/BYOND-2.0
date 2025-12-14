@@ -2,7 +2,7 @@ using Shared;
 using System.Linq;
 using Robust.Shared.Maths;
 
-namespace Core
+namespace Core.Regions
 {
     public class RegionApi : IRegionApi
     {

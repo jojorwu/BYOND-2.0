@@ -2,7 +2,7 @@ using Shared;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Core
+namespace Core.Api
 {
     public class GameApi : IGameApi
     {

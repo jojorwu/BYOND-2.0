@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Core
+namespace Core.Api
 {
     public class StandardLibraryApi : IStandardLibraryApi
     {

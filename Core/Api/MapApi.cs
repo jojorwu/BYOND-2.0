@@ -1,5 +1,8 @@
 using Shared;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using Robust.Shared.Maths;
 
 namespace Core.Api
 {
@@ -37,9 +40,8 @@ namespace Core.Api
         public void SetTurf(int x, int y, int z, int turfId)
         {
             var turfType = _objectTypeManager.GetObjectType(turfId);
-            if (turfType == null || !IsTurfType(turfType))
+            if (turfType == null || !turfType.IsSubtypeOf(_objectTypeManager.GetTurfType()))
             {
-                // Maybe just log a warning? For now, an exception is better to signal API misuse.
                 throw new System.ArgumentException($"Invalid or non-turf type ID: {turfId}", nameof(turfId));
             }
 
@@ -47,20 +49,6 @@ namespace Core.Api
             {
                 _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
             }
-        }
-
-        private bool IsTurfType(ObjectType? type)
-        {
-            var current = type;
-            while (current != null)
-            {
-                if (current.Name == "/turf")
-                {
-                    return true;
-                }
-                current = current.Parent;
-            }
-            return false;
         }
 
         public async Task<IMap?> LoadMapAsync(string filePath)
@@ -94,6 +82,53 @@ namespace Core.Api
             {
                 var safePath = PathSanitizer.Sanitize(_project, filePath, Constants.MapsRoot);
                 await _mapLoader.SaveMapAsync(mapToSave, safePath);
+            }
+        }
+
+        public IEnumerable<IGameObject> GetObjectsInRange(int x, int y, int z, int range)
+        {
+            return GetObjectsInRange(x, y, z, range, "/obj"); // Default to all objects
+        }
+
+        public IEnumerable<IGameObject> GetObjectsInRange(int x, int y, int z, int range, string typePath)
+        {
+            var targetType = _objectTypeManager.GetObjectType(typePath);
+            if (targetType == null)
+                return Enumerable.Empty<IGameObject>();
+
+            var box = new Box2i(x - range, y - range, x + range, y + range);
+
+            using (_gameState.ReadLock())
+            {
+                return _gameState.SpatialGrid.GetObjectsInBox(box)
+                    .Where(obj => obj.Z == z && obj.ObjectType.IsSubtypeOf(targetType))
+                    .ToList(); // ToList to execute the query inside the lock
+            }
+        }
+
+        public IEnumerable<IGameObject> GetObjectsInArea(int x1, int y1, int x2, int y2, int z)
+        {
+            return GetObjectsInArea(x1, y1, x2, y2, z, "/obj"); // Default to all objects
+        }
+
+        public IEnumerable<IGameObject> GetObjectsInArea(int x1, int y1, int x2, int y2, int z, string typePath)
+        {
+            var targetType = _objectTypeManager.GetObjectType(typePath);
+            if (targetType == null)
+                return Enumerable.Empty<IGameObject>();
+
+            var box = new Box2i(
+                System.Math.Min(x1, x2),
+                System.Math.Min(y1, y2),
+                System.Math.Max(x1, x2),
+                System.Math.Max(y1, y2)
+            );
+
+            using (_gameState.ReadLock())
+            {
+                return _gameState.SpatialGrid.GetObjectsInBox(box)
+                    .Where(obj => obj.Z == z && obj.ObjectType.IsSubtypeOf(targetType))
+                    .ToList(); // ToList to execute the query inside the lock
             }
         }
     }

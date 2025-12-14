@@ -11,6 +11,7 @@ namespace Shared
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
         public IMap? Map { get; set; }
+        public SpatialGrid SpatialGrid { get; } = new SpatialGrid();
         public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
 
         public IDisposable ReadLock()

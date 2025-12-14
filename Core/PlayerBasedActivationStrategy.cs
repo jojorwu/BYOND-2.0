@@ -9,9 +9,9 @@ namespace Core
         private readonly IPlayerManager _playerManager;
         private readonly ServerSettings _settings;
         private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ;
-        private readonly HashSet<Region> _scriptActivatedRegions;
+        private readonly ICollection<Region> _scriptActivatedRegions;
 
-        public PlayerBasedActivationStrategy(IPlayerManager playerManager, ServerSettings settings, Dictionary<int, Dictionary<Vector2i, Region>> regionsByZ, HashSet<Region> scriptActivatedRegions)
+        public PlayerBasedActivationStrategy(IPlayerManager playerManager, ServerSettings settings, Dictionary<int, Dictionary<Vector2i, Region>> regionsByZ, ICollection<Region> scriptActivatedRegions)
         {
             _playerManager = playerManager;
             _settings = settings;
@@ -29,8 +29,8 @@ namespace Core
             {
                 var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
                 var regionCoords = new Vector2i(
-                    (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
-                    (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+                    (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                    (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
                 );
 
                 if (_regionsByZ.TryGetValue(playerObject.Z, out var regions) && regions.TryGetValue(regionCoords, out var region))

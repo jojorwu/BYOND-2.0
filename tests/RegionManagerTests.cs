@@ -32,11 +32,12 @@ namespace tests
         public void Initialize_CreatesRegionsAndAssignsChunks()
         {
             // Arrange
+            var regionSize = _serverSettings.Performance.RegionalProcessing.RegionSize;
             var chunks = new List<(Vector2i, Chunk)>
             {
                 (new Vector2i(0, 0), new Chunk()),
                 (new Vector2i(1, 1), new Chunk()),
-                (new Vector2i(Region.RegionSize, Region.RegionSize), new Chunk())
+                (new Vector2i(regionSize, regionSize), new Chunk())
             };
             _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
             _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
@@ -53,10 +54,11 @@ namespace tests
         public void GetActiveRegions_ReturnsCorrectRegions()
         {
             // Arrange
+            var regionSize = _serverSettings.Performance.RegionalProcessing.RegionSize;
             var chunks = new List<(Vector2i, Chunk)>
             {
                 (new Vector2i(0, 0), new Chunk()),
-                (new Vector2i(Region.RegionSize * 2, Region.RegionSize * 2), new Chunk())
+                (new Vector2i(regionSize * 2, regionSize * 2), new Chunk())
             };
             _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
             _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
@@ -76,10 +78,11 @@ namespace tests
         {
             // Arrange
             _serverSettings.Performance.RegionalProcessing.EnableRegionMerging = true;
+            var regionSize = _serverSettings.Performance.RegionalProcessing.RegionSize;
             var chunks = new List<(Vector2i, Chunk)>
             {
                 (new Vector2i(0, 0), new Chunk()),
-                (new Vector2i(Region.RegionSize, 0), new Chunk())
+                (new Vector2i(regionSize, 0), new Chunk())
             };
             _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
             _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);

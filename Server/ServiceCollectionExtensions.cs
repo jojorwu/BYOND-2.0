@@ -18,7 +18,12 @@ namespace Server
             services.AddSingleton<IScriptApi, ScriptApi>();
             services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
             services.AddSingleton<IGameApi, GameApi>();
-            services.AddSingleton<IRegionApi, RegionApi>();
+            services.AddSingleton<IRegionApi>(provider =>
+                new RegionApi(
+                    provider.GetRequiredService<IRegionManager>(),
+                    provider.GetRequiredService<ServerSettings>()
+                )
+            );
             services.AddSingleton<IDmmService, DmmService>();
             services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
             services.AddSingleton<DreamVM>();

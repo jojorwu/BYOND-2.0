@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Robust.Shared.Maths;
 using Shared;
 
@@ -12,8 +13,9 @@ namespace Core
         private readonly IPlayerManager _playerManager;
         private readonly ServerSettings _settings;
         private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ = new();
-        private readonly HashSet<Region> _scriptActivatedRegions = new();
+        private readonly Dictionary<Region, float> _scriptActivatedRegions = new();
         private IRegionActivationStrategy _activationStrategy = null!;
+        private readonly Stopwatch _stopwatch = new();
 
         public RegionManager(IMap map, IScriptHost scriptHost, IGameState gameState, IPlayerManager playerManager, ServerSettings settings)
         {
@@ -26,6 +28,7 @@ namespace Core
 
         public void Initialize()
         {
+            _stopwatch.Start();
             foreach (var z in _map.GetZLevels())
             {
                 if (!_regionsByZ.ContainsKey(z))
@@ -36,8 +39,8 @@ namespace Core
                 foreach (var (chunkCoords, chunk) in _map.GetChunks(z))
                 {
                     var regionCoords = new Vector2i(
-                        (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
-                        (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+                        (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                        (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
                     );
 
                     if (!_regionsByZ[z].TryGetValue(regionCoords, out var region))
@@ -48,7 +51,7 @@ namespace Core
                     region.AddChunk(chunk);
                 }
             }
-            _activationStrategy = new PlayerBasedActivationStrategy(_playerManager, _settings, _regionsByZ, _scriptActivatedRegions);
+            _activationStrategy = new PlayerBasedActivationStrategy(_playerManager, _settings, _regionsByZ, _scriptActivatedRegions.Keys);
         }
 
         public IEnumerable<Region> GetRegions(int z)
@@ -62,14 +65,34 @@ namespace Core
 
         public HashSet<Region> GetActiveRegions()
         {
+            CleanupExpiredScriptActivations();
             return _activationStrategy.GetActiveRegions();
+        }
+
+        private void CleanupExpiredScriptActivations()
+        {
+            var now = (float)_stopwatch.Elapsed.TotalSeconds;
+            var timeout = _settings.Performance.RegionalProcessing.ScriptActiveRegionTimeout;
+            var expiredRegions = new List<Region>();
+
+            foreach (var (region, activationTime) in _scriptActivatedRegions)
+            {
+                if (now - activationTime > timeout)
+                {
+                    expiredRegions.Add(region);
+                }
+            }
+
+            foreach (var region in expiredRegions)
+            {
+                _scriptActivatedRegions.Remove(region);
+            }
         }
 
         public List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)
         {
             if (!_settings.Performance.RegionalProcessing.EnableRegionMerging || activeRegions.Count < _settings.Performance.RegionalProcessing.MinRegionsToMerge)
             {
-                // If merging is disabled or not enough regions, return each region as a single-region group.
                 return activeRegions.Select(r => new MergedRegion(new List<Region> { r })).ToList();
             }
 
@@ -97,12 +120,11 @@ namespace Core
                         var current = queue.Dequeue();
                         group.Add(current);
 
-                        // Check neighbors
                         for (int dx = -1; dx <= 1; dx++)
                         {
                             for (int dy = -1; dy <= 1; dy++)
                             {
-                                if (Math.Abs(dx) == Math.Abs(dy)) continue; // Skip diagonals and self
+                                if (Math.Abs(dx) == Math.Abs(dy)) continue;
 
                                 var neighborCoords = new Vector2i(current.Coords.X + dx, current.Coords.Y + dy);
                                 if (_regionsByZ[z].TryGetValue(neighborCoords, out var neighbor) && regionsByZ[z].Contains(neighbor) && !visited.Contains(neighbor))
@@ -119,29 +141,18 @@ namespace Core
             return mergedRegions;
         }
 
-        private bool AreAdjacent(Region a, Region b)
-        {
-            if (a.Z != b.Z)
-                return false;
-
-            var dx = Math.Abs(a.Coords.X - b.Coords.X);
-            var dy = Math.Abs(a.Coords.Y - b.Coords.Y);
-
-            return (dx == 1 && dy == 0) || (dx == 0 && dy == 1);
-        }
-
         public void SetRegionActive(int x, int y, int z, bool active)
         {
             var (chunkCoords, _) = Map.GlobalToChunk(x, y);
             var regionCoords = new Vector2i(
-                (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
-                (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+                (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
             );
 
             if (_regionsByZ.TryGetValue(z, out var regions) && regions.TryGetValue(regionCoords, out var region))
             {
                 if (active)
-                    _scriptActivatedRegions.Add(region);
+                    _scriptActivatedRegions[region] = (float)_stopwatch.Elapsed.TotalSeconds;
                 else
                     _scriptActivatedRegions.Remove(region);
             }

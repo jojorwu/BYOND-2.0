@@ -64,8 +64,8 @@ namespace Core
                 {
                     var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
                     var regionCoords = new Vector2i(
-                        (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
-                        (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+                        (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                        (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
                     );
 
                     if (region.Coords == regionCoords && region.Z == playerObject.Z)

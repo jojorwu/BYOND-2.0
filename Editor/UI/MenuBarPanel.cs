@@ -15,12 +15,19 @@ namespace Editor.UI
         private readonly IDmmService _dmmService;
         private readonly IMapLoader _mapLoader;
         private readonly LocalizationManager _localizationManager;
-        private string _newProjectName = "NewProject";
-        private string _newProjectPath = "";
+        private readonly IProjectManager _projectManager; // Added
+
         public string? ProjectToLoad { get; private set; }
         public bool IsExitRequested { get; private set; }
 
-        public MenuBarPanel(IGameApi gameApi, EditorContext editorContext, BuildService buildService, IDmmService dmmService, IMapLoader mapLoader, LocalizationManager localizationManager)
+        public MenuBarPanel(
+            IGameApi gameApi,
+            EditorContext editorContext,
+            BuildService buildService,
+            IDmmService dmmService,
+            IMapLoader mapLoader,
+            LocalizationManager localizationManager,
+            IProjectManager projectManager) // Added
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
@@ -28,6 +35,7 @@ namespace Editor.UI
             _dmmService = dmmService;
             _mapLoader = mapLoader;
             _localizationManager = localizationManager;
+            _projectManager = projectManager; // Added
         }
 
         public async Task SaveScene(Scene scene, bool saveAs)
@@ -93,11 +101,6 @@ namespace Editor.UI
                     {
                         ImGui.OpenPopup("ChooseMapFileDlgKey");
                     }
-                    if (ImGui.MenuItem(_localizationManager.GetString("New Project...")))
-                    {
-                        _newProjectPath = System.IO.Directory.GetCurrentDirectory(); // Default path
-                        ImGui.OpenPopup("NewProjectDlgKey");
-                    }
                     if (ImGui.MenuItem(_localizationManager.GetString("Import Project...")))
                     {
                         ImGui.OpenPopup("ImportProjectDlgKey");
@@ -157,7 +160,6 @@ namespace Editor.UI
             DrawProjectSettingsModal();
             DrawChooseMapFileModal();
             DrawImportProjectModal();
-            DrawNewProjectModal();
             DrawAboutModal();
         }
 
@@ -351,38 +353,6 @@ namespace Editor.UI
             }
         }
 
-        private void DrawNewProjectModal()
-        {
-            if (ImGui.BeginPopupModal("NewProjectDlgKey"))
-            {
-                ImGui.InputText("Project Name", ref _newProjectName, 256);
-                ImGui.InputText("Project Path", ref _newProjectPath, 256, ImGuiInputTextFlags.ReadOnly);
-                ImGui.SameLine();
-                if (ImGui.Button("..."))
-                {
-                    using var dialog = new NativeFileDialog().SelectFolder();
-                    DialogResult result = dialog.Open(out string? path);
-                    if (result == DialogResult.Okay && path != null)
-                    {
-                        _newProjectPath = path;
-                    }
-                }
-
-                if (ImGui.Button("Create"))
-                {
-                    if(!string.IsNullOrEmpty(_newProjectPath))
-                        CreateProject(_newProjectName, _newProjectPath, _editorContext);
-                    ImGui.CloseCurrentPopup();
-                }
-                ImGui.SameLine();
-                if (ImGui.Button("Cancel"))
-                {
-                    ImGui.CloseCurrentPopup();
-                }
-                ImGui.EndPopup();
-            }
-        }
-
         private void DrawAboutModal()
         {
             if (ImGui.BeginPopupModal("AboutDlgKey"))
@@ -394,44 +364,6 @@ namespace Editor.UI
                     ImGui.CloseCurrentPopup();
                 }
                 ImGui.EndPopup();
-            }
-        }
-
-        public static void CreateProject(string projectName, string projectPath, EditorContext editorContext)
-        {
-            try
-            {
-                var fullProjectPath = System.IO.Path.Combine(projectPath, projectName);
-                if (System.IO.Directory.Exists(fullProjectPath))
-                {
-                    Console.WriteLine($"[ERROR] Directory already exists: {fullProjectPath}");
-                    return;
-                }
-
-                System.IO.Directory.CreateDirectory(fullProjectPath);
-                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(fullProjectPath, "maps"));
-                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(fullProjectPath, "code"));
-                System.IO.Directory.CreateDirectory(System.IO.Path.Combine(fullProjectPath, "assets"));
-
-                var serverConfig = new ServerSettings();
-                var serverConfigJson = System.Text.Json.JsonSerializer.Serialize(serverConfig, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                System.IO.File.WriteAllText(System.IO.Path.Combine(fullProjectPath, "server_config.json"), serverConfigJson);
-
-                var clientConfig = new ClientSettings();
-                var clientConfigJson = System.Text.Json.JsonSerializer.Serialize(clientConfig, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                System.IO.File.WriteAllText(System.IO.Path.Combine(fullProjectPath, "client_config.json"), clientConfigJson);
-
-                var dmeContent = "// My awesome project\n#include <__DEFINES/std.dm>\n";
-                System.IO.File.WriteAllText(System.IO.Path.Combine(fullProjectPath, $"{projectName}.dme"), dmeContent);
-
-                editorContext.ProjectRoot = fullProjectPath;
-                editorContext.ServerSettings = serverConfig;
-
-                Console.WriteLine($"Project '{projectName}' created at '{fullProjectPath}'");
-            }
-            catch(Exception e)
-            {
-                Console.WriteLine($"[ERROR] Failed to create project: {e.Message}");
             }
         }
 

@@ -1,104 +1,140 @@
 using ImGuiNET;
+using Shared;
+using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Numerics;
 using System.Threading.Tasks;
 
 namespace Editor.UI
 {
     public class ServerBrowserPanel
     {
-        private const int DiscoveryPort = 12345;
-        private readonly object _serversLock = new object();
-        private List<ServerInfo> _servers = new List<ServerInfo>();
-        private readonly LocalizationManager _localizationManager;
+        private readonly IServerDiscoveryService _serverDiscoveryService;
+        private List<ServerInfoEntry> _servers = new();
+        private List<ServerInfoEntry> _favorites = new();
+        private string _filter = "";
+        private bool _isLoading = false;
 
-        public ServerBrowserPanel(LocalizationManager localizationManager)
+        public ServerBrowserPanel(IServerDiscoveryService serverDiscoveryService)
         {
-            _localizationManager = localizationManager;
+            _serverDiscoveryService = serverDiscoveryService;
+            _ = LoadServerListAsync();
+        }
+
+        private async Task LoadServerListAsync()
+        {
+            _isLoading = true;
+            try
+            {
+                var serverList = await _serverDiscoveryService.GetServerListAsync();
+                _servers = serverList.ToList();
+                _favorites = _servers.Where(s => s.IsFavorite).ToList();
+                _ = PingServersAsync(_servers);
+                _ = PingServersAsync(_favorites);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error loading server list: {e.Message}");
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+
+        private async Task PingServersAsync(IEnumerable<ServerInfoEntry> serverList)
+        {
+            var pingTasks = serverList.Select(async server =>
+            {
+                try
+                {
+                    using var pinger = new Ping();
+                    var reply = await pinger.SendPingAsync(server.Address.Split(':')[0], 1000); // 1-second timeout
+                    if (reply.Status == IPStatus.Success)
+                    {
+                        server.Ping = (int)reply.RoundtripTime;
+                    }
+                    else
+                    {
+                        server.Ping = -1;
+                    }
+                }
+                catch
+                {
+                    server.Ping = -1; // Could be invalid hostname, etc.
+                }
+            });
+
+            await Task.WhenAll(pingTasks);
         }
 
         public void Draw()
         {
-            if (ImGui.BeginTabItem(_localizationManager.GetString("Server Browser")))
-            {
-                if (ImGui.Button(_localizationManager.GetString("Refresh")))
-                {
-                    DiscoverServers();
-                }
+            ImGui.Begin("Server Browser");
 
-                ImGui.BeginTable("ServerList", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg);
-                ImGui.TableSetupColumn(_localizationManager.GetString("Server Name"));
-                ImGui.TableSetupColumn(_localizationManager.GetString("Address"));
+            if (ImGui.Button("Refresh"))
+            {
+                _ = LoadServerListAsync();
+            }
+            ImGui.SameLine();
+            ImGui.InputText("Filter", ref _filter, 256);
+
+            if (_isLoading)
+            {
+                ImGui.Text("Loading...");
+            }
+            else
+            {
+                if (ImGui.BeginTabBar("ServerTabs"))
+                {
+                    if (ImGui.BeginTabItem("Internet"))
+                    {
+                        DrawServerTable("InternetServers", _servers);
+                        ImGui.EndTabItem();
+                    }
+                    if (ImGui.BeginTabItem("Favorites"))
+                    {
+                        DrawServerTable("FavoriteServers", _favorites);
+                        ImGui.EndTabItem();
+                    }
+                    ImGui.EndTabBar();
+                }
+            }
+
+            ImGui.End();
+        }
+
+        private void DrawServerTable(string tableId, List<ServerInfoEntry> servers)
+        {
+            if (ImGui.BeginTable(tableId, 4, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
+            {
+                ImGui.TableSetupColumn("Name");
+                ImGui.TableSetupColumn("Players");
+                ImGui.TableSetupColumn("Ping");
+                ImGui.TableSetupColumn("Address");
                 ImGui.TableHeadersRow();
 
-                lock (_serversLock)
+                var filteredServers = string.IsNullOrWhiteSpace(_filter)
+                    ? servers
+                    : servers.Where(s => s.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                foreach (var server in filteredServers)
                 {
-                    foreach (var server in _servers)
-                    {
-                        ImGui.TableNextRow();
-                        ImGui.TableSetColumnIndex(0);
-                        ImGui.Text(server.Name);
-                        ImGui.TableSetColumnIndex(1);
-                        ImGui.Text($"{server.Address}:{server.Port}");
-                    }
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.Text(server.Name);
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{server.CurrentPlayers}/{server.MaxPlayers}");
+                    ImGui.TableNextColumn();
+                    ImGui.Text(server.Ping == -1 ? "N/A" : server.Ping.ToString());
+                    ImGui.TableNextColumn();
+                    ImGui.Text(server.Address);
                 }
 
                 ImGui.EndTable();
-                ImGui.EndTabItem();
             }
         }
-
-        private void DiscoverServers()
-        {
-            Task.Run(() =>
-            {
-                var discoveredServers = new List<ServerInfo>();
-                using var udpClient = new UdpClient();
-                udpClient.EnableBroadcast = true;
-                var requestData = Encoding.ASCII.GetBytes("BYOND2_DISCOVERY");
-                var serverEp = new IPEndPoint(IPAddress.Broadcast, DiscoveryPort);
-
-                udpClient.Send(requestData, requestData.Length, serverEp);
-
-                var fromEp = new IPEndPoint(IPAddress.Any, 0);
-                while (true)
-                {
-                    try
-                    {
-                        udpClient.Client.ReceiveTimeout = 1000;
-                        var responseData = udpClient.Receive(ref fromEp);
-                        var response = Encoding.ASCII.GetString(responseData);
-                        var parts = response.Split(':');
-                        if (parts.Length == 2 && parts[0] == "BYOND2_SERVER")
-                        {
-                            discoveredServers.Add(new ServerInfo
-                            {
-                                Name = parts[1],
-                                Address = fromEp.Address.ToString(),
-                                Port = fromEp.Port
-                            });
-                        }
-                    }
-                    catch (SocketException)
-                    {
-                        break;
-                    }
-                }
-
-                lock (_serversLock)
-                {
-                    _servers = discoveredServers;
-                }
-            });
-        }
-    }
-
-    public class ServerInfo
-    {
-        public required string Name { get; set; }
-        public required string Address { get; set; }
-        public int Port { get; set; }
     }
 }

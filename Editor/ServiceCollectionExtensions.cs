@@ -8,7 +8,16 @@ namespace Editor
     {
         public static IServiceCollection AddEditorServices(this IServiceCollection services)
         {
-            services.AddSingleton<Editor>();
+            services.AddSingleton<Editor>(provider =>
+                new Editor(
+                    provider,
+                    provider.GetRequiredService<ProjectHolder>(),
+                    provider.GetRequiredService<MainPanel>(),
+                    provider.GetRequiredService<MenuBarPanel>(),
+                    provider.GetRequiredService<ViewportPanel>(),
+                    provider.GetRequiredService<TextureManager>()
+                )
+            );
             services.AddSingleton<ProjectHolder>();
             services.AddSingleton<IProject>(sp => sp.GetRequiredService<ProjectHolder>());
             services.AddSingleton<EditorContext>();
@@ -30,8 +39,26 @@ namespace Editor
 
         public static IServiceCollection AddUiPanels(this IServiceCollection services)
         {
-            services.AddSingleton<ProjectManagerPanel>();
-            services.AddSingleton<MenuBarPanel>();
+            services.AddSingleton<MainPanel>();
+            services.AddSingleton<ProjectsPanel>(provider =>
+                new ProjectsPanel(
+                    provider.GetRequiredService<EditorContext>(),
+                    provider.GetRequiredService<IProjectManager>(),
+                    provider.GetRequiredService<LocalizationManager>(),
+                    provider.GetRequiredService<Editor>()
+                )
+            );
+            services.AddSingleton<MenuBarPanel>(provider =>
+                new MenuBarPanel(
+                    provider.GetRequiredService<IGameApi>(),
+                    provider.GetRequiredService<EditorContext>(),
+                    provider.GetRequiredService<BuildService>(),
+                    provider.GetRequiredService<IDmmService>(),
+                    provider.GetRequiredService<IMapLoader>(),
+                    provider.GetRequiredService<LocalizationManager>(),
+                    provider.GetRequiredService<IProjectManager>()
+                )
+            );
             services.AddSingleton<ViewportPanel>(provider =>
                 new ViewportPanel(
                     provider.GetRequiredService<ToolManager>(),
@@ -52,7 +79,11 @@ namespace Editor
             services.AddSingleton<MapControlsPanel>();
             services.AddSingleton<BuildPanel>();
             services.AddSingleton<SceneHierarchyPanel>();
-            services.AddSingleton<ServerBrowserPanel>();
+            services.AddSingleton<ServerBrowserPanel>(provider =>
+                new ServerBrowserPanel(
+                    provider.GetRequiredService<IServerDiscoveryService>()
+                )
+            );
 
             return services;
         }

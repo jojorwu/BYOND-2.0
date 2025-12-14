@@ -6,6 +6,7 @@ using System.Text.Json;
 using Core.VM.Runtime;
 using Core.VM.Types;
 using DMCompiler.Json;
+using Microsoft.Extensions.Logging;
 using Shared;
 
 namespace Core.Scripting.DM
@@ -16,17 +17,19 @@ namespace Core.Scripting.DM
         private readonly IObjectTypeManager _typeManager;
         private readonly IDreamMakerLoader _loader;
         private readonly IDreamVM _dreamVM;
-        private readonly Func<IScriptHost> _scriptHostFactory;
-        private IScriptHost _scriptHost => _scriptHostFactory();
+        private readonly Lazy<IScriptHost> _scriptHostLazy;
+        private readonly ILogger<DmSystem> _logger;
+        private IScriptHost _scriptHost => _scriptHostLazy.Value;
 
 
-        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, Func<IScriptHost> scriptHostFactory)
+        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
         {
             _typeManager = typeManager;
             _compiler = compiler;
             _loader = loader;
             _dreamVM = dreamVM;
-            _scriptHostFactory = scriptHostFactory;
+            _scriptHostLazy = scriptHostLazy;
+            _logger = logger;
         }
 
         public void Initialize() { }
@@ -36,17 +39,17 @@ namespace Core.Scripting.DM
             var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
             if (dmFiles.Count == 0) return;
 
-            Console.WriteLine($"[DM] Compiling {dmFiles.Count} files...");
+            _logger.LogInformation($"[DM] Compiling {dmFiles.Count} files...");
             var (jsonPath, messages) = await Task.Run(() => _compiler.Compile(dmFiles));
 
             foreach (var msg in messages)
             {
-                Console.WriteLine($"[DM Compiler] {msg}");
+                _logger.LogInformation($"[DM Compiler] {msg}");
             }
 
             if (jsonPath != null && File.Exists(jsonPath))
             {
-                Console.WriteLine("[DM] Loading compiled JSON...");
+                _logger.LogInformation("[DM] Loading compiled JSON...");
                 await using var stream = File.OpenRead(jsonPath);
                 var compiledJson = await JsonSerializer.DeserializeAsync<PublicDreamCompiledJson>(stream);
 
@@ -56,7 +59,7 @@ namespace Core.Scripting.DM
                 }
                 else
                 {
-                    Console.WriteLine("[DM] Error: Failed to deserialize compiled JSON.");
+                    _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
                 }
             }
         }
@@ -66,7 +69,7 @@ namespace Core.Scripting.DM
             var thread = CreateThread(eventName);
             if (thread is not DreamThread dreamThread)
             {
-                Console.WriteLine($"[DM] Event '{eventName}' not found or thread is of incompatible type.");
+                _logger.LogWarning($"[DM] Event '{eventName}' not found or thread is of incompatible type.");
                 return;
             }
 
@@ -77,13 +80,13 @@ namespace Core.Scripting.DM
             }
 
             _scriptHost.AddThread(dreamThread);
-            Console.WriteLine($"[DM] Invoked event '{eventName}'");
+            _logger.LogDebug($"[DM] Invoked event '{eventName}'");
         }
 
         public void Reload()
         {
             _typeManager.Clear();
-            // LoadScripts будет вызван менеджером
+            // LoadScripts will be called by the manager
         }
 
         public string? ExecuteString(string command)

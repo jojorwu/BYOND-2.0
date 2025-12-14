@@ -5,6 +5,7 @@ using Core.Players;
 using Core.Regions;
 using Core.VM.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shared;
 
 namespace Core
@@ -63,7 +64,8 @@ namespace Core
                     provider.GetRequiredService<IDreamMakerLoader>(),
                     provider.GetRequiredService<ICompilerService>(),
                     provider.GetRequiredService<IDreamVM>(),
-                    () => provider.GetRequiredService<IScriptHost>()
+                    new Lazy<IScriptHost>(() => provider.GetRequiredService<IScriptHost>()),
+                    provider.GetRequiredService<ILogger<Core.Scripting.DM.DmSystem>>()
                 )
             );
 

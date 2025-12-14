@@ -10,6 +10,7 @@ using Core.Objects;
 using Core.Maps;
 using Core.Api;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Core.Tests
 {
@@ -51,12 +52,13 @@ namespace Core.Tests
 
             var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
             var compilerService = new OpenDreamCompilerService(_project);
+            var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]
             {
                 new Core.Scripting.CSharp.CSharpSystem(_gameApi),
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
-                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, () => serviceProviderMock.Object.GetRequiredService<IScriptHost>())
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
             };
             _scriptManager = new ScriptManager(_project, systems, _gameState);
         }

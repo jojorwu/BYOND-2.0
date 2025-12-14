@@ -62,8 +62,8 @@ class Program
                 provider.GetRequiredService<IGameState>()
             )
         );
-        services.AddSingleton<Server.IPlayerManager>(provider =>
-            new Server.PlayerManager(
+        services.AddSingleton<IPlayerManager>(provider =>
+            new Core.PlayerManager(
                 provider.GetRequiredService<IObjectApi>(),
                 provider.GetRequiredService<IObjectTypeManager>(),
                 provider.GetRequiredService<ServerSettings>()
@@ -73,7 +73,9 @@ class Program
             new RegionManager(
                 provider.GetRequiredService<IMap>(),
                 provider.GetRequiredService<IScriptHost>(),
-                provider.GetRequiredService<IGameState>()
+                provider.GetRequiredService<IGameState>(),
+                provider.GetRequiredService<IPlayerManager>(),
+                provider.GetRequiredService<ServerSettings>()
             )
         );
         services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();

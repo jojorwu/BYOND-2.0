@@ -50,9 +50,10 @@ namespace Server
                     if (_settings.Performance.EnableRegionalProcessing)
                     {
                         _scriptHost.Tick(System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
-                        var snapshots = _regionManager.Tick();
-                        foreach(var (region, snapshot) in snapshots)
+                        var regionData = await _regionManager.Tick();
+                        foreach(var (region, snapshot, gameObjects) in regionData)
                         {
+                            _scriptHost.Tick(gameObjects);
                             _ = Task.Run(() => _udpServer.BroadcastSnapshot(region, snapshot), token);
                         }
                     }

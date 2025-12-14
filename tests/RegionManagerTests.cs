@@ -13,6 +13,8 @@ namespace tests
         private Mock<IMap> _mapMock = null!;
         private Mock<IScriptHost> _scriptHostMock = null!;
         private Mock<IGameState> _gameStateMock = null!;
+        private Mock<IPlayerManager> _playerManagerMock = null!;
+        private ServerSettings _serverSettings = null!;
         private RegionManager _regionManager = null!;
 
         [SetUp]
@@ -21,7 +23,9 @@ namespace tests
             _mapMock = new Mock<IMap>();
             _scriptHostMock = new Mock<IScriptHost>();
             _gameStateMock = new Mock<IGameState>();
-            _regionManager = new RegionManager(_mapMock.Object, _scriptHostMock.Object, _gameStateMock.Object);
+            _playerManagerMock = new Mock<IPlayerManager>();
+            _serverSettings = new ServerSettings();
+            _regionManager = new RegionManager(_mapMock.Object, _scriptHostMock.Object, _gameStateMock.Object, _playerManagerMock.Object, _serverSettings);
         }
 
         [Test]
@@ -46,7 +50,7 @@ namespace tests
         }
 
         [Test]
-        public void Tick_TicksAllRegions()
+        public async Task Tick_ReturnsDataForAllActiveRegions()
         {
             // Arrange
             var chunks = new List<(Vector2i, Chunk)>
@@ -55,13 +59,35 @@ namespace tests
             };
             _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
             _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
+            _playerManagerMock.Setup(p => p.GetAllPlayerObjects()).Returns(new List<IGameObject> { new GameObject(new ObjectType(1, "player"), 0, 0, 0) });
             _regionManager.Initialize();
 
             // Act
-            _regionManager.Tick();
+            var regionData = await _regionManager.Tick();
 
             // Assert
-            _scriptHostMock.Verify(s => s.Tick(It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>()), Times.Once);
+            Assert.That(regionData.Count(), Is.EqualTo(1));
+        }
+
+        [Test]
+        public async Task Tick_ReturnsDataForOnlyActiveRegions()
+        {
+            // Arrange
+            var chunks = new List<(Vector2i, Chunk)>
+            {
+                (new Vector2i(0, 0), new Chunk()),
+                (new Vector2i(Region.RegionSize * 2, Region.RegionSize * 2), new Chunk())
+            };
+            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
+            _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
+            _playerManagerMock.Setup(p => p.GetAllPlayerObjects()).Returns(new List<IGameObject> { new GameObject(new ObjectType(1, "player"), 0, 0, 0) });
+            _regionManager.Initialize();
+
+            // Act
+            var regionData = await _regionManager.Tick();
+
+            // Assert
+            Assert.That(regionData.Count(), Is.EqualTo(1));
         }
     }
 }

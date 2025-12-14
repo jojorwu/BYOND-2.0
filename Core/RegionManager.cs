@@ -9,13 +9,17 @@ namespace Core
         private readonly IMap _map;
         private readonly IScriptHost _scriptHost;
         private readonly IGameState _gameState;
+        private readonly IPlayerManager _playerManager;
+        private readonly ServerSettings _settings;
         private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ = new();
 
-        public RegionManager(IMap map, IScriptHost scriptHost, IGameState gameState)
+        public RegionManager(IMap map, IScriptHost scriptHost, IGameState gameState, IPlayerManager playerManager, ServerSettings settings)
         {
             _map = map;
             _scriptHost = scriptHost;
             _gameState = gameState;
+            _playerManager = playerManager;
+            _settings = settings;
         }
 
         public void Initialize()
@@ -53,18 +57,51 @@ namespace Core
             return new List<Region>();
         }
 
-        public IEnumerable<(Region, string)> Tick()
+        public async Task<IEnumerable<(Region, string, IEnumerable<IGameObject>)>> Tick()
         {
-            var snapshots = new List<(Region, string)>();
-            foreach (var z in _regionsByZ.Keys)
+            var activeRegions = GetActiveRegions();
+            var snapshots = new System.Collections.Concurrent.ConcurrentBag<(Region, string, IEnumerable<IGameObject>)>();
+            var options = new ParallelOptions
             {
-                foreach (var region in _regionsByZ[z].Values)
+                MaxDegreeOfParallelism = _settings.Performance.RegionalProcessing.MaxThreads > 0
+                    ? _settings.Performance.RegionalProcessing.MaxThreads
+                    : -1
+            };
+
+            await Parallel.ForEachAsync(activeRegions, options, (region, token) =>
+            {
+                var gameObjects = region.GetGameObjects().ToList();
+                snapshots.Add((region, _gameState.GetSnapshot(region), gameObjects));
+                return ValueTask.CompletedTask;
+            });
+            return snapshots;
+        }
+
+        private HashSet<Region> GetActiveRegions()
+        {
+            var activeRegions = new HashSet<Region>();
+            foreach (var playerObject in _playerManager.GetAllPlayerObjects())
+            {
+                var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
+                var regionCoords = new Vector2i(
+                    (int)Math.Floor((double)chunkCoords.X / Region.RegionSize),
+                    (int)Math.Floor((double)chunkCoords.Y / Region.RegionSize)
+                );
+
+                var z = playerObject.Z;
+
+                for (int x = -_settings.Performance.RegionalProcessing.ActivationRange; x <= _settings.Performance.RegionalProcessing.ActivationRange; x++)
                 {
-                    _scriptHost.Tick(region.GetGameObjects());
-                    snapshots.Add((region, _gameState.GetSnapshot(region)));
+                    for (int y = -_settings.Performance.RegionalProcessing.ActivationRange; y <= _settings.Performance.RegionalProcessing.ActivationRange; y++)
+                    {
+                        if (_regionsByZ.TryGetValue(z, out var regions) && regions.TryGetValue(new Vector2i(regionCoords.X + x, regionCoords.Y + y), out var region))
+                        {
+                            activeRegions.Add(region);
+                        }
+                    }
                 }
             }
-            return snapshots;
+            return activeRegions;
         }
     }
 }

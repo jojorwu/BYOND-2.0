@@ -86,8 +86,14 @@ namespace Server
 
             var objectIds = new HashSet<int>(objectsToTick.Select(o => o.Id));
 
-            var dreamThreads = environment.Threads.OfType<DreamThread>().ToList();
-            var nextThreads = new List<IScriptThread>();
+            var allThreads = new List<IScriptThread>();
+            lock(_scriptLock)
+            {
+                allThreads.AddRange(environment.Threads);
+            }
+
+            var dreamThreads = allThreads.OfType<DreamThread>().ToList();
+            var nextThreads = new System.Collections.Concurrent.ConcurrentBag<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -117,14 +123,18 @@ namespace Server
                 }
             }
 
-            nextThreads.AddRange(environment.Threads.Where(t => t is not DreamThread));
+            foreach(var thread in allThreads.Where(t => t is not DreamThread))
+            {
+                nextThreads.Add(thread);
+            }
 
             lock (_scriptLock)
             {
                 if (_currentEnvironment != null)
                 {
+                    var newThreadList = nextThreads.ToList();
                     _currentEnvironment.Threads.Clear();
-                    _currentEnvironment.Threads.AddRange(nextThreads);
+                    _currentEnvironment.Threads.AddRange(newThreadList);
                 }
             }
         }

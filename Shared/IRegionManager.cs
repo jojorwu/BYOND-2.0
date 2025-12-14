@@ -6,6 +6,6 @@ namespace Shared
     {
         void Initialize();
         IEnumerable<Region> GetRegions(int z);
-        IEnumerable<(Region, string)> Tick();
+        Task<IEnumerable<(Region, string, IEnumerable<IGameObject>)>> Tick();
     }
 }

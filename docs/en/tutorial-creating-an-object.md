@@ -9,40 +9,43 @@ First, we need to define a new object type. Let's create a simple "Apple" object
 ```dm
 // scripts/apple.dm
 /obj/item/apple
-    var/bites_left = 3
+    var/bites_left = 3 // How many bites are left
 
+    // The 'eat' verb allows players to interact with the apple.
     verb/eat()
-        set src in usr
+        set src in usr // This verb targets the user (the player).
 
         if (bites_left > 0)
             bites_left--
             usr << "You take a bite of the apple. [bites_left] bites left."
             if (bites_left == 0)
                 usr << "You finish the apple."
-                del src
+                del src // Delete the object when it's finished.
         else
             usr << "There's nothing left to eat!"
 ```
 
-This code defines a new object type `/obj/item/apple` with a variable `bites_left` and a verb `eat()`.
+This code defines a new object type `/obj/item/apple` that inherits from `/obj/item`. It has a variable `bites_left` and a verb `eat()`.
 
 ## 2. Spawn the Object
 
-Now, let's spawn an instance of our new apple object in the game world. We can do this in our main DM entry point. If you don't have a `main.dm` file, create one in the `scripts` directory.
+Now, let's spawn an instance of our new apple object in the game world. We can do this in the main world's `New()` proc, which is called when the server starts. If you don't have a `main.dm` file, create one in the `scripts` directory.
 
 ```dm
 // scripts/main.dm
 /world/New()
-    // Spawn an apple at coordinates (5, 5)
+    // Spawn an apple at coordinates X=5, Y=5 on Z-level 1.
+    // The `locate()` proc finds a turf (a tile) at the specified coordinates.
+    // `new /obj/item/apple(...)` creates a new apple at that location.
     new /obj/item/apple(locate(5, 5, 1))
 ```
 
 ## 3. Run the Server
 
-Now, run the server:
+Now, run the server from the project root:
 
 ```bash
-dotnet run --project Server/Server.csproj
+./run_server.sh
 ```
 
 The server will compile your DM scripts and spawn an apple in the game world. You can then connect with a client and interact with the apple by using the "eat" verb.

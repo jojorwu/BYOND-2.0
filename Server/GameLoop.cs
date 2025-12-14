@@ -13,17 +13,15 @@ namespace Server
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
         private readonly ServerSettings _settings;
-        private readonly IRestartService _restartService;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings, IRestartService restartService)
+        public GameLoop(IScriptHost scriptHost, IUdpServer udpServer, IGameState gameState, ServerSettings settings)
         {
             _scriptHost = scriptHost;
             _udpServer = udpServer;
             _gameState = gameState;
             _settings = settings;
-            _restartService = restartService;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -38,9 +36,6 @@ namespace Server
             var tickRate = _settings.Performance.TickRate;
             var interval = TimeSpan.FromSeconds(1.0 / tickRate);
             var stopwatch = new Stopwatch();
-            var fullSnapshotIntervalTicks = tickRate * 10; // Send full snapshot every 10 seconds
-            long tickCounter = 0;
-
             stopwatch.Start();
 
             while (!token.IsCancellationRequested)
@@ -50,35 +45,10 @@ namespace Server
                 if (elapsed >= interval)
                 {
                     _scriptHost.Tick();
-
-                    string snapshot;
-                    if (tickCounter % fullSnapshotIntervalTicks == 0)
-                    {
-                        snapshot = _gameState.GetSnapshot();
-                    }
-                    else
-                    {
-                        snapshot = _gameState.GetDeltaSnapshot();
-                    }
-
-                    if (!string.IsNullOrEmpty(snapshot))
-                    {
-                        // Don't block the main game loop with network operations
-                        _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
-                    }
-
+                    var snapshot = _gameState.GetSnapshot();
+                    // Don't block the main game loop with network operations
+                    _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), token);
                     stopwatch.Restart();
-                    tickCounter++;
-                }
-
-                if (_restartService.IsRestartRequested)
-                {
-                    Console.WriteLine("Restart requested. Resetting game state and re-initializing script host...");
-                    _gameState.Reset();
-                    _scriptHost.Initialize();
-                    _restartService.Reset();
-                    Console.WriteLine("Restart complete.");
-                    stopwatch.Restart(); // Reset timer after restart
                 }
 
                 // Yield the thread to prevent busy-waiting

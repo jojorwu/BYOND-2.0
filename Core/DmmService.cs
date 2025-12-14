@@ -2,7 +2,6 @@ using Shared;
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using DMCompiler;
 using DMCompiler.Json;
 using Robust.Shared.Maths;
@@ -22,16 +21,16 @@ namespace Core
             _dreamMakerLoader = dreamMakerLoader;
         }
 
-        public async Task<IMap?> LoadMapAsync(string filePath)
+        public IMap? LoadMap(string filePath)
         {
-            if (!File.Exists(filePath)) // Keep sync check for early exit
+            if (!File.Exists(filePath))
             {
                 throw new FileNotFoundException("DMM file not found.", filePath);
             }
 
             var dmFiles = _project.GetDmFiles();
             var parserService = new DMMParserService();
-            var (publicDreamMapJson, compiledJson) = await parserService.ParseDmmAsync(dmFiles, filePath);
+            var (publicDreamMapJson, compiledJson) = parserService.ParseDmm(dmFiles, filePath);
 
             if (publicDreamMapJson == null || compiledJson == null)
             {
@@ -119,7 +118,7 @@ namespace Core
             return map;
         }
 
-    private IGameObject? CreateGameObject(PublicMapObjectJson mapObjectJson, int x, int y, int z, Dictionary<int, ObjectType> typeIdMap)
+        private GameObject? CreateGameObject(PublicMapObjectJson mapObjectJson, int x, int y, int z, Dictionary<int, ObjectType> typeIdMap)
         {
             if (!typeIdMap.TryGetValue(mapObjectJson.Type, out var objectType))
             {
@@ -127,8 +126,7 @@ namespace Core
                 return null;
             }
 
-        var gameObject = new GameObject(objectType);
-        gameObject.SetPosition(x, y, z);
+            var gameObject = new GameObject(objectType, x, y, z);
 
             if (mapObjectJson.VarOverrides != null)
             {

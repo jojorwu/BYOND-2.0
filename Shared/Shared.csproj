@@ -10,9 +10,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="Core" />
-    <InternalsVisibleTo Include="tests" />
-  </ItemGroup>
-
 </Project>

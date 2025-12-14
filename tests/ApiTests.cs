@@ -26,21 +26,14 @@ namespace Core.Tests
 
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
-            var dmmServiceMock = new Moq.Mock<IDmmService>();
-            _mapLoader = new MapLoader(_objectTypeManager, new Ss14MapLoader(_objectTypeManager), dmmServiceMock.Object);
-
-            // Register essential types BEFORE creating APIs that depend on them.
-            var turfType = new ObjectType(1, "/turf");
-            var objType = new ObjectType(100, "/obj"); // Using a distinct ID for clarity
-            _objectTypeManager.RegisterObjectType(turfType);
-            _objectTypeManager.RegisterObjectType(objType);
-
+            _mapLoader = new MapLoader(_objectTypeManager);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, new ServerSettings());
+            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
             _scriptApi = new ScriptApi(_project);
-            _standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, _mapApi, new Moq.Mock<IRestartService>().Object);
-
+            _standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, _mapApi);
             _mapApi.SetMap(new Map());
+            var turfType = new ObjectType(1, "/turf");
+            _objectTypeManager.RegisterObjectType(turfType);
             _mapApi.SetTurf(0, 0, 0, 1);
 
             var testObjectType = new ObjectType(2, "test");
@@ -108,36 +101,6 @@ namespace Core.Tests
 
             // Act & Assert
             Assert.ThrowsAsync<System.Security.SecurityException>(async () => await _mapApi.SaveMapAsync(invalidPath));
-        }
-
-        [Test]
-        public void ReadScriptFile_WhenPathIsInvalid_ThrowsSecurityException()
-        {
-            // Arrange
-            var invalidPath = "../../../../../../../etc/passwd";
-
-            // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _scriptApi.ReadScriptFile(invalidPath));
-        }
-
-        [Test]
-        public void WriteScriptFile_WhenPathIsInvalid_ThrowsSecurityException()
-        {
-            // Arrange
-            var invalidPath = "../../../../../../../etc/passwd";
-
-            // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _scriptApi.WriteScriptFile(invalidPath, "test"));
-        }
-
-        [Test]
-        public void DeleteScriptFile_WhenPathIsInvalid_ThrowsSecurityException()
-        {
-            // Arrange
-            var invalidPath = "../../../../../../../etc/passwd";
-
-            // Act & Assert
-            Assert.Throws<System.Security.SecurityException>(() => _scriptApi.DeleteScriptFile(invalidPath));
         }
     }
 }

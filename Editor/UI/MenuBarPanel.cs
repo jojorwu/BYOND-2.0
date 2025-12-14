@@ -225,7 +225,7 @@ namespace Editor.UI
                 {
                     Task.Run(async () =>
                     {
-                        var map = await _dmmService.LoadMapAsync(path);
+                        var map = await _gameApi.Map.LoadMapAsync(path);
                         if (map != null)
                         {
                             var newScene = new Scene(System.IO.Path.GetFileName(path))

@@ -8,42 +8,6 @@ namespace Shared
     {
         private readonly Dictionary<int, Dictionary<Vector2i, Chunk>> _chunksByZ = new();
 
-        public int Width
-        {
-            get
-            {
-                int minX = 0, maxX = 0;
-                foreach (var chunks in _chunksByZ.Values)
-                {
-                    foreach (var chunkCoords in chunks.Keys)
-                    {
-                        if (chunkCoords.X < minX) minX = chunkCoords.X;
-                        if (chunkCoords.X > maxX) maxX = chunkCoords.X;
-                    }
-                }
-                return (maxX - minX + 1) * Chunk.ChunkSize;
-            }
-        }
-
-        public int Height
-        {
-            get
-            {
-                int minY = 0, maxY = 0;
-                foreach (var chunks in _chunksByZ.Values)
-                {
-                    foreach (var chunkCoords in chunks.Keys)
-                    {
-                        if (chunkCoords.Y < minY) minY = chunkCoords.Y;
-                        if (chunkCoords.Y > maxY) maxY = chunkCoords.Y;
-                    }
-                }
-                return (maxY - minY + 1) * Chunk.ChunkSize;
-            }
-        }
-
-        public int Depth => _chunksByZ.Keys.Count > 0 ? _chunksByZ.Keys.Max() - _chunksByZ.Keys.Min() + 1 : 0;
-
         public Map()
         {
         }

@@ -19,19 +19,5 @@ namespace Shared
             Name = name;
             DefaultProperties = new Dictionary<string, object?>();
         }
-
-        public bool IsSubtypeOf(ObjectType other)
-        {
-            var current = this;
-            while (current != null)
-            {
-                if (current == other)
-                {
-                    return true;
-                }
-                current = current.Parent;
-            }
-            return false;
-        }
     }
 }

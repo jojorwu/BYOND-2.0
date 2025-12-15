@@ -10,7 +10,10 @@ using DMCompiler.DM;
 
 namespace DMCompiler.DM.Builders;
 
-internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.ScopeMode scopeMode = Normal) {
+internal class DMExpressionBuilder(
+    ExpressionContext ctx,
+    DMExpressionBuilder.ScopeMode scopeMode = Normal,
+    bool scopeOperatorEnabled = false) {
     public enum ScopeMode {
         /// All in-scope procs and vars available
         Normal,
@@ -22,8 +25,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         FirstPassStatic
     }
 
-    // TODO: Remove this terrible global flag
-    public static bool ScopeOperatorEnabled = false; // Enabled on the last pass of the code tree
+    private readonly bool _scopeOperatorEnabled = scopeOperatorEnabled; // Enabled on the last pass of the code tree
 
     private UnknownReference? _encounteredUnknownReference;
 
@@ -655,7 +657,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         }
 
         // Other uses should wait until the scope operator pass
-        if (!ScopeOperatorEnabled)
+        if (!_scopeOperatorEnabled)
             return UnknownIdentifier(location, bIdentifier);
 
         DMExpression? expression;

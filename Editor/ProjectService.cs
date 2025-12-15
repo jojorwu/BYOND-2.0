@@ -1,4 +1,5 @@
 using Core;
+using Editor.UI;
 using Shared;
 using System.Linq;
 
@@ -10,16 +11,18 @@ namespace Editor
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly ToolManager _toolManager;
         private readonly EditorContext _editorContext;
+        private readonly IUIService _uiService;
 
-        public ProjectService(ProjectHolder projectHolder, IObjectTypeManager objectTypeManager, ToolManager toolManager, EditorContext editorContext)
+        public ProjectService(ProjectHolder projectHolder, IObjectTypeManager objectTypeManager, ToolManager toolManager, EditorContext editorContext, IUIService uiService)
         {
             _projectHolder = projectHolder;
             _objectTypeManager = objectTypeManager;
             _toolManager = toolManager;
             _editorContext = editorContext;
+            _uiService = uiService;
         }
 
-        public void LoadProject(string projectPath)
+        public bool LoadProject(string projectPath)
         {
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
@@ -34,7 +37,8 @@ namespace Editor
 
             _toolManager.SetActiveTool(_toolManager.Tools.FirstOrDefault(), _editorContext);
 
-            // TODO: Tell MainPanel to switch to the Scene tab.
+            _uiService.SetActiveTab(EditorTab.Scene);
+            return true;
         }
     }
 }

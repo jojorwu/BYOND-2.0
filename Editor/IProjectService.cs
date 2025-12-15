@@ -2,6 +2,6 @@ namespace Editor
 {
     public interface IProjectService
     {
-        void LoadProject(string projectPath);
+        bool LoadProject(string projectPath);
     }
 }

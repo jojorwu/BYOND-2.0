@@ -34,13 +34,21 @@ namespace Editor
             services.AddSingleton<BuildService>();
             services.AddSingleton<SpriteRenderer>();
             services.AddSingleton<IProjectService, ProjectService>();
+            services.AddSingleton<IUIService, UIService>();
 
             return services;
         }
 
         public static IServiceCollection AddUiPanels(this IServiceCollection services)
         {
-            services.AddSingleton<MainPanel>();
+            services.AddSingleton<MainPanel>(provider =>
+                new MainPanel(
+                    provider.GetRequiredService<ProjectsPanel>(),
+                    provider.GetRequiredService<ServerBrowserPanel>(),
+                    provider.GetRequiredService<EditorLaunchOptions>(),
+                    provider.GetRequiredService<IUIService>()
+                )
+            );
             services.AddSingleton<ProjectsPanel>(provider =>
                 new ProjectsPanel(
                     provider.GetRequiredService<EditorContext>(),

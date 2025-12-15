@@ -14,19 +14,19 @@ namespace Editor.UI
     {
         private readonly ProjectsPanel _projectsPanel;
         private readonly ServerBrowserPanel _serverBrowserPanel;
-        // We will add the scene-related panels later
-        private EditorTab _currentTab = EditorTab.Projects;
+        private readonly IUIService _uiService;
 
-        public MainPanel(ProjectsPanel projectsPanel, ServerBrowserPanel serverBrowserPanel, EditorLaunchOptions launchOptions)
+        public MainPanel(ProjectsPanel projectsPanel, ServerBrowserPanel serverBrowserPanel, EditorLaunchOptions launchOptions, IUIService uiService)
         {
             _projectsPanel = projectsPanel;
             _serverBrowserPanel = serverBrowserPanel;
+            _uiService = uiService;
 
             if (!string.IsNullOrEmpty(launchOptions.InitialPanel))
             {
                 if (System.Enum.TryParse<EditorTab>(launchOptions.InitialPanel, true, out var tab))
                 {
-                    _currentTab = tab;
+                    _uiService.SetActiveTab(tab);
                 }
             }
         }
@@ -52,11 +52,9 @@ namespace Editor.UI
             var dockspaceId = ImGui.GetID("MyDockSpace");
             ImGui.DockSpace(dockspaceId, Vector2.Zero, ImGuiDockNodeFlags.None);
 
-            // This is where we will draw the main content based on the selected tab.
-            // For now, it's just a placeholder. We will draw the actual panels in later steps.
             DrawTabBar();
 
-            switch (_currentTab)
+            switch (_uiService.GetActiveTab())
             {
                 case EditorTab.Projects:
                     _projectsPanel.Draw();
@@ -78,17 +76,17 @@ namespace Editor.UI
             {
                 if (ImGui.BeginMenu("View")) // Using a menu for tabs for now
                 {
-                    if (ImGui.MenuItem("Projects", "", _currentTab == EditorTab.Projects))
+                    if (ImGui.MenuItem("Projects", "", _uiService.GetActiveTab() == EditorTab.Projects))
                     {
-                        _currentTab = EditorTab.Projects;
+                        _uiService.SetActiveTab(EditorTab.Projects);
                     }
-                    if (ImGui.MenuItem("Server Browser", "", _currentTab == EditorTab.ServerBrowser))
+                    if (ImGui.MenuItem("Server Browser", "", _uiService.GetActiveTab() == EditorTab.ServerBrowser))
                     {
-                        _currentTab = EditorTab.ServerBrowser;
+                        _uiService.SetActiveTab(EditorTab.ServerBrowser);
                     }
-                    if (ImGui.MenuItem("Scene", "", _currentTab == EditorTab.Scene))
+                    if (ImGui.MenuItem("Scene", "", _uiService.GetActiveTab() == EditorTab.Scene))
                     {
-                        _currentTab = EditorTab.Scene;
+                        _uiService.SetActiveTab(EditorTab.Scene);
                     }
                     ImGui.EndMenu();
                 }

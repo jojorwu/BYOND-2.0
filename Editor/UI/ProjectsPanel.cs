@@ -18,12 +18,21 @@ namespace Editor.UI
         private string _newProjectName = "MyNewProject";
         private string _newProjectPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "BYOND2.0Projects");
 
+        private bool _showErrorModal = false;
+        private string _errorMessage = "";
+
         public ProjectsPanel(EditorContext editorContext, IProjectManager projectManager, LocalizationManager localizationManager, IProjectService projectService)
         {
             _editorContext = editorContext;
             _projectManager = projectManager;
             _localizationManager = localizationManager;
             _projectService = projectService;
+        }
+
+        private void ShowError(string message)
+        {
+            _errorMessage = message;
+            _showErrorModal = true;
         }
 
         public void Draw()
@@ -81,18 +90,56 @@ namespace Editor.UI
 
                 ImGui.End();
             }
+
+            DrawErrorModal();
         }
 
         private async Task CreateAndLoadProjectAsync(string projectName, string projectPath)
         {
-            var success = await _projectManager.CreateProjectAsync(projectName, projectPath);
-            if (success)
+            try
             {
-                var fullPath = Path.Combine(projectPath, projectName);
-                _projectService.LoadProject(fullPath);
-                _editorContext.AddRecentProject(fullPath);
+                var success = await _projectManager.CreateProjectAsync(projectName, projectPath);
+                if (success)
+                {
+                    var fullPath = Path.Combine(projectPath, projectName);
+                    if (_projectService.LoadProject(fullPath))
+                    {
+                        _editorContext.AddRecentProject(fullPath);
+                    }
+                    else
+                    {
+                        ShowError($"Failed to load project '{fullPath}'.");
+                    }
+                }
+                else
+                {
+                    ShowError($"Failed to create project '{projectName}' at '{projectPath}'.");
+                }
             }
-            // TODO: Add error handling feedback to the user
+            catch (Exception e)
+            {
+                ShowError($"An unexpected error occurred:\n{e.Message}");
+            }
+        }
+
+        private void DrawErrorModal()
+        {
+            if (_showErrorModal)
+            {
+                ImGui.OpenPopup("Error");
+                _showErrorModal = false; // Reset flag after opening the popup
+            }
+
+            if (ImGui.BeginPopupModal("Error", ref _showErrorModal, ImGuiWindowFlags.AlwaysAutoResize))
+            {
+                ImGui.Text(_errorMessage);
+                ImGui.Separator();
+                if (ImGui.Button("OK", new Vector2(120, 0)))
+                {
+                    ImGui.CloseCurrentPopup();
+                }
+                ImGui.EndPopup();
+            }
         }
     }
 }

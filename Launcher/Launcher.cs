@@ -4,11 +4,10 @@ using Silk.NET.Maths;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
-using System.Diagnostics;
 using Launcher.UI;
 using System;
-using System.ComponentModel;
 using System.IO;
+using Launcher.Services;
 
 namespace Launcher
 {
@@ -55,7 +54,8 @@ namespace Launcher
                     _logoTexture = null;
                 }
 
-                _mainMenuPanel = new MainMenuPanel(_logoTexture);
+
+                _mainMenuPanel = new MainMenuPanel(_logoTexture, new ProcessService(message => _mainMenuPanel?.ShowError(message)));
             }
         }
 
@@ -75,61 +75,7 @@ namespace Launcher
                 _window.Close();
             }
 
-            if (_mainMenuPanel.IsEditorRequested)
-            {
-                _mainMenuPanel.IsEditorRequested = false; // Reset flag
-                StartProcess("Editor.exe");
-            }
-
-            if (_mainMenuPanel.IsServerBrowserRequested)
-            {
-                _mainMenuPanel.IsServerBrowserRequested = false; // Reset flag
-                StartProcess("Editor.exe", "--panel ServerBrowser");
-            }
-
-            if (_mainMenuPanel.IsServerRequested)
-            {
-                _mainMenuPanel.IsServerRequested = false; // Reset flag
-                StartProcess("Server.exe");
-            }
-
-            if (_mainMenuPanel.IsClientRequested)
-            {
-                _mainMenuPanel.IsClientRequested = false; // Reset flag
-                StartProcess("Client.exe");
-            }
-
             _imGuiController.Render();
-        }
-
-        private void StartProcess(string fileName, string? arguments = null)
-        {
-            if (_window == null || _mainMenuPanel == null) return;
-
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments ?? string.Empty,
-#if DEBUG
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-#else
-                    UseShellExecute = true,
-#endif
-                };
-                var process = Process.Start(startInfo);
-            }
-            catch (Win32Exception e)
-            {
-                _mainMenuPanel.ShowError($"Error starting {fileName}:\n{e.Message}\n\nMake sure {fileName} is in the same directory as the launcher.");
-            }
-            catch (Exception e)
-            {
-                _mainMenuPanel.ShowError($"An unexpected error occurred:\n{e.Message}");
-            }
         }
 
         private void OnClose()

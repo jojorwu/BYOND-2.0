@@ -7,16 +7,19 @@ using Silk.NET.Input;
 using System.Diagnostics;
 using Launcher.UI;
 using System;
+using System.ComponentModel;
+using System.IO;
 
 namespace Launcher
 {
-    public class Launcher
+    public class Launcher : IDisposable
     {
         private IWindow? _window;
         private GL? _gl;
         private IInputContext? _inputContext;
         private ImGuiController? _imGuiController;
         private MainMenuPanel? _mainMenuPanel;
+        private Texture? _logoTexture;
 
         public void Run()
         {
@@ -42,7 +45,17 @@ namespace Launcher
                 _inputContext = _window.CreateInput();
                 _imGuiController = new ImGuiController(_gl, _window, _inputContext);
 
-                _mainMenuPanel = new MainMenuPanel();
+                try
+                {
+                    _logoTexture = new Texture(_gl, Path.Combine("assets", "logo.png"));
+                }
+                catch (FileNotFoundException)
+                {
+                    Console.WriteLine("Logo file not found. Continuing without logo.");
+                    _logoTexture = null;
+                }
+
+                _mainMenuPanel = new MainMenuPanel(_logoTexture);
             }
         }
 
@@ -64,11 +77,13 @@ namespace Launcher
 
             if (_mainMenuPanel.IsEditorRequested)
             {
+                _mainMenuPanel.IsEditorRequested = false; // Reset flag
                 StartEditor();
             }
 
             if (_mainMenuPanel.IsServerBrowserRequested)
             {
+                _mainMenuPanel.IsServerBrowserRequested = false; // Reset flag
                 StartEditor("--panel ServerBrowser");
             }
 
@@ -77,29 +92,39 @@ namespace Launcher
 
         private void StartEditor(string? arguments = null)
         {
-            if (_window == null) return;
+            if (_window == null || _mainMenuPanel == null) return;
 
             try
             {
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = "Editor.exe",
-                    Arguments = arguments ?? string.Empty
+                    Arguments = arguments ?? string.Empty,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
                 };
-                Process.Start(startInfo);
-                _window.Close();
+                var process = Process.Start(startInfo);
+            }
+            catch (Win32Exception e)
+            {
+                _mainMenuPanel.ShowError($"Error starting Editor:\n{e.Message}\n\nMake sure Editor.exe is in the same directory as the launcher.");
             }
             catch (Exception e)
             {
-                // Handle case where Editor.exe is not found
-                Console.WriteLine($"Error starting Editor: {e.Message}");
-                // Optionally, show an error message in the UI
+                _mainMenuPanel.ShowError($"An unexpected error occurred:\n{e.Message}");
             }
         }
 
         private void OnClose()
         {
+            Dispose();
+        }
+
+        public void Dispose()
+        {
             _imGuiController?.Dispose();
+            _logoTexture?.Dispose();
             _gl?.Dispose();
         }
     }

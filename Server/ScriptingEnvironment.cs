@@ -36,7 +36,8 @@ namespace Server
         public async Task Initialize()
         {
             await ScriptManager.ReloadAll();
-            ScriptManager.InvokeGlobalEvent("OnStart");
+            var onStartThreads = ScriptManager.InvokeGlobalEvent("OnStart");
+            Threads.AddRange(onStartThreads);
 
             var mainThread = ScriptManager.CreateThread("world.New");
             if (mainThread != null)

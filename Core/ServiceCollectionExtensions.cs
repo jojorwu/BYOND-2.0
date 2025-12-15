@@ -70,7 +70,6 @@ namespace Core
                     provider.GetRequiredService<IDreamMakerLoader>(),
                     provider.GetRequiredService<ICompilerService>(),
                     provider.GetRequiredService<IDreamVM>(),
-                    new Lazy<IScriptHost>(() => provider.GetRequiredService<IScriptHost>()),
                     provider.GetRequiredService<ILogger<Core.Scripting.DM.DmSystem>>()
                 )
             );

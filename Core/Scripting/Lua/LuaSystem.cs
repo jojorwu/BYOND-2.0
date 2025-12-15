@@ -43,9 +43,9 @@ namespace Core.Scripting.LuaSystem
             });
         }
 
-        public void InvokeEvent(string eventName, params object[] args)
+        public IScriptThread? InvokeEvent(string eventName, params object[] args)
         {
-            if (_lua == null) return;
+            if (_lua == null) return null;
             var function = _lua[eventName] as LuaFunction;
             if (function != null)
             {
@@ -58,6 +58,7 @@ namespace Core.Scripting.LuaSystem
                     Console.WriteLine($"[Lua Error] Event {eventName}: {ex.Message}");
                 }
             }
+            return null;
         }
 
         public void Reload()

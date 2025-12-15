@@ -17,7 +17,7 @@ namespace Shared
         /// <summary>
         /// Вызов события (например, OnStart, OnUpdate) во всех загруженных скриптах
         /// </summary>
-        void InvokeEvent(string eventName, params object[] args);
+        IScriptThread? InvokeEvent(string eventName, params object[] args);
 
         /// <summary>
         /// Перезагрузка скриптов (Hot Reload)

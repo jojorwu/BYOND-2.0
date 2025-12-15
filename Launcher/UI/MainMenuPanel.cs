@@ -9,6 +9,7 @@ namespace Launcher.UI
         public bool IsExitRequested { get; private set; }
         public bool IsEditorRequested { get; set; }
         public bool IsServerBrowserRequested { get; set; }
+        public bool IsServerRequested { get; set; }
 
         private bool _showErrorModal = false;
         private string _errorMessage = "";
@@ -61,6 +62,11 @@ namespace Launcher.UI
             if (ImGui.Button("Project Editor", new Vector2(200, 40)))
             {
                 IsEditorRequested = true;
+            }
+            ImGui.Spacing();
+            if (ImGui.Button("Start Local Server", new Vector2(200, 40)))
+            {
+                IsServerRequested = true;
             }
             ImGui.Spacing();
             if (ImGui.Button("Exit", new Vector2(200, 40)))

@@ -78,19 +78,25 @@ namespace Launcher
             if (_mainMenuPanel.IsEditorRequested)
             {
                 _mainMenuPanel.IsEditorRequested = false; // Reset flag
-                StartEditor();
+                StartProcess("Editor.exe");
             }
 
             if (_mainMenuPanel.IsServerBrowserRequested)
             {
                 _mainMenuPanel.IsServerBrowserRequested = false; // Reset flag
-                StartEditor("--panel ServerBrowser");
+                StartProcess("Editor.exe", "--panel ServerBrowser");
+            }
+
+            if (_mainMenuPanel.IsServerRequested)
+            {
+                _mainMenuPanel.IsServerRequested = false; // Reset flag
+                StartProcess("Server.exe");
             }
 
             _imGuiController.Render();
         }
 
-        private void StartEditor(string? arguments = null)
+        private void StartProcess(string fileName, string? arguments = null)
         {
             if (_window == null || _mainMenuPanel == null) return;
 
@@ -98,7 +104,7 @@ namespace Launcher
             {
                 var startInfo = new ProcessStartInfo
                 {
-                    FileName = "Editor.exe",
+                    FileName = fileName,
                     Arguments = arguments ?? string.Empty,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -108,7 +114,7 @@ namespace Launcher
             }
             catch (Win32Exception e)
             {
-                _mainMenuPanel.ShowError($"Error starting Editor:\n{e.Message}\n\nMake sure Editor.exe is in the same directory as the launcher.");
+                _mainMenuPanel.ShowError($"Error starting {fileName}:\n{e.Message}\n\nMake sure {fileName} is in the same directory as the launcher.");
             }
             catch (Exception e)
             {

@@ -13,17 +13,17 @@ namespace Editor.UI
         private readonly EditorContext _editorContext;
         private readonly IProjectManager _projectManager;
         private readonly LocalizationManager _localizationManager;
-        private readonly Editor _editor; // To call LoadProject
+        private readonly IProjectService _projectService;
 
         private string _newProjectName = "MyNewProject";
         private string _newProjectPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "BYOND2.0Projects");
 
-        public ProjectsPanel(EditorContext editorContext, IProjectManager projectManager, LocalizationManager localizationManager, Editor editor)
+        public ProjectsPanel(EditorContext editorContext, IProjectManager projectManager, LocalizationManager localizationManager, IProjectService projectService)
         {
             _editorContext = editorContext;
             _projectManager = projectManager;
             _localizationManager = localizationManager;
-            _editor = editor;
+            _projectService = projectService;
         }
 
         public void Draw()
@@ -43,7 +43,7 @@ namespace Editor.UI
                     {
                         if (ImGui.Selectable(project))
                         {
-                           _editor.LoadProject(project);
+                           _projectService.LoadProject(project);
                            _editorContext.AddRecentProject(project);
                         }
                     }
@@ -89,7 +89,7 @@ namespace Editor.UI
             if (success)
             {
                 var fullPath = Path.Combine(projectPath, projectName);
-                _editor.LoadProject(fullPath);
+                _projectService.LoadProject(fullPath);
                 _editorContext.AddRecentProject(fullPath);
             }
             // TODO: Add error handling feedback to the user

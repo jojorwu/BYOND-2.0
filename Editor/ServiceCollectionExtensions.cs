@@ -11,11 +11,11 @@ namespace Editor
             services.AddSingleton<Editor>(provider =>
                 new Editor(
                     provider,
-                    provider.GetRequiredService<ProjectHolder>(),
                     provider.GetRequiredService<MainPanel>(),
                     provider.GetRequiredService<MenuBarPanel>(),
                     provider.GetRequiredService<ViewportPanel>(),
-                    provider.GetRequiredService<TextureManager>()
+                    provider.GetRequiredService<TextureManager>(),
+                    provider.GetRequiredService<IProjectService>()
                 )
             );
             services.AddSingleton<ProjectHolder>();
@@ -33,6 +33,7 @@ namespace Editor
             services.AddSingleton<ToolManager>();
             services.AddSingleton<BuildService>();
             services.AddSingleton<SpriteRenderer>();
+            services.AddSingleton<IProjectService, ProjectService>();
 
             return services;
         }
@@ -45,7 +46,7 @@ namespace Editor
                     provider.GetRequiredService<EditorContext>(),
                     provider.GetRequiredService<IProjectManager>(),
                     provider.GetRequiredService<LocalizationManager>(),
-                    provider.GetRequiredService<Editor>()
+                    provider.GetRequiredService<IProjectService>()
                 )
             );
             services.AddSingleton<MenuBarPanel>(provider =>
@@ -56,7 +57,8 @@ namespace Editor
                     provider.GetRequiredService<IDmmService>(),
                     provider.GetRequiredService<IMapLoader>(),
                     provider.GetRequiredService<LocalizationManager>(),
-                    provider.GetRequiredService<IProjectManager>()
+                    provider.GetRequiredService<IProjectManager>(),
+                    provider.GetRequiredService<IProjectService>()
                 )
             );
             services.AddSingleton<ViewportPanel>(provider =>

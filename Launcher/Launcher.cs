@@ -93,6 +93,12 @@ namespace Launcher
                 StartProcess("Server.exe");
             }
 
+            if (_mainMenuPanel.IsClientRequested)
+            {
+                _mainMenuPanel.IsClientRequested = false; // Reset flag
+                StartProcess("Client.exe");
+            }
+
             _imGuiController.Render();
         }
 
@@ -106,9 +112,13 @@ namespace Launcher
                 {
                     FileName = fileName,
                     Arguments = arguments ?? string.Empty,
+#if DEBUG
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
+#else
+                    UseShellExecute = true,
+#endif
                 };
                 var process = Process.Start(startInfo);
             }

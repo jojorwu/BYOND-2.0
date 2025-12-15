@@ -1,27 +1,27 @@
 using ImGuiNET;
 using System.Numerics;
 using System;
+using Launcher.Services;
 
 namespace Launcher.UI
 {
     public class MainMenuPanel
     {
         public bool IsExitRequested { get; private set; }
-        public bool IsEditorRequested { get; set; }
-        public bool IsServerBrowserRequested { get; set; }
-        public bool IsServerRequested { get; set; }
-        public bool IsClientRequested { get; set; }
 
         private bool _showErrorModal = false;
         private string _errorMessage = "";
+        private readonly IProcessService _processService;
         private readonly Texture? _logoTexture;
 
-        public MainMenuPanel(Texture? logoTexture)
+        public MainMenuPanel(IProcessService processService, Texture? logoTexture)
         {
+            _processService = processService;
             _logoTexture = logoTexture;
+            _processService.OnError += ShowError;
         }
 
-        public void ShowError(string message)
+        private void ShowError(string message)
         {
             _errorMessage = message;
             _showErrorModal = true;
@@ -57,22 +57,22 @@ namespace Launcher.UI
 
             if (ImGui.Button("Server Browser", new Vector2(200, 40)))
             {
-                IsServerBrowserRequested = true;
+                _processService.StartProcess("Editor.exe", "--panel ServerBrowser");
             }
             ImGui.Spacing();
             if (ImGui.Button("Project Editor", new Vector2(200, 40)))
             {
-                IsEditorRequested = true;
+                _processService.StartProcess("Editor.exe");
             }
             ImGui.Spacing();
             if (ImGui.Button("Start Local Server", new Vector2(200, 40)))
             {
-                IsServerRequested = true;
+                _processService.StartProcess("Server.exe");
             }
             ImGui.Spacing();
             if (ImGui.Button("Start Client", new Vector2(200, 40)))
             {
-                IsClientRequested = true;
+                _processService.StartProcess("Client.exe");
             }
             ImGui.Spacing();
             if (ImGui.Button("Exit", new Vector2(200, 40)))

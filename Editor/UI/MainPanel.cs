@@ -10,7 +10,7 @@ namespace Editor.UI
         Scene
     }
 
-    public class MainPanel : Shared.IUiPanel
+    public class MainPanel
     {
         private readonly ProjectsPanel _projectsPanel;
         private readonly ServerBrowserPanel _serverBrowserPanel;

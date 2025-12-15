@@ -17,14 +17,18 @@ namespace Core.Scripting.DM
         private readonly IObjectTypeManager _typeManager;
         private readonly IDreamMakerLoader _loader;
         private readonly IDreamVM _dreamVM;
+        private readonly Lazy<IScriptHost> _scriptHostLazy;
         private readonly ILogger<DmSystem> _logger;
+        private IScriptHost _scriptHost => _scriptHostLazy.Value;
 
-        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, ILogger<DmSystem> logger)
+
+        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
         {
             _typeManager = typeManager;
             _compiler = compiler;
             _loader = loader;
             _dreamVM = dreamVM;
+            _scriptHostLazy = scriptHostLazy;
             _logger = logger;
         }
 
@@ -60,13 +64,13 @@ namespace Core.Scripting.DM
             }
         }
 
-        public IScriptThread? InvokeEvent(string eventName, params object[] args)
+        public void InvokeEvent(string eventName, params object[] args)
         {
             var thread = CreateThread(eventName);
             if (thread is not DreamThread dreamThread)
             {
                 _logger.LogWarning($"[DM] Event '{eventName}' not found or thread is of incompatible type.");
-                return null;
+                return;
             }
 
             // Push arguments onto the stack in reverse order
@@ -75,8 +79,8 @@ namespace Core.Scripting.DM
                 dreamThread.Push(DreamValue.FromObject(args[i]));
             }
 
+            _scriptHost.AddThread(dreamThread);
             _logger.LogDebug($"[DM] Invoked event '{eventName}'");
-            return dreamThread;
         }
 
         public void Reload()

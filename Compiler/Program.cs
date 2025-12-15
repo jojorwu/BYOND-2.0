@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Globalization;
 
 namespace DMCompiler;
 
@@ -132,7 +133,7 @@ internal static class Program {
                     }
 
                     var split = arg.Value.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                    if (split.Length != 2 || !int.TryParse(split[0], out _) || !int.TryParse(split[1], out _)) { // We want to make sure that they *are* ints but the preprocessor takes strings
+                    if (split.Length != 2 || !int.TryParse(split[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out _) || !int.TryParse(split[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out _)) { // We want to make sure that they *are* ints but the preprocessor takes strings
                         if(skipBad) {
                             compiler.ForcedWarning("Compiler arg 'version' requires a full BYOND build (e.g. --version=514.1584), skipping");
                             continue;
@@ -142,8 +143,8 @@ internal static class Program {
                         return false;
                     }
 
-                    if (!int.TryParse(split[0], out settings.DMVersion) ||
-                        !int.TryParse(split[1], out settings.DMBuild)) {
+                    if (!int.TryParse(split[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out settings.DMVersion) ||
+                        !int.TryParse(split[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out settings.DMBuild)) {
                         Console.WriteLine($"\"{arg.Value}\" is not a valid value for the 'version' argument");
                         return false;
                     }

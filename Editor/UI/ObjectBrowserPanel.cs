@@ -3,7 +3,7 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class ObjectBrowserPanel : IUiPanel
+    public class ObjectBrowserPanel
     {
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly EditorContext _editorContext;

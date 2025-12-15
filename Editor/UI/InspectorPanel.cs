@@ -7,7 +7,7 @@ using Core;
 
 namespace Editor.UI
 {
-    public class InspectorPanel : IUiPanel
+    public class InspectorPanel
     {
         private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;

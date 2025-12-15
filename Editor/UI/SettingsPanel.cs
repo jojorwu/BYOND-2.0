@@ -2,7 +2,7 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class SettingsPanel : IUiPanel
+    public class SettingsPanel
     {
         private readonly LocalizationManager _localizationManager;
         private int _selectedLanguage = 0;

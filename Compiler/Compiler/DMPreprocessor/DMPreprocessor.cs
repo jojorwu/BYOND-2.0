@@ -2,6 +2,7 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Globalization;
 using DMCompiler.Compiler.DM;
 
 namespace DMCompiler.Compiler.DMPreprocessor;
@@ -632,7 +633,7 @@ public sealed class DMPreprocessor(DMCompiler compiler, bool enableDirectives) :
                 break;
             }
             case TokenType.DM_Preproc_Number: {
-                if (!int.TryParse(warningNameToken.Text, out var intValue)) {
+                if (!int.TryParse(warningNameToken.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue)) {
                     compiler.Emit(WarningCode.InvalidWarningCode, warningNameToken.Location, $"Warning OD{warningNameToken.PrintableText} does not exist");
                     GetLineOfTokens();
                     return;

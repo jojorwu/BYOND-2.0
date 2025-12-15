@@ -3,29 +3,17 @@ using System.IO;
 
 namespace Editor.UI
 {
-    public class ScriptEditorPanel : IUiPanel
+    public class ScriptEditorPanel
     {
-        private readonly EditorContext _editorContext;
         private string _text = "";
         private string _currentFile = "";
 
-        public ScriptEditorPanel(EditorContext editorContext)
+        public void Draw(string filePath)
         {
-            _editorContext = editorContext;
-        }
-
-        public void Draw()
-        {
-            if (string.IsNullOrEmpty(_editorContext.SelectedFile))
+            if (_currentFile != filePath)
             {
-                ImGui.Text("No file selected.");
-                return;
-            }
-
-            if (_currentFile != _editorContext.SelectedFile)
-            {
-                _text = File.ReadAllText(_editorContext.SelectedFile);
-                _currentFile = _editorContext.SelectedFile;
+                _text = File.ReadAllText(filePath);
+                _currentFile = filePath;
             }
 
             if (ImGui.Button("Save"))

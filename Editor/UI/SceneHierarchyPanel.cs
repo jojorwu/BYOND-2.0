@@ -4,7 +4,7 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class SceneHierarchyPanel : IUiPanel
+    public class SceneHierarchyPanel
     {
         private readonly IGameApi _gameApi;
         private readonly SelectionManager _selectionManager;

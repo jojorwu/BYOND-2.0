@@ -50,11 +50,10 @@ namespace Core.Scripting.CSharp
             }
         }
 
-        public IScriptThread? InvokeEvent(string eventName, params object[] args)
+        public void InvokeEvent(string eventName, params object[] args)
         {
             // Для C# скриптов сложнее вызывать методы по имени без рефлексии по сохраненным инстансам.
             // Здесь нужна более сложная логика хранения скомпилированных классов.
-            return null;
         }
 
         public void Reload()

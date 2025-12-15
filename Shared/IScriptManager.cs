@@ -7,7 +7,7 @@ namespace Shared
     {
         Task Initialize();
         Task ReloadAll();
-        IEnumerable<IScriptThread> InvokeGlobalEvent(string eventName);
+        void InvokeGlobalEvent(string eventName);
         string? ExecuteCommand(string command);
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
     }

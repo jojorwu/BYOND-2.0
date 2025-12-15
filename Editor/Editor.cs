@@ -10,7 +10,6 @@ using Silk.NET.Input;
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Collections.Generic;
 
 namespace Editor
 {
@@ -22,16 +21,22 @@ namespace Editor
         private ImGuiController? imGuiController;
 
         private readonly IServiceProvider _serviceProvider;
-        private readonly IEnumerable<IUiPanel> _panels;
+        private readonly MainPanel _mainPanel;
+        private readonly MenuBarPanel _menuBarPanel; // Keep for exit request
+        private readonly ViewportPanel _viewportPanel; // Keep for GL initialization
         private readonly TextureManager _textureManager;
-        private readonly ViewportPanel _viewportPanel;
+        private readonly IProjectService _projectService;
 
-        public Editor(IServiceProvider serviceProvider, IEnumerable<IUiPanel> panels, TextureManager textureManager)
+        public Editor(IServiceProvider serviceProvider,
+            MainPanel mainPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
+            TextureManager textureManager, IProjectService projectService)
         {
             _serviceProvider = serviceProvider;
-            _panels = panels;
+            _mainPanel = mainPanel;
+            _menuBarPanel = menuBarPanel;
+            _viewportPanel = viewportPanel;
             _textureManager = textureManager;
-            _viewportPanel = panels.OfType<ViewportPanel>().FirstOrDefault()!;
+            _projectService = projectService;
         }
 
         public void Run()
@@ -102,13 +107,9 @@ namespace Editor
             gl.ClearColor(0.2f, 0.2f, 0.2f, 1.0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
 
-            foreach (var panel in _panels)
-            {
-                panel.Draw();
-            }
+            _mainPanel.Draw();
 
-            var menuBarPanel = _panels.OfType<MenuBarPanel>().FirstOrDefault();
-            if (menuBarPanel?.IsExitRequested == true)
+            if (_menuBarPanel.IsExitRequested)
             {
                 window?.Close();
             }

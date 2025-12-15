@@ -1,23 +1,24 @@
 using ImGuiNET;
 using System.Numerics;
 using System;
-using Launcher.Services;
 
 namespace Launcher.UI
 {
     public class MainMenuPanel
     {
         public bool IsExitRequested { get; private set; }
+        public bool IsEditorRequested { get; set; }
+        public bool IsServerBrowserRequested { get; set; }
+        public bool IsServerRequested { get; set; }
+        public bool IsClientRequested { get; set; }
 
         private bool _showErrorModal = false;
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
-        private readonly IProcessService _processService;
 
-        public MainMenuPanel(Texture? logoTexture, IProcessService processService)
+        public MainMenuPanel(Texture? logoTexture)
         {
             _logoTexture = logoTexture;
-            _processService = processService;
         }
 
         public void ShowError(string message)
@@ -56,22 +57,22 @@ namespace Launcher.UI
 
             if (ImGui.Button("Server Browser", new Vector2(200, 40)))
             {
-                _processService.StartProcess("Editor.exe", "--panel ServerBrowser");
+                IsServerBrowserRequested = true;
             }
             ImGui.Spacing();
             if (ImGui.Button("Project Editor", new Vector2(200, 40)))
             {
-                _processService.StartProcess("Editor.exe");
+                IsEditorRequested = true;
             }
             ImGui.Spacing();
             if (ImGui.Button("Start Local Server", new Vector2(200, 40)))
             {
-                _processService.StartProcess("Server.exe");
+                IsServerRequested = true;
             }
             ImGui.Spacing();
             if (ImGui.Button("Start Client", new Vector2(200, 40)))
             {
-                _processService.StartProcess("Client.exe");
+                IsClientRequested = true;
             }
             ImGui.Spacing();
             if (ImGui.Button("Exit", new Vector2(200, 40)))

@@ -58,7 +58,7 @@ namespace Core.Tests
             {
                 new Core.Scripting.CSharp.CSharpSystem(_gameApi),
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
-                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, loggerMock.Object)
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
             };
             _scriptManager = new ScriptManager(_project, systems);
         }

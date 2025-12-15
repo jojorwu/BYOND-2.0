@@ -7,7 +7,7 @@ using Core.Maps;
 
 namespace Editor.UI
 {
-    public class MenuBarPanel : IUiPanel
+    public class MenuBarPanel
     {
         private readonly IGameApi _gameApi;
         private readonly EditorContext _editorContext;

@@ -43,18 +43,12 @@ namespace Core
             }
         }
 
-        public IEnumerable<IScriptThread> InvokeGlobalEvent(string eventName)
+        public void InvokeGlobalEvent(string eventName)
         {
-            var threads = new List<IScriptThread>();
             foreach (var sys in _systems)
             {
-                var thread = sys.InvokeEvent(eventName);
-                if (thread != null)
-                {
-                    threads.Add(thread);
-                }
+                sys.InvokeEvent(eventName);
             }
-            return threads;
         }
 
         public string? ExecuteCommand(string command)

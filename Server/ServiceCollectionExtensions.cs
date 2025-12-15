@@ -20,13 +20,20 @@ namespace Server
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
             services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
-            services.AddSingleton<GlobalGameLoopStrategy>();
+            services.AddSingleton<IGameStateSnapshotter, GameStateSnapshotter>();
+            services.AddSingleton(provider => new GlobalGameLoopStrategy(
+                provider.GetRequiredService<IScriptHost>(),
+                provider.GetRequiredService<IGameState>(),
+                provider.GetRequiredService<IGameStateSnapshotter>(),
+                provider.GetRequiredService<IUdpServer>()
+            ));
             services.AddSingleton(provider =>
                 new RegionalGameLoopStrategy(
                     provider.GetRequiredService<IScriptHost>(),
                     provider.GetRequiredService<IRegionManager>(),
                     provider.GetRequiredService<IUdpServer>(),
                     provider.GetRequiredService<IGameState>(),
+                    provider.GetRequiredService<IGameStateSnapshotter>(),
                     provider.GetRequiredService<ServerSettings>()
                 )
             );

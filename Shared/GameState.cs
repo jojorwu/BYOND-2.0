@@ -26,31 +26,6 @@ namespace Shared
             return new DisposableAction(() => _lock.ExitWriteLock());
         }
 
-        public virtual string GetSnapshot()
-        {
-            using (ReadLock())
-            {
-                var snapshot = new
-                {
-                    Map,
-                    GameObjects
-                };
-                return JsonSerializer.Serialize(snapshot);
-            }
-        }
-
-        public string GetSnapshot(MergedRegion region)
-        {
-            using (ReadLock())
-            {
-                var snapshot = new
-                {
-                    GameObjects = region.GetGameObjects()
-                };
-                return JsonSerializer.Serialize(snapshot);
-            }
-        }
-
         public void Dispose()
         {
             _lock.Dispose();
@@ -61,18 +36,6 @@ namespace Shared
             using (ReadLock())
             {
                 return new List<IGameObject>(GameObjects.Values);
-            }
-        }
-
-        public string GetSnapshot(Region region)
-        {
-            using (ReadLock())
-            {
-                var snapshot = new
-                {
-                    GameObjects = region.GetGameObjects()
-                };
-                return JsonSerializer.Serialize(snapshot);
             }
         }
 

@@ -13,14 +13,16 @@ namespace Server
         private readonly IRegionManager _regionManager;
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
+        private readonly IGameStateSnapshotter _gameStateSnapshotter;
         private readonly ServerSettings _settings;
 
-        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IUdpServer udpServer, IGameState gameState, ServerSettings settings)
+        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, ServerSettings settings)
         {
             _scriptHost = scriptHost;
             _regionManager = regionManager;
             _udpServer = udpServer;
             _gameState = gameState;
+            _gameStateSnapshotter = gameStateSnapshotter;
             _settings = settings;
         }
 
@@ -43,7 +45,7 @@ namespace Server
             await Parallel.ForEachAsync(mergedRegions, options, (mergedRegion, token) =>
             {
                 var gameObjects = mergedRegion.GetGameObjects().ToList();
-                regionData.Add((mergedRegion, _gameState.GetSnapshot(mergedRegion), gameObjects));
+                regionData.Add((mergedRegion, _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion), gameObjects));
                 return ValueTask.CompletedTask;
             });
 

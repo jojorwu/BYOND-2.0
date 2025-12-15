@@ -21,21 +21,22 @@ namespace Editor
         private ImGuiController? imGuiController;
 
         private readonly IServiceProvider _serviceProvider;
-        private readonly ProjectHolder _projectHolder;
         private readonly MainPanel _mainPanel;
         private readonly MenuBarPanel _menuBarPanel; // Keep for exit request
         private readonly ViewportPanel _viewportPanel; // Keep for GL initialization
         private readonly TextureManager _textureManager;
+        private readonly IProjectService _projectService;
 
-        public Editor(IServiceProvider serviceProvider, ProjectHolder projectHolder,
-            MainPanel mainPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel, TextureManager textureManager)
+        public Editor(IServiceProvider serviceProvider,
+            MainPanel mainPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
+            TextureManager textureManager, IProjectService projectService)
         {
             _serviceProvider = serviceProvider;
-            _projectHolder = projectHolder;
             _mainPanel = mainPanel;
             _menuBarPanel = menuBarPanel;
             _viewportPanel = viewportPanel;
             _textureManager = textureManager;
+            _projectService = projectService;
         }
 
         public void Run()
@@ -97,26 +98,6 @@ namespace Editor
             }
         }
 
-        public void LoadProject(string projectPath)
-        {
-            var project = new Project(projectPath);
-            _projectHolder.SetProject(project);
-
-            var objectTypeManager = _serviceProvider.GetRequiredService<IObjectTypeManager>();
-            var wall = new ObjectType(1, "wall");
-            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
-            objectTypeManager.RegisterObjectType(wall);
-            var floor = new ObjectType(2, "floor");
-            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
-            objectTypeManager.RegisterObjectType(floor);
-
-            var toolManager = _serviceProvider.GetRequiredService<ToolManager>();
-            var editorContext = _serviceProvider.GetRequiredService<EditorContext>();
-            toolManager.SetActiveTool(toolManager.Tools.FirstOrDefault(), editorContext);
-
-            // TODO: Tell MainPanel to switch to the Scene tab.
-        }
-
         private void OnRender(double deltaTime)
         {
             if (imGuiController == null || gl == null) return;
@@ -132,13 +113,6 @@ namespace Editor
             {
                 window?.Close();
             }
-
-            // Handle project loading requests from UI panels
-            if (!string.IsNullOrEmpty(_menuBarPanel.ProjectToLoad))
-            {
-                LoadProject(_menuBarPanel.ProjectToLoad);
-            }
-            // A similar check will be needed for the new ProjectsPanel
 
             imGuiController?.Render();
         }

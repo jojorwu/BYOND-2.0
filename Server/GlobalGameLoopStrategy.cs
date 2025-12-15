@@ -8,19 +8,21 @@ namespace Server
     {
         private readonly IScriptHost _scriptHost;
         private readonly IGameState _gameState;
+        private readonly IGameStateSnapshotter _gameStateSnapshotter;
         private readonly IUdpServer _udpServer;
 
-        public GlobalGameLoopStrategy(IScriptHost scriptHost, IGameState gameState, IUdpServer udpServer)
+        public GlobalGameLoopStrategy(IScriptHost scriptHost, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IUdpServer udpServer)
         {
             _scriptHost = scriptHost;
             _gameState = gameState;
+            _gameStateSnapshotter = gameStateSnapshotter;
             _udpServer = udpServer;
         }
 
         public Task TickAsync(CancellationToken cancellationToken)
         {
             _scriptHost.Tick();
-            var snapshot = _gameState.GetSnapshot();
+            var snapshot = _gameStateSnapshotter.GetSnapshot(_gameState);
             _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), cancellationToken);
             return Task.CompletedTask;
         }

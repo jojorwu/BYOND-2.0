@@ -43,8 +43,7 @@ namespace Core
             services.AddSingleton<IScriptManager>(provider =>
                 new ScriptManager(
                     provider.GetRequiredService<IProject>(),
-                    provider.GetServices<IScriptSystem>(),
-                    provider.GetRequiredService<IGameState>()
+                    provider.GetServices<IScriptSystem>()
                 )
             );
             services.AddSingleton<IPlayerManager>(provider =>

@@ -11,5 +11,7 @@ namespace Shared
         IEnumerable<(Vector2i coords, Chunk chunk)> GetChunks(int z);
         IEnumerable<int> GetZLevels();
         IEnumerable<IGameObject> GetAllGameObjects();
+        void AddObjectToTurf(GameObject gameObject);
+        void RemoveObjectFromTurf(GameObject gameObject);
     }
 }

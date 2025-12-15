@@ -20,15 +20,17 @@ namespace Client
 
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
+        private readonly string _serverAddress;
         private NetPeer? _server;
 
-        public LogicThread()
+        public LogicThread(string serverAddress)
         {
             PreviousState = new GameState();
             CurrentState = new GameState();
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener);
             _thread = new Thread(GameLoop);
+            _serverAddress = serverAddress;
 
             _listener.NetworkReceiveEvent += OnNetworkReceive;
         }
@@ -37,7 +39,12 @@ namespace Client
         {
             _isRunning = true;
             _netManager.Start();
-            _netManager.Connect("localhost", 9050, "BYOND2.0");
+
+            var parts = _serverAddress.Split(':');
+            var host = parts[0];
+            var port = parts.Length > 1 ? int.Parse(parts[1]) : 9050; // Default port
+
+            _netManager.Connect(host, port, "BYOND2.0");
             _thread.Start();
         }
 

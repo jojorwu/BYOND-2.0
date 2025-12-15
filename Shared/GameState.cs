@@ -26,31 +26,6 @@ namespace Shared
             return new DisposableAction(() => _lock.ExitWriteLock());
         }
 
-        public virtual string GetSnapshot()
-        {
-            using (ReadLock())
-            {
-                var snapshot = new
-                {
-                    Map,
-                    GameObjects
-                };
-                return JsonSerializer.Serialize(snapshot);
-            }
-        }
-
-        public string GetSnapshot(MergedRegion region)
-        {
-            using (ReadLock())
-            {
-                var snapshot = new
-                {
-                    GameObjects = region.GetGameObjects()
-                };
-                return JsonSerializer.Serialize(snapshot);
-            }
-        }
-
         public void Dispose()
         {
             _lock.Dispose();
@@ -64,16 +39,21 @@ namespace Shared
             }
         }
 
-        public string GetSnapshot(Region region)
+        public void AddGameObject(GameObject gameObject)
         {
-            using (ReadLock())
-            {
-                var snapshot = new
-                {
-                    GameObjects = region.GetGameObjects()
-                };
-                return JsonSerializer.Serialize(snapshot);
-            }
+            GameObjects.Add(gameObject.Id, gameObject);
+            SpatialGrid.Add(gameObject);
+        }
+
+        public void RemoveGameObject(GameObject gameObject)
+        {
+            GameObjects.Remove(gameObject.Id);
+            SpatialGrid.Remove(gameObject);
+        }
+
+        public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)
+        {
+            SpatialGrid.Update(gameObject, oldX, oldY);
         }
 
         private sealed class DisposableAction : IDisposable

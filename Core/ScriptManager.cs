@@ -12,14 +12,12 @@ namespace Core
     public class ScriptManager : IScriptManager
     {
         private readonly IEnumerable<IScriptSystem> _systems;
-        private readonly IGameState _gameState;
         private readonly string _scriptsRoot;
 
-        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems, IGameState gameState)
+        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
             _systems = systems;
-            _gameState = gameState;
         }
 
         public async Task Initialize()
@@ -79,9 +77,5 @@ namespace Core
             return null;
         }
 
-        public IEnumerable<IGameObject> GetAllGameObjects()
-        {
-            return _gameState.GetAllGameObjects();
-        }
     }
 }

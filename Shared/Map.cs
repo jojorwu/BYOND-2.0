@@ -95,5 +95,23 @@ namespace Shared
                 }
             }
         }
+
+        public void AddObjectToTurf(GameObject gameObject)
+        {
+            var turf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+            if (turf != null)
+            {
+                turf.Contents.Add(gameObject);
+            }
+        }
+
+        public void RemoveObjectFromTurf(GameObject gameObject)
+        {
+            var turf = GetTurf(gameObject.X, gameObject.Y, gameObject.Z);
+            if (turf != null)
+            {
+                turf.Contents.Remove(gameObject);
+            }
+        }
     }
 }

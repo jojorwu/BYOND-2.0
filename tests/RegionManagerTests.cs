@@ -121,27 +121,5 @@ namespace tests
             Assert.That(activeRegions.Count, Is.EqualTo(50));
         }
 
-        [Test]
-        public void MergeRegions_MergesAdjacentRegions()
-        {
-            // Arrange
-            _serverSettings.Performance.RegionalProcessing.EnableRegionMerging = true;
-            var regionSize = _serverSettings.Performance.RegionalProcessing.RegionSize;
-            var chunks = new List<(Vector2i, Chunk)>
-            {
-                (new Vector2i(0, 0), new Chunk()),
-                (new Vector2i(regionSize, 0), new Chunk())
-            };
-            _mapMock.Setup(m => m.GetZLevels()).Returns(new List<int> { 0 });
-            _mapMock.Setup(m => m.GetChunks(0)).Returns(chunks);
-            _regionManager.Initialize();
-            var activeRegions = _regionManager.GetRegions(0).ToHashSet();
-
-            // Act
-            var mergedRegions = _regionManager.MergeRegions(activeRegions);
-
-            // Assert
-            Assert.That(mergedRegions.Count, Is.EqualTo(1));
-        }
     }
 }

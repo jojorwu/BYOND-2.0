@@ -24,15 +24,17 @@ namespace Server
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ScriptHost> _logger;
+        private readonly IGameState _gameState;
         private ScriptingEnvironment? _currentEnvironment;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public ScriptHost(IProject project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger)
+        public ScriptHost(IProject project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
         {
             _project = project;
             _settings = settings;
             _serviceProvider = serviceProvider;
             _logger = logger;
+            _gameState = gameState;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -69,7 +71,7 @@ namespace Server
 
         public void Tick()
         {
-            Tick(_currentEnvironment?.ScriptManager.GetAllGameObjects() ?? Enumerable.Empty<IGameObject>(), processGlobals: true);
+            Tick(_gameState.GetAllGameObjects(), processGlobals: true);
         }
 
         public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)

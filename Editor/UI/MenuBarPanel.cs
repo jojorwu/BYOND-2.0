@@ -15,9 +15,9 @@ namespace Editor.UI
         private readonly IDmmService _dmmService;
         private readonly IMapLoader _mapLoader;
         private readonly LocalizationManager _localizationManager;
-        private readonly IProjectManager _projectManager; // Added
+        private readonly IProjectManager _projectManager;
+        private readonly IProjectService _projectService;
 
-        public string? ProjectToLoad { get; private set; }
         public bool IsExitRequested { get; private set; }
 
         public MenuBarPanel(
@@ -27,7 +27,8 @@ namespace Editor.UI
             IDmmService dmmService,
             IMapLoader mapLoader,
             LocalizationManager localizationManager,
-            IProjectManager projectManager) // Added
+            IProjectManager projectManager,
+            IProjectService projectService)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
@@ -35,7 +36,8 @@ namespace Editor.UI
             _dmmService = dmmService;
             _mapLoader = mapLoader;
             _localizationManager = localizationManager;
-            _projectManager = projectManager; // Added
+            _projectManager = projectManager;
+            _projectService = projectService;
         }
 
         public async Task SaveScene(Scene scene, bool saveAs)
@@ -64,7 +66,6 @@ namespace Editor.UI
         public void Draw()
         {
             IsExitRequested = false;
-            ProjectToLoad = null;
 
             if (ImGui.BeginMainMenuBar())
             {
@@ -111,7 +112,7 @@ namespace Editor.UI
                         {
                             if (ImGui.MenuItem(project))
                             {
-                                ProjectToLoad = project;
+                                _projectService.LoadProject(project);
                             }
                         }
                         ImGui.EndMenu();

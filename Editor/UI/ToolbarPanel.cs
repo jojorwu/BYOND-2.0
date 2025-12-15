@@ -2,7 +2,7 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class ToolbarPanel
+    public class ToolbarPanel : IUiPanel
     {
         private readonly EditorContext _editorContext;
         private readonly ToolManager _toolManager;

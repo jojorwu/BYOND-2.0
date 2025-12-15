@@ -3,7 +3,7 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class MapControlsPanel
+    public class MapControlsPanel : IUiPanel
     {
         private readonly EditorContext _editorContext;
 

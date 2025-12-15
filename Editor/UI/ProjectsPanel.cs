@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Editor.UI
 {
-    public class ProjectsPanel
+    public class ProjectsPanel : IUiPanel
     {
         private readonly EditorContext _editorContext;
         private readonly IProjectManager _projectManager;

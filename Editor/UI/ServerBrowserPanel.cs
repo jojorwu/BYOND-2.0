@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Editor.UI
 {
-    public class ServerBrowserPanel
+    public class ServerBrowserPanel : IUiPanel
     {
         private readonly IServerDiscoveryService _serverDiscoveryService;
         private List<ServerInfoEntry> _servers = new();

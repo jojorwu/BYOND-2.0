@@ -7,7 +7,7 @@ using System.IO;
 
 namespace Editor.UI
 {
-    public class ViewportPanel : IDisposable
+    public class ViewportPanel : IUiPanel, IDisposable
     {
         private GL? _gl;
         private readonly ToolManager _toolManager;
@@ -34,8 +34,15 @@ namespace Editor.UI
             _gl = gl;
         }
 
-        public async void Draw(Scene scene)
+        public async void Draw()
         {
+            var scene = _editorContext.GetActiveScene();
+            if (scene == null)
+            {
+                ImGui.Text("No active scene.");
+                return;
+            }
+
             // This is not ideal, but for now we'll reload the map if the scene's gamestate doesn't have it.
             if (scene.GameState.Map == null && File.Exists(scene.FilePath))
             {

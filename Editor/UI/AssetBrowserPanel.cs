@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 
 namespace Editor.UI
 {
-    public class AssetBrowserPanel
+    public class AssetBrowserPanel : IUiPanel
     {
         private readonly IProject _project;
         private readonly EditorContext _editorContext;

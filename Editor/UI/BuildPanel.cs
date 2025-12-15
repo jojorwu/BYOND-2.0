@@ -4,7 +4,7 @@ using Shared;
 
 namespace Editor.UI
 {
-    public class BuildPanel
+    public class BuildPanel : IUiPanel
     {
         private readonly BuildService _buildService;
 

@@ -84,10 +84,10 @@ namespace Client
                 if (_connectionPanel.IsConnectRequested)
                 {
                     _connectionPanel.IsConnectRequested = false;
-                    _logicThread = new LogicThread();
+                    _logicThread = new LogicThread(_connectionPanel.ServerAddress);
                     _previousState = _logicThread.PreviousState;
                     _currentState = _logicThread.CurrentState;
-                    _logicThread.Start(); // TODO: Pass server address
+                    _logicThread.Start();
                     _clientState = ClientState.InGame;
                 }
             }

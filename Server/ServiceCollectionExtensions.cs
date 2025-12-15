@@ -2,6 +2,7 @@ using Core;
 using Core.VM.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shared;
 
 namespace Server
@@ -10,7 +11,13 @@ namespace Server
     {
         public static IServiceCollection AddServerHostedServices(this IServiceCollection services)
         {
-            services.AddSingleton<ScriptHost>();
+            services.AddSingleton(provider => new ScriptHost(
+                provider.GetRequiredService<IProject>(),
+                provider.GetRequiredService<ServerSettings>(),
+                provider.GetRequiredService<IServiceProvider>(),
+                provider.GetRequiredService<ILogger<ScriptHost>>(),
+                provider.GetRequiredService<IGameState>()
+            ));
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
 

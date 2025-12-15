@@ -10,6 +10,5 @@ namespace Shared
         void InvokeGlobalEvent(string eventName);
         string? ExecuteCommand(string command);
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
-        IEnumerable<IGameObject> GetAllGameObjects();
     }
 }

@@ -17,10 +17,18 @@ namespace Editor.UI
         // We will add the scene-related panels later
         private EditorTab _currentTab = EditorTab.Projects;
 
-        public MainPanel(ProjectsPanel projectsPanel, ServerBrowserPanel serverBrowserPanel)
+        public MainPanel(ProjectsPanel projectsPanel, ServerBrowserPanel serverBrowserPanel, EditorLaunchOptions launchOptions)
         {
             _projectsPanel = projectsPanel;
             _serverBrowserPanel = serverBrowserPanel;
+
+            if (!string.IsNullOrEmpty(launchOptions.InitialPanel))
+            {
+                if (System.Enum.TryParse<EditorTab>(launchOptions.InitialPanel, true, out var tab))
+                {
+                    _currentTab = tab;
+                }
+            }
         }
 
         public void Draw()

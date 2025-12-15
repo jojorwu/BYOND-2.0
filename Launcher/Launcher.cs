@@ -6,6 +6,7 @@ using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Input;
 using System.Diagnostics;
 using Launcher.UI;
+using System;
 
 namespace Launcher
 {
@@ -63,37 +64,37 @@ namespace Launcher
 
             if (_mainMenuPanel.IsEditorRequested)
             {
-                try
-                {
-                    // This path is relative to the Launcher executable location
-                    Process.Start("Editor.exe");
-                    _window.Close();
-                }
-                catch (System.Exception e)
-                {
-                    // Handle case where Editor.exe is not found
-                    Console.WriteLine($"Error starting Editor: {e.Message}");
-                    // Optionally, show an error message in the UI
-                }
+                StartEditor();
             }
 
             if (_mainMenuPanel.IsServerBrowserRequested)
             {
-                try
-                {
-                    // TODO: Need a way to tell the editor to open the server browser directly.
-                    // For now, it just opens the editor.
-                    Process.Start("Editor.exe");
-                    _window.Close();
-                }
-                catch (System.Exception e)
-                {
-                    Console.WriteLine($"Error starting Editor: {e.Message}");
-                }
+                StartEditor("--panel ServerBrowser");
             }
 
-
             _imGuiController.Render();
+        }
+
+        private void StartEditor(string? arguments = null)
+        {
+            if (_window == null) return;
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "Editor.exe",
+                    Arguments = arguments ?? string.Empty
+                };
+                Process.Start(startInfo);
+                _window.Close();
+            }
+            catch (Exception e)
+            {
+                // Handle case where Editor.exe is not found
+                Console.WriteLine($"Error starting Editor: {e.Message}");
+                // Optionally, show an error message in the UI
+            }
         }
 
         private void OnClose()

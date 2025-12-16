@@ -7,6 +7,8 @@ using Core.VM.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Core.Compiler;
+using Core.Scripting;
 
 namespace Core
 {

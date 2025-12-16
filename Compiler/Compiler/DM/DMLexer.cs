@@ -280,11 +280,11 @@ public sealed class DMLexer : TokenLexer {
                             token = CreateToken(TokenType.DM_Float, text, float.PositiveInfinity);
                         } else if (text is "1.#IND" or "1#IND") {
                             token = CreateToken(TokenType.DM_Float, text, float.NaN);
-                        } else if (text.StartsWith("0x") && int.TryParse(text.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int intValue)) {
+                        } else if (text.StartsWith("0x") && int.TryParse(text.Substring(2), NumberStyles.HexNumber, null, out int intValue)) {
                             token = CreateToken(TokenType.DM_Integer, text, intValue);
-                        } else if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out intValue)) {
+                        } else if (int.TryParse(text, out intValue)) {
                             token = CreateToken(TokenType.DM_Integer, text, intValue);
-                        } else if (float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out float floatValue)) {
+                        } else if (float.TryParse(text, out float floatValue)) {
                             token = CreateToken(TokenType.DM_Float, text, floatValue);
                         } else {
                             token = CreateToken(TokenType.Error, text, "Invalid number");

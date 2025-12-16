@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Core;
 using System.IO;
 using System.Text.Json;
+using Core.Projects;
 
 namespace Core.Tests
 {

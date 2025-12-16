@@ -2,6 +2,7 @@ using Core;
 using Editor.UI;
 using Shared;
 using System.Linq;
+using Core.Projects;
 
 namespace Editor
 {
@@ -39,11 +40,6 @@ namespace Editor
 
             _uiService.SetActiveTab(EditorTab.Scene);
             return true;
-        }
-
-        public void SaveProject()
-        {
-            // TODO: Implement save logic
         }
     }
 }

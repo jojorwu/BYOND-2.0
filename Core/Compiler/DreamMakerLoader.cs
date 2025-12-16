@@ -6,8 +6,9 @@ using System.Text.Json;
 using Core.VM.Procs;
 using Core.VM.Runtime;
 using DMCompiler.Json;
+using Core.Resources;
 
-namespace Core
+namespace Core.Compiler
 {
     public class DreamMakerLoader : IDreamMakerLoader
     {

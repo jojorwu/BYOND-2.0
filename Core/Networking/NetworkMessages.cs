@@ -1,4 +1,4 @@
-namespace Core
+namespace Core.Networking
 {
     public enum SnapshotMessageType : byte
     {

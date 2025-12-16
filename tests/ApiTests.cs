@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Core;
 using Core.Objects;
 using Core.Maps;
+using Core.Projects;
 using Core.Api;
 
 namespace Core.Tests

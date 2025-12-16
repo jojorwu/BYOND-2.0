@@ -3,7 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Linq;
 
-namespace Core
+namespace Core.Projects
 {
     public class Project : IProject
     {

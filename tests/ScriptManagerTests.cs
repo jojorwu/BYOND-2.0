@@ -11,6 +11,9 @@ using Core.Maps;
 using Core.Api;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Core.Projects;
+using Core.Compiler;
+using Core.Scripting;
 
 namespace Core.Tests
 {

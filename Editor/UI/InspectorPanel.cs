@@ -4,6 +4,7 @@ using ImGuiNET;
 using Silk.NET.OpenGL;
 using System.Collections.Generic;
 using Core;
+using Core.Resources;
 
 namespace Editor.UI
 {

@@ -40,5 +40,10 @@ namespace Editor
             _uiService.SetActiveTab(EditorTab.Scene);
             return true;
         }
+
+        public void SaveProject()
+        {
+            // TODO: Implement save logic
+        }
     }
 }

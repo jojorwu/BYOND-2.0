@@ -2,16 +2,18 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class ToolbarPanel
+    public class ToolbarPanel : IUiPanel
     {
         private readonly EditorContext _editorContext;
         private readonly ToolManager _toolManager;
+        private readonly IProjectService _projectService;
         // TODO: Add BuildService/RunService
 
-        public ToolbarPanel(EditorContext editorContext, ToolManager toolManager)
+        public ToolbarPanel(EditorContext editorContext, ToolManager toolManager, IProjectService projectService)
         {
             _editorContext = editorContext;
             _toolManager = toolManager;
+            _projectService = projectService;
         }
 
         public void Draw()
@@ -21,7 +23,7 @@ namespace Editor.UI
             {
                 if (ImGui.Button("Save"))
                 {
-                    // TODO: Call save logic
+                    _projectService.SaveProject();
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Run"))

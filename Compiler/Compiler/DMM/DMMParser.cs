@@ -74,7 +74,7 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                             Compiler.ForcedError(statement.Location, $"Invalid var name '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
                         if (type != null) {
-                            var exprBuilder = new DMExpressionBuilder(new(Compiler, type, Compiler.GlobalInitProc), scopeOperatorEnabled: true);
+                            var exprBuilder = new DMExpressionBuilder(new(Compiler, type, Compiler.GlobalInitProc));
                             var expression = varOverride.Value ?? new DMASTConstantNull(varOverride.Location);
                             var value = exprBuilder.Create(expression);
                             if (!value.TryAsJsonRepresentation(Compiler, out var valueJson))

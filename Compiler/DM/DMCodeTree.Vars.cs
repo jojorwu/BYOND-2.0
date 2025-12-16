@@ -14,11 +14,11 @@ internal partial class DMCodeTree {
 
         protected bool IsFirstPass => (LastError == null);
 
-        public abstract bool TryDefineVar(DMCompiler compiler, int pass, bool scopeOperatorEnabled);
+        public abstract bool TryDefineVar(DMCompiler compiler, int pass);
 
-        protected bool TryBuildValue(ExpressionContext ctx, bool scopeOperatorEnabled, DMASTExpression ast, DreamPath? inferredType,
+        protected bool TryBuildValue(ExpressionContext ctx, DMASTExpression ast, DreamPath? inferredType,
             ScopeMode scope, [NotNullWhen(true)] out DMExpression? value) {
-            var exprBuilder = new DMExpressionBuilder(ctx, scopeOperatorEnabled, scope);
+            var exprBuilder = new DMExpressionBuilder(ctx, scope);
 
             value = exprBuilder.CreateIgnoreUnknownReference(ast, inferredType);
             if (value is UnknownReference unknownRef) {
@@ -100,7 +100,7 @@ internal partial class DMCodeTree {
 
         private bool _defined;
 
-        public override bool TryDefineVar(DMCompiler compiler, int pass, bool scopeOperatorEnabled) {
+        public override bool TryDefineVar(DMCompiler compiler, int pass) {
             if (_defined)
                 return true;
             if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
@@ -112,9 +112,9 @@ internal partial class DMCodeTree {
             }
 
             if (IsStatic) {
-                return HandleGlobalVar(compiler, dmObject, pass, scopeOperatorEnabled);
+                return HandleGlobalVar(compiler, dmObject, pass);
             } else {
-                return HandleInstanceVar(compiler, dmObject, scopeOperatorEnabled);
+                return HandleInstanceVar(compiler, dmObject);
             }
         }
 
@@ -122,10 +122,10 @@ internal partial class DMCodeTree {
             return varDef.IsStatic ? $"var/static/{VarName}" : $"var/{VarName}";
         }
 
-        private bool HandleGlobalVar(DMCompiler compiler, DMObject dmObject, int pass, bool scopeOperatorEnabled) {
+        private bool HandleGlobalVar(DMCompiler compiler, DMObject dmObject, int pass) {
             var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
             var expression = varDef.Value ?? new DMASTConstantNull(varDef.Location);
-            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), scopeOperatorEnabled, expression, varDef.Type, scope, out var value))
+            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, varDef.Type, scope, out var value))
                 return false;
 
             int globalId = compiler.DMObjectTree.CreateGlobal(out DMVariable global, varDef.Type, VarName, varDef.IsConst,
@@ -152,10 +152,10 @@ internal partial class DMCodeTree {
             return true;
         }
 
-        private bool HandleInstanceVar(DMCompiler compiler, DMObject dmObject, bool scopeOperatorEnabled) {
+        private bool HandleInstanceVar(DMCompiler compiler, DMObject dmObject) {
             var expression = varDef.Value ?? new DMASTConstantNull(varDef.Location);
             var exprContext = new ExpressionContext(compiler, dmObject, compiler.GlobalInitProc);
-            if (!TryBuildValue(exprContext, scopeOperatorEnabled, expression, varDef.Type, ScopeMode.Normal, out var value))
+            if (!TryBuildValue(exprContext, expression, varDef.Type, ScopeMode.Normal, out var value))
                 return false;
 
             var variable = new DMVariable(varDef.Type, VarName, false, varDef.IsConst, varDef.IsFinal, varDef.IsTmp, varDef.ValType);
@@ -216,7 +216,7 @@ internal partial class DMCodeTree {
 
         private bool _finished;
 
-        public override bool TryDefineVar(DMCompiler compiler, int pass, bool scopeOperatorEnabled) {
+        public override bool TryDefineVar(DMCompiler compiler, int pass) {
             if (_finished)
                 return true;
             if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
@@ -254,7 +254,7 @@ internal partial class DMCodeTree {
             variable = new DMVariable(variable);
 
             var expression = varOverride.Value ?? new DMASTConstantNull(varOverride.Location);
-            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), scopeOperatorEnabled, expression, variable.Type, ScopeMode.Normal, out var value))
+            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, variable.Type, ScopeMode.Normal, out var value))
                 return false;
 
             if (VarName == "tag" && dmObject.IsSubtypeOf(DreamPath.Datum) && !compiler.Settings.NoStandard)
@@ -276,7 +276,7 @@ internal partial class DMCodeTree {
     private class ProcGlobalVarNode(DreamPath owner, DMProc proc, DMASTProcStatementVarDeclaration varDecl) : VarNode {
         private bool _defined;
 
-        public override bool TryDefineVar(DMCompiler compiler, int pass, bool scopeOperatorEnabled) {
+        public override bool TryDefineVar(DMCompiler compiler, int pass) {
             if (_defined)
                 return true;
             if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
@@ -287,7 +287,7 @@ internal partial class DMCodeTree {
             if (expression != null) {
                 var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
                 var exprContext = new ExpressionContext(compiler, dmObject, proc);
-                if (!TryBuildValue(exprContext, scopeOperatorEnabled, expression, varDecl.Type, scope, out value))
+                if (!TryBuildValue(exprContext, expression, varDecl.Type, scope, out value))
                     return false;
             }
 

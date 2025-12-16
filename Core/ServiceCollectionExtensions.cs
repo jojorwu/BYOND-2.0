@@ -5,6 +5,7 @@ using Core.Players;
 using Core.Regions;
 using Core.VM.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using Compiler;
 using Microsoft.Extensions.Logging;
 using Shared;
 
@@ -77,6 +78,7 @@ namespace Core
 
             services.AddSingleton<IProjectManager, Core.Projects.ProjectManager>();
             services.AddSingleton<IServerDiscoveryService, Core.Networking.MockServerDiscoveryService>();
+            services.AddSingleton<IJsonService, JsonService>();
 
             return services;
         }

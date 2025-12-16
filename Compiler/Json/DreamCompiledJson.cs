@@ -1,6 +1,8 @@
 ﻿namespace DMCompiler.Json;
 
-public sealed class DreamCompiledJson {
+using Shared;
+
+public sealed class DreamCompiledJson : IPublicDreamCompiledJson {
     public required DreamCompiledJsonMetadata Metadata { get; set; }
     public required List<string> Strings { get; set; }
     public string[]? Resources { get; set; }

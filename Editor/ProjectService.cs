@@ -13,14 +13,18 @@ namespace Editor
         private readonly ToolManager _toolManager;
         private readonly EditorContext _editorContext;
         private readonly IUIService _uiService;
+        private readonly ICompilerService _compilerService;
+        private readonly IDreamMakerLoader _dreamMakerLoader;
 
-        public ProjectService(ProjectHolder projectHolder, IObjectTypeManager objectTypeManager, ToolManager toolManager, EditorContext editorContext, IUIService uiService)
+        public ProjectService(ProjectHolder projectHolder, IObjectTypeManager objectTypeManager, ToolManager toolManager, EditorContext editorContext, IUIService uiService, ICompilerService compilerService, IDreamMakerLoader dreamMakerLoader)
         {
             _projectHolder = projectHolder;
             _objectTypeManager = objectTypeManager;
             _toolManager = toolManager;
             _editorContext = editorContext;
             _uiService = uiService;
+            _compilerService = compilerService;
+            _dreamMakerLoader = dreamMakerLoader;
         }
 
         public bool LoadProject(string projectPath)
@@ -28,13 +32,11 @@ namespace Editor
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
 
-            // TODO: This is temporary test data. In the future, this should be loaded from the project files.
-            var wall = new ObjectType(1, "wall");
-            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
-            _objectTypeManager.RegisterObjectType(wall);
-            var floor = new ObjectType(2, "floor");
-            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
-            _objectTypeManager.RegisterObjectType(floor);
+            var (compiledJsonPath, _) = _compilerService.Compile(project.GetDmFiles());
+            if (compiledJsonPath != null)
+            {
+                _dreamMakerLoader.Load(compiledJsonPath);
+            }
 
             _toolManager.SetActiveTool(_toolManager.Tools.FirstOrDefault(), _editorContext);
 

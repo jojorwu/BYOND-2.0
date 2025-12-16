@@ -84,7 +84,7 @@ public partial class DMParser {
     }
 
     private bool TryConvertUtfCodeToString(ReadOnlySpan<char> input, ref StringBuilder stringBuilder) {
-        if (!int.TryParse(input, style: System.Globalization.NumberStyles.HexNumber, provider: null, out var utf32Code)) {
+        if (!int.TryParse(input, style: System.Globalization.NumberStyles.HexNumber, provider: System.Globalization.CultureInfo.InvariantCulture, out var utf32Code)) {
             return false;
         }
 

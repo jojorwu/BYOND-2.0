@@ -5,9 +5,7 @@ using System.Threading.Tasks;
 using Shared;
 using Core.Objects;
 using Core.Maps;
-using Core.Projects;
 using Microsoft.Extensions.Logging.Abstractions;
-using Core.Compiler;
 
 namespace Core.Tests
 {

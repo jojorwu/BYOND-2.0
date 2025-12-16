@@ -7,7 +7,7 @@ using Core.Scripting.LuaSystem;
 using Core.VM.Runtime;
 using System.Linq;
 
-namespace Core.Scripting
+namespace Core
 {
     public class ScriptManager : IScriptManager
     {

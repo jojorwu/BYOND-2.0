@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using DMCompiler;
 
-namespace Core.Compiler
+namespace Core
 {
     public class OpenDreamCompilerService : ICompilerService
     {

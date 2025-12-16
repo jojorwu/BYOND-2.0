@@ -56,7 +56,6 @@ public class DMCompiler {
         _compileStartTime = DateTime.Now;
 
         //TODO: Only use InvariantCulture where necessary instead of it being the default
-        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
 #if DEBUG
         ForcedWarning("This compiler was compiled in the Debug .NET configuration. This will impact compile speed.");

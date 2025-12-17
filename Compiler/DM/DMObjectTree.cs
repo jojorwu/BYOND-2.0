@@ -15,7 +15,7 @@ internal class DMObjectTree(DMCompiler compiler) {
     public readonly List<string> StringTable = new();
     public readonly HashSet<string> Resources = new();
 
-    public DMObject Root => GetOrCreateDMObject(DreamPath.Root);
+    public DMObject Root => GetOrCreateDMObject(DreamPaths.Root);
 
     private readonly Dictionary<string, int> _stringToStringId = new();
     private readonly Dictionary<DreamPath, int> _pathToTypeId = new();
@@ -71,15 +71,15 @@ internal class DMObjectTree(DMCompiler compiler) {
                 case "savefile":
                 case "world":
                 case "callee":
-                    parent = GetOrCreateDMObject(DreamPath.Root);
+                    parent = GetOrCreateDMObject(DreamPaths.Root);
                     break;
                 default:
-                    parent = GetOrCreateDMObject(compiler.Settings.NoStandard ? DreamPath.Root : DreamPath.Datum);
+                    parent = GetOrCreateDMObject(compiler.Settings.NoStandard ? DreamPaths.Root : DreamPaths.Datum);
                     break;
             }
         }
 
-        if (path != DreamPath.Root && parent == null) // Parent SHOULD NOT be null here! (unless we're root lol)
+        if (path != DreamPaths.Root && parent == null) // Parent SHOULD NOT be null here! (unless we're root lol)
             throw new Exception($"Type {path} did not have a parent");
 
         dmObject = new DMObject(compiler, _dmObjectIdCounter++, path, parent);
@@ -155,7 +155,7 @@ internal class DMObjectTree(DMCompiler compiler) {
                 return currentPath.Combine(search);
             }
 
-            if (currentPath == DreamPath.Root) {
+            if (currentPath == DreamPaths.Root) {
                 break; // Nothing found
             }
 

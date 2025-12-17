@@ -7,7 +7,7 @@ using DMCompiler.DM;
 namespace DMCompiler.Compiler.DM {
     public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token>(compiler, lexer) {
         protected Location CurrentLoc => Current().Location;
-        protected DreamPath CurrentPath = DreamPath.Root;
+        protected DreamPath CurrentPath = DreamPaths.Root;
 
         private bool _allowVarDeclExpression;
 
@@ -466,7 +466,7 @@ namespace DMCompiler.Compiler.DM {
             if (Current().Type == TokenType.DM_LeftBracket || Current().Type == TokenType.DM_DoubleSquareBracket) {
                 var loc = Current().Location;
 
-                // Trying to use path.IsDescendantOf(DreamPath.List) here doesn't work
+                // Trying to use path.IsDescendantOf(DreamPaths.List) here doesn't work
                 if (!path.Elements[..^1].Contains("list")) {
                     var elements = path.Elements.ToList();
                     elements.Insert(elements.IndexOf("var") + 1, "list");
@@ -1164,7 +1164,7 @@ namespace DMCompiler.Compiler.DM {
         private void RequirePath([NotNull] ref DMASTPath? path, string message = "Expected a path") {
             if (path == null) {
                 Emit(WarningCode.BadExpression, message);
-                path = new DMASTPath(Current().Location, DreamPath.Root);
+                path = new DMASTPath(Current().Location, DreamPaths.Root);
             }
         }
 
@@ -1805,7 +1805,7 @@ namespace DMCompiler.Compiler.DM {
 
                 var type = AsComplexTypes();
                 Compiler.DMObjectTree.TryGetDMObject(path.Path, out var dmType);
-                if (type is { Type: not DMValueType.Anything } && (value is null or DMASTConstantNull) && (dmType?.IsSubtypeOf(DreamPath.Datum) ?? false)) {
+                if (type is { Type: not DMValueType.Anything } && (value is null or DMASTConstantNull) && (dmType?.IsSubtypeOf(DreamPaths.Datum) ?? false)) {
                     Compiler.Emit(WarningCode.ImplicitNullType, loc, $"Variable \"{path.Path}\" is null but not a subtype of atom nor explicitly typed as nullable, append \"|null\" to \"as\". It will implicitly be treated as nullable.");
                     type |= DMValueType.Null;
                 }

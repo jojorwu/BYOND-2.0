@@ -78,7 +78,7 @@ internal sealed class Src(Location location, DreamPath? path) : LValue(location,
 }
 
 // usr
-internal sealed class Usr(Location location) : LValue(location, DreamPath.Mob) {
+internal sealed class Usr(Location location) : LValue(location, DreamPaths.Mob) {
     //According to the docs, Usr is a mob. But it will get set to null by coders to clear refs.
     public override DMComplexValueType ValType => (DMValueType.Mob | DMValueType.Null);
 
@@ -96,7 +96,7 @@ internal sealed class Usr(Location location) : LValue(location, DreamPath.Mob) {
 }
 
 // args
-internal sealed class Args(Location location) : LValue(location, DreamPath.List) {
+internal sealed class Args(Location location) : LValue(location, DreamPaths.List) {
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
         return DMReference.Args;
@@ -111,7 +111,7 @@ internal sealed class Args(Location location) : LValue(location, DreamPath.List)
 }
 
 // callee
-internal sealed class Callee(Location location) : LValue(location, DreamPath.Callee) {
+internal sealed class Callee(Location location) : LValue(location, DreamPaths.Callee) {
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
         return DMReference.Callee;
@@ -127,7 +127,7 @@ internal sealed class Callee(Location location) : LValue(location, DreamPath.Cal
 }
 
 // caller
-internal sealed class Caller(Location location) : LValue(location, DreamPath.Callee) {
+internal sealed class Caller(Location location) : LValue(location, DreamPaths.Callee) {
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
         return DMReference.Caller;
@@ -143,7 +143,7 @@ internal sealed class Caller(Location location) : LValue(location, DreamPath.Cal
 }
 
 // world
-internal sealed class World(Location location) : LValue(location, DreamPath.World) {
+internal sealed class World(Location location) : LValue(location, DreamPaths.World) {
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
         return DMReference.World;

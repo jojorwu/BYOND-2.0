@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using Compiler;
 
 namespace Server;
 
@@ -42,6 +43,7 @@ class Program
 
         services.AddCoreServices();
         services.AddServerHostedServices();
+        services.AddSingleton<IJsonService, JsonService>();
     }
 
     private static void EnsureServerConfigFileExists()

@@ -8,7 +8,6 @@ using Core.VM.Procs;
 using Core.VM.Types;
 using System;
 using System.Linq;
-using Opcode = Core.VM.Opcodes.Opcode;
 
 namespace tests
 {

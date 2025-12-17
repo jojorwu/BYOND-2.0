@@ -62,7 +62,7 @@ public sealed class DMASTProcDefinition : DMASTStatement {
             IsFinal = false;
         }
 
-        ObjectPath = (path.Elements.Length > 1) ? path.FromElements(0, -2) : DreamPath.Root;
+        ObjectPath = (path.Elements.Length > 1) ? path.FromElements(0, -2) : DreamPaths.Root;
         Name = path.LastElement!;
         Parameters = parameters;
         Body = body;
@@ -75,7 +75,7 @@ public sealed class DMASTObjectVarDefinition : DMASTStatement {
     public DreamPath ObjectPath => _varDecl.ObjectPath;
 
     /// <summary>The actual type of the variable itself.</summary>
-    public DreamPath? Type => _varDecl.IsList ? DreamPath.List : _varDecl.TypePath;
+    public DreamPath? Type => _varDecl.IsList ? DreamPaths.List : _varDecl.TypePath;
 
     public string Name => _varDecl.VarName;
     public DMASTExpression Value;

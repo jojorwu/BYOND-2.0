@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
 using Shared;
-using Opcode = Core.VM.Opcodes.Opcode;
 
 namespace Core.VM.Runtime
 {

@@ -5,6 +5,7 @@ using Silk.NET.OpenGL;
 using System;
 using Core;
 using Core.VM.Runtime;
+using Compiler;
 
 namespace Editor
 {
@@ -42,6 +43,7 @@ namespace Editor
             services.AddCoreServices();
             services.AddEditorServices();
             services.AddUiPanels();
+            services.AddSingleton<IJsonService, JsonService>();
         }
     }
 }

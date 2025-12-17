@@ -970,7 +970,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                                 $"Type {prevPath} does not exist");
 
                         property = fromObject.GetVariable(field);
-                        if (!fieldOperation.Safe && fromObject.IsSubtypeOf(DreamPath.Client)) {
+                        if (!fieldOperation.Safe && fromObject.IsSubtypeOf(DreamPaths.Client)) {
                             Compiler.Emit(WarningCode.UnsafeClientAccess, deref.Location,
                                 "Unsafe \"client\" access. Use the \"?.\" operator instead");
                         }

@@ -10,7 +10,7 @@ namespace Compiler
         public IPublicDreamCompiledJson Load(string path)
         {
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<DreamCompiledJson>(json) ?? throw new Exception("Failed to deserialize compiled json");
+            return JsonSerializer.Deserialize<DreamCompiledJson>(json) ?? throw new JsonException("Failed to deserialize compiled json");
         }
     }
 }

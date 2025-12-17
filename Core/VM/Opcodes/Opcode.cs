@@ -1,311 +1,156 @@
+using Shared;
+
 namespace Core.VM.Opcodes;
 
 // ReSharper disable MissingBlankLines
 public enum Opcode : byte {
-
-    BitShiftLeft = 0x1,
-
-    PushType = 0x2,
-
-    PushString = 0x3,
-
-    FormatString = 0x4,
-
-    SwitchCaseRange = 0x5, //This could either shrink the stack by 2 or 3. Assume 2.
-
-    PushReferenceValue = 0x6, // TODO: Local refs should be pure, and other refs that aren't modified
-
-    Rgb = 0x7,
-
-    Add = 0x8,
-
-    Assign = 0x9,
-
-    Call = 0xA,
-
-    MultiplyReference = 0xB,
-
-    JumpIfFalse = 0xC,
-
-    CreateStrictAssociativeList = 0xD,
-
-    Jump = 0xE,
-
-    CompareEquals = 0xF,
-
-    Return = 0x10,
-
-    PushNull = 0x11,
-
-    Subtract = 0x12,
-
-    CompareLessThan = 0x13,
-
-    CompareGreaterThan = 0x14,
-
-    BooleanAnd = 0x15, //Either shrinks the stack 1 or 0. Assume 1.
-
-    BooleanNot = 0x16,
-
-    DivideReference = 0x17,
-
-    Negate = 0x18,
-
-    Modulus = 0x19,
-
-    Append = 0x1A,
-
-    CreateRangeEnumerator = 0x1B,
-
-    Input = 0x1C,
-
-    CompareLessThanOrEqual = 0x1D,
-
-    CreateAssociativeList = 0x1E,
-
-    Remove = 0x1F,
-
-    DeleteObject = 0x20,
-
-    PushResource = 0x21,
-
-    CreateList = 0x22,
-
-    CallStatement = 0x23,
-
-    BitAnd = 0x24,
-
-    CompareNotEquals = 0x25,
-
-    PushProc = 0x26,
-
-    Divide = 0x27,
-
-    Multiply = 0x28,
-
-    BitXorReference = 0x29,
-
-    BitXor = 0x2A,
-
-    BitOr = 0x2B,
-
-    BitNot = 0x2C,
-
-    Combine = 0x2D,
-
-    CreateObject = 0x2E,
-
-    BooleanOr = 0x2F, // Shrinks the stack by 1 or 0. Assume 1.
-
-    CreateMultidimensionalList = 0x30,
-
-    CompareGreaterThanOrEqual = 0x31,
-
-    SwitchCase = 0x32, //This could either shrink the stack by 1 or 2. Assume 1.
-
-    Mask = 0x33,
-    //0x34
-
-    Error = 0x35,
-
-    IsInList = 0x36,
-    //0x37
-
-    PushFloat = 0x38,
-
-    ModulusReference = 0x39,
-
-    CreateListEnumerator = 0x3A,
-
-    Enumerate = 0x3B,
-
-    DestroyEnumerator = 0x3C,
-
-    Browse = 0x3D,
-
-    BrowseResource = 0x3E,
-
-    OutputControl = 0x3F,
-
-    BitShiftRight = 0x40,
-
-    CreateFilteredListEnumerator = 0x41,
-
-    Power = 0x42,
-
-    EnumerateAssoc = 0x43,
-
-    Link = 0x44,
-
-    Prompt = 0x45,
-
-    Ftp = 0x46,
-
-    Initial = 0x47,
-
-    AsType = 0x48,
-
-    IsType = 0x49,
-
-    LocateCoord = 0x4A,
-
-    Locate = 0x4B,
-
-    IsNull = 0x4C,
-
-    Spawn = 0x4D,
-
-    OutputReference = 0x4E,
-
-    Output = 0x4F,
-    // 0x50
-
-    Pop = 0x51,
-
-    Prob = 0x52,
-
-    IsSaved = 0x53,
-
-    PickUnweighted = 0x54,
-
-    PickWeighted = 0x55,
-
-    Increment = 0x56,
-
-    Decrement = 0x57,
-
-    CompareEquivalent = 0x58,
-
-    CompareNotEquivalent = 0x59,
-
-    Throw = 0x5A,
-
-    IsInRange = 0x5B,
-
-    MassConcatenation = 0x5C,
-
-    CreateTypeEnumerator = 0x5D,
-    //0x5E
-
-    PushGlobalVars = 0x5F,
-
-    ModulusModulus = 0x60,
-
-    ModulusModulusReference = 0x61,
-    //0x62
-    //0x63
-
-    JumpIfNull = 0x64,
-
-    JumpIfNullNoPop = 0x65,
-
-    JumpIfTrueReference = 0x66,
-
-    JumpIfFalseReference = 0x67,
-
-    DereferenceField = 0x68,
-
-    DereferenceIndex = 0x69,
-
-    DereferenceCall = 0x6A,
-
-    PopReference = 0x6B,
-    //0x6C
-
-    BitShiftLeftReference = 0x6D,
-
-    BitShiftRightReference = 0x6E,
-
-    Try = 0x6F,
-
-    TryNoValue = 0x70,
-
-    EndTry = 0x71,
-
-    EnumerateNoAssign = 0x72,
-
-    Gradient = 0x73,
-
-    AssignInto = 0x74,
-
-    GetStep = 0x75,
-
-    Length = 0x76,
-
-    GetDir = 0x77,
-
-    DebuggerBreakpoint = 0x78,
-
-    Sin = 0x79,
-
-    Cos = 0x7A,
-
-    Tan = 0x7B,
-
-    ArcSin = 0x7C,
-
-    ArcCos = 0x7D,
-
-    ArcTan = 0x7E,
-
-    ArcTan2 = 0x7F,
-
-    Sqrt = 0x80,
-
-    Log = 0x81,
-
-    LogE = 0x82,
-
-    Abs = 0x83,
-    // Peephole optimization opcodes
-
-    AppendNoPush = 0x84,
-
-    AssignNoPush = 0x85,
-
-    PushRefAndDereferenceField = 0x86,
-
-    PushNRefs = 0x87,
-
-    PushNFloats = 0x88,
-
-    PushNResources = 0x89,
-
-    PushStringFloat = 0x8A,
-
-    JumpIfReferenceFalse = 0x8B,
-
-    PushNStrings = 0x8C,
-
-    SwitchOnFloat = 0x8D,
-
-    PushNOfStringFloats = 0x8E,
-
-    CreateListNFloats = 0x8F,
-
-    CreateListNStrings = 0x90,
-
-    CreateListNRefs = 0x91,
-
-    CreateListNResources = 0x92,
-
-    SwitchOnString = 0x93,
-    //0x94
-
-    IsTypeDirect = 0x95,
-
-    NullRef = 0x96,
-
-    ReturnReferenceValue = 0x97,
-
-    ReturnFloat = 0x98,
-
-    IndexRefWithString = 0x99,
-
-    PushFloatAssign = 0x9A,
-
-    NPushFloatAssign = 0x9B,
-
+    BitShiftLeft = Shared.Opcode.BitShiftLeft,
+    PushType = Shared.Opcode.PushType,
+    PushString = Shared.Opcode.PushString,
+    FormatString = Shared.Opcode.FormatString,
+    SwitchCaseRange = Shared.Opcode.SwitchCaseRange,
+    PushReferenceValue = Shared.Opcode.PushReferenceValue,
+    Rgb = Shared.Opcode.Rgb,
+    Add = Shared.Opcode.Add,
+    Assign = Shared.Opcode.Assign,
+    Call = Shared.Opcode.Call,
+    MultiplyReference = Shared.Opcode.MultiplyReference,
+    JumpIfFalse = Shared.Opcode.JumpIfFalse,
+    CreateStrictAssociativeList = Shared.Opcode.CreateStrictAssociativeList,
+    Jump = Shared.Opcode.Jump,
+    CompareEquals = Shared.Opcode.CompareEquals,
+    Return = Shared.Opcode.Return,
+    PushNull = Shared.Opcode.PushNull,
+    Subtract = Shared.Opcode.Subtract,
+    CompareLessThan = Shared.Opcode.CompareLessThan,
+    CompareGreaterThan = Shared.Opcode.CompareGreaterThan,
+    BooleanAnd = Shared.Opcode.BooleanAnd,
+    BooleanNot = Shared.Opcode.BooleanNot,
+    DivideReference = Shared.Opcode.DivideReference,
+    Negate = Shared.Opcode.Negate,
+    Modulus = Shared.Opcode.Modulus,
+    Append = Shared.Opcode.Append,
+    CreateRangeEnumerator = Shared.Opcode.CreateRangeEnumerator,
+    Input = Shared.Opcode.Input,
+    CompareLessThanOrEqual = Shared.Opcode.CompareLessThanOrEqual,
+    CreateAssociativeList = Shared.Opcode.CreateAssociativeList,
+    Remove = Shared.Opcode.Remove,
+    DeleteObject = Shared.Opcode.DeleteObject,
+    PushResource = Shared.Opcode.PushResource,
+    CreateList = Shared.Opcode.CreateList,
+    CallStatement = Shared.Opcode.CallStatement,
+    BitAnd = Shared.Opcode.BitAnd,
+    CompareNotEquals = Shared.Opcode.CompareNotEquals,
+    PushProc = Shared.Opcode.PushProc,
+    Divide = Shared.Opcode.Divide,
+    Multiply = Shared.Opcode.Multiply,
+    BitXorReference = Shared.Opcode.BitXorReference,
+    BitXor = Shared.Opcode.BitXor,
+    BitOr = Shared.Opcode.BitOr,
+    BitNot = Shared.Opcode.BitNot,
+    Combine = Shared.Opcode.Combine,
+    CreateObject = Shared.Opcode.CreateObject,
+    BooleanOr = Shared.Opcode.BooleanOr,
+    CreateMultidimensionalList = Shared.Opcode.CreateMultidimensionalList,
+    CompareGreaterThanOrEqual = Shared.Opcode.CompareGreaterThanOrEqual,
+    SwitchCase = Shared.Opcode.SwitchCase,
+    Mask = Shared.Opcode.Mask,
+    Error = Shared.Opcode.Error,
+    IsInList = Shared.Opcode.IsInList,
+    PushFloat = Shared.Opcode.PushFloat,
+    ModulusReference = Shared.Opcode.ModulusReference,
+    CreateListEnumerator = Shared.Opcode.CreateListEnumerator,
+    Enumerate = Shared.Opcode.Enumerate,
+    DestroyEnumerator = Shared.Opcode.DestroyEnumerator,
+    Browse = Shared.Opcode.Browse,
+    BrowseResource = Shared.Opcode.BrowseResource,
+    OutputControl = Shared.Opcode.OutputControl,
+    BitShiftRight = Shared.Opcode.BitShiftRight,
+    CreateFilteredListEnumerator = Shared.Opcode.CreateFilteredListEnumerator,
+    Power = Shared.Opcode.Power,
+    EnumerateAssoc = Shared.Opcode.EnumerateAssoc,
+    Link = Shared.Opcode.Link,
+    Prompt = Shared.Opcode.Prompt,
+    Ftp = Shared.Opcode.Ftp,
+    Initial = Shared.Opcode.Initial,
+    AsType = Shared.Opcode.AsType,
+    IsType = Shared.Opcode.IsType,
+    LocateCoord = Shared.Opcode.LocateCoord,
+    Locate = Shared.Opcode.Locate,
+    IsNull = Shared.Opcode.IsNull,
+    Spawn = Shared.Opcode.Spawn,
+    OutputReference = Shared.Opcode.OutputReference,
+    Output = Shared.Opcode.Output,
+    Pop = Shared.Opcode.Pop,
+    Prob = Shared.Opcode.Prob,
+    IsSaved = Shared.Opcode.IsSaved,
+    PickUnweighted = Shared.Opcode.PickUnweighted,
+    PickWeighted = Shared.Opcode.PickWeighted,
+    Increment = Shared.Opcode.Increment,
+    Decrement = Shared.Opcode.Decrement,
+    CompareEquivalent = Shared.Opcode.CompareEquivalent,
+    CompareNotEquivalent = Shared.Opcode.CompareNotEquivalent,
+    Throw = Shared.Opcode.Throw,
+    IsInRange = Shared.Opcode.IsInRange,
+    MassConcatenation = Shared.Opcode.MassConcatenation,
+    CreateTypeEnumerator = Shared.Opcode.CreateTypeEnumerator,
+    PushGlobalVars = Shared.Opcode.PushGlobalVars,
+    ModulusModulus = Shared.Opcode.ModulusModulus,
+    ModulusModulusReference = Shared.Opcode.ModulusModulusReference,
+    JumpIfNull = Shared.Opcode.JumpIfNull,
+    JumpIfNullNoPop = Shared.Opcode.JumpIfNullNoPop,
+    JumpIfTrueReference = Shared.Opcode.JumpIfTrueReference,
+    JumpIfFalseReference = Shared.Opcode.JumpIfFalseReference,
+    DereferenceField = Shared.Opcode.DereferenceField,
+    DereferenceIndex = Shared.Opcode.DereferenceIndex,
+    DereferenceCall = Shared.Opcode.DereferenceCall,
+    PopReference = Shared.Opcode.PopReference,
+    BitShiftLeftReference = Shared.Opcode.BitShiftLeftReference,
+    BitShiftRightReference = Shared.Opcode.BitShiftRightReference,
+    Try = Shared.Opcode.Try,
+    TryNoValue = Shared.Opcode.TryNoValue,
+    EndTry = Shared.Opcode.EndTry,
+    EnumerateNoAssign = Shared.Opcode.EnumerateNoAssign,
+    Gradient = Shared.Opcode.Gradient,
+    AssignInto = Shared.Opcode.AssignInto,
+    GetStep = Shared.Opcode.GetStep,
+    Length = Shared.Opcode.Length,
+    GetDir = Shared.Opcode.GetDir,
+    DebuggerBreakpoint = Shared.Opcode.DebuggerBreakpoint,
+    Sin = Shared.Opcode.Sin,
+    Cos = Shared.Opcode.Cos,
+    Tan = Shared.Opcode.Tan,
+    ArcSin = Shared.Opcode.ArcSin,
+    ArcCos = Shared.Opcode.ArcCos,
+    ArcTan = Shared.Opcode.ArcTan,
+    ArcTan2 = Shared.Opcode.ArcTan2,
+    Sqrt = Shared.Opcode.Sqrt,
+    Log = Shared.Opcode.Log,
+    LogE = Shared.Opcode.LogE,
+    Abs = Shared.Opcode.Abs,
+    AppendNoPush = Shared.Opcode.AppendNoPush,
+    AssignNoPush = Shared.Opcode.AssignNoPush,
+    PushRefAndDereferenceField = Shared.Opcode.PushRefAndDereferenceField,
+    PushNRefs = Shared.Opcode.PushNRefs,
+    PushNFloats = Shared.Opcode.PushNFloats,
+    PushNResources = Shared.Opcode.PushNResources,
+    PushStringFloat = Shared.Opcode.PushStringFloat,
+    JumpIfReferenceFalse = Shared.Opcode.JumpIfReferenceFalse,
+    PushNStrings = Shared.Opcode.PushNStrings,
+    SwitchOnFloat = Shared.Opcode.SwitchOnFloat,
+    PushNOfStringFloats = Shared.Opcode.PushNOfStringFloats,
+    CreateListNFloats = Shared.Opcode.CreateListNFloats,
+    CreateListNStrings = Shared.Opcode.CreateListNStrings,
+    CreateListNRefs = Shared.Opcode.CreateListNRefs,
+    CreateListNResources = Shared.Opcode.CreateListNResources,
+    SwitchOnString = Shared.Opcode.SwitchOnString,
+    IsTypeDirect = Shared.Opcode.IsTypeDirect,
+    NullRef = Shared.Opcode.NullRef,
+    ReturnReferenceValue = Shared.Opcode.ReturnReferenceValue,
+    ReturnFloat = Shared.Opcode.ReturnFloat,
+    IndexRefWithString = Shared.Opcode.IndexRefWithString,
+    PushFloatAssign = Shared.Opcode.PushFloatAssign,
+    NPushFloatAssign = Shared.Opcode.NPushFloatAssign,
     PushArgument = 0x9C,
     SetArgument = 0x9D,
     PushLocal = 0x9E,

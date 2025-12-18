@@ -5,6 +5,8 @@ namespace DMCompiler.Compiler.DM.AST;
 public abstract class DMASTNode(Location location) {
     public readonly Location Location = location;
 
+    public abstract void Visit(DMASTVisitor visitor);
+
     public override string ToString() {
         return $"{ToString(null)}";
     }
@@ -22,10 +24,18 @@ public abstract class DMASTNode(Location location) {
 
 public sealed class DMASTFile(Location location, DMASTBlockInner blockInner) : DMASTNode(location) {
     public readonly DMASTBlockInner BlockInner = blockInner;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitFile(this);
+    }
 }
 
 public sealed class DMASTBlockInner(Location location, DMASTStatement[] statements) : DMASTNode(location) {
     public readonly DMASTStatement[] Statements = statements;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitBlockInner(this);
+    }
 }
 
 public sealed class DMASTProcBlockInner : DMASTNode {
@@ -61,18 +71,30 @@ public sealed class DMASTProcBlockInner : DMASTNode {
         Statements = statements;
         SetStatements = setStatements ?? Array.Empty<DMASTProcStatement>();
     }
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcBlockInner(this);
+    }
 }
 
 // TODO: This can probably be replaced with a DreamPath nullable
 public sealed class DMASTPath(Location location, DreamPath path, bool operatorFlag = false) : DMASTNode(location) {
     public DreamPath Path = path;
     public readonly bool IsOperator = operatorFlag;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitPath(this);
+    }
 }
 
 public sealed class DMASTCallParameter(Location location, DMASTExpression value, DMASTExpression? key = null)
     : DMASTNode(location) {
     public DMASTExpression Value = value;
     public readonly DMASTExpression? Key = key;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitCallParameter(this);
+    }
 }
 
 public sealed class DMASTDefinitionParameter(
@@ -88,4 +110,8 @@ public sealed class DMASTDefinitionParameter(
     public DMASTExpression? PossibleValues = possibleValues;
 
     private readonly ProcParameterDeclInfo _paramDecl = new(astPath.Path);
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitDefinitionParameter(this);
+    }
 }

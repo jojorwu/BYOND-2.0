@@ -28,23 +28,40 @@ public abstract class DMASTExpression(Location location) : DMASTNode(location) {
 /// Used when there was an error parsing an expression
 /// </summary>
 /// <remarks>Emit an error code before creating!</remarks>
-public sealed class DMASTInvalidExpression(Location location) : DMASTExpression(location);
+public sealed class DMASTInvalidExpression(Location location) : DMASTExpression(location) {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitInvalidExpression(this);
+    }
+}
 
-public sealed class DMASTVoid(Location location) : DMASTExpression(location);
+public sealed class DMASTVoid(Location location) : DMASTExpression(location) {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitVoid(this);
+    }
+}
 
 public sealed class DMASTIdentifier(Location location, string identifier) : DMASTExpression(location) {
     public readonly string Identifier = identifier;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitIdentifier(this);
+    }
 }
 
 public sealed class DMASTSwitchCaseRange(Location location, DMASTExpression rangeStart, DMASTExpression rangeEnd)
     : DMASTExpression(location) {
     public DMASTExpression RangeStart = rangeStart, RangeEnd = rangeEnd;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitSwitchCaseRange(this);
+    }
 }
 
 public sealed class DMASTStringFormat(Location location, string value, DMASTExpression?[] interpolatedValues)
     : DMASTExpression(location) {
     public readonly string Value = value;
     public readonly DMASTExpression?[] InterpolatedValues = interpolatedValues;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitStringFormat(this);
+    }
 }
 
 public sealed class DMASTList(Location location, DMASTCallParameter[] values, bool isAList) : DMASTExpression(location) {
@@ -64,6 +81,9 @@ public sealed class DMASTList(Location location, DMASTCallParameter[] values, bo
             } && valueList.AllValuesConstant())
         );
     }
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitList(this);
+    }
 }
 
 /// <summary>
@@ -72,14 +92,23 @@ public sealed class DMASTList(Location location, DMASTCallParameter[] values, bo
 public sealed class DMASTDimensionalList(Location location, List<DMASTExpression> sizes)
     : DMASTExpression(location) {
     public readonly List<DMASTExpression> Sizes = sizes;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitDimensionalList(this);
+    }
 }
 
 public sealed class DMASTAddText(Location location, DMASTCallParameter[] parameters) : DMASTExpression(location) {
     public readonly DMASTCallParameter[] Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitAddText(this);
+    }
 }
 
 public sealed class DMASTNewList(Location location, DMASTCallParameter[] parameters) : DMASTExpression(location) {
     public readonly DMASTCallParameter[] Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitNewList(this);
+    }
 }
 
 public sealed class DMASTInput(
@@ -90,6 +119,9 @@ public sealed class DMASTInput(
     public readonly DMASTCallParameter[] Parameters = parameters;
     public DMValueType? Types = types;
     public readonly DMASTExpression? List = list;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitInput(this);
+    }
 }
 
 public sealed class DMASTLocateCoordinates(
@@ -98,20 +130,32 @@ public sealed class DMASTLocateCoordinates(
     DMASTExpression y,
     DMASTExpression z) : DMASTExpression(location) {
     public readonly DMASTExpression X = x, Y = y, Z = z;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitLocateCoordinates(this);
+    }
 }
 
 public sealed class DMASTLocate(Location location, DMASTExpression? expression, DMASTExpression? container)
     : DMASTExpression(location) {
     public readonly DMASTExpression? Expression = expression;
     public readonly DMASTExpression? Container = container;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitLocate(this);
+    }
 }
 
 public sealed class DMASTGradient(Location location, DMASTCallParameter[] parameters) : DMASTExpression(location) {
     public readonly DMASTCallParameter[] Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitGradient(this);
+    }
 }
 
 public sealed class DMASTRgb(Location location, DMASTCallParameter[] parameters) : DMASTExpression(location) {
     public readonly DMASTCallParameter[] Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitRgb(this);
+    }
 }
 
 public sealed class DMASTPick(Location location, DMASTPick.PickValue[] values) : DMASTExpression(location) {
@@ -121,12 +165,18 @@ public sealed class DMASTPick(Location location, DMASTPick.PickValue[] values) :
     }
 
     public readonly PickValue[] Values = values;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitPick(this);
+    }
 }
 
 public class DMASTLog(Location location, DMASTExpression expression, DMASTExpression? baseExpression)
     : DMASTExpression(location) {
     public readonly DMASTExpression Expression = expression;
     public readonly DMASTExpression? BaseExpression = baseExpression;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitLog(this);
+    }
 }
 
 public sealed class DMASTCall(
@@ -134,27 +184,43 @@ public sealed class DMASTCall(
     DMASTCallParameter[] callParameters,
     DMASTCallParameter[] procParameters) : DMASTExpression(location) {
     public readonly DMASTCallParameter[] CallParameters = callParameters, ProcParameters = procParameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitCall(this);
+    }
 }
 
 public class DMASTVarDeclExpression(Location location, DMASTPath path) : DMASTExpression(location) {
     public readonly DMASTPath DeclPath = path;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitVarDeclExpression(this);
+    }
 }
 
 public sealed class DMASTNewPath(Location location, DMASTConstantPath path, DMASTCallParameter[]? parameters)
     : DMASTExpression(location) {
     public readonly DMASTConstantPath Path = path;
     public readonly DMASTCallParameter[]? Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitNewPath(this);
+    }
 }
 
 public sealed class DMASTNewExpr(Location location, DMASTExpression expression, DMASTCallParameter[]? parameters)
     : DMASTExpression(location) {
     public readonly DMASTExpression Expression = expression;
     public readonly DMASTCallParameter[]? Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitNewExpr(this);
+    }
 }
 
 public sealed class DMASTNewInferred(Location location, DMASTCallParameter[]? parameters)
     : DMASTExpression(location) {
     public readonly DMASTCallParameter[]? Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitNewInferred(this);
+    }
 }
 
 public sealed class DMASTTernary(Location location, DMASTExpression a, DMASTExpression b, DMASTExpression c)
@@ -165,6 +231,9 @@ public sealed class DMASTTernary(Location location, DMASTExpression a, DMASTExpr
         yield return A;
         yield return B;
         yield return C;
+    }
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitTernary(this);
     }
 }
 
@@ -184,12 +253,18 @@ public sealed class DMASTExpressionInRange(
         yield return StartRange;
         yield return EndRange;
     }
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitExpressionInRange(this);
+    }
 }
 
 public sealed class DMASTProcCall(Location location, IDMASTCallable callable, DMASTCallParameter[] parameters)
     : DMASTExpression(location) {
     public readonly IDMASTCallable Callable = callable;
     public readonly DMASTCallParameter[] Parameters = parameters;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcCall(this);
+    }
 }
 
 public sealed class DMASTDereference(
@@ -238,17 +313,31 @@ public sealed class DMASTDereference(
 
     // Always contains at least one operation
     public readonly Operation[] Operations = operations;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitDereference(this);
+    }
 }
 
 public interface IDMASTCallable;
 
 public sealed class DMASTCallableProcIdentifier(Location location, string identifier) : DMASTExpression(location), IDMASTCallable {
     public readonly string Identifier = identifier;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitCallableProcIdentifier(this);
+    }
 }
 
-public sealed class DMASTCallableSuper(Location location) : DMASTExpression(location), IDMASTCallable;
+public sealed class DMASTCallableSuper(Location location) : DMASTExpression(location), IDMASTCallable {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitCallableSuper(this);
+    }
+}
 
-public sealed class DMASTCallableSelf(Location location) : DMASTExpression(location), IDMASTCallable;
+public sealed class DMASTCallableSelf(Location location) : DMASTExpression(location), IDMASTCallable {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitCallableSelf(this);
+    }
+}
 
 public sealed class DMASTScopeIdentifier(
     Location location,
@@ -260,4 +349,7 @@ public sealed class DMASTScopeIdentifier(
     public readonly DMASTCallParameter[]? CallArguments = callArguments;
 
     public bool IsProcRef => CallArguments != null;
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitScopeIdentifier(this);
+    }
 }

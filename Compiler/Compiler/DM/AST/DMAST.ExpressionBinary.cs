@@ -8,6 +8,10 @@ public class DMASTBinary(Location location, DMASTExpression lhs, DMASTExpression
         yield return LHS;
         yield return RHS;
     }
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitBinary(this);
+    }
 }
 
 public sealed class DMASTAssign(Location location, DMASTExpression expression, DMASTExpression value) : DMASTBinary(location, expression, value);

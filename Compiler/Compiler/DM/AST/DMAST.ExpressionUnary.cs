@@ -6,6 +6,10 @@ public class DMASTUnary(Location location, DMASTExpression value) : DMASTExpress
     public override IEnumerable<DMASTExpression> Leaves() {
         yield return Value;
     }
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitUnary(this);
+    }
 }
 
 public sealed class DMASTBinaryNot(Location location, DMASTExpression value) : DMASTUnary(location, value);

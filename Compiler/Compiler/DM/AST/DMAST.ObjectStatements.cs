@@ -11,10 +11,18 @@ public abstract class DMASTStatement(Location location) : DMASTNode(location);
 /// Used when there was an error parsing a statement
 /// </summary>
 /// <remarks>Emit an error code before creating!</remarks>
-public sealed class DMASTInvalidStatement(Location location) : DMASTStatement(location);
+public sealed class DMASTInvalidStatement(Location location) : DMASTStatement(location) {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitInvalidStatement(this);
+    }
+}
 
 /// Lone semicolon, statement containing nothing
-public sealed class DMASTNullStatement(Location location) : DMASTStatement(location);
+public sealed class DMASTNullStatement(Location location) : DMASTStatement(location) {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitNullStatement(this);
+    }
+}
 
 public sealed class DMASTObjectDefinition : DMASTStatement {
     /// <summary> Unlike other Path variables stored by AST nodes, this path is guaranteed to be the real, absolute path of this object definition block. <br/>
@@ -27,6 +35,10 @@ public sealed class DMASTObjectDefinition : DMASTStatement {
     public DMASTObjectDefinition(Location location, DreamPath path, DMASTBlockInner? innerBlock) : base(location) {
         Path = path;
         InnerBlock = innerBlock;
+    }
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitObjectDefinition(this);
     }
 }
 
@@ -68,6 +80,10 @@ public sealed class DMASTProcDefinition : DMASTStatement {
         Body = body;
         ReturnTypes = returnType;
     }
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcDefinition(this);
+    }
 }
 
 public sealed class DMASTObjectVarDefinition : DMASTStatement {
@@ -95,11 +111,18 @@ public sealed class DMASTObjectVarDefinition : DMASTStatement {
     public bool IsFinal => _varDecl.IsFinal;
     public bool IsTmp => _varDecl.IsTmp;
 
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitObjectVarDefinition(this);
+    }
 }
 
 public sealed class DMASTMultipleObjectVarDefinitions(Location location, DMASTObjectVarDefinition[] varDefinitions)
     : DMASTStatement(location) {
     public readonly DMASTObjectVarDefinition[] VarDefinitions = varDefinitions;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitMultipleObjectVarDefinitions(this);
+    }
 }
 
 public sealed class DMASTObjectVarOverride : DMASTStatement {
@@ -111,5 +134,9 @@ public sealed class DMASTObjectVarOverride : DMASTStatement {
         ObjectPath = path.FromElements(0, -2);
         VarName = path.LastElement!;
         Value = value;
+    }
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitObjectVarOverride(this);
     }
 }

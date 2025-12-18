@@ -19,11 +19,11 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         Static,
 
         /// Only global procs available
-        FirstPassStatic
-    }
+        FirstPassStatic,
 
-    // TODO: Remove this terrible global flag
-    public static bool ScopeOperatorEnabled = false; // Enabled on the last pass of the code tree
+        /// Like static, but :: is enabled
+        ScopeOperator
+    }
 
     private UnknownReference? _encounteredUnknownReference;
 
@@ -655,7 +655,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         }
 
         // Other uses should wait until the scope operator pass
-        if (!ScopeOperatorEnabled)
+        if (scopeMode < ScopeMode.ScopeOperator)
             return UnknownIdentifier(location, bIdentifier);
 
         DMExpression? expression;

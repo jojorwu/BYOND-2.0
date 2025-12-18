@@ -57,11 +57,11 @@ internal partial class DMCodeTree {
                         $"Global procs cannot be overridden - '{ProcName}' override will be ignored");
                     //Continue processing the proc anyhoo, just don't add it.
                 } else {
-                    compiler.VerbosePrint($"Adding global proc {procDef.Name}() on pass {codeTree._currentPass}");
+                    compiler.VerbosePrint($"Adding global proc {procDef.Name}()");
                     compiler.DMObjectTree.AddGlobalProc(proc);
                 }
             } else {
-                compiler.VerbosePrint($"Adding proc {procDef.Name}() to {dmObject.Path} on pass {codeTree._currentPass}");
+                compiler.VerbosePrint($"Adding proc {procDef.Name}() to {dmObject.Path}");
                 dmObject.AddProc(proc, forceFirst: procDef.Location.InDMStandard);
             }
 

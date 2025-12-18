@@ -86,7 +86,7 @@ internal partial class DMCodeTree {
     public DMCodeTree(DMCompiler compiler) {
         // Yep, not _dmStandardRoot
         // They get switched in FinishDMStandard()
-        _root = new(this, "/ (DMStandard)", DreamPath.Root);
+        _root = new(this, "/ (DMStandard)", DreamPaths.Root);
 
         _compiler = compiler;
     }
@@ -141,7 +141,7 @@ internal partial class DMCodeTree {
 
     public void FinishDMStandard() {
         _dmStandardRoot = _root;
-        _root = new(this, "/", DreamPath.Root);
+        _root = new(this, "/", DreamPaths.Root);
     }
 
     public void AddType(DreamPath type) {
@@ -170,7 +170,7 @@ internal partial class DMCodeTree {
                 node = child;
             }
 
-            if (currentPath == DreamPath.Root)
+            if (currentPath == DreamPaths.Root)
                 return null;
             currentPath = currentPath.FromElements(0, -2);
         }

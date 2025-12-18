@@ -25,7 +25,7 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     /// <summary>A list of var and verb initializations implicitly done before the user's New() is called.</summary>
     public readonly List<(string Name, Assignment Assignment)> InitializationProcAssignments = new();
 
-    public bool IsRoot => Path == DreamPath.Root;
+    public bool IsRoot => Path == DreamPaths.Root;
 
     private List<DMProc>? _verbs;
 
@@ -110,7 +110,7 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public void AddVerb(DMProc verb) {
-        if (!compiler.Settings.NoStandard && !IsSubtypeOf(DreamPath.Atom) && !IsSubtypeOf(DreamPath.Client))
+        if (!compiler.Settings.NoStandard && !IsSubtypeOf(DreamPaths.Atom) && !IsSubtypeOf(DreamPaths.Client))
             return;
 
         _verbs ??= [];
@@ -233,11 +233,11 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public DMValueType GetDMValueType() {
-        if (IsSubtypeOf(DreamPath.Mob))
+        if (IsSubtypeOf(DreamPaths.Mob))
             return DMValueType.Mob;
-        if (IsSubtypeOf(DreamPath.Obj))
+        if (IsSubtypeOf(DreamPaths.Obj))
             return DMValueType.Obj;
-        if (IsSubtypeOf(DreamPath.Area))
+        if (IsSubtypeOf(DreamPaths.Area))
             return DMValueType.Area;
 
         return DMValueType.Anything;

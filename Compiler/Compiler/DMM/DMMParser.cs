@@ -70,7 +70,7 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                             break;
                         }
 
-                        if (!varOverride.ObjectPath.Equals(DreamPath.Root))
+                        if (!varOverride.ObjectPath.Equals(DreamPaths.Root))
                             Compiler.ForcedError(statement.Location, $"Invalid var name '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
                         if (type != null) {
@@ -84,7 +84,7 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                         }
                             Compiler.ForcedWarning(statement.Location, $"Duplicate var override '{varOverride.VarName}' in DMM on type {objectType.Path}");
 
-                        CurrentPath = DreamPath.Root;
+                        CurrentPath = DreamPaths.Root;
                         statement = Check(TokenType.DM_Semicolon) ? Statement() : null;
                     }
 
@@ -92,9 +92,9 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
                 }
 
                 if (type != null) {
-                    if (type.IsSubtypeOf(DreamPath.Turf)) {
+                    if (type.IsSubtypeOf(DreamPaths.Turf)) {
                         cellDefinition.Turf = mapObject;
-                    } else if (type.IsSubtypeOf(DreamPath.Area)) {
+                    } else if (type.IsSubtypeOf(DreamPaths.Area)) {
                         cellDefinition.Area = mapObject;
                     } else {
                         cellDefinition.Objects.Add(mapObject);

@@ -33,7 +33,7 @@ public sealed class DMASTProcStatementVarDeclaration(Location location, DMASTPat
     : DMASTProcStatement(location) {
     public DMASTExpression? Value = value;
 
-    public DreamPath? Type => _varDecl.IsList ? DreamPath.List : _varDecl.TypePath;
+    public DreamPath? Type => _varDecl.IsList ? DreamPaths.List : _varDecl.TypePath;
 
     public DMComplexValueType ValType => valType;
 

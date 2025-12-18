@@ -544,10 +544,10 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
                     }
 
                     bool doOr = false; // Only insert BooleanOr after the first type
-                    CheckType(DMValueType.Area, DreamPath.Area, ref doOr);
-                    CheckType(DMValueType.Turf, DreamPath.Turf, ref doOr);
-                    CheckType(DMValueType.Obj, DreamPath.Obj, ref doOr);
-                    CheckType(DMValueType.Mob, DreamPath.Mob, ref doOr);
+                    CheckType(DMValueType.Area, DreamPaths.Area, ref doOr);
+                    CheckType(DMValueType.Turf, DreamPaths.Turf, ref doOr);
+                    CheckType(DMValueType.Obj, DreamPaths.Obj, ref doOr);
+                    CheckType(DMValueType.Mob, DreamPaths.Mob, ref doOr);
                     proc.AddLabel(afterTypeCheckExpr);
                     if (doOr) {
                         proc.Not();

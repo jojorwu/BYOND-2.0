@@ -137,7 +137,7 @@ internal sealed class ProcCall(Location location, DMExpression target, ArgumentL
     /// such as native procs that check ahead of time if the number of arguments is correct (like matrix() or sin())
     /// </summary>
     private void DoCompileTimeLinting(DMCompiler compiler, DMObject? procOwner, DMProc? targetProc) {
-        if(procOwner is null || procOwner.Path == DreamPath.Root) {
+        if(procOwner is null || procOwner.Path == DreamPaths.Root) {
             if (targetProc is null)
                 return;
             if(targetProc.Name == "matrix") {

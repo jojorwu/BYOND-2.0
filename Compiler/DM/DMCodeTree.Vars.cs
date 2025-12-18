@@ -178,7 +178,7 @@ internal partial class DMCodeTree {
                 }
 
                 // Vars on /world, /list, and /alist can only be defined in DMStandard
-                if ((dmObject.Path == DreamPath.World || dmObject.Path == DreamPath.List || dmObject.Path == DreamPath.AList) && !inStandard) {
+                if ((dmObject.Path == DreamPaths.World || dmObject.Path == DreamPaths.List || dmObject.Path == DreamPaths.AList) && !inStandard) {
                     compiler.Emit(WarningCode.InvalidVarDefinition, varDef.Location,
                         $"Cannot define a var on type {dmObject.Path}");
                     return true;
@@ -257,7 +257,7 @@ internal partial class DMCodeTree {
             if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, variable.Type, ScopeMode.Normal, out var value))
                 return false;
 
-            if (VarName == "tag" && dmObject.IsSubtypeOf(DreamPath.Datum) && !compiler.Settings.NoStandard)
+            if (VarName == "tag" && dmObject.IsSubtypeOf(DreamPaths.Datum) && !compiler.Settings.NoStandard)
                 compiler.Emit(WarningCode.InvalidOverride, varOverride.Location,
                     "var \"tag\" cannot be set to a value at compile-time");
 

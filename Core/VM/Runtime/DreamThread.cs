@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
 using Shared;

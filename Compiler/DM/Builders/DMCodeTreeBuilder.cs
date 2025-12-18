@@ -11,7 +11,7 @@ internal class DMCodeTreeBuilder(DMCompiler compiler) {
         _leftDMStandard = false;
 
         // Add everything in the AST to the code tree
-        ProcessBlockInner(astFile.BlockInner, DreamPath.Root);
+        ProcessBlockInner(astFile.BlockInner, DreamPaths.Root);
 
         // Now define everything in the code tree
         CodeTree.DefineEverything();

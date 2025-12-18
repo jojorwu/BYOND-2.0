@@ -447,7 +447,7 @@ internal sealed class List : DMExpression {
     private readonly bool _isAssociative;
 
     public override bool PathIsFuzzy => true;
-    public override DMComplexValueType ValType => DreamPath.List;
+    public override DMComplexValueType ValType => DreamPaths.List;
 
     public List(Location location, (DMExpression? Key, DMExpression Value)[] values) : base(location) {
         _values = values;
@@ -518,7 +518,7 @@ internal sealed class List : DMExpression {
 // alist(...)
 internal sealed class AList(Location location, (DMExpression Key, DMExpression Value)[] values) : DMExpression(location) {
     public override bool PathIsFuzzy => true;
-    public override DMComplexValueType ValType => DreamPath.AList;
+    public override DMComplexValueType ValType => DreamPaths.AList;
 
     public override void EmitPushValue(ExpressionContext ctx) {
         foreach (var value in values) {
@@ -573,7 +573,7 @@ internal sealed class DimensionalList(Location location, DMExpression[] sizes) :
 
 // newlist(...)
 internal sealed class NewList(Location location, DMExpression[] parameters) : DMExpression(location) {
-    public override DMComplexValueType ValType => DreamPath.List;
+    public override DMComplexValueType ValType => DreamPaths.List;
 
     public override void EmitPushValue(ExpressionContext ctx) {
         foreach (DMExpression parameter in parameters) {
@@ -667,13 +667,13 @@ internal sealed class CallStatement : DMExpression {
 
 // __TYPE__
 internal sealed class ProcOwnerType(Location location, DMObject owner) : DMExpression(location) {
-    private DreamPath? OwnerPath => owner.Path == DreamPath.Root ? null : owner.Path;
+    private DreamPath? OwnerPath => owner.Path == DreamPaths.Root ? null : owner.Path;
 
     public override DMComplexValueType ValType => (OwnerPath != null) ? OwnerPath.Value : DMValueType.Null;
 
     public override void EmitPushValue(ExpressionContext ctx) {
         // BYOND returns null if this is called in a global proc
-        if (ctx.Type.Path == DreamPath.Root) {
+        if (ctx.Type.Path == DreamPaths.Root) {
             ctx.Proc.PushNull();
         } else {
             ctx.Proc.PushType(ctx.Type.Id);

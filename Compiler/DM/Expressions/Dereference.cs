@@ -120,7 +120,7 @@ internal class Dereference : LValue {
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {
-                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasProc("operator[]")) {
+                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPaths.Datum) && !obj.HasProc("operator[]")) {
                         ctx.Compiler.Emit(WarningCode.InvalidIndexOperation, Location, "Invalid index operation. datum[] index operations are not valid starting in BYOND 515.1641");
                     }
                 }
@@ -176,7 +176,7 @@ internal class Dereference : LValue {
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {
-                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasProc("operator[]=")) {
+                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPaths.Datum) && !obj.HasProc("operator[]=")) {
                         ctx.Compiler.Emit(WarningCode.InvalidIndexOperation, Location, "Invalid index operation. datum[] index operations are not valid starting in BYOND 515.1641");
                     }
                 }

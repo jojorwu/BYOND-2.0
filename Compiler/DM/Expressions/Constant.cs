@@ -283,7 +283,7 @@ internal sealed class ConstantProcReference(Location location, DreamPath path, D
 /// </summary>
 internal sealed class ConstantProcStub(Location location, DMObject onObject, bool isVerb) : Constant(location), IConstantPath {
     private readonly string _str =
-        $"{(onObject.Path == DreamPath.Root ? string.Empty : onObject.Path.PathString)}/{(isVerb ? "verb" : "proc")}";
+        $"{(onObject.Path == DreamPaths.Root ? string.Empty : onObject.Path.PathString)}/{(isVerb ? "verb" : "proc")}";
 
     public override DreamPath? Path => onObject.Path.AddToPath(isVerb ? "verb" : "proc");
 

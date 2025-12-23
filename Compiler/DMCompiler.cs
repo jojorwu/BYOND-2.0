@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DMCompiler.Compiler;
 using DMCompiler.Compiler.DM.AST;
+using System.Diagnostics.CodeAnalysis;
 using DMCompiler.DM.Builders;
 using DMCompiler.Json;
 using DMCompiler.Optimizer;
@@ -28,6 +29,9 @@ public class DMCompiler {
     internal readonly DMObjectTree DMObjectTree;
     internal readonly DMProc GlobalInitProc;
     internal readonly BytecodeOptimizer BytecodeOptimizer;
+    internal readonly List<DMProc> AllProcs = new();
+    internal readonly List<DMVariable> Globals = new();
+    internal readonly Dictionary<string, int> GlobalProcs = new();
 
     private readonly Dictionary<WarningCode, ErrorLevel> _errorConfig;
     private readonly HashSet<string> _resourceDirectories = new();
@@ -42,6 +46,40 @@ public class DMCompiler {
         GlobalInitProc = new(this, -1, DMObjectTree.Root, null);
         BytecodeOptimizer = new BytecodeOptimizer(this);
         _errorConfig = new Dictionary<WarningCode, ErrorLevel>(CompilerEmission.DefaultErrorConfig);
+    }
+
+    internal DMProc CreateDMProc(DMObject dmObject, DMASTProcDefinition? astDefinition) {
+        DMProc dmProc = new DMProc(this, AllProcs.Count, dmObject, astDefinition);
+        AllProcs.Add(dmProc);
+
+        return dmProc;
+    }
+
+    internal bool TryGetGlobalProc(string name, [NotNullWhen(true)] out DMProc? proc) {
+        if (!GlobalProcs.TryGetValue(name, out var id)) {
+            proc = null;
+            return false;
+        }
+
+        proc = AllProcs[id];
+        return true;
+    }
+
+    internal int CreateGlobal(out DMVariable global, DreamPath? type, string name, bool isConst, bool isFinal, DMComplexValueType valType) {
+        int id = Globals.Count;
+
+        global = new DMVariable(type, name, true, isConst, isFinal, false, valType);
+        Globals.Add(global);
+        return id;
+    }
+
+    internal void AddGlobalProc(DMProc proc) {
+        if (GlobalProcs.ContainsKey(proc.Name)) {
+            Emit(WarningCode.DuplicateProcDefinition, proc.Location, $"Global proc {proc.Name} is already defined");
+            return;
+        }
+
+        GlobalProcs[proc.Name] = proc.Id;
     }
 
     public (bool Success, string? OutputPath) Compile(DMCompilerSettings settings) {
@@ -315,7 +353,7 @@ public class DMCompiler {
             }
         }
 
-        var jsonRep = DMObjectTree.CreateJsonRepresentation();
+        var jsonRep = DMObjectTree.CreateJsonRepresentation(AllProcs);
         var compiledDream = new DreamCompiledJson {
             Metadata = new DreamCompiledJsonMetadata { Version = OpcodeVerifier.GetOpcodesHash() },
             Strings = DMObjectTree.StringTable,
@@ -330,9 +368,9 @@ public class DMCompiler {
         if (GlobalInitProc.AnnotatedBytecode.GetLength() > 0)
             compiledDream.GlobalInitProc = GlobalInitProc.GetJsonRepresentation();
 
-        if (DMObjectTree.Globals.Count > 0) {
+        if (Globals.Count > 0) {
             GlobalListJson globalListJson = new GlobalListJson {
-                GlobalCount = DMObjectTree.Globals.Count,
+                GlobalCount = Globals.Count,
                 Names = new(),
                 Globals = new()
             };
@@ -340,10 +378,10 @@ public class DMCompiler {
             globalListJson.Names.EnsureCapacity(globalListJson.GlobalCount);
 
             // Approximate capacity (4/285 in tgstation, ~3%)
-            globalListJson.Globals.EnsureCapacity((int)(DMObjectTree.Globals.Count * 0.03));
+            globalListJson.Globals.EnsureCapacity((int)(Globals.Count * 0.03));
 
-            for (int i = 0; i < DMObjectTree.Globals.Count; i++) {
-                DMVariable global = DMObjectTree.Globals[i];
+            for (int i = 0; i < Globals.Count; i++) {
+                DMVariable global = Globals[i];
                 globalListJson.Names.Add(global.Name);
 
                 if (!global.TryAsJsonRepresentation(this, out var globalJson))
@@ -357,8 +395,8 @@ public class DMCompiler {
             compiledDream.Globals = globalListJson;
         }
 
-        if (DMObjectTree.GlobalProcs.Count > 0) {
-            compiledDream.GlobalProcs = DMObjectTree.GlobalProcs.Values.ToArray();
+        if (GlobalProcs.Count > 0) {
+            compiledDream.GlobalProcs = GlobalProcs.Values.ToArray();
         }
 
         // Successful serialization

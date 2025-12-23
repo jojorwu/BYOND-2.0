@@ -90,7 +90,7 @@ internal sealed class NewPath(DMCompiler compiler, Location location, IConstantP
                 ctx.Proc.PushType(typeReference.Value.Id);
                 break;
             case ConstantProcReference procReference: // "new /proc/new_verb(Destination)" is a thing
-                (argumentsType, stackSize) = arguments.EmitArguments(ctx, ctx.ObjectTree.AllProcs[procReference.Value.Id]);
+                (argumentsType, stackSize) = arguments.EmitArguments(ctx, ctx.Compiler.AllProcs[procReference.Value.Id]);
                 ctx.Proc.PushProc(procReference.Value.Id);
                 break;
             default:
@@ -172,7 +172,7 @@ internal sealed class LocateCoordinates(Location location, DMExpression x, DMExp
 // gradient(Item1, Item2, ..., index)
 internal sealed class Gradient(Location location, ArgumentList arguments) : DMExpression(location) {
     public override void EmitPushValue(ExpressionContext ctx) {
-        ctx.ObjectTree.TryGetGlobalProc("gradient", out var dmProc);
+        ctx.Compiler.TryGetGlobalProc("gradient", out var dmProc);
         var argInfo = arguments.EmitArguments(ctx, dmProc);
 
         ctx.Proc.Gradient(argInfo.Type, argInfo.StackSize);
@@ -185,7 +185,7 @@ internal sealed class Gradient(Location location, ArgumentList arguments) : DMEx
 /// rgb(x, y, z, a, space)
 internal sealed class Rgb(Location location, ArgumentList arguments) : DMExpression(location) {
     public override void EmitPushValue(ExpressionContext ctx) {
-        ctx.ObjectTree.TryGetGlobalProc("rgb", out var dmProc);
+        ctx.Compiler.TryGetGlobalProc("rgb", out var dmProc);
         var argInfo = arguments.EmitArguments(ctx, dmProc);
 
         ctx.Proc.Rgb(argInfo.Type, argInfo.StackSize);

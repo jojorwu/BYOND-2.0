@@ -7,11 +7,6 @@ namespace DMCompiler.DM;
 
 internal class DMObjectTree(DMCompiler compiler) {
     public readonly List<DMObject> AllObjects = new();
-    public readonly List<DMProc> AllProcs = new();
-
-    //TODO: These don't belong in the object tree
-    public readonly List<DMVariable> Globals = new();
-    public readonly Dictionary<string, int> GlobalProcs = new();
     public readonly List<string> StringTable = new();
     public readonly HashSet<string> Resources = new();
 
@@ -33,12 +28,6 @@ internal class DMObjectTree(DMCompiler compiler) {
         return stringId;
     }
 
-    public DMProc CreateDMProc(DMObject dmObject, DMASTProcDefinition? astDefinition) {
-        DMProc dmProc = new DMProc(compiler, _dmProcIdCounter++, dmObject, astDefinition);
-        AllProcs.Add(dmProc);
-
-        return dmProc;
-    }
 
     /// <summary>
     /// Returns the "New()" DMProc for a given object type ID
@@ -49,7 +38,7 @@ internal class DMObjectTree(DMCompiler compiler) {
         var procs = obj.GetProcs("New");
 
         if (procs != null)
-            return AllProcs[procs[0]];
+            return compiler.AllProcs[procs[0]];
         else
             return null;
     }
@@ -98,15 +87,6 @@ internal class DMObjectTree(DMCompiler compiler) {
         return false;
     }
 
-    public bool TryGetGlobalProc(string name, [NotNullWhen(true)] out DMProc? proc) {
-        if (!GlobalProcs.TryGetValue(name, out var id)) {
-            proc = null;
-            return false;
-        }
-
-        proc = AllProcs[id];
-        return true;
-    }
 
     /// <returns>True if the path exists, false if not. Keep in mind though that we may just have not found this object path yet while walking in ObjectBuilder.</returns>
     public bool TryGetTypeId(DreamPath path, out int typeId) {
@@ -148,7 +128,7 @@ internal class DMObjectTree(DMCompiler compiler) {
 
                 if (type.HasProc(searchingProcName)) {
                     return new DreamPath(type.Path.PathString + "/proc/" + searchingProcName);
-                } else if (foundTypeId == Root.Id && GlobalProcs.ContainsKey(searchingProcName)) {
+                } else if (foundTypeId == Root.Id && compiler.GlobalProcs.ContainsKey(searchingProcName)) {
                     return new DreamPath("/proc/" + searchingProcName);
                 }
             } else if (foundType) { // We're searching for a type
@@ -165,32 +145,17 @@ internal class DMObjectTree(DMCompiler compiler) {
         return null;
     }
 
-    public int CreateGlobal(out DMVariable global, DreamPath? type, string name, bool isConst, bool isFinal, DMComplexValueType valType) {
-        int id = Globals.Count;
 
-        global = new DMVariable(type, name, true, isConst, isFinal, false, valType);
-        Globals.Add(global);
-        return id;
-    }
 
-    public void AddGlobalProc(DMProc proc) {
-        if (GlobalProcs.ContainsKey(proc.Name)) {
-            compiler.Emit(WarningCode.DuplicateProcDefinition, proc.Location, $"Global proc {proc.Name} is already defined");
-            return;
-        }
-
-        GlobalProcs[proc.Name] = proc.Id;
-    }
-
-    public (DreamTypeJson[], ProcDefinitionJson[]) CreateJsonRepresentation() {
+    public (DreamTypeJson[], ProcDefinitionJson[]) CreateJsonRepresentation(List<DMProc> allProcs) {
         DreamTypeJson[] types = new DreamTypeJson[AllObjects.Count];
-        ProcDefinitionJson[] procs = new ProcDefinitionJson[AllProcs.Count];
+        ProcDefinitionJson[] procs = new ProcDefinitionJson[allProcs.Count];
 
         foreach (DMObject dmObject in AllObjects) {
             types[dmObject.Id] = dmObject.CreateJsonRepresentation();
         }
 
-        foreach (DMProc dmProc in AllProcs) {
+        foreach (DMProc dmProc in allProcs) {
             procs[dmProc.Id] = dmProc.GetJsonRepresentation();
         }
 

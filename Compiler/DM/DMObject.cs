@@ -97,12 +97,12 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public DMComplexValueType? GetProcReturnTypes(string name) {
-        if (this == compiler.DMObjectTree.Root && compiler.DMObjectTree.TryGetGlobalProc(name, out var globalProc))
+        if (this == compiler.DMObjectTree.Root && compiler.TryGetGlobalProc(name, out var globalProc))
             return globalProc.RawReturnTypes;
         if (GetProcs(name) is not { } procs)
             return Parent?.GetProcReturnTypes(name);
 
-        var proc = compiler.DMObjectTree.AllProcs[procs[0]];
+        var proc = compiler.AllProcs[procs[0]];
         if ((proc.Attributes & ProcAttributes.IsOverride) != 0)
             return Parent?.GetProcReturnTypes(name) ?? DMValueType.Anything;
 
@@ -155,14 +155,14 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     public DMComplexValueType GetReturnType(string name) {
         var procId = GetProcs(name)?[^1];
 
-        return procId is null ? DMValueType.Anything : compiler.DMObjectTree.AllProcs[procId.Value].ReturnTypes;
+        return procId is null ? DMValueType.Anything : compiler.AllProcs[procId.Value].ReturnTypes;
     }
 
     public void CreateInitializationProc() {
         if (InitializationProcAssignments.Count <= 0 || InitializationProc != null)
             return;
 
-        var init = compiler.DMObjectTree.CreateDMProc(this, null);
+        var init = compiler.CreateDMProc(this, null);
         InitializationProc = init.Id;
         init.Call(DMReference.SuperProc, DMCallArgumentsType.None, 0);
 

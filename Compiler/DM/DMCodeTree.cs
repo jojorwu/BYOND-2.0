@@ -59,8 +59,9 @@ internal partial class DMCodeTree {
                 codeTree._parentTypes.Remove(type);
             }
 
+            // TODO: This is a hack.
             if (codeTree._newProcs.Remove(type, out var newProcNode))
-                newProcNode.TryDefineProc(compiler);
+                newProcNode.TryDefineProc(compiler, false);
 
             return true;
         }
@@ -95,11 +96,11 @@ internal partial class DMCodeTree {
         if (_dmStandardRoot == null)
             FinishDMStandard();
 
-        void Pass(ObjectNode root) {
+        void Pass(ObjectNode root, bool scopeOperatorEnabled) {
             foreach (var node in TraverseNodes(root)) {
                 var successful = (node is ObjectNode objectNode && objectNode.TryDefineType(_compiler)) ||
-                                 (node is ProcNode procNode && procNode.TryDefineProc(_compiler)) ||
-                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass));
+                                 (node is ProcNode procNode && procNode.TryDefineProc(_compiler, scopeOperatorEnabled)) ||
+                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass, scopeOperatorEnabled));
 
                 if (successful)
                     _waitingNodes.Remove(node);
@@ -107,23 +108,21 @@ internal partial class DMCodeTree {
         }
 
         // Pass 0
-        DMExpressionBuilder.ScopeOperatorEnabled = false;
-        Pass(_root);
-        Pass(_dmStandardRoot!);
+        Pass(_root, false);
+        Pass(_dmStandardRoot!, false);
 
         int lastCount;
         do {
             _currentPass++;
             lastCount = _waitingNodes.Count;
 
-            Pass(_root);
-            Pass(_dmStandardRoot!);
+            Pass(_root, false);
+            Pass(_dmStandardRoot!, false);
         } while (_waitingNodes.Count < lastCount && _waitingNodes.Count > 0);
 
         // Scope operator pass
-        DMExpressionBuilder.ScopeOperatorEnabled = true;
-        Pass(_root);
-        Pass(_dmStandardRoot!);
+        Pass(_root, true);
+        Pass(_dmStandardRoot!, true);
 
         // If there exists vars that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {

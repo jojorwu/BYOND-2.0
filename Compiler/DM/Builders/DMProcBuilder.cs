@@ -6,8 +6,9 @@ using DMCompiler.DM.Expressions;
 
 namespace DMCompiler.DM.Builders;
 
-internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMProc proc) {
-    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc));
+internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMProc proc, bool scopeOperatorEnabled) {
+    private readonly bool _scopeOperatorEnabled = scopeOperatorEnabled;
+    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc), scopeOperatorEnabled);
 
     private ExpressionContext ExprContext => new(compiler, dmObject, proc);
 

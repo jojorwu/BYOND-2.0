@@ -16,17 +16,29 @@ public abstract class DMASTProcStatement(Location location) : DMASTNode(location
 
 /// Lone semicolon, analogous to null statements in C.
 /// Main purpose is to suppress EmptyBlock emissions.
-public sealed class DMASTNullProcStatement(Location location) : DMASTProcStatement(location);
+public sealed class DMASTNullProcStatement(Location location) : DMASTProcStatement(location) {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitNullProcStatement(this);
+    }
+}
 
 /// <summary>
 /// Used when there was an error parsing a statement
 /// </summary>
 /// <remarks>Emit an error code before creating!</remarks>
-public sealed class DMASTInvalidProcStatement(Location location) : DMASTProcStatement(location);
+public sealed class DMASTInvalidProcStatement(Location location) : DMASTProcStatement(location) {
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitInvalidProcStatement(this);
+    }
+}
 
 public sealed class DMASTProcStatementExpression(Location location, DMASTExpression expression)
     : DMASTProcStatement(location) {
     public DMASTExpression Expression = expression;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementExpression(this);
+    }
 }
 
 public sealed class DMASTProcStatementVarDeclaration(Location location, DMASTPath path, DMASTExpression? value, DMComplexValueType valType)
@@ -42,6 +54,10 @@ public sealed class DMASTProcStatementVarDeclaration(Location location, DMASTPat
     public bool IsConst => _varDecl.IsConst;
 
     private readonly ProcVarDeclInfo _varDecl = new(path.Path);
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitVarDeclStatement(this);
+    }
 }
 
 /// <summary>
@@ -52,33 +68,63 @@ public sealed class DMASTProcStatementVarDeclaration(Location location, DMASTPat
 public sealed class DMASTAggregate<T>(Location location, T[] statements) : DMASTProcStatement(location)
     where T : DMASTProcStatement { // Gotta be honest? I like this "where" syntax better than C++20 concepts
     public T[] Statements { get; } = statements;
+
+    public override void Visit(DMASTVisitor visitor) {
+        foreach (var statement in Statements) {
+            visitor.Visit(statement);
+        }
+    }
 }
 
 public sealed class DMASTProcStatementReturn(Location location, DMASTExpression? value) : DMASTProcStatement(location) {
     public DMASTExpression? Value = value;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementReturn(this);
+    }
 }
 
 public sealed class DMASTProcStatementBreak(Location location, DMASTIdentifier? label = null)
     : DMASTProcStatement(location) {
     public readonly DMASTIdentifier? Label = label;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementBreak(this);
+    }
 }
 
 public sealed class DMASTProcStatementContinue(Location location, DMASTIdentifier? label = null)
     : DMASTProcStatement(location) {
     public readonly DMASTIdentifier? Label = label;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementContinue(this);
+    }
 }
 
 public sealed class DMASTProcStatementGoto(Location location, DMASTIdentifier label) : DMASTProcStatement(location) {
     public readonly DMASTIdentifier Label = label;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementGoto(this);
+    }
 }
 
 public sealed class DMASTProcStatementLabel(Location location, string name, DMASTProcBlockInner? body) : DMASTProcStatement(location) {
     public readonly string Name = name;
     public readonly DMASTProcBlockInner? Body = body;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementLabel(this);
+    }
 }
 
 public sealed class DMASTProcStatementDel(Location location, DMASTExpression value) : DMASTProcStatement(location) {
     public DMASTExpression Value = value;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementDel(this);
+    }
 }
 
 public sealed class DMASTProcStatementSet(
@@ -89,12 +135,20 @@ public sealed class DMASTProcStatementSet(
     public readonly string Attribute = attribute;
     public readonly DMASTExpression Value = value;
     public readonly bool WasInKeyword = wasInKeyword; // Marks whether this was a "set x in y" expression, or a "set x = y" one
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementSet(this);
+    }
 }
 
 public sealed class DMASTProcStatementSpawn(Location location, DMASTExpression delay, DMASTProcBlockInner body)
     : DMASTProcStatement(location) {
     public DMASTExpression Delay = delay;
     public readonly DMASTProcBlockInner Body = body;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementSpawn(this);
+    }
 }
 
 public sealed class DMASTProcStatementIf(
@@ -105,6 +159,10 @@ public sealed class DMASTProcStatementIf(
     public DMASTExpression Condition = condition;
     public readonly DMASTProcBlockInner Body = body;
     public readonly DMASTProcBlockInner? ElseBody = elseBody;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementIf(this);
+    }
 }
 
 public sealed class DMASTProcStatementFor(
@@ -117,10 +175,18 @@ public sealed class DMASTProcStatementFor(
     public DMASTExpression? Expression1 = expr1, Expression2 = expr2, Expression3 = expr3;
     public DMComplexValueType? DMTypes = dmTypes;
     public readonly DMASTProcBlockInner Body = body;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementFor(this);
+    }
 }
 
 public sealed class DMASTProcStatementInfLoop(Location location, DMASTProcBlockInner body) : DMASTProcStatement(location) {
     public readonly DMASTProcBlockInner Body = body;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementInfLoop(this);
+    }
 }
 
 public sealed class DMASTProcStatementWhile(
@@ -129,6 +195,10 @@ public sealed class DMASTProcStatementWhile(
     DMASTProcBlockInner body) : DMASTProcStatement(location) {
     public DMASTExpression Conditional = conditional;
     public readonly DMASTProcBlockInner Body = body;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementWhile(this);
+    }
 }
 
 public sealed class DMASTProcStatementDoWhile(
@@ -137,6 +207,10 @@ public sealed class DMASTProcStatementDoWhile(
     DMASTProcBlockInner body) : DMASTProcStatement(location) {
     public DMASTExpression Conditional = conditional;
     public readonly DMASTProcBlockInner Body = body;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementDoWhile(this);
+    }
 }
 
 public sealed class DMASTProcStatementSwitch(
@@ -159,6 +233,10 @@ public sealed class DMASTProcStatementSwitch(
 
     public DMASTExpression Value = value;
     public readonly SwitchCase[] Cases = cases;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementSwitch(this);
+    }
 }
 
 public sealed class DMASTProcStatementBrowse(
@@ -169,6 +247,10 @@ public sealed class DMASTProcStatementBrowse(
     public DMASTExpression Receiver = receiver;
     public DMASTExpression Body = body;
     public DMASTExpression Options = options;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementBrowse(this);
+    }
 }
 
 public sealed class DMASTProcStatementBrowseResource(
@@ -179,6 +261,10 @@ public sealed class DMASTProcStatementBrowseResource(
     public DMASTExpression Receiver = receiver;
     public DMASTExpression File = file;
     public DMASTExpression Filename = filename;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementBrowseResource(this);
+    }
 }
 
 public sealed class DMASTProcStatementOutputControl(
@@ -189,6 +275,10 @@ public sealed class DMASTProcStatementOutputControl(
     public DMASTExpression Receiver = receiver;
     public DMASTExpression Message = message;
     public DMASTExpression Control = control;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementOutputControl(this);
+    }
 }
 
 public sealed class DMASTProcStatementLink(
@@ -197,6 +287,10 @@ public sealed class DMASTProcStatementLink(
     DMASTExpression url) : DMASTProcStatement(location) {
     public readonly DMASTExpression Receiver = receiver;
     public readonly DMASTExpression Url = url;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementLink(this);
+    }
 }
 
 public sealed class DMASTProcStatementFtp(
@@ -207,16 +301,28 @@ public sealed class DMASTProcStatementFtp(
     public readonly DMASTExpression Receiver = receiver;
     public readonly DMASTExpression File = file;
     public readonly DMASTExpression Name = name;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementFtp(this);
+    }
 }
 
 public sealed class DMASTProcStatementOutput(Location location, DMASTExpression a, DMASTExpression b)
     : DMASTProcStatement(location) {
     public readonly DMASTExpression A = a, B = b;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementOutput(this);
+    }
 }
 
 public sealed class DMASTProcStatementInput(Location location, DMASTExpression a, DMASTExpression b)
     : DMASTProcStatement(location) {
     public readonly DMASTExpression A = a, B = b;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementInput(this);
+    }
 }
 
 public sealed class DMASTProcStatementTryCatch(
@@ -227,8 +333,16 @@ public sealed class DMASTProcStatementTryCatch(
     public readonly DMASTProcBlockInner TryBody = tryBody;
     public readonly DMASTProcBlockInner? CatchBody = catchBody;
     public readonly DMASTProcStatement? CatchParameter = catchParameter;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementTryCatch(this);
+    }
 }
 
 public sealed class DMASTProcStatementThrow(Location location, DMASTExpression value) : DMASTProcStatement(location) {
     public DMASTExpression Value = value;
+
+    public override void Visit(DMASTVisitor visitor) {
+        visitor.VisitProcStatementThrow(this);
+    }
 }

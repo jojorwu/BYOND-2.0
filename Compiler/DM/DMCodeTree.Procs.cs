@@ -65,58 +65,15 @@ internal partial class DMCodeTree {
                 dmObject.AddProc(proc, forceFirst: procDef.Location.InDMStandard);
             }
 
-            foreach (var varDecl in GetVarDeclarations()) {
-                if (!varDecl.IsGlobal)
-                    continue;
-
+            var staticVariableVisitor = new StaticVariableVisitor();
+            procDef.Body?.Visit(staticVariableVisitor);
+            foreach (var varDecl in staticVariableVisitor.VarDeclarations) {
                 var procGlobalNode = new ProcGlobalVarNode(owner, proc, varDecl);
                 Children.Add(procGlobalNode);
                 codeTree._waitingNodes.Add(procGlobalNode);
             }
 
             return true;
-        }
-
-        // TODO: Remove this entirely
-        private IEnumerable<DMASTProcStatementVarDeclaration> GetVarDeclarations() {
-            var statements = new Queue<DMASTProcStatement>(procDef.Body?.Statements ?? []);
-
-            static void AddBody(Queue<DMASTProcStatement> queue, DMASTProcBlockInner? block) {
-                if (block is null)
-                    return;
-
-                foreach (var stmt in block.Statements)
-                    queue.Enqueue(stmt);
-            }
-
-            while (statements.TryDequeue(out var stmt)) {
-                switch (stmt) {
-                    // TODO multiple var definitions.
-                    case DMASTProcStatementVarDeclaration ps: yield return ps; break;
-
-                    case DMASTProcStatementSpawn ps: AddBody(statements, ps.Body); break;
-                    case DMASTProcStatementFor ps: AddBody(statements, ps.Body); break;
-                    case DMASTProcStatementWhile ps: AddBody(statements, ps.Body); break;
-                    case DMASTProcStatementDoWhile ps: AddBody(statements, ps.Body); break;
-                    case DMASTProcStatementInfLoop ps: AddBody(statements, ps.Body); break;
-                    case DMASTProcStatementIf ps:
-                        AddBody(statements, ps.Body);
-                        AddBody(statements, ps.ElseBody);
-                        break;
-                    case DMASTProcStatementTryCatch ps:
-                        AddBody(statements, ps.TryBody);
-                        AddBody(statements, ps.CatchBody);
-                        break;
-                    // TODO Good luck if you declare a static var inside a switch
-                    case DMASTProcStatementSwitch ps: {
-                        foreach (var swCase in ps.Cases) {
-                            AddBody(statements, swCase.Body);
-                        }
-
-                        break;
-                    }
-                }
-            }
         }
 
         public override string ToString() {

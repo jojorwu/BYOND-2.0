@@ -160,7 +160,7 @@ internal sealed class DMProc {
         _compiler.VerbosePrint($"Compiling proc {_dmObject.Path.ToString()}.{Name}()");
 
         if (_astDefinition is not null) { // It's null for initialization procs
-            new DMProcBuilder(_compiler, _dmObject, this, false).ProcessProcDefinition(_astDefinition);
+            new DMProcBuilder(_compiler, _dmObject, this).ProcessProcDefinition(_astDefinition);
         }
 
         if (IsVerb)
@@ -348,7 +348,7 @@ internal sealed class DMProc {
             return;
         }
 
-        var exprBuilder = new DMExpressionBuilder(new ExpressionContext(_compiler, _dmObject, this), false);
+        var exprBuilder = new DMExpressionBuilder(new ExpressionContext(_compiler, _dmObject, this));
         if (!exprBuilder.TryConstant(statementSet.Value, out var constant)) { // If this set statement's rhs is not constant
             bool didError = _compiler.Emit(WarningCode.InvalidSetStatement, statementSet.Location, $"'{attribute}' attribute should be a constant");
             if (didError) // if this is an error
@@ -922,6 +922,10 @@ internal sealed class DMProc {
 
     public void Throw() {
         WriteOpcode(DreamProcOpcode.Throw);
+    }
+
+    public void Sleep() {
+        WriteOpcode(DreamProcOpcode.Sleep);
     }
 
     public void Assign(DMReference reference) {

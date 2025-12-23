@@ -124,8 +124,19 @@ namespace Server
 
                 if (shouldProcess)
                 {
+                    if (thread.SleepUntil.HasValue)
+                    {
+                        if (DateTime.Now < thread.SleepUntil.Value)
+                        {
+                            nextThreads.Add(thread);
+                            continue;
+                        }
+
+                        thread.SleepUntil = null;
+                    }
+
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
-                    if (state == DreamThreadState.Running)
+                    if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
                     {
                         nextThreads.Add(thread);
                     }

@@ -12,7 +12,7 @@ internal partial class DMCodeTree {
 
         private bool _defined;
 
-        public bool TryDefineProc(DMCompiler compiler, bool scopeOperatorEnabled) {
+        public bool TryDefineProc(DMCompiler compiler) {
             if (_defined)
                 return true;
             if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))

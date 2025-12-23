@@ -6,9 +6,8 @@ using DMCompiler.DM.Expressions;
 
 namespace DMCompiler.DM.Builders;
 
-internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMProc proc, bool scopeOperatorEnabled) {
-    private readonly bool _scopeOperatorEnabled = scopeOperatorEnabled;
-    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc), scopeOperatorEnabled);
+internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMProc proc) {
+    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc));
 
     private ExpressionContext ExprContext => new(compiler, dmObject, proc);
 
@@ -93,6 +92,7 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
             case DMASTProcStatementVarDeclaration varDeclaration: ProcessStatementVarDeclaration(varDeclaration); break;
             case DMASTProcStatementTryCatch tryCatch: ProcessStatementTryCatch(tryCatch); break;
             case DMASTProcStatementThrow dmThrow: ProcessStatementThrow(dmThrow); break;
+            case DMASTSleep sleep: ProcessStatementSleep(sleep); break;
             //NOTE: Is there a more generic way of doing this, where Aggregate doesn't need every possible type state specified here?
             //      please write such generic thing if more than three aggregates show up in this switch.
             case DMASTAggregate<DMASTProcStatementVarDeclaration> gregVar:
@@ -906,5 +906,10 @@ internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMPr
     private void ProcessStatementThrow(DMASTProcStatementThrow statement) {
         _exprBuilder.Emit(statement.Value);
         proc.Throw();
+    }
+
+    private void ProcessStatementSleep(DMASTSleep sleep) {
+        _exprBuilder.Emit(sleep.Delay);
+        proc.Sleep();
     }
 }

@@ -59,9 +59,8 @@ internal partial class DMCodeTree {
                 codeTree._parentTypes.Remove(type);
             }
 
-            // TODO: This is a hack.
             if (codeTree._newProcs.Remove(type, out var newProcNode))
-                newProcNode.TryDefineProc(compiler, false);
+                newProcNode.TryDefineProc(compiler);
 
             return true;
         }
@@ -96,11 +95,11 @@ internal partial class DMCodeTree {
         if (_dmStandardRoot == null)
             FinishDMStandard();
 
-        void Pass(ObjectNode root, bool scopeOperatorEnabled) {
+        void Pass(ObjectNode root) {
             foreach (var node in TraverseNodes(root)) {
                 var successful = (node is ObjectNode objectNode && objectNode.TryDefineType(_compiler)) ||
-                                 (node is ProcNode procNode && procNode.TryDefineProc(_compiler, scopeOperatorEnabled)) ||
-                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass, scopeOperatorEnabled));
+                                 (node is ProcNode procNode && procNode.TryDefineProc(_compiler)) ||
+                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass));
 
                 if (successful)
                     _waitingNodes.Remove(node);
@@ -108,21 +107,23 @@ internal partial class DMCodeTree {
         }
 
         // Pass 0
-        Pass(_root, false);
-        Pass(_dmStandardRoot!, false);
+        DMExpressionBuilder.ScopeOperatorEnabled = false;
+        Pass(_root);
+        Pass(_dmStandardRoot!);
 
         int lastCount;
         do {
             _currentPass++;
             lastCount = _waitingNodes.Count;
 
-            Pass(_root, false);
-            Pass(_dmStandardRoot!, false);
+            Pass(_root);
+            Pass(_dmStandardRoot!);
         } while (_waitingNodes.Count < lastCount && _waitingNodes.Count > 0);
 
         // Scope operator pass
-        Pass(_root, true);
-        Pass(_dmStandardRoot!, true);
+        DMExpressionBuilder.ScopeOperatorEnabled = true;
+        Pass(_root);
+        Pass(_dmStandardRoot!);
 
         // If there exists vars that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {

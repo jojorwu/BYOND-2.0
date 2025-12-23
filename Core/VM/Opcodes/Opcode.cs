@@ -310,5 +310,6 @@ public enum Opcode : byte {
     SetArgument = 0x9D,
     PushLocal = 0x9E,
     SetLocal = 0x9F,
+    Sleep = 0xA0,
 }
 // ReSharper restore MissingBlankLines

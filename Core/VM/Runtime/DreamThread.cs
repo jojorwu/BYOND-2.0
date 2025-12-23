@@ -15,6 +15,7 @@ namespace Core.VM.Runtime
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
         public IGameObject? AssociatedObject { get; }
+        public DateTime? SleepUntil { get; set; }
 
         private readonly DreamVM _vm;
         private readonly int _maxInstructions;
@@ -78,6 +79,8 @@ namespace Core.VM.Runtime
 
         public DreamThreadState Run(int instructionBudget)
         {
+            if (State == DreamThreadState.Sleeping)
+                State = DreamThreadState.Running;
             if (State != DreamThreadState.Running)
                 return State;
 
@@ -158,6 +161,7 @@ namespace Core.VM.Runtime
                     case Opcode.SetArgument: Opcode_SetArgument(proc, frame, ref pc); break;
                     case Opcode.PushLocal: Opcode_PushLocal(proc, frame, ref pc); break;
                     case Opcode.SetLocal: Opcode_SetLocal(proc, frame, ref pc); break;
+                    case Opcode.Sleep: Opcode_Sleep(); break;
                     default:
                         State = DreamThreadState.Error;
                         throw new Exception($"Unknown opcode: {opcode}");

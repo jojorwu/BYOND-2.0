@@ -15,7 +15,7 @@ internal sealed class Proc(Location location, string identifier) : DMExpression(
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
         if (ctx.Type.HasProc(identifier)) {
             return DMReference.CreateSrcProc(identifier);
-        } else if (ctx.Compiler.TryGetGlobalProc(identifier, out var globalProc)) {
+        } else if (ctx.ObjectTree.TryGetGlobalProc(identifier, out var globalProc)) {
             return DMReference.CreateGlobalProc(globalProc.Id);
         }
 
@@ -26,7 +26,7 @@ internal sealed class Proc(Location location, string identifier) : DMExpression(
 
     public DMProc? GetProc(DMCompiler compiler, DMObject dmObject) {
         var procId = dmObject.GetProcs(identifier)?[^1];
-        return procId is null ? null : compiler.AllProcs[procId.Value];
+        return procId is null ? null : compiler.DMObjectTree.AllProcs[procId.Value];
     }
 
     public DMComplexValueType GetReturnType(DMObject dmObject) {

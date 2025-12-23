@@ -704,10 +704,14 @@ namespace DMCompiler.Compiler.DM {
                     case DMASTIdentifier identifier:
                         // This could be a sleep without parentheses
                         if (!Check(TokenType.DM_Colon) && !leadingColon && identifier.Identifier == "sleep") {
+                            var procIdentifier = new DMASTCallableProcIdentifier(expression.Location, "sleep");
                             // The argument is optional
                             var sleepTime = Expression() ?? new DMASTConstantNull(Location.Internal);
 
-                            return new DMASTSleep(expression.Location, sleepTime);
+                            // TODO: Make sleep an opcode
+                            expression = new DMASTProcCall(expression.Location, procIdentifier,
+                                new[] { new DMASTCallParameter(sleepTime.Location, sleepTime) });
+                            break;
                         }
 
                         // But it was a label

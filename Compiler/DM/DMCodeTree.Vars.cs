@@ -128,7 +128,7 @@ internal partial class DMCodeTree {
             if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, varDef.Type, scope, out var value))
                 return false;
 
-            int globalId = compiler.CreateGlobal(out DMVariable global, varDef.Type, VarName, varDef.IsConst,
+            int globalId = compiler.DMObjectTree.CreateGlobal(out DMVariable global, varDef.Type, VarName, varDef.IsConst,
                 varDef.IsFinal, varDef.ValType);
 
             dmObject.AddGlobalVariable(global, globalId);
@@ -291,7 +291,7 @@ internal partial class DMCodeTree {
                     return false;
             }
 
-            int globalId = compiler.CreateGlobal(out DMVariable global, varDecl.Type, varDecl.Name, varDecl.IsConst,
+            int globalId = compiler.DMObjectTree.CreateGlobal(out DMVariable global, varDecl.Type, varDecl.Name, varDecl.IsConst,
                 false, varDecl.ValType);
 
             global.Value = new Null(Location.Internal);

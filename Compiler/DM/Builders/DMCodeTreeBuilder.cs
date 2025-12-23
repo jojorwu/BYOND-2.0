@@ -23,7 +23,7 @@ internal class DMCodeTreeBuilder(DMCompiler compiler) {
             dmObject.CreateInitializationProc();
 
         // Compile every proc
-        foreach (DMProc proc in compiler.AllProcs)
+        foreach (DMProc proc in compiler.DMObjectTree.AllProcs)
             proc.Compile();
     }
 

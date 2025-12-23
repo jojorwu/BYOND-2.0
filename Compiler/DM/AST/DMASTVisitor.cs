@@ -1,6 +1,6 @@
 namespace DMCompiler.Compiler.DM.AST;
 
-public abstract partial class DMASTVisitor {
+public abstract class DMASTVisitor {
     public void Visit(DMASTNode? node) {
         node?.Visit(this);
     }
@@ -378,10 +378,6 @@ public abstract partial class DMASTVisitor {
 
     public virtual void VisitUnary(DMASTUnary unary) {
         Visit(unary.Value);
-    }
-
-    public virtual void VisitSleep(DMASTSleep sleep) {
-        Visit(sleep.Delay);
     }
     #endregion
 }

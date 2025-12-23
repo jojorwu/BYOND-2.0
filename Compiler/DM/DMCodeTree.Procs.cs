@@ -31,12 +31,12 @@ internal partial class DMCodeTree {
                 return true; // TODO: Maybe fallthrough since this error is a little pedantic?
             }
 
-            DMProc proc = compiler.CreateDMProc(dmObject, procDef);
+            DMProc proc = compiler.DMObjectTree.CreateDMProc(dmObject, procDef);
 
             if (procDef.IsOverride) {
                 var procs = dmObject.GetProcs(procDef.Name);
                 if (procs != null) {
-                      var parent = compiler.AllProcs[procs[0]];
+                      var parent = compiler.DMObjectTree.AllProcs[procs[0]];
                       proc.IsVerb = parent.IsVerb;
                       if (proc.IsVerb) {
                           proc.VerbName = parent.VerbName;
@@ -58,7 +58,7 @@ internal partial class DMCodeTree {
                     //Continue processing the proc anyhoo, just don't add it.
                 } else {
                     compiler.VerbosePrint($"Adding global proc {procDef.Name}() on pass {codeTree._currentPass}");
-                    compiler.AddGlobalProc(proc);
+                    compiler.DMObjectTree.AddGlobalProc(proc);
                 }
             } else {
                 compiler.VerbosePrint($"Adding proc {procDef.Name}() to {dmObject.Path} on pass {codeTree._currentPass}");

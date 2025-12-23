@@ -67,7 +67,7 @@ namespace DMCompiler
                     })
             };
 
-            var (types, procs) = compiler.DMObjectTree.CreateJsonRepresentation(compiler.AllProcs);
+            var (types, procs) = compiler.DMObjectTree.CreateJsonRepresentation();
 
             var publicTypes = types.Select(t => new PublicDreamTypeJson {
                 Path = t.Path,
@@ -103,9 +103,9 @@ namespace DMCompiler
                 Types = publicTypes,
                 Procs = publicProcs,
                 Globals = new GlobalListJson {
-                    GlobalCount = compiler.Globals.Count,
-                    Names = compiler.Globals.Select(g => g.Name).ToList(),
-                    Globals = compiler.Globals.Select((g, i) => {
+                    GlobalCount = compiler.DMObjectTree.Globals.Count,
+                    Names = compiler.DMObjectTree.Globals.Select(g => g.Name).ToList(),
+                    Globals = compiler.DMObjectTree.Globals.Select((g, i) => {
                         g.TryAsJsonRepresentation(compiler, out var json);
                         return new { i, json };
                     }).Where(x => x.json != null).ToDictionary(x => x.i, x => x.json!)

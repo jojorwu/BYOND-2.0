@@ -30,7 +30,6 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
     private DMCompiler Compiler => ctx.Compiler;
     private DMObjectTree ObjectTree => ctx.ObjectTree;
 
-    // TODO: proc and dmObject can be null, address nullability contract
     public DMExpression Create(DMASTExpression expression, DreamPath? inferredPath = null) {
         var expr = CreateIgnoreUnknownReference(expression, inferredPath);
         if (expr is UnknownReference unknownRef)

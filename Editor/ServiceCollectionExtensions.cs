@@ -35,6 +35,8 @@ namespace Editor
             services.AddSingleton<SpriteRenderer>();
             services.AddSingleton<IProjectService, ProjectService>();
             services.AddSingleton<IUIService, UIService>();
+            services.AddSingleton<IRunService, RunService>();
+            services.AddSingleton<Launcher.IProcessService, Launcher.ProcessService>();
 
             return services;
         }

@@ -286,7 +286,7 @@ internal partial class DMCodeTree {
             var expression = varDecl.Value;
             if (expression != null) {
                 var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
-                var exprContext = new ExpressionContext(compiler, dmObject, proc);
+            var exprContext = new ExpressionContext(compiler, dmObject, proc ?? compiler.GlobalInitProc);
                 if (!TryBuildValue(exprContext, expression, varDecl.Type, scope, out value))
                     return false;
             }
@@ -295,12 +295,15 @@ internal partial class DMCodeTree {
                 false, varDecl.ValType);
 
             global.Value = new Null(Location.Internal);
+        if (proc is not null)
             proc.AddGlobalVariable(global, globalId);
+        else
+            dmObject.AddGlobalVariable(global, globalId);
             _defined = true;
 
             if (value != null) {
                 // Initialize its value in the global init proc
-                compiler.VerbosePrint($"Adding {dmObject.Path}/proc/{proc.Name}/var/static/{global.Name} to global init on pass {pass}");
+                compiler.VerbosePrint($"Adding {dmObject.Path}/proc/{(proc is null ? "" : proc.Name)}/var/static/{global.Name} to global init on pass {pass}");
                 compiler.GlobalInitProc.DebugSource(value.Location);
                 value.EmitPushValue(new(compiler, dmObject, compiler.GlobalInitProc));
                 compiler.GlobalInitProc.Assign(DMReference.CreateGlobal(globalId));

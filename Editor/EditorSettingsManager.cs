@@ -21,8 +21,16 @@ namespace Editor
         {
             if (File.Exists(SettingsFilePath))
             {
-                var json = File.ReadAllText(SettingsFilePath);
-                Settings = JsonSerializer.Deserialize<EditorSettings>(json);
+                try
+                {
+                    var json = File.ReadAllText(SettingsFilePath);
+                    Settings = JsonSerializer.Deserialize<EditorSettings>(json) ?? new EditorSettings();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Failed to load editor settings: {e.Message}");
+                    Settings = new EditorSettings();
+                }
             }
             else
             {

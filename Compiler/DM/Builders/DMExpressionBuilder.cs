@@ -30,7 +30,6 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
     private DMCompiler Compiler => ctx.Compiler;
     private DMObjectTree ObjectTree => ctx.ObjectTree;
 
-    // TODO: proc and dmObject can be null, address nullability contract
     public DMExpression Create(DMASTExpression expression, DreamPath? inferredPath = null) {
         var expr = CreateIgnoreUnknownReference(expression, inferredPath);
         if (expr is UnknownReference unknownRef)
@@ -503,7 +502,8 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
     }
 
     private DMExpression BuildPath(Location location, DreamPath path) {
-        if (!path.PathString.StartsWith("/")) {
+        // An upward search with no left-hand side
+        if (path.Type == DreamPath.PathType.UpwardSearch) {
             DreamPath? foundPath = Compiler.DMCodeTree.UpwardSearch(ctx.Type, path);
             if (foundPath == null)
                 return UnknownReference(location, $"Could not find path {path}");

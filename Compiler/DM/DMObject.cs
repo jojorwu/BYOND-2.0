@@ -44,23 +44,31 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     /// <see langword="TODO:"/> Make this (and other things) match the nomenclature of <see cref="HasLocalVariable"/>
     /// </remarks>
     public DMVariable? GetVariable(string name) {
-        if (Variables.TryGetValue(name, out var variable))
-            return variable;
-        if (VariableOverrides.TryGetValue(name, out variable))
-             return variable;
+        return GetVariable(name, new());
+    }
 
-        return Parent?.GetVariable(name);
+    private DMVariable? GetVariable(string name, HashSet<DMObject> visited) {
+        if (visited.Contains(this)) return null; // Cycle detected
+        if (Variables.TryGetValue(name, out var variable)) return variable;
+        if (VariableOverrides.TryGetValue(name, out variable)) return variable;
+
+        visited.Add(this);
+        return Parent?.GetVariable(name, visited);
     }
 
     /// <summary>
     /// Does a recursive search through self and parents to check if we already contain this variable, as a NON-STATIC VALUE!
     /// </summary>
     public bool HasLocalVariable(string name) {
-        if (Variables.ContainsKey(name))
-            return true;
-        if (Parent == null)
-            return false;
-        return Parent.HasLocalVariable(name);
+        return HasLocalVariable(name, new());
+    }
+
+    private bool HasLocalVariable(string name, HashSet<DMObject> visited) {
+        if (visited.Contains(this)) return false; // Cycle detected
+        if (Variables.ContainsKey(name)) return true;
+
+        visited.Add(this);
+        return Parent?.HasLocalVariable(name, visited) ?? false;
     }
 
     /// <summary> Similar to <see cref="HasLocalVariable"/>, just checks our globals/statics instead. </summary>
@@ -80,9 +88,15 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public bool HasProc(string name) {
+        return HasProc(name, new());
+    }
+
+    private bool HasProc(string name, HashSet<DMObject> visited) {
+        if (visited.Contains(this)) return false; // Cycle detected
         if (Procs.ContainsKey(name)) return true;
 
-        return Parent?.HasProc(name) ?? false;
+        visited.Add(this);
+        return Parent?.HasProc(name, visited) ?? false;
     }
 
     /// <summary>
@@ -93,7 +107,15 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public List<int>? GetProcs(string name) {
-        return Procs.GetValueOrDefault(name) ?? Parent?.GetProcs(name);
+        return GetProcs(name, new());
+    }
+
+    private List<int>? GetProcs(string name, HashSet<DMObject> visited) {
+        if (visited.Contains(this)) return null; // Cycle detected
+        if (Procs.TryGetValue(name, out var procs)) return procs;
+
+        visited.Add(this);
+        return Parent?.GetProcs(name, visited);
     }
 
     public DMComplexValueType? GetProcReturnTypes(string name) {
@@ -145,11 +167,15 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     /// </summary>
     /// <returns>Either the ID or null if no such global exists.</returns>
     public int? GetGlobalVariableId(string name) {
-        if (GlobalVariables.TryGetValue(name, out int id)) {
-            return id;
-        }
+        return GetGlobalVariableId(name, new());
+    }
 
-        return Parent?.GetGlobalVariableId(name);
+    private int? GetGlobalVariableId(string name, HashSet<DMObject> visited) {
+        if (visited.Contains(this)) return null; // Cycle detected
+        if (GlobalVariables.TryGetValue(name, out int id)) return id;
+
+        visited.Add(this);
+        return Parent?.GetGlobalVariableId(name, visited);
     }
 
     public DMComplexValueType GetReturnType(string name) {
@@ -228,8 +254,15 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public bool IsSubtypeOf(DreamPath path) {
+        return IsSubtypeOf(path, new());
+    }
+
+    private bool IsSubtypeOf(DreamPath path, HashSet<DMObject> visited) {
+        if (visited.Contains(this)) return false; // Cycle detected
         if (path.Equals(Path)) return true;
-        return Parent != null && Parent.IsSubtypeOf(path);
+
+        visited.Add(this);
+        return Parent?.IsSubtypeOf(path, visited) ?? false;
     }
 
     public DMValueType GetDMValueType() {

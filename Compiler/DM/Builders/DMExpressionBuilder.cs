@@ -574,7 +574,7 @@ internal class DMExpressionBuilder {
             }
         }
 
-        var field = _ctx.Type.GetVariable(name);
+        var field = _ctx.Type.GetLocalVariable(name);
         if (field != null && (_scopeMode == Normal || field.IsConst)) {
             return new Field(identifier.Location, field, field.ValType);
         }
@@ -730,7 +730,7 @@ internal class DMExpressionBuilder {
                 return new GlobalField(location, globalVar.Type, globalVarId.Value, globalVar.ValType);
             }
 
-            var variable = owner.GetVariable(bIdentifier);
+            var variable = owner.GetLocalVariable(bIdentifier);
             if (variable == null)
                 return UnknownIdentifier(location, bIdentifier);
 
@@ -975,7 +975,7 @@ internal class DMExpressionBuilder {
                             return UnknownReference(fieldOperation.Location,
                                 $"Type {prevPath} does not exist");
 
-                        property = fromObject.GetVariable(field);
+                        property = fromObject.GetLocalVariable(field);
                         if (!fieldOperation.Safe && fromObject.IsSubtypeOf(DreamPath.Client)) {
                             Compiler.Emit(WarningCode.UnsafeClientAccess, deref.Location,
                                 "Unsafe \"client\" access. Use the \"?.\" operator instead");

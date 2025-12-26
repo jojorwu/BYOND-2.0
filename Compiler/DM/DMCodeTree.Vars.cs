@@ -192,7 +192,7 @@ internal partial class DMCodeTree {
                 return true;
             } else if (dmObject.HasLocalVariable(VarName)) {
                 if (!varDef.Location.InDMStandard) { // Duplicate instance vars are not an error in DMStandard
-                    var variable = dmObject.GetVariable(VarName);
+                    var variable = dmObject.GetLocalVariable(VarName);
                     if (variable?.Value?.Location is {} prevLoc)
                         compiler.Emit(WarningCode.InvalidVarDefinition, varDef.Location,
                         $"Duplicate definition of var \"{VarName}\". Previous definition at {prevLoc}");
@@ -224,7 +224,7 @@ internal partial class DMCodeTree {
 
             DMVariable? variable = null;
             if (dmObject.HasLocalVariable(VarName)) {
-                variable = dmObject.GetVariable(VarName);
+                variable = dmObject.GetLocalVariable(VarName);
             } else if (dmObject.HasGlobalVariable(VarName)) {
                 compiler.Emit(WarningCode.StaticOverride, varOverride.Location,
                     $"var \"{VarName}\" cannot be overridden - it is a global var");

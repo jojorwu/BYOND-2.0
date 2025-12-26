@@ -1,4 +1,5 @@
 using Core.VM.Procs;
+using Core.VM.Types;
 
 namespace Core.VM.Runtime
 {
@@ -7,12 +8,14 @@ namespace Core.VM.Runtime
         public DreamProc Proc { get; }
         public int PC { get; set; }
         public int StackBase { get; }
+        public DreamObject? Instance { get; }
 
-        public CallFrame(DreamProc proc, int pc, int stackBase)
+        public CallFrame(DreamProc proc, int pc, int stackBase, DreamObject? instance)
         {
             Proc = proc;
             PC = pc;
             StackBase = stackBase;
+            Instance = instance;
         }
     }
 }

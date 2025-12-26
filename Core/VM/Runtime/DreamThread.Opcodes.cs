@@ -80,12 +80,14 @@ namespace Core.VM.Runtime
             }
 
             var stackBase = Stack.Count - argCount;
+            var instanceValue = Stack[stackBase - 1];
+            var instance = instanceValue.GetValueAsDreamObject();
 
             var currentFrame = CallStack.Pop();
             currentFrame.PC = pc;
             CallStack.Push(currentFrame);
 
-            var frame = new CallFrame(dreamProc, 0, stackBase);
+            var frame = new CallFrame(dreamProc, 0, stackBase, instance);
             CallStack.Push(frame);
 
             for (int i = 0; i < dreamProc.LocalVariableCount; i++)
@@ -140,30 +142,33 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_PushArgument(DreamProc proc, CallFrame frame, ref int pc)
+        private void Opcode_GetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var argIndex = ReadByte(proc, ref pc);
-            Push(Stack[frame.StackBase + argIndex]);
+            var variableNameId = ReadInt32(proc, ref pc);
+            var variableName = _vm.Strings[variableNameId];
+
+            var instance = frame.Instance;
+            if (instance != null)
+            {
+                Push(instance.GetVariable(variableName));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
         }
 
-        private void Opcode_SetArgument(DreamProc proc, CallFrame frame, ref int pc)
+        private void Opcode_SetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var argIndex = ReadByte(proc, ref pc);
+            var variableNameId = ReadInt32(proc, ref pc);
+            var variableName = _vm.Strings[variableNameId];
             var value = Pop();
-            Stack[frame.StackBase + argIndex] = value;
-        }
 
-        private void Opcode_PushLocal(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var localIndex = ReadByte(proc, ref pc);
-            Push(Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex]);
-        }
-
-        private void Opcode_SetLocal(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var localIndex = ReadByte(proc, ref pc);
-            var value = Pop();
-            Stack[frame.StackBase + frame.Proc.Arguments.Length + localIndex] = value;
+            var instance = frame.Instance;
+            if (instance != null)
+            {
+                instance.SetVariable(variableName, value);
+            }
         }
 
         private void Opcode_BitAnd() => PerformBinaryOperation((a, b) => a & b);

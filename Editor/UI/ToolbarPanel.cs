@@ -6,12 +6,15 @@ namespace Editor.UI
     {
         private readonly EditorContext _editorContext;
         private readonly ToolManager _toolManager;
-        // TODO: Add BuildService/RunService
+        private readonly IProjectService _projectService;
+        private readonly IRunService _runService;
 
-        public ToolbarPanel(EditorContext editorContext, ToolManager toolManager)
+        public ToolbarPanel(EditorContext editorContext, ToolManager toolManager, IProjectService projectService, IRunService runService)
         {
             _editorContext = editorContext;
             _toolManager = toolManager;
+            _projectService = projectService;
+            _runService = runService;
         }
 
         public void Draw()
@@ -21,12 +24,12 @@ namespace Editor.UI
             {
                 if (ImGui.Button("Save"))
                 {
-                    // TODO: Call save logic
+                    _projectService.SaveProject();
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Run"))
                 {
-                    // TODO: Call run logic
+                    _runService.Run();
                 }
                 ImGui.SameLine();
                 ImGui.Separator();

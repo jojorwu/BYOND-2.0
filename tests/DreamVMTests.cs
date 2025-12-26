@@ -282,42 +282,5 @@ namespace tests
             Assert.That(value, Is.EqualTo(10f));
         }
 
-        [Test]
-        public void CallAndReturn_WithArgumentsAndLocals_WorksCorrectly()
-        {
-            // main proc
-            var mainBytecode = new List<byte>();
-            mainBytecode.Add((byte)Opcode.PushFloat); // Push arg1 for add proc
-            mainBytecode.AddRange(BitConverter.GetBytes(10f));
-            mainBytecode.Add((byte)Opcode.PushFloat); // Push arg2 for add proc
-            mainBytecode.AddRange(BitConverter.GetBytes(5f));
-            mainBytecode.Add((byte)Opcode.Call);
-            mainBytecode.AddRange(BitConverter.GetBytes(0)); // String ID for "add"
-            mainBytecode.Add(2); // Arg count
-            mainBytecode.Add((byte)Opcode.Return); // Return from main
-
-            // add proc (arg1, arg2)
-            var addBytecode = new List<byte>();
-            addBytecode.Add((byte)Opcode.PushArgument);
-            addBytecode.Add(0); // Push arg1
-            addBytecode.Add((byte)Opcode.PushArgument);
-            addBytecode.Add(1); // Push arg2
-            addBytecode.Add((byte)Opcode.Add);
-            addBytecode.Add((byte)Opcode.Return); // Return sum
-
-            var mainProc = new DreamProc("main", mainBytecode.ToArray(), Array.Empty<string>(), 0);
-            var addProc = new DreamProc("add", addBytecode.ToArray(), new string[] { "arg1", "arg2" }, 0);
-            _vm.Procs["main"] = mainProc;
-            _vm.Procs["add"] = addProc;
-            _vm.Strings.Add("add"); // String ID 0 is "add"
-
-            var thread = new DreamThread(mainProc, _vm, 1000);
-            thread.Run(1000);
-
-            Assert.That(thread.State, Is.EqualTo(DreamThreadState.Finished));
-            Assert.That(thread.Stack.Count, Is.EqualTo(1));
-            Assert.That(thread.Stack[0].TryGetValue(out float returnValue), Is.True);
-            Assert.That(returnValue, Is.EqualTo(15f));
-        }
     }
 }

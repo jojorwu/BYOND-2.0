@@ -1,4 +1,4 @@
-﻿using Robust.Shared.Maths;
+using Robust.Shared.Maths;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -76,7 +76,7 @@ public static class DmiParser {
                 Height = height
             };
 
-            var state = new ParsedDMIState(string.Empty);
+            var state = new ParsedDMIState(string.Empty, 1);
             var frame = new ParsedDMIFrame {
                 X = 0,
                 Y = 0,
@@ -105,7 +105,7 @@ public static class DmiParser {
             var yCount = (int)Math.Max(Math.Ceiling((float)height / iconSize), 1);
             for (int x = 0; x < xCount; x++) {
                 for (int y = 0; y < yCount; y++) {
-                    var state = new ParsedDMIState($"{x},{y}");
+                    var state = new ParsedDMIState($"{x},{y}", 1);
                     var frame = new ParsedDMIFrame {
                         X = x * iconSize,
                         Y = (yCount * iconSize) - (y + 1) * iconSize, // "0,0" starts from the bottom left
@@ -121,13 +121,23 @@ public static class DmiParser {
         }
     }
 
-    public sealed class ParsedDMIState(string name) {
-        public string Name = name;
+    public sealed class ParsedDMIState {
+        public string Name;
         public bool Loop = true;
         public bool Rewind;
+        public int Dirs;
+        public bool Movement;
 
-        // TODO: This can only contain either 1, 4, or 8 directions. Enforcing this could simplify some things.
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
+
+        public ParsedDMIState(string name, int dirs, bool movement = false) {
+            Name = name;
+            Movement = movement;
+            if (dirs != 1 && dirs != 4 && dirs != 8) {
+                throw new ArgumentException($"Invalid number of directions: {dirs}. Must be 1, 4, or 8.");
+            }
+            Dirs = dirs;
+        }
 
         /// <summary>
         /// The amount of animation frames this state has
@@ -164,7 +174,7 @@ public static class DmiParser {
             text.AppendLine("\"");
 
             text.Append("\tdirs = ");
-            text.Append(GetExportedDirectionCount(Directions));
+            text.Append(Dirs);
             text.AppendLine();
 
             text.Append("\tframes = ");
@@ -191,6 +201,10 @@ public static class DmiParser {
 
             if (Rewind) {
                 text.AppendLine("\trewind = 1");
+            }
+
+            if(Movement) {
+                text.AppendLine("\tmovement = 1");
             }
         }
 
@@ -233,27 +247,6 @@ public static class DmiParser {
     public sealed class ParsedDMIFrame {
         public int X, Y;
         public TimeSpan Delay;
-    }
-
-    /// <summary>
-    /// The total directions present in an exported DMI.<br/>
-    /// An icon state in a DMI must contain either 1, 4, or 8 directions.
-    /// </summary>
-    public static int GetExportedDirectionCount<T>(Dictionary<AtomDirection, T> directions) {
-        // If we have any of these directions then we export 8 directions
-        if (directions.ContainsKey(AtomDirection.Northeast) || directions.ContainsKey(AtomDirection.Southeast) ||
-            directions.ContainsKey(AtomDirection.Southwest) || directions.ContainsKey(AtomDirection.Northwest)) {
-            return 8;
-        }
-
-        // Any of these (without the above) means 4 directions
-        if (directions.ContainsKey(AtomDirection.North) || directions.ContainsKey(AtomDirection.East) ||
-            directions.ContainsKey(AtomDirection.West)) {
-            return 4;
-        }
-
-        // Otherwise, 1 direction (just south)
-        return 1;
     }
 
     public static ParsedDMIDescription ParseDMI(Stream stream) {
@@ -419,11 +412,14 @@ public static class DmiParser {
 
                         currentStateFrameCount = 1;
                         currentStateFrameDelays = null;
-                        currentState = new ParsedDMIState(stateName);
+                        currentState = new ParsedDMIState(stateName, 1);
                         description.States.TryAdd(stateName, currentState);
                         break;
                     case "dirs":
+                        if (currentState == null)
+                            throw new Exception("DMI description has a \"dirs\" key before a \"state\" key");
                         currentStateDirectionCount = int.Parse(value);
+                        currentState.Dirs = currentStateDirectionCount;
                         break;
                     case "frames":
                         currentStateFrameCount = int.Parse(value);
@@ -446,7 +442,9 @@ public static class DmiParser {
                         currentState.Rewind = (int.Parse(value) == 1);
                         break;
                     case "movement":
-                        //TODO
+                        if (currentState == null)
+                            throw new Exception("DMI description has a \"movement\" key before a \"state\" key");
+                        currentState.Movement = (int.Parse(value) == 1);
                         break;
                     case "hotspot":
                         //TODO

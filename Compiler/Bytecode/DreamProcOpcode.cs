@@ -1,4 +1,4 @@
-﻿namespace DMCompiler.Bytecode;
+namespace DMCompiler.Bytecode;
 
 // ReSharper disable MissingBlankLines
 public enum DreamProcOpcode : byte {
@@ -104,7 +104,8 @@ public enum DreamProcOpcode : byte {
     SwitchCase = 0x32, //This could either shrink the stack by 1 or 2. Assume 1.
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     Mask = 0x33,
-    //0x34
+    [OpcodeMetadata(-2, OpcodeArgType.String)]
+    SetVariable = 0x34,
     [OpcodeMetadata]
     Error = 0x35,
     [OpcodeMetadata(-1)]
@@ -158,7 +159,8 @@ public enum DreamProcOpcode : byte {
     OutputReference = 0x4E,
     [OpcodeMetadata(-2)]
     Output = 0x4F,
-    // 0x50
+    [OpcodeMetadata(0, OpcodeArgType.String)]
+    GetVariable = 0x50,
     [OpcodeMetadata(-1)]
     Pop = 0x51,
     [OpcodeMetadata]

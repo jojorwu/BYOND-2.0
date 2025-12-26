@@ -17,6 +17,7 @@ namespace Editor.UI
         private readonly LocalizationManager _localizationManager;
         private readonly IProjectManager _projectManager;
         private readonly IProjectService _projectService;
+        private readonly SettingsPanel _settingsPanel;
 
         public bool IsExitRequested { get; private set; }
 
@@ -28,7 +29,8 @@ namespace Editor.UI
             IMapLoader mapLoader,
             LocalizationManager localizationManager,
             IProjectManager projectManager,
-            IProjectService projectService)
+            IProjectService projectService,
+            SettingsPanel settingsPanel)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
@@ -38,6 +40,7 @@ namespace Editor.UI
             _localizationManager = localizationManager;
             _projectManager = projectManager;
             _projectService = projectService;
+            _settingsPanel = settingsPanel;
         }
 
         public async Task SaveScene(Scene scene, bool saveAs)
@@ -133,6 +136,10 @@ namespace Editor.UI
                     if (ImGui.MenuItem(_localizationManager.GetString("Project Settings")))
                     {
                         ImGui.OpenPopup("ProjectSettingsDlgKey");
+                    }
+                    if (ImGui.MenuItem(_localizationManager.GetString("Settings")))
+                    {
+                        _settingsPanel.IsOpen = true;
                     }
                     ImGui.EndMenu();
                 }

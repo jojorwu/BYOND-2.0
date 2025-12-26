@@ -26,7 +26,7 @@ namespace Core.VM.Runtime
             _maxInstructions = maxInstructions;
             AssociatedObject = associatedObject;
 
-            CallStack.Push(new CallFrame(proc, 0, 0));
+            CallStack.Push(new CallFrame(proc, 0, 0, null));
         }
 
         public void Push(DreamValue value)
@@ -119,48 +119,46 @@ namespace Core.VM.Runtime
                     switch (opcode)
                     {
                         case Opcode.PushString: Opcode_PushString(proc, ref pc); break;
-                    case Opcode.PushFloat: Opcode_PushFloat(proc, ref pc); break;
-                    case Opcode.Add: Opcode_Add(); break;
-                    case Opcode.Subtract: Opcode_Subtract(); break;
-                    case Opcode.Multiply: Opcode_Multiply(); break;
-                    case Opcode.Divide: Opcode_Divide(); break;
-                    case Opcode.CompareEquals: Opcode_CompareEquals(); break;
-                    case Opcode.CompareNotEquals: Opcode_CompareNotEquals(); break;
-                    case Opcode.CompareLessThan: Opcode_CompareLessThan(); break;
-                    case Opcode.CompareGreaterThan: Opcode_CompareGreaterThan(); break;
-                    case Opcode.CompareLessThanOrEqual: Opcode_CompareLessThanOrEqual(); break;
-                    case Opcode.CompareGreaterThanOrEqual: Opcode_CompareGreaterThanOrEqual(); break;
-                    case Opcode.Negate: Opcode_Negate(); break;
-                    case Opcode.BooleanNot: Opcode_BooleanNot(); break;
-                    case Opcode.PushNull: Opcode_PushNull(); break;
-                    case Opcode.Pop: Opcode_Pop(); break;
-                    case Opcode.Call:
-                        Opcode_Call(proc, ref pc);
-                        frame = CallStack.Peek();
-                        proc = frame.Proc;
-                        pc = frame.PC;
-                        break;
-                    case Opcode.Jump: Opcode_Jump(proc, ref pc); break;
-                    case Opcode.JumpIfFalse: Opcode_JumpIfFalse(proc, ref pc); break;
-                    case Opcode.Output: Opcode_Output(); break;
-                    case Opcode.Return:
-                        Opcode_Return(ref proc, ref pc);
-                        if(State == DreamThreadState.Running)
+                        case Opcode.PushFloat: Opcode_PushFloat(proc, ref pc); break;
+                        case Opcode.Add: Opcode_Add(); break;
+                        case Opcode.Subtract: Opcode_Subtract(); break;
+                        case Opcode.Multiply: Opcode_Multiply(); break;
+                        case Opcode.Divide: Opcode_Divide(); break;
+                        case Opcode.CompareEquals: Opcode_CompareEquals(); break;
+                        case Opcode.CompareNotEquals: Opcode_CompareNotEquals(); break;
+                        case Opcode.CompareLessThan: Opcode_CompareLessThan(); break;
+                        case Opcode.CompareGreaterThan: Opcode_CompareGreaterThan(); break;
+                        case Opcode.CompareLessThanOrEqual: Opcode_CompareLessThanOrEqual(); break;
+                        case Opcode.CompareGreaterThanOrEqual: Opcode_CompareGreaterThanOrEqual(); break;
+                        case Opcode.Negate: Opcode_Negate(); break;
+                        case Opcode.BooleanNot: Opcode_BooleanNot(); break;
+                        case Opcode.PushNull: Opcode_PushNull(); break;
+                        case Opcode.Pop: Opcode_Pop(); break;
+                        case Opcode.Call:
+                            Opcode_Call(proc, ref pc);
                             frame = CallStack.Peek();
-                        break;
-                    case Opcode.BitAnd: Opcode_BitAnd(); break;
-                    case Opcode.BitOr: Opcode_BitOr(); break;
-                    case Opcode.BitXor: Opcode_BitXor(); break;
-                    case Opcode.BitNot: Opcode_BitNot(); break;
-                    case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
-                    case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
-                    case Opcode.PushArgument: Opcode_PushArgument(proc, frame, ref pc); break;
-                    case Opcode.SetArgument: Opcode_SetArgument(proc, frame, ref pc); break;
-                    case Opcode.PushLocal: Opcode_PushLocal(proc, frame, ref pc); break;
-                    case Opcode.SetLocal: Opcode_SetLocal(proc, frame, ref pc); break;
-                    default:
-                        State = DreamThreadState.Error;
-                        throw new Exception($"Unknown opcode: {opcode}");
+                            proc = frame.Proc;
+                            pc = frame.PC;
+                            break;
+                        case Opcode.Jump: Opcode_Jump(proc, ref pc); break;
+                        case Opcode.JumpIfFalse: Opcode_JumpIfFalse(proc, ref pc); break;
+                        case Opcode.Output: Opcode_Output(); break;
+                        case Opcode.Return:
+                            Opcode_Return(ref proc, ref pc);
+                            if(State == DreamThreadState.Running)
+                                frame = CallStack.Peek();
+                            break;
+                        case Opcode.BitAnd: Opcode_BitAnd(); break;
+                        case Opcode.BitOr: Opcode_BitOr(); break;
+                        case Opcode.BitXor: Opcode_BitXor(); break;
+                        case Opcode.BitNot: Opcode_BitNot(); break;
+                        case Opcode.BitShiftLeft: Opcode_BitShiftLeft(); break;
+                        case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
+                        case Opcode.GetVariable: Opcode_GetVariable(proc, frame, ref pc); break;
+                        case Opcode.SetVariable: Opcode_SetVariable(proc, frame, ref pc); break;
+                        default:
+                            State = DreamThreadState.Error;
+                            throw new Exception($"Unknown opcode: {opcode}");
                     }
                 }
                 catch (Exception e)

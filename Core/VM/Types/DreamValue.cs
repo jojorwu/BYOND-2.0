@@ -75,6 +75,16 @@ namespace Core.VM.Types
             return false;
         }
 
+        public DreamObject? GetValueAsDreamObject()
+        {
+            if (Type == DreamValueType.DreamObject)
+            {
+                return (DreamObject?)_objectValue;
+            }
+
+            return null;
+        }
+
         private float AsFloat()
         {
             if (Type != DreamValueType.Float)

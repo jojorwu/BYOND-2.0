@@ -1,6 +1,7 @@
 using Core;
 using Editor.UI;
 using Shared;
+using System.IO;
 using System.Linq;
 
 namespace Editor
@@ -12,28 +13,43 @@ namespace Editor
         private readonly ToolManager _toolManager;
         private readonly EditorContext _editorContext;
         private readonly IUIService _uiService;
+        private readonly IDreamMakerLoader _dreamMakerLoader;
+        private readonly IJsonService _jsonService;
 
-        public ProjectService(ProjectHolder projectHolder, IObjectTypeManager objectTypeManager, ToolManager toolManager, EditorContext editorContext, IUIService uiService)
+        public ProjectService(
+            ProjectHolder projectHolder,
+            IObjectTypeManager objectTypeManager,
+            ToolManager toolManager,
+            EditorContext editorContext,
+            IUIService uiService,
+            IDreamMakerLoader dreamMakerLoader,
+            IJsonService jsonService)
         {
             _projectHolder = projectHolder;
             _objectTypeManager = objectTypeManager;
             _toolManager = toolManager;
             _editorContext = editorContext;
             _uiService = uiService;
+            _dreamMakerLoader = dreamMakerLoader;
+            _jsonService = jsonService;
         }
 
         public bool LoadProject(string projectPath)
         {
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
+            _objectTypeManager.Reset();
 
-            // TODO: This is temporary test data. In the future, this should be loaded from the project files.
-            var wall = new ObjectType(1, "wall");
-            wall.DefaultProperties["SpritePath"] = "assets/wall.png";
-            _objectTypeManager.RegisterObjectType(wall);
-            var floor = new ObjectType(2, "floor");
-            floor.DefaultProperties["SpritePath"] = "assets/floor.png";
-            _objectTypeManager.RegisterObjectType(floor);
+            var compiledJsonPath = Path.Combine(project.RootPath, "project.compiled.json");
+            if (File.Exists(compiledJsonPath))
+            {
+                var json = File.ReadAllText(compiledJsonPath);
+                var compiledDream = _jsonService.DeserializePublicDreamCompiledJson(json);
+                if (compiledDream != null)
+                {
+                    _dreamMakerLoader.Load(compiledDream);
+                }
+            }
 
             _toolManager.SetActiveTool(_toolManager.Tools.FirstOrDefault(), _editorContext);
 

@@ -1,5 +1,4 @@
 using Editor.UI;
-using Editor.UI;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
 
@@ -36,7 +35,17 @@ namespace Editor
             services.AddSingleton<ToolManager>();
             services.AddSingleton<BuildService>();
             services.AddSingleton<SpriteRenderer>();
-            services.AddSingleton<IProjectService, ProjectService>();
+            services.AddSingleton<IProjectService, ProjectService>(provider =>
+                new ProjectService(
+                    provider.GetRequiredService<ProjectHolder>(),
+                    provider.GetRequiredService<IObjectTypeManager>(),
+                    provider.GetRequiredService<ToolManager>(),
+                    provider.GetRequiredService<EditorContext>(),
+                    provider.GetRequiredService<IUIService>(),
+                    provider.GetRequiredService<IDreamMakerLoader>(),
+                    provider.GetRequiredService<IJsonService>()
+                )
+            );
             services.AddSingleton<IUIService, UIService>();
             services.AddSingleton<IRunService, RunService>();
             services.AddSingleton<IEditorSettingsManager, EditorSettingsManager>();

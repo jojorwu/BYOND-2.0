@@ -95,11 +95,11 @@ internal partial class DMCodeTree {
         if (_dmStandardRoot == null)
             FinishDMStandard();
 
-        void Pass(ObjectNode root) {
+        void Pass(ObjectNode root, bool scopeEnabled = false) {
             foreach (var node in TraverseNodes(root)) {
                 var successful = (node is ObjectNode objectNode && objectNode.TryDefineType(_compiler)) ||
                                  (node is ProcNode procNode && procNode.TryDefineProc(_compiler)) ||
-                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass));
+                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass, scopeEnabled));
 
                 if (successful)
                     _waitingNodes.Remove(node);
@@ -107,7 +107,6 @@ internal partial class DMCodeTree {
         }
 
         // Pass 0
-        DMExpressionBuilder.ScopeOperatorEnabled = false;
         Pass(_root);
         Pass(_dmStandardRoot!);
 
@@ -121,9 +120,8 @@ internal partial class DMCodeTree {
         } while (_waitingNodes.Count < lastCount && _waitingNodes.Count > 0);
 
         // Scope operator pass
-        DMExpressionBuilder.ScopeOperatorEnabled = true;
-        Pass(_root);
-        Pass(_dmStandardRoot!);
+        Pass(_root, true);
+        Pass(_dmStandardRoot!, true);
 
         // If there exists vars that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {

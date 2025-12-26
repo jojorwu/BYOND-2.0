@@ -41,6 +41,7 @@ internal partial class DMCodeTree {
     private class ObjectNode(DMCodeTree codeTree, string name, DreamPath type) : TypeNode(name) {
         private bool _defined;
         private ProcsNode? _procs;
+        private VerbsNode? _verbs;
 
         public bool TryDefineType(DMCompiler compiler) {
             if (_defined)
@@ -72,6 +73,15 @@ internal partial class DMCodeTree {
             }
 
             return _procs;
+        }
+
+        public VerbsNode AddVerbsNode() {
+            if (_verbs is null) {
+                _verbs = new();
+                Children.Add(_verbs);
+            }
+
+            return _verbs;
         }
     }
 
@@ -156,8 +166,6 @@ internal partial class DMCodeTree {
 
             for (int i = 0; i < search.Elements.Length; i++) {
                 var element = search.Elements[i];
-                if (element == "verb")
-                    element = "proc"; // TODO: Separate proc and verb on the code tree
 
                 if (!node.TryGetChild(element, out var child))
                     break;

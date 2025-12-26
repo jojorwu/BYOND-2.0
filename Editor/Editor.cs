@@ -26,10 +26,13 @@ namespace Editor
         private readonly ViewportPanel _viewportPanel; // Keep for GL initialization
         private readonly TextureManager _textureManager;
         private readonly IProjectService _projectService;
+        private readonly SettingsPanel _settingsPanel;
+        private readonly IRunService _runService;
 
         public Editor(IServiceProvider serviceProvider,
             MainPanel mainPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
-            TextureManager textureManager, IProjectService projectService)
+            TextureManager textureManager, IProjectService projectService, SettingsPanel settingsPanel,
+            IRunService runService)
         {
             _serviceProvider = serviceProvider;
             _mainPanel = mainPanel;
@@ -37,6 +40,8 @@ namespace Editor
             _viewportPanel = viewportPanel;
             _textureManager = textureManager;
             _projectService = projectService;
+            _settingsPanel = settingsPanel;
+            _runService = runService;
         }
 
         public void Run()
@@ -108,6 +113,8 @@ namespace Editor
             gl.Clear(ClearBufferMask.ColorBufferBit);
 
             _mainPanel.Draw();
+            _settingsPanel.Draw();
+            _runService.Draw();
 
             if (_menuBarPanel.IsExitRequested)
             {

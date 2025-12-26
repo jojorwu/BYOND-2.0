@@ -2,25 +2,37 @@ using ImGuiNET;
 
 namespace Editor.UI
 {
-    public class SettingsPanel
+    public class SettingsPanel : IUiPanel
     {
-        private readonly LocalizationManager _localizationManager;
-        private int _selectedLanguage = 0;
-        private readonly string[] _languages = { "en", "ru" };
+        public string Name => "Settings";
+        public bool IsOpen { get; set; } = false;
 
-        public SettingsPanel(LocalizationManager localizationManager)
+        private readonly IEditorSettingsManager _settingsManager;
+
+        public SettingsPanel(IEditorSettingsManager settingsManager)
         {
-            _localizationManager = localizationManager;
+            _settingsManager = settingsManager;
         }
 
         public void Draw()
         {
-            ImGui.Begin("Settings");
-            if (ImGui.Combo("Language", ref _selectedLanguage, _languages, _languages.Length))
+            if (!IsOpen)
+                return;
+
+            if (ImGui.Begin(Name, ref IsOpen))
             {
-                _localizationManager.LoadLanguage(_languages[_selectedLanguage]);
+                var settings = _settingsManager.Settings;
+
+                ImGui.InputText("Server Executable", ref settings.ServerExecutablePath, 260);
+                ImGui.InputText("Client Executable", ref settings.ClientExecutablePath, 260);
+
+                if (ImGui.Button("Save"))
+                {
+                    _settingsManager.Save();
+                }
+
+                ImGui.End();
             }
-            ImGui.End();
         }
     }
 }

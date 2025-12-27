@@ -105,11 +105,11 @@ internal partial class DMCodeTree {
         if (_dmStandardRoot == null)
             FinishDMStandard();
 
-        void Pass(ObjectNode root) {
+        void Pass(ObjectNode root, DMExpressionBuilder.ScopeMode scopeMode) {
             foreach (var node in TraverseNodes(root)) {
                 var successful = (node is ObjectNode objectNode && objectNode.TryDefineType(_compiler)) ||
                                  (node is ProcNode procNode && procNode.TryDefineProc(_compiler)) ||
-                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass));
+                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass, scopeMode));
 
                 if (successful)
                     _waitingNodes.Remove(node);
@@ -117,23 +117,21 @@ internal partial class DMCodeTree {
         }
 
         // Pass 0
-        DMExpressionBuilder.ScopeOperatorEnabled = false;
-        Pass(_root);
-        Pass(_dmStandardRoot!);
+        Pass(_root, DMExpressionBuilder.ScopeMode.Static);
+        Pass(_dmStandardRoot!, DMExpressionBuilder.ScopeMode.Static);
 
         int lastCount;
         do {
             _currentPass++;
             lastCount = _waitingNodes.Count;
 
-            Pass(_root);
-            Pass(_dmStandardRoot!);
+            Pass(_root, DMExpressionBuilder.ScopeMode.Static);
+            Pass(_dmStandardRoot!, DMExpressionBuilder.ScopeMode.Static);
         } while (_waitingNodes.Count < lastCount && _waitingNodes.Count > 0);
 
         // Scope operator pass
-        DMExpressionBuilder.ScopeOperatorEnabled = true;
-        Pass(_root);
-        Pass(_dmStandardRoot!);
+        Pass(_root, DMExpressionBuilder.ScopeMode.ScopeOperator);
+        Pass(_dmStandardRoot!, DMExpressionBuilder.ScopeMode.ScopeOperator);
 
         // If there exists vars that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {

@@ -14,7 +14,7 @@ internal partial class DMCodeTree {
 
         protected bool IsFirstPass => (LastError == null);
 
-        public abstract bool TryDefineVar(DMCompiler compiler, int pass);
+        public abstract bool TryDefineVar(DMCompiler compiler, int pass, ScopeMode scopeMode);
 
         protected bool TryBuildValue(ExpressionContext ctx, DMASTExpression ast, DreamPath? inferredType,
             ScopeMode scope, [NotNullWhen(true)] out DMExpression? value) {
@@ -100,7 +100,7 @@ internal partial class DMCodeTree {
 
         private bool _defined;
 
-        public override bool TryDefineVar(DMCompiler compiler, int pass) {
+        public override bool TryDefineVar(DMCompiler compiler, int pass, ScopeMode scopeMode) {
             if (_defined)
                 return true;
             if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
@@ -112,7 +112,7 @@ internal partial class DMCodeTree {
             }
 
             if (IsStatic) {
-                return HandleGlobalVar(compiler, dmObject, pass);
+                return HandleGlobalVar(compiler, dmObject, pass, scopeMode);
             } else {
                 return HandleInstanceVar(compiler, dmObject);
             }
@@ -122,10 +122,9 @@ internal partial class DMCodeTree {
             return varDef.IsStatic ? $"var/static/{VarName}" : $"var/{VarName}";
         }
 
-        private bool HandleGlobalVar(DMCompiler compiler, DMObject dmObject, int pass) {
-            var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
+        private bool HandleGlobalVar(DMCompiler compiler, DMObject dmObject, int pass, ScopeMode scopeMode) {
             var expression = varDef.Value ?? new DMASTConstantNull(varDef.Location);
-            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, varDef.Type, scope, out var value))
+            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, varDef.Type, scopeMode, out var value))
                 return false;
 
             int globalId = compiler.DMObjectTree.CreateGlobal(out DMVariable global, varDef.Type, VarName, varDef.IsConst,
@@ -216,7 +215,7 @@ internal partial class DMCodeTree {
 
         private bool _finished;
 
-        public override bool TryDefineVar(DMCompiler compiler, int pass) {
+        public override bool TryDefineVar(DMCompiler compiler, int pass, ScopeMode scopeMode) {
             if (_finished)
                 return true;
             if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
@@ -254,7 +253,7 @@ internal partial class DMCodeTree {
             variable = new DMVariable(variable);
 
             var expression = varOverride.Value ?? new DMASTConstantNull(varOverride.Location);
-            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, variable.Type, ScopeMode.Normal, out var value))
+            if (!TryBuildValue(new(compiler, dmObject, compiler.GlobalInitProc), expression, variable.Type, scopeMode, out var value))
                 return false;
 
             if (VarName == "tag" && dmObject.IsSubtypeOf(DreamPath.Datum) && !compiler.Settings.NoStandard)
@@ -276,7 +275,7 @@ internal partial class DMCodeTree {
     private class ProcGlobalVarNode(DreamPath owner, DMProc proc, DMASTProcStatementVarDeclaration varDecl) : VarNode {
         private bool _defined;
 
-        public override bool TryDefineVar(DMCompiler compiler, int pass) {
+        public override bool TryDefineVar(DMCompiler compiler, int pass, ScopeMode scopeMode) {
             if (_defined)
                 return true;
             if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
@@ -285,9 +284,8 @@ internal partial class DMCodeTree {
             DMExpression? value = null;
             var expression = varDecl.Value;
             if (expression != null) {
-                var scope = IsFirstPass ? ScopeMode.FirstPassStatic : ScopeMode.Static;
-            var exprContext = new ExpressionContext(compiler, dmObject, proc ?? compiler.GlobalInitProc);
-                if (!TryBuildValue(exprContext, expression, varDecl.Type, scope, out value))
+                var exprContext = new ExpressionContext(compiler, dmObject, proc ?? compiler.GlobalInitProc);
+                if (!TryBuildValue(exprContext, expression, varDecl.Type, scopeMode, out value))
                     return false;
             }
 

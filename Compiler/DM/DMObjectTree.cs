@@ -4,7 +4,6 @@ using DMCompiler.Json;
 
 namespace DMCompiler.DM;
 
-//TODO: Split this into a separate DMObjectBuilder and DMObjectTree
 internal class DMObjectTree {
     public readonly List<DMObject> AllObjects = new();
     public readonly List<DMProc> AllProcs = new();

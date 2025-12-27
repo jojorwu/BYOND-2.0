@@ -8,6 +8,9 @@ internal partial class DMCodeTree {
     private class VerbsNode() : TypeNode("verb");
 
     private class ProcNode(DMCodeTree codeTree, DreamPath owner, DMASTProcDefinition procDef) : TypeNode(procDef.Name) {
+        public readonly DreamPath Owner = owner;
+        public readonly Location Location = procDef.Location;
+
         private string ProcName => procDef.Name;
         private bool IsOverride => procDef.IsOverride;
 
@@ -16,7 +19,7 @@ internal partial class DMCodeTree {
         public bool TryDefineProc(DMCompiler compiler) {
             if (_defined)
                 return true;
-            if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
+            if (!compiler.DMObjectBuilder.TryGetDMObject(Owner, out var dmObject))
                 return false;
 
             _defined = true;
@@ -28,7 +31,7 @@ internal partial class DMCodeTree {
             bool hasProc = dmObject.HasLocalProc(ProcName);
             if (hasProc && !IsOverride && !dmObject.OwnsProc(ProcName) && !procDef.Location.InDMStandard) {
                 compiler.Emit(WarningCode.DuplicateProcDefinition, procDef.Location,
-                    $"Type {owner} already inherits a proc named \"{ProcName}\" and cannot redefine it");
+                    $"Type {Owner} already inherits a proc named \"{ProcName}\" and cannot redefine it");
                 return true; // TODO: Maybe fallthrough since this error is a little pedantic?
             }
 
@@ -69,7 +72,7 @@ internal partial class DMCodeTree {
             var staticVariableVisitor = new StaticVariableVisitor();
             procDef.Body?.Visit(staticVariableVisitor);
             foreach (var varDecl in staticVariableVisitor.VarDeclarations) {
-                var procGlobalNode = new ProcGlobalVarNode(owner, proc, varDecl);
+                var procGlobalNode = new ProcGlobalVarNode(Owner, proc, varDecl);
                 Children.Add(procGlobalNode);
                 codeTree._waitingNodes.Add(procGlobalNode);
             }

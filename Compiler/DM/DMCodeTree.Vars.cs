@@ -340,7 +340,8 @@ internal partial class DMCodeTree {
                 return;
             }
 
-            _parentTypes.Add(owner, parentType.Value.Path);
+            node.ParentTypeLocation = varOverride.Location;
+            _parentTypes.Add(owner, (parentType.Value.Path, varOverride.Location));
             return;
         }
 

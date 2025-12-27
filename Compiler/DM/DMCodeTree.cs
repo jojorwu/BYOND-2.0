@@ -42,25 +42,27 @@ internal partial class DMCodeTree {
         private bool _defined;
         private ProcsNode? _procs;
         private VerbsNode? _verbs;
+        public readonly DreamPath Type = type;
+        public Location? ParentTypeLocation;
 
         public bool TryDefineType(DMCompiler compiler) {
             if (_defined)
                 return true;
 
             DMObject? explicitParent = null;
-            if (codeTree._parentTypes.TryGetValue(type, out var parentType) &&
-                !compiler.DMObjectBuilder.TryGetDMObject(parentType, out explicitParent))
+            if (codeTree._parentTypes.TryGetValue(Type, out var parentType) &&
+                !compiler.DMObjectBuilder.TryGetDMObject(parentType.Path, out explicitParent))
                 return false; // Parent type isn't ready yet
 
             _defined = true;
 
-            var dmObject = compiler.DMObjectBuilder.GetOrCreateDMObject(type);
+            var dmObject = compiler.DMObjectBuilder.GetOrCreateDMObject(Type);
             if (explicitParent != null) {
                 dmObject.Parent = explicitParent;
-                codeTree._parentTypes.Remove(type);
+                codeTree._parentTypes.Remove(Type);
             }
 
-            if (codeTree._newProcs.Remove(type, out var newProcNode))
+            if (codeTree._newProcs.Remove(Type, out var newProcNode))
                 newProcNode.TryDefineProc(compiler);
 
             return true;
@@ -87,7 +89,7 @@ internal partial class DMCodeTree {
 
     private readonly DMCompiler _compiler;
     private readonly HashSet<INode> _waitingNodes = new();
-    private readonly Dictionary<DreamPath, DreamPath> _parentTypes = new();
+    private readonly Dictionary<DreamPath, (DreamPath Path, Location Location)> _parentTypes = new();
     private readonly Dictionary<DreamPath, ProcNode> _newProcs = new();
     private ObjectNode _root;
     private ObjectNode? _dmStandardRoot;
@@ -133,15 +135,28 @@ internal partial class DMCodeTree {
         Pass(_root, DMExpressionBuilder.ScopeMode.ScopeOperator);
         Pass(_dmStandardRoot!, DMExpressionBuilder.ScopeMode.ScopeOperator);
 
-        // If there exists vars that didn't successfully compile, emit their errors
+        // If there exists nodes that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {
-            if (node is not VarNode varNode) // TODO: If a type or proc fails?
-                continue;
-            if (varNode.LastError == null)
-                continue;
+            switch (node) {
+                case VarNode varNode:
+                    if (varNode.LastError != null) {
+                        _compiler.Emit(WarningCode.ItemDoesntExist, varNode.LastError.Location,
+                            varNode.LastError.Message);
+                    }
 
-            _compiler.Emit(WarningCode.ItemDoesntExist, varNode.LastError.Location,
-                varNode.LastError.Message);
+                    break;
+                case ObjectNode objectNode:
+                    if (_parentTypes.TryGetValue(objectNode.Type, out var parentType)) {
+                        _compiler.Emit(WarningCode.ItemDoesntExist, objectNode.ParentTypeLocation ?? Location.Internal,
+                            $"Type {parentType.Path} was not defined");
+                    }
+
+                    break;
+                case ProcNode procNode:
+                    _compiler.Emit(WarningCode.ItemDoesntExist, procNode.Location,
+                        $"Type {procNode.Owner} was not defined");
+                    break;
+            }
         }
 
         _compiler.GlobalInitProc.ResolveLabels();

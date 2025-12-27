@@ -49,12 +49,12 @@ internal partial class DMCodeTree {
 
             DMObject? explicitParent = null;
             if (codeTree._parentTypes.TryGetValue(type, out var parentType) &&
-                !compiler.DMObjectTree.TryGetDMObject(parentType, out explicitParent))
+                !compiler.DMObjectBuilder.TryGetDMObject(parentType, out explicitParent))
                 return false; // Parent type isn't ready yet
 
             _defined = true;
 
-            var dmObject = compiler.DMObjectTree.GetOrCreateDMObject(type);
+            var dmObject = compiler.DMObjectBuilder.GetOrCreateDMObject(type);
             if (explicitParent != null) {
                 dmObject.Parent = explicitParent;
                 codeTree._parentTypes.Remove(type);

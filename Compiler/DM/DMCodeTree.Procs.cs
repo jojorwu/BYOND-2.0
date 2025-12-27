@@ -16,7 +16,7 @@ internal partial class DMCodeTree {
         public bool TryDefineProc(DMCompiler compiler) {
             if (_defined)
                 return true;
-            if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
+            if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
                 return false;
 
             _defined = true;
@@ -32,7 +32,7 @@ internal partial class DMCodeTree {
                 return true; // TODO: Maybe fallthrough since this error is a little pedantic?
             }
 
-            DMProc proc = compiler.DMObjectTree.CreateDMProc(dmObject, procDef);
+            DMProc proc = compiler.DMObjectBuilder.CreateDMProc(dmObject, procDef);
 
             if (procDef.IsOverride) {
                 var procs = dmObject.GetLocalProcs(procDef.Name);

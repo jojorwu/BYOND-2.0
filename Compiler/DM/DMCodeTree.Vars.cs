@@ -103,7 +103,7 @@ internal partial class DMCodeTree {
         public override bool TryDefineVar(DMCompiler compiler, int pass) {
             if (_defined)
                 return true;
-            if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
+            if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
                 return false;
 
             if (CheckCantDefine(compiler, dmObject)) {
@@ -219,7 +219,7 @@ internal partial class DMCodeTree {
         public override bool TryDefineVar(DMCompiler compiler, int pass) {
             if (_finished)
                 return true;
-            if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
+            if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
                 return false;
 
             DMVariable? variable = null;
@@ -279,7 +279,7 @@ internal partial class DMCodeTree {
         public override bool TryDefineVar(DMCompiler compiler, int pass) {
             if (_defined)
                 return true;
-            if (!compiler.DMObjectTree.TryGetDMObject(owner, out var dmObject))
+            if (!compiler.DMObjectBuilder.TryGetDMObject(owner, out var dmObject))
                 return false;
 
             DMExpression? value = null;

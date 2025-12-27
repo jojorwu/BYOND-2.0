@@ -28,7 +28,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
     private UnknownReference? _encounteredUnknownReference;
 
     private DMCompiler Compiler => ctx.Compiler;
-    private DMObjectTree ObjectTree => ctx.ObjectTree;
+    private DMObjectBuilder ObjectBuilder => ctx.ObjectBuilder;
 
     public DMExpression Create(DMASTExpression expression, DreamPath? inferredPath = null) {
         var expr = CreateIgnoreUnknownReference(expression, inferredPath);
@@ -474,7 +474,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                     return UnknownReference(constant.Location,
                         $"Cannot search on {pathExpr}");
 
-                DreamPath? foundPath = ObjectTree.UpwardSearch(path.Value, upwardSearch.Search.Path);
+                DreamPath? foundPath = ObjectBuilder.UpwardSearch(path.Value, upwardSearch.Search.Path);
                 if (foundPath == null)
                     return UnknownReference(constant.Location,
                         $"Could not find path {path}.{upwardSearch.Search.Path}");
@@ -514,14 +514,14 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         // /datum/proc or /datum/verb
         if (path.LastElement is "proc" or "verb") {
             DreamPath typePath = path.FromElements(0, -2);
-            if (!ObjectTree.TryGetDMObject(typePath, out var stubOfType))
+            if (!ObjectBuilder.TryGetDMObject(typePath, out var stubOfType))
                 return UnknownReference(location, $"Type {typePath} does not exist");
 
             return new ConstantProcStub(location, stubOfType, path.LastElement is "verb");
         }
 
         // /datum
-        if (ObjectTree.TryGetDMObject(path, out var referencing)) {
+        if (ObjectBuilder.TryGetDMObject(path, out var referencing)) {
             return new ConstantTypeReference(location, referencing);
         }
 
@@ -535,11 +535,11 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             if (procName is null)
                 return UnknownReference(location, $"the path {path} has no last element");
 
-            if (!ObjectTree.TryGetDMObject(ownerPath, out var owner))
+            if (!ObjectBuilder.TryGetDMObject(ownerPath, out var owner))
                 return UnknownReference(location, $"Type {ownerPath} does not exist");
 
             int? procId;
-            if (owner == ObjectTree.Root && ObjectTree.TryGetGlobalProc(procName, out var globalProc)) {
+            if (owner == ctx.ObjectTree.Root && ctx.ObjectTree.TryGetGlobalProc(procName, out var globalProc)) {
                 procId = globalProc.Id;
             } else {
                 var procs = owner.GetLocalProcs(procName);
@@ -547,11 +547,11 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 procId = procs?[^1];
             }
 
-            if (procId == null || ObjectTree.AllProcs.Count < procId) {
+            if (procId == null || ctx.ObjectTree.AllProcs.Count < procId) {
                 return UnknownReference(location, $"Could not find proc {procName}() on {ownerPath}");
             }
 
-            return new ConstantProcReference(location, path, ObjectTree.AllProcs[procId.Value]);
+            return new ConstantProcReference(location, path, ctx.ObjectTree.AllProcs[procId.Value]);
         }
 
         return UnknownReference(location, $"Path {path} does not exist");
@@ -578,7 +578,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             if (field is not null)
                 Compiler.Emit(WarningCode.AmbiguousVarStatic, identifier.Location, $"Static var definition cannot reference instance variable \"{name}\" but a global exists");
 
-            var globalVar = ObjectTree.Globals[globalId.Value];
+            var globalVar = ctx.ObjectTree.Globals[globalId.Value];
             var global = new GlobalField(identifier.Location, globalVar.Type, globalId.Value, globalVar.ValType);
             //soft reserved keywords DO NOT override globals
             if (name is not ("usr" or "src" or "args" or "world" or "global" or "callee" or "caller"))
@@ -630,7 +630,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
 
         if (scopeIdentifier.Expression == null) { // ::A, shorthand for global.A
             if (scopeIdentifier.IsProcRef) { // ::A(), global proc ref
-                if (!ObjectTree.TryGetGlobalProc(bIdentifier, out var globalProc))
+                if (!ctx.ObjectTree.TryGetGlobalProc(bIdentifier, out var globalProc))
                     return UnknownReference(location, $"No global proc named \"{bIdentifier}\" exists");
 
                 var arguments = BuildArgumentList(location, scopeIdentifier.CallArguments, inferredPath);
@@ -642,13 +642,13 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 return new GlobalVars(location);
 
             // ::A, global var ref
-            var globalId = ObjectTree.Root.GetGlobalVariableId(bIdentifier);
+            var globalId = ctx.ObjectTree.Root.GetGlobalVariableId(bIdentifier);
             if (globalId == null)
                 return UnknownIdentifier(location, bIdentifier);
 
-            var globalVar = ObjectTree.Globals [globalId.Value];
+            var globalVar = ctx.ObjectTree.Globals [globalId.Value];
             return new GlobalField(location,
-                ObjectTree.Globals[globalId.Value].Type,
+                ctx.ObjectTree.Globals[globalId.Value].Type,
                 globalId.Value,
                 globalVar.ValType);
         }
@@ -692,7 +692,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             return BadExpression(WarningCode.BadExpression, expression.Location,
                 $"Identifier \"{expression.GetNameof(ctx)}\" does not have a type");
 
-        if (!ObjectTree.TryGetDMObject(expression.Path.Value, out var owner)) {
+        if (!ObjectBuilder.TryGetDMObject(expression.Path.Value, out var owner)) {
             if (expression.Path.Value.LastElement is not null && expression is ConstantProcReference procReference) {
                 if (bIdentifier == "name")
                     return new String(expression.Location, procReference.Value.Name);
@@ -711,7 +711,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 return BadExpression(WarningCode.ItemDoesntExist, location,
                     $"Type {owner.Path} does not have a proc named \"{bIdentifier}\"");
 
-            var referencedProc = ObjectTree.AllProcs[procs[^1]];
+            var referencedProc = ctx.ObjectTree.AllProcs[procs[^1]];
             var path = owner.Path.AddToPath("proc/" + referencedProc.Name);
             return new ConstantProcReference(location, path, referencedProc);
         } else { // A::B
@@ -719,7 +719,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             if (globalVarId != null) {
                 // B is a static var.
                 // This is the only case a ScopeIdentifier can be an LValue.
-                var globalVar = ObjectTree.Globals [globalVarId.Value];
+                var globalVar = ctx.ObjectTree.Globals [globalVarId.Value];
                 return new GlobalField(location, globalVar.Type, globalVarId.Value, globalVar.ValType);
             }
 
@@ -727,13 +727,13 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             if (variable == null)
                 return UnknownIdentifier(location, bIdentifier);
 
-            return new ScopeReference(ObjectTree, location, expression, bIdentifier, variable);
+            return new ScopeReference(ObjectBuilder, location, expression, bIdentifier, variable);
         }
     }
 
     private DMExpression BuildCallableProcIdentifier(DMASTCallableProcIdentifier procIdentifier, DMObject dmObject) {
         if (scopeMode is Static or FirstPassStatic) {
-            if (!ObjectTree.TryGetGlobalProc(procIdentifier.Identifier, out var staticScopeGlobalProc))
+            if (!ctx.ObjectTree.TryGetGlobalProc(procIdentifier.Identifier, out var staticScopeGlobalProc))
                 return UnknownReference(procIdentifier.Location,
                     $"Type {dmObject.Path} does not have a proc named \"{procIdentifier.Identifier}\"");
 
@@ -744,7 +744,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             return new Proc(procIdentifier.Location, procIdentifier.Identifier);
         }
 
-        if (ObjectTree.TryGetGlobalProc(procIdentifier.Identifier, out var globalProc)) {
+        if (ctx.ObjectTree.TryGetGlobalProc(procIdentifier.Identifier, out var globalProc)) {
             return new GlobalProc(procIdentifier.Location, globalProc);
         }
 
@@ -904,7 +904,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 switch (namedOperation) {
                     // global.f()
                     case DMASTDereference.CallOperation callOperation:
-                        if (!ObjectTree.TryGetGlobalProc(callOperation.Identifier, out var globalProc))
+                        if (!ctx.ObjectTree.TryGetGlobalProc(callOperation.Identifier, out var globalProc))
                             return UnknownReference(callOperation.Location,
                                 $"Could not find a global proc named \"{callOperation.Identifier}\"");
 
@@ -926,7 +926,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                         if (globalId == null)
                             return UnknownIdentifier(deref.Location, $"global.{namedOperation.Identifier}");
 
-                        var property = ObjectTree.Globals [globalId.Value];
+                        var property = ctx.ObjectTree.Globals [globalId.Value];
                         expr = new GlobalField(expr.Location, property.Type, globalId.Value, property.ValType);
 
                         prevPath = property.Type;
@@ -964,7 +964,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                     if (!fieldOperation.NoSearch && !pathIsFuzzy) {
                         if (prevPath == null)
                             return UnknownIdentifier(deref.Location, field);
-                        if (!ObjectTree.TryGetDMObject(prevPath.Value, out var fromObject))
+                        if (!ObjectBuilder.TryGetDMObject(prevPath.Value, out var fromObject))
                             return UnknownReference(fieldOperation.Location,
                                 $"Type {prevPath} does not exist");
 
@@ -975,7 +975,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                         }
 
                         if (property == null && fromObject.GetGlobalVariableId(field) is { } globalId) {
-                            property = ObjectTree.Globals[globalId];
+                            property = ctx.ObjectTree.Globals[globalId];
 
                             expr = new GlobalField(expr.Location, property.Type, globalId, property.ValType);
 
@@ -1063,13 +1063,13 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                             return UnknownIdentifier(deref.Location, field);
                         }
 
-                        if (!ObjectTree.TryGetDMObject(prevPath.Value, out var fromObject))
+                        if (!ObjectBuilder.TryGetDMObject(prevPath.Value, out var fromObject))
                             return UnknownReference(callOperation.Location, $"Type {prevPath} does not exist");
                         if (!fromObject.HasLocalProc(field))
                             return UnknownIdentifier(callOperation.Location, field);
 
                         var procId = fromObject.GetLocalProcs(field)![^1];
-                        ObjectTree.AllProcs[procId].EmitUsageWarnings(callOperation.Location);
+                        ctx.ObjectTree.AllProcs[procId].EmitUsageWarnings(callOperation.Location);
                     }
 
                     operation = new Dereference.CallOperation {
@@ -1091,7 +1091,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         }
 
         // The final value in prevPath is our expression's path!
-        return new Dereference(ObjectTree, deref.Location, prevPath, expr, operations);
+        return new Dereference(ObjectBuilder, deref.Location, prevPath, expr, operations);
     }
 
     private DMExpression BuildLocate(DMASTLocate locate, DreamPath? inferredPath) {

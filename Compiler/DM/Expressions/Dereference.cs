@@ -53,7 +53,7 @@ internal class Dereference : LValue {
     private readonly DMExpression _expression;
     private readonly Operation[] _operations;
 
-    public Dereference(DMObjectTree objectTree, Location location, DreamPath? path, DMExpression expression, Operation[] operations)
+    public Dereference(DMObjectBuilder objectBuilder, Location location, DreamPath? path, DMExpression expression, Operation[] operations)
         : base(location, null) {
         _expression = expression;
         Path = path;
@@ -64,16 +64,16 @@ internal class Dereference : LValue {
         }
 
         NestedPath = _operations[^1].Path;
-        ValType = DetermineValType(objectTree);
+        ValType = DetermineValType(objectBuilder);
     }
 
-    private DMComplexValueType DetermineValType(DMObjectTree objectTree) {
+    private DMComplexValueType DetermineValType(DMObjectBuilder objectBuilder) {
         var type = _expression.ValType;
         var i = 0;
         while (!type.IsAnything && i < _operations.Length) {
             var operation = _operations[i++];
 
-            if (type.TypePath is null || !objectTree.TryGetDMObject(type.TypePath.Value, out var dmObject)) {
+            if (type.TypePath is null || !objectBuilder.TryGetDMObject(type.TypePath.Value, out var dmObject)) {
                 // We're dereferencing something without a type-path, this could be anything
                 type = DMValueType.Anything;
                 break;
@@ -120,7 +120,7 @@ internal class Dereference : LValue {
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {
-                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasLocalProc("operator[]")) {
+                    if (ctx.ObjectBuilder.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasLocalProc("operator[]")) {
                         ctx.Compiler.Emit(WarningCode.InvalidIndexOperation, Location, "Invalid index operation. datum[] index operations are not valid starting in BYOND 515.1641");
                     }
                 }
@@ -176,7 +176,7 @@ internal class Dereference : LValue {
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {
-                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasLocalProc("operator[]=")) {
+                    if (ctx.ObjectBuilder.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasLocalProc("operator[]=")) {
                         ctx.Compiler.Emit(WarningCode.InvalidIndexOperation, Location, "Invalid index operation. datum[] index operations are not valid starting in BYOND 515.1641");
                     }
                 }
@@ -306,7 +306,7 @@ internal class Dereference : LValue {
 
         var operation = _operations[^1];
 
-        if (operation is FieldOperation fieldOperation && prevPath is not null && compiler.DMObjectTree.TryGetDMObject(prevPath.Value, out var obj)) {
+        if (operation is FieldOperation fieldOperation && prevPath is not null && compiler.DMObjectBuilder.TryGetDMObject(prevPath.Value, out var obj)) {
             var variable = obj.GetLocalVariable(fieldOperation.Identifier);
 
             if (variable != null)
@@ -320,8 +320,8 @@ internal class Dereference : LValue {
 
 // expression::identifier
 // Same as initial(expression?.identifier) except this keeps its type
-internal sealed class ScopeReference(DMObjectTree objectTree, Location location, DMExpression expression, string identifier, DMVariable dmVar)
-    : Initial(location, new Dereference(objectTree, location, dmVar.Type, expression, // Just a little hacky
+internal sealed class ScopeReference(DMObjectBuilder objectBuilder, Location location, DMExpression expression, string identifier, DMVariable dmVar)
+    : Initial(location, new Dereference(objectBuilder, location, dmVar.Type, expression, // Just a little hacky
         [
             new Dereference.FieldOperation {
                 Identifier = identifier,

@@ -55,7 +55,7 @@ internal sealed class DMMParser(DMCompiler compiler, DMLexer lexer, int zOffset)
             CellDefinitionJson cellDefinition = new CellDefinitionJson(currentToken.ValueAsString());
             DMASTPath? objectType = Path();
             while (objectType != null) {
-                if (!Compiler.DMObjectTree.TryGetDMObject(objectType.Path, out var type) && _skippedTypes.Add(objectType.Path)) {
+                if (!Compiler.DMObjectBuilder.TryGetDMObject(objectType.Path, out var type) && _skippedTypes.Add(objectType.Path)) {
                     Warning($"Skipping type '{objectType.Path}'");
                 }
 

@@ -187,7 +187,7 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
         if (InitializationProcAssignments.Count <= 0 || InitializationProc != null)
             return;
 
-        var init = compiler.DMObjectTree.CreateDMProc(this, null);
+        var init = compiler.DMObjectBuilder.CreateDMProc(this, null);
         InitializationProc = init.Id;
         init.Call(DMReference.SuperProc, DMCallArgumentsType.None, 0);
 

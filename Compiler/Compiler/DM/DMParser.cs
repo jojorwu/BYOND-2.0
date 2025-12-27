@@ -1804,7 +1804,7 @@ namespace DMCompiler.Compiler.DM {
                 }
 
                 var type = AsComplexTypes();
-                Compiler.DMObjectTree.TryGetDMObject(path.Path, out var dmType);
+                Compiler.DMObjectBuilder.TryGetDMObject(path.Path, out var dmType);
                 if (type is { Type: not DMValueType.Anything } && (value is null or DMASTConstantNull) && (dmType?.IsSubtypeOf(DreamPath.Datum) ?? false)) {
                     Compiler.Emit(WarningCode.ImplicitNullType, loc, $"Variable \"{path.Path}\" is null but not a subtype of atom nor explicitly typed as nullable, append \"|null\" to \"as\". It will implicitly be treated as nullable.");
                     type |= DMValueType.Null;

@@ -144,4 +144,5 @@ internal readonly struct ExpressionContext(DMCompiler compiler, DMObject type, D
     public readonly DMProc Proc = proc;
 
     public DMObjectTree ObjectTree => Compiler.DMObjectTree;
+    public DMObjectBuilder ObjectBuilder => Compiler.DMObjectBuilder;
 }

@@ -542,7 +542,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             if (owner == ObjectTree.Root && ObjectTree.TryGetGlobalProc(procName, out var globalProc)) {
                 procId = globalProc.Id;
             } else {
-                var procs = owner.GetProcs(procName);
+                var procs = owner.GetLocalProcs(procName);
 
                 procId = procs?[^1];
             }
@@ -567,7 +567,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             }
         }
 
-        var field = ctx.Type.GetVariable(name);
+        var field = ctx.Type.GetLocalVariable(name);
         if (field != null && (scopeMode == Normal || field.IsConst)) {
             return new Field(identifier.Location, field, field.ValType);
         }
@@ -706,7 +706,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
         }
 
         if (scopeIdentifier.IsProcRef) { // A::B()
-            var procs = owner.GetProcs(bIdentifier);
+            var procs = owner.GetLocalProcs(bIdentifier);
             if (procs == null)
                 return BadExpression(WarningCode.ItemDoesntExist, location,
                     $"Type {owner.Path} does not have a proc named \"{bIdentifier}\"");
@@ -723,7 +723,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                 return new GlobalField(location, globalVar.Type, globalVarId.Value, globalVar.ValType);
             }
 
-            var variable = owner.GetVariable(bIdentifier);
+            var variable = owner.GetLocalVariable(bIdentifier);
             if (variable == null)
                 return UnknownIdentifier(location, bIdentifier);
 
@@ -740,7 +740,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
             return new GlobalProc(procIdentifier.Location, staticScopeGlobalProc);
         }
 
-        if (dmObject.HasProc(procIdentifier.Identifier)) {
+        if (dmObject.HasLocalProc(procIdentifier.Identifier)) {
             return new Proc(procIdentifier.Location, procIdentifier.Identifier);
         }
 
@@ -968,7 +968,7 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
                             return UnknownReference(fieldOperation.Location,
                                 $"Type {prevPath} does not exist");
 
-                        property = fromObject.GetVariable(field);
+                        property = fromObject.GetLocalVariable(field);
                         if (!fieldOperation.Safe && fromObject.IsSubtypeOf(DreamPath.Client)) {
                             Compiler.Emit(WarningCode.UnsafeClientAccess, deref.Location,
                                 "Unsafe \"client\" access. Use the \"?.\" operator instead");
@@ -1065,10 +1065,10 @@ internal class DMExpressionBuilder(ExpressionContext ctx, DMExpressionBuilder.Sc
 
                         if (!ObjectTree.TryGetDMObject(prevPath.Value, out var fromObject))
                             return UnknownReference(callOperation.Location, $"Type {prevPath} does not exist");
-                        if (!fromObject.HasProc(field))
+                        if (!fromObject.HasLocalProc(field))
                             return UnknownIdentifier(callOperation.Location, field);
 
-                        var procId = fromObject.GetProcs(field)![^1];
+                        var procId = fromObject.GetLocalProcs(field)![^1];
                         ObjectTree.AllProcs[procId].EmitUsageWarnings(callOperation.Location);
                     }
 

@@ -52,7 +52,7 @@ internal class DMObjectTree {
     /// <returns></returns>
     public DMProc? GetNewProc(int id) {
         var obj = AllObjects[id];
-        var procs = obj.GetProcs("New");
+        var procs = obj.GetLocalProcs("New");
 
         if (procs != null)
             return AllProcs[procs[0]];
@@ -152,7 +152,7 @@ internal class DMObjectTree {
             if (searchingProcName != null && foundType) {
                 DMObject type = AllObjects[foundTypeId];
 
-                if (type.HasProc(searchingProcName)) {
+                if (type.HasLocalProc(searchingProcName)) {
                     return new DreamPath(type.Path.PathString + "/proc/" + searchingProcName);
                 } else if (foundTypeId == Root.Id && GlobalProcs.ContainsKey(searchingProcName)) {
                     return new DreamPath("/proc/" + searchingProcName);

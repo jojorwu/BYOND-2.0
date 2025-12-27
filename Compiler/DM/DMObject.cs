@@ -40,20 +40,19 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     ///<remarks>
-    /// Note that this DOES NOT query our <see cref= "GlobalVariables" />. <br/>
-    /// <see langword="TODO:"/> Make this (and other things) match the nomenclature of <see cref="HasLocalVariable"/>
+    /// Note that this DOES NOT query our <see cref= "GlobalVariables" />.
     /// </remarks>
-    public DMVariable? GetVariable(string name) {
-        return GetVariable(name, new());
+    public DMVariable? GetLocalVariable(string name) {
+        return GetLocalVariable(name, new());
     }
 
-    private DMVariable? GetVariable(string name, HashSet<DMObject> visited) {
+    private DMVariable? GetLocalVariable(string name, HashSet<DMObject> visited) {
         if (visited.Contains(this)) return null; // Cycle detected
         if (Variables.TryGetValue(name, out var variable)) return variable;
         if (VariableOverrides.TryGetValue(name, out variable)) return variable;
 
         visited.Add(this);
-        return Parent?.GetVariable(name, visited);
+        return Parent?.GetLocalVariable(name, visited);
     }
 
     /// <summary>
@@ -87,16 +86,16 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
         return Parent.HasGlobalVariable(name);
     }
 
-    public bool HasProc(string name) {
-        return HasProc(name, new());
+    public bool HasLocalProc(string name) {
+        return HasLocalProc(name, new());
     }
 
-    private bool HasProc(string name, HashSet<DMObject> visited) {
+    private bool HasLocalProc(string name, HashSet<DMObject> visited) {
         if (visited.Contains(this)) return false; // Cycle detected
         if (Procs.ContainsKey(name)) return true;
 
         visited.Add(this);
-        return Parent?.HasProc(name, visited) ?? false;
+        return Parent?.HasLocalProc(name, visited) ?? false;
     }
 
     /// <summary>
@@ -106,22 +105,22 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
         return Procs.ContainsKey(name);
     }
 
-    public List<int>? GetProcs(string name) {
-        return GetProcs(name, new());
+    public List<int>? GetLocalProcs(string name) {
+        return GetLocalProcs(name, new());
     }
 
-    private List<int>? GetProcs(string name, HashSet<DMObject> visited) {
+    private List<int>? GetLocalProcs(string name, HashSet<DMObject> visited) {
         if (visited.Contains(this)) return null; // Cycle detected
         if (Procs.TryGetValue(name, out var procs)) return procs;
 
         visited.Add(this);
-        return Parent?.GetProcs(name, visited);
+        return Parent?.GetLocalProcs(name, visited);
     }
 
     public DMComplexValueType? GetProcReturnTypes(string name) {
         if (this == compiler.DMObjectTree.Root && compiler.DMObjectTree.TryGetGlobalProc(name, out var globalProc))
             return globalProc.RawReturnTypes;
-        if (GetProcs(name) is not { } procs)
+        if (GetLocalProcs(name) is not { } procs)
             return Parent?.GetProcReturnTypes(name);
 
         var proc = compiler.DMObjectTree.AllProcs[procs[0]];
@@ -179,7 +178,7 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
     }
 
     public DMComplexValueType GetReturnType(string name) {
-        var procId = GetProcs(name)?[^1];
+        var procId = GetLocalProcs(name)?[^1];
 
         return procId is null ? DMValueType.Anything : compiler.DMObjectTree.AllProcs[procId.Value].ReturnTypes;
     }

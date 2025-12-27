@@ -24,7 +24,7 @@ internal partial class DMCodeTree {
             // BYOND assigns the ID after every string inside the proc is assigned, but we aren't replicating that here.
             compiler.DMObjectTree.AddString(ProcName);
 
-            bool hasProc = dmObject.HasProc(ProcName);
+            bool hasProc = dmObject.HasLocalProc(ProcName);
             if (hasProc && !IsOverride && !dmObject.OwnsProc(ProcName) && !procDef.Location.InDMStandard) {
                 compiler.Emit(WarningCode.DuplicateProcDefinition, procDef.Location,
                     $"Type {owner} already inherits a proc named \"{ProcName}\" and cannot redefine it");
@@ -34,7 +34,7 @@ internal partial class DMCodeTree {
             DMProc proc = compiler.DMObjectTree.CreateDMProc(dmObject, procDef);
 
             if (procDef.IsOverride) {
-                var procs = dmObject.GetProcs(procDef.Name);
+                var procs = dmObject.GetLocalProcs(procDef.Name);
                 if (procs != null) {
                       var parent = compiler.DMObjectTree.AllProcs[procs[0]];
                       proc.IsVerb = parent.IsVerb;

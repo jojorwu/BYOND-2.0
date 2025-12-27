@@ -80,7 +80,7 @@ internal class Dereference : LValue {
             }
 
             type = operation switch {
-                FieldOperation fieldOperation => dmObject.GetVariable(fieldOperation.Identifier)?.ValType ?? DMValueType.Anything,
+                FieldOperation fieldOperation => dmObject.GetLocalVariable(fieldOperation.Identifier)?.ValType ?? DMValueType.Anything,
                 IndexOperation => DMValueType.Anything, // Lists currently can't be typed, this could be anything
                 CallOperation callOperation => dmObject.GetProcReturnTypes(callOperation.Identifier) ?? DMValueType.Anything,
                 _ => throw new InvalidOperationException("Unimplemented dereference operation")
@@ -120,7 +120,7 @@ internal class Dereference : LValue {
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {
-                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasProc("operator[]")) {
+                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasLocalProc("operator[]")) {
                         ctx.Compiler.Emit(WarningCode.InvalidIndexOperation, Location, "Invalid index operation. datum[] index operations are not valid starting in BYOND 515.1641");
                     }
                 }
@@ -176,7 +176,7 @@ internal class Dereference : LValue {
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {
-                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasProc("operator[]=")) {
+                    if (ctx.ObjectTree.TryGetDMObject(NestedPath.Value, out var obj) && obj.IsSubtypeOf(DreamPath.Datum) && !obj.HasLocalProc("operator[]=")) {
                         ctx.Compiler.Emit(WarningCode.InvalidIndexOperation, Location, "Invalid index operation. datum[] index operations are not valid starting in BYOND 515.1641");
                     }
                 }
@@ -307,7 +307,7 @@ internal class Dereference : LValue {
         var operation = _operations[^1];
 
         if (operation is FieldOperation fieldOperation && prevPath is not null && compiler.DMObjectTree.TryGetDMObject(prevPath.Value, out var obj)) {
-            var variable = obj.GetVariable(fieldOperation.Identifier);
+            var variable = obj.GetLocalVariable(fieldOperation.Identifier);
 
             if (variable != null)
                 return variable.TryAsConstant(compiler, out constant);

@@ -5,6 +5,7 @@ namespace DMCompiler.DM;
 
 internal partial class DMCodeTree {
     private class ProcsNode() : TypeNode("proc");
+    private class VerbsNode() : TypeNode("verb");
 
     private class ProcNode(DMCodeTree codeTree, DreamPath owner, DMASTProcDefinition procDef) : TypeNode(procDef.Name) {
         private string ProcName => procDef.Name;
@@ -88,7 +89,11 @@ internal partial class DMCodeTree {
         if (procDef is { Name: "New", IsOverride: false })
             _newProcs[owner] = procNode; // We need to be ready to define New() as soon as the type is created
 
-        node.AddProcsNode().Children.Add(procNode);
+        if (procDef.IsVerb) {
+            node.AddVerbsNode().Children.Add(procNode);
+        } else {
+            node.AddProcsNode().Children.Add(procNode);
+        }
         _waitingNodes.Add(procNode);
     }
 }

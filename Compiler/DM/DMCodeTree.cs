@@ -39,11 +39,8 @@ internal partial class DMCodeTree {
     }
 
     private class ObjectNode(DMCodeTree codeTree, string name, DreamPath type) : TypeNode(name) {
-        public readonly DreamPath Type = type;
-
         private bool _defined;
         private ProcsNode? _procs;
-        private VerbsNode? _verbs;
 
         public bool TryDefineType(DMCompiler compiler) {
             if (_defined)
@@ -51,7 +48,7 @@ internal partial class DMCodeTree {
 
             DMObject? explicitParent = null;
             if (codeTree._parentTypes.TryGetValue(type, out var parentType) &&
-                !compiler.DMObjectTree.TryGetDMObject(parentType.Path, out explicitParent))
+                !compiler.DMObjectTree.TryGetDMObject(parentType, out explicitParent))
                 return false; // Parent type isn't ready yet
 
             _defined = true;
@@ -76,20 +73,11 @@ internal partial class DMCodeTree {
 
             return _procs;
         }
-
-        public VerbsNode AddVerbsNode() {
-            if (_verbs is null) {
-                _verbs = new();
-                Children.Add(_verbs);
-            }
-
-            return _verbs;
-        }
     }
 
     private readonly DMCompiler _compiler;
     private readonly HashSet<INode> _waitingNodes = new();
-    private readonly Dictionary<DreamPath, (DreamPath Path, Location Location)> _parentTypes = new();
+    private readonly Dictionary<DreamPath, DreamPath> _parentTypes = new();
     private readonly Dictionary<DreamPath, ProcNode> _newProcs = new();
     private ObjectNode _root;
     private ObjectNode? _dmStandardRoot;
@@ -107,11 +95,11 @@ internal partial class DMCodeTree {
         if (_dmStandardRoot == null)
             FinishDMStandard();
 
-        void Pass(ObjectNode root, bool scopeOperatorEnabled) {
+        void Pass(ObjectNode root) {
             foreach (var node in TraverseNodes(root)) {
                 var successful = (node is ObjectNode objectNode && objectNode.TryDefineType(_compiler)) ||
                                  (node is ProcNode procNode && procNode.TryDefineProc(_compiler)) ||
-                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass, scopeOperatorEnabled));
+                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass));
 
                 if (successful)
                     _waitingNodes.Remove(node);
@@ -119,44 +107,33 @@ internal partial class DMCodeTree {
         }
 
         // Pass 0
-        Pass(_root, false);
-        Pass(_dmStandardRoot!, false);
+        DMExpressionBuilder.ScopeOperatorEnabled = false;
+        Pass(_root);
+        Pass(_dmStandardRoot!);
 
         int lastCount;
         do {
             _currentPass++;
             lastCount = _waitingNodes.Count;
 
-            Pass(_root, false);
-            Pass(_dmStandardRoot!, false);
+            Pass(_root);
+            Pass(_dmStandardRoot!);
         } while (_waitingNodes.Count < lastCount && _waitingNodes.Count > 0);
 
         // Scope operator pass
-        Pass(_root, true);
-        Pass(_dmStandardRoot!, true);
+        DMExpressionBuilder.ScopeOperatorEnabled = true;
+        Pass(_root);
+        Pass(_dmStandardRoot!);
 
-        // If there are nodes that didn't successfully compile, emit their errors
+        // If there exists vars that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {
-            switch (node) {
-                case VarNode varNode:
-                    if (varNode.LastError == null)
-                        continue;
+            if (node is not VarNode varNode) // TODO: If a type or proc fails?
+                continue;
+            if (varNode.LastError == null)
+                continue;
 
-                    _compiler.Emit(WarningCode.ItemDoesntExist, varNode.LastError.Location,
-                        varNode.LastError.Message);
-                    break;
-                case ProcNode procNode:
-                    _compiler.Emit(WarningCode.ItemDoesntExist, procNode.ProcDef.Location,
-                        $"Could not find parent object '{procNode.ProcDef.ObjectPath}' for proc '{procNode.ProcDef.Name}'");
-                    break;
-                case ObjectNode objectNode:
-                    if (_parentTypes.TryGetValue(objectNode.Type, out var parentType)) {
-                        _compiler.Emit(WarningCode.ItemDoesntExist, parentType.Location,
-                            $"Could not find parent type '{parentType.Path}'");
-                    }
-
-                    break;
-            }
+            _compiler.Emit(WarningCode.ItemDoesntExist, varNode.LastError.Location,
+                varNode.LastError.Message);
         }
 
         _compiler.GlobalInitProc.ResolveLabels();
@@ -181,6 +158,8 @@ internal partial class DMCodeTree {
 
             for (int i = 0; i < search.Elements.Length; i++) {
                 var element = search.Elements[i];
+                if (element == "verb")
+                    element = "proc"; // TODO: Separate proc and verb on the code tree
 
                 if (!node.TryGetChild(element, out var child))
                     break;

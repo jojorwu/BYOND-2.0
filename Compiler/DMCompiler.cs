@@ -19,6 +19,7 @@ using DMCompiler.Optimizer;
 namespace DMCompiler;
 
 public class DMCompiler {
+    internal readonly DM.DMGlobals Globals = new();
     public readonly HashSet<WarningCode> UniqueEmissions = new();
     public readonly List<CompilerEmission> CompilerMessages = new();
     public DMCompilerSettings Settings;

@@ -39,18 +39,21 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
             Procs[proc.Name].Add(proc.Id);
     }
 
-    ///<remarks> Note that this DOES NOT query our <see cref= "GlobalVariables" />. </remarks>
-    public DMVariable? GetLocalVariable(string name) {
-        return GetLocalVariable(name, new());
+    ///<remarks>
+    /// Note that this DOES NOT query our <see cref= "GlobalVariables" />. <br/>
+    /// <see langword="TODO:"/> Make this (and other things) match the nomenclature of <see cref="HasLocalVariable"/>
+    /// </remarks>
+    public DMVariable? GetVariable(string name) {
+        return GetVariable(name, new());
     }
 
-    private DMVariable? GetLocalVariable(string name, HashSet<DMObject> visited) {
+    private DMVariable? GetVariable(string name, HashSet<DMObject> visited) {
         if (visited.Contains(this)) return null; // Cycle detected
         if (Variables.TryGetValue(name, out var variable)) return variable;
         if (VariableOverrides.TryGetValue(name, out variable)) return variable;
 
         visited.Add(this);
-        return Parent?.GetLocalVariable(name, visited);
+        return Parent?.GetVariable(name, visited);
     }
 
     /// <summary>

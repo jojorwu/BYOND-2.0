@@ -8,8 +8,10 @@ internal partial class DMCodeTree {
     private class VerbsNode() : TypeNode("verb");
 
     private class ProcNode(DMCodeTree codeTree, DreamPath owner, DMASTProcDefinition procDef) : TypeNode(procDef.Name) {
-        private string ProcName => procDef.Name;
-        private bool IsOverride => procDef.IsOverride;
+        public readonly DMASTProcDefinition ProcDef = procDef;
+
+        private string ProcName => ProcDef.Name;
+        private bool IsOverride => ProcDef.IsOverride;
 
         private bool _defined;
 
@@ -26,16 +28,16 @@ internal partial class DMCodeTree {
             compiler.DMObjectTree.AddString(ProcName);
 
             bool hasProc = dmObject.HasProc(ProcName);
-            if (hasProc && !IsOverride && !dmObject.OwnsProc(ProcName) && !procDef.Location.InDMStandard) {
-                compiler.Emit(WarningCode.DuplicateProcDefinition, procDef.Location,
+            if (hasProc && !IsOverride && !dmObject.OwnsProc(ProcName) && !ProcDef.Location.InDMStandard) {
+                compiler.Emit(WarningCode.DuplicateProcDefinition, ProcDef.Location,
                     $"Type {owner} already inherits a proc named \"{ProcName}\" and cannot redefine it");
                 return true; // TODO: Maybe fallthrough since this error is a little pedantic?
             }
 
-            DMProc proc = compiler.DMObjectTree.CreateDMProc(dmObject, procDef);
+            DMProc proc = compiler.DMObjectTree.CreateDMProc(dmObject, ProcDef);
 
-            if (procDef.IsOverride) {
-                var procs = dmObject.GetProcs(procDef.Name);
+            if (ProcDef.IsOverride) {
+                var procs = dmObject.GetProcs(ProcDef.Name);
                 if (procs != null) {
                       var parent = compiler.DMObjectTree.AllProcs[procs[0]];
                       proc.IsVerb = parent.IsVerb;
@@ -47,27 +49,27 @@ internal partial class DMCodeTree {
                       }
 
                       if (parent.IsFinal)
-                          compiler.Emit(WarningCode.FinalOverride, procDef.Location,
-                              $"Proc \"{procDef.Name}()\" is final and cannot be overridden. Final declaration: {parent.Location}");
+                          compiler.Emit(WarningCode.FinalOverride, ProcDef.Location,
+                              $"Proc \"{ProcDef.Name}()\" is final and cannot be overridden. Final declaration: {parent.Location}");
                 }
             }
 
             if (dmObject == compiler.DMObjectTree.Root) { // Doesn't belong to a type, this is a global proc
                 if(IsOverride) {
-                    compiler.Emit(WarningCode.InvalidOverride, procDef.Location,
+                    compiler.Emit(WarningCode.InvalidOverride, ProcDef.Location,
                         $"Global procs cannot be overridden - '{ProcName}' override will be ignored");
                     //Continue processing the proc anyhoo, just don't add it.
                 } else {
-                    compiler.VerbosePrint($"Adding global proc {procDef.Name}() on pass {codeTree._currentPass}");
+                    compiler.VerbosePrint($"Adding global proc {ProcDef.Name}() on pass {codeTree._currentPass}");
                     compiler.DMObjectTree.AddGlobalProc(proc);
                 }
             } else {
-                compiler.VerbosePrint($"Adding proc {procDef.Name}() to {dmObject.Path} on pass {codeTree._currentPass}");
-                dmObject.AddProc(proc, forceFirst: procDef.Location.InDMStandard);
+                compiler.VerbosePrint($"Adding proc {ProcDef.Name}() to {dmObject.Path} on pass {codeTree._currentPass}");
+                dmObject.AddProc(proc, forceFirst: ProcDef.Location.InDMStandard);
             }
 
             var staticVariableVisitor = new StaticVariableVisitor();
-            procDef.Body?.Visit(staticVariableVisitor);
+            ProcDef.Body?.Visit(staticVariableVisitor);
             foreach (var varDecl in staticVariableVisitor.VarDeclarations) {
                 var procGlobalNode = new ProcGlobalVarNode(owner, proc, varDecl);
                 Children.Add(procGlobalNode);
@@ -86,10 +88,10 @@ internal partial class DMCodeTree {
         var node = GetDMObjectNode(owner);
         var procNode = new ProcNode(this, owner, procDef);
 
-        if (procDef is { Name: "New", IsOverride: false })
+        if (procNode.ProcDef is { Name: "New", IsOverride: false })
             _newProcs[owner] = procNode; // We need to be ready to define New() as soon as the type is created
 
-        if (procDef.IsVerb) {
+        if (procNode.ProcDef.IsVerb) {
             node.AddVerbsNode().Children.Add(procNode);
         } else {
             node.AddProcsNode().Children.Add(procNode);

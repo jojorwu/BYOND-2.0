@@ -19,6 +19,7 @@ using DMCompiler.Optimizer;
 namespace DMCompiler;
 
 public class DMCompiler {
+    internal readonly DM.DMGlobals Globals = new();
     public readonly HashSet<WarningCode> UniqueEmissions = new();
     public readonly List<CompilerEmission> CompilerMessages = new();
     public DMCompilerSettings Settings;
@@ -26,6 +27,7 @@ public class DMCompiler {
 
     internal readonly DMCodeTree DMCodeTree;
     internal readonly DMObjectTree DMObjectTree;
+    internal readonly DMObjectBuilder DMObjectBuilder;
     internal readonly DMProc GlobalInitProc;
     internal readonly BytecodeOptimizer BytecodeOptimizer;
 
@@ -39,6 +41,7 @@ public class DMCompiler {
     public DMCompiler() {
         DMCodeTree = new(this);
         DMObjectTree = new(this);
+        DMObjectBuilder = new(this, DMObjectTree);
         GlobalInitProc = new(this, -1, DMObjectTree.Root, null);
         BytecodeOptimizer = new BytecodeOptimizer(this);
         _errorConfig = new Dictionary<WarningCode, ErrorLevel>(CompilerEmission.DefaultErrorConfig);

@@ -13,7 +13,7 @@ internal sealed class Proc(Location location, string identifier) : DMExpression(
 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
-        if (ctx.Type.HasProc(identifier)) {
+        if (ctx.Type.HasLocalProc(identifier)) {
             return DMReference.CreateSrcProc(identifier);
         } else if (ctx.ObjectTree.TryGetGlobalProc(identifier, out var globalProc)) {
             return DMReference.CreateGlobalProc(globalProc.Id);
@@ -25,7 +25,7 @@ internal sealed class Proc(Location location, string identifier) : DMExpression(
     }
 
     public DMProc? GetProc(DMCompiler compiler, DMObject dmObject) {
-        var procId = dmObject.GetProcs(identifier)?[^1];
+        var procId = dmObject.GetLocalProcs(identifier)?[^1];
         return procId is null ? null : compiler.DMObjectTree.AllProcs[procId.Value];
     }
 
@@ -82,7 +82,7 @@ internal sealed class ProcSuper(Location location, DMComplexValueType? valType) 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel, ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
         if ((ctx.Proc.Attributes & ProcAttributes.IsOverride) != ProcAttributes.IsOverride) {
             // Don't emit if lateral proc overrides exist
-            if (ctx.Type.GetProcs(ctx.Proc.Name)!.Count == 1) {
+            if (ctx.Type.GetLocalProcs(ctx.Proc.Name)!.Count == 1) {
                 ctx.Compiler.Emit(WarningCode.PointlessParentCall, Location,
                     "Calling parents via ..() in a proc definition does nothing");
             }

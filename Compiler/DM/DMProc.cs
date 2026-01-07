@@ -212,7 +212,7 @@ internal sealed class DMProc {
                     if (parameter.Type is not { } typePath) {
                         argumentType = DMValueType.Anything;
                     } else {
-                        _compiler.DMObjectTree.TryGetDMObject(typePath, out var type);
+                        _compiler.DMObjectBuilder.TryGetDMObject(typePath, out var type);
                         argumentType = type?.GetDMValueType() ?? DMValueType.Anything;
                     }
                 }

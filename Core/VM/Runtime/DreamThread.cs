@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
 using Shared;
@@ -156,6 +155,7 @@ namespace Core.VM.Runtime
                         case Opcode.BitShiftRight: Opcode_BitShiftRight(); break;
                         case Opcode.GetVariable: Opcode_GetVariable(proc, frame, ref pc); break;
                         case Opcode.SetVariable: Opcode_SetVariable(proc, frame, ref pc); break;
+                        case Opcode.AssignNoPush: Opcode_AssignNoPush(proc, frame, ref pc); break;
                         default:
                             State = DreamThreadState.Error;
                             throw new Exception($"Unknown opcode: {opcode}");

@@ -8,12 +8,8 @@ namespace Core.VM.Runtime
     public class DreamVM : IDreamVM
     {
         public List<string> Strings { get; } = new();
-        public List<IDreamProc> ProcsById { get; } = new();
-        public Dictionary<string, int> ProcNameIds { get; } = new();
+        public Dictionary<string, IDreamProc> Procs { get; } = new();
         private readonly ServerSettings _settings;
-
-        IReadOnlyList<IDreamProc> IDreamVM.ProcsById => ProcsById;
-        IReadOnlyDictionary<string, int> IDreamVM.ProcNameIds => ProcNameIds;
 
         public DreamVM(ServerSettings settings)
         {
@@ -22,13 +18,9 @@ namespace Core.VM.Runtime
 
         public DreamThread? CreateWorldNewThread()
         {
-            if (ProcNameIds.TryGetValue("/world/proc/New", out var procId))
+            if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
-                var worldNewProc = ProcsById[procId];
-                if (worldNewProc is DreamProc dreamProc)
-                {
-                    return new DreamThread(dreamProc, this, _settings.VmMaxInstructions);
-                }
+                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions);
             }
             Console.WriteLine("Error: /world/proc/New not found. Is the script compiled correctly?");
             return null;
@@ -36,13 +28,9 @@ namespace Core.VM.Runtime
 
         public IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null)
         {
-            if (ProcNameIds.TryGetValue(procName, out var procId))
+            if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
-                var proc = ProcsById[procId];
-                if (proc is DreamProc dreamProc)
-                {
-                    return new DreamThread(dreamProc, this, _settings.VmMaxInstructions, associatedObject);
-                }
+                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions, associatedObject);
             }
 
             Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");

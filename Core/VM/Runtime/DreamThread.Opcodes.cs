@@ -1,5 +1,4 @@
 using System;
-using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
 
@@ -72,17 +71,11 @@ namespace Core.VM.Runtime
             var procId = ReadInt32(proc, ref pc);
             var argCount = ReadByte(proc, ref pc);
 
-            if (procId < 0 || procId >= _vm.ProcsById.Count)
+            var procName = _vm.Strings[procId];
+            if (!_vm.Procs.TryGetValue(procName, out var newProc) || newProc is not DreamProc dreamProc)
             {
                 State = DreamThreadState.Error;
-                throw new Exception($"Attempted to call non-existent proc with ID: {procId}");
-            }
-
-            var newProc = _vm.ProcsById[procId];
-            if (newProc is not DreamProc dreamProc)
-            {
-                State = DreamThreadState.Error;
-                throw new Exception($"Invalid proc type at ID: {procId}");
+                throw new Exception($"Attempted to call non-existent proc: {procName}");
             }
 
             var stackBase = Stack.Count - argCount;
@@ -150,12 +143,13 @@ namespace Core.VM.Runtime
 
         private void Opcode_GetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var variableId = ReadInt32(proc, ref pc);
+            var variableNameId = ReadInt32(proc, ref pc);
+            var variableName = _vm.Strings[variableNameId];
 
             var instance = frame.Instance;
             if (instance != null)
             {
-                Push(instance.GetVariable(variableId));
+                Push(instance.GetVariable(variableName));
             }
             else
             {
@@ -165,13 +159,35 @@ namespace Core.VM.Runtime
 
         private void Opcode_SetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var variableId = ReadInt32(proc, ref pc);
+            var variableNameId = ReadInt32(proc, ref pc);
+            var variableName = _vm.Strings[variableNameId];
             var value = Pop();
 
             var instance = frame.Instance;
             if (instance != null)
             {
-                instance.SetVariable(variableId, value);
+                instance.SetVariable(variableName, value);
+            }
+        }
+
+        private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var variableNameId = ReadInt32(proc, ref pc);
+            var variableName = _vm.Strings[variableNameId];
+
+            if (Stack.Count == 0)
+            {
+                // Handle stack underflow gracefully
+                State = DreamThreadState.Error;
+                Console.WriteLine("Error: Stack underflow in AssignNoPush.");
+                return;
+            }
+            var value = Pop();
+
+            var instance = frame.Instance;
+            if (instance != null)
+            {
+                instance.SetVariable(variableName, value);
             }
         }
 

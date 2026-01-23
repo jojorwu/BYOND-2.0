@@ -13,16 +13,15 @@ internal sealed class Proc(Location location, string identifier) : DMExpression(
 
     public override DMReference EmitReference(ExpressionContext ctx, string endLabel,
         ShortCircuitMode shortCircuitMode = ShortCircuitMode.KeepNull) {
-        var procs = ctx.Type.GetProcs(identifier);
-        if (procs?.Count > 0) {
-            return DMReference.CreateSrcProc(procs[^1]);
+        if (ctx.Type.HasProc(identifier)) {
+            return DMReference.CreateSrcProc(identifier);
         } else if (ctx.ObjectTree.TryGetGlobalProc(identifier, out var globalProc)) {
             return DMReference.CreateGlobalProc(globalProc.Id);
         }
 
         ctx.Compiler.Emit(WarningCode.ItemDoesntExist, Location, $"Type {ctx.Type.Path} does not have a proc named \"{identifier}\"");
         //Just... pretend there is one for the sake of argument.
-        return DMReference.CreateSrcProc(-1);
+        return DMReference.CreateSrcProc(identifier);
     }
 
     public DMProc? GetProc(DMCompiler compiler, DMObject dmObject) {

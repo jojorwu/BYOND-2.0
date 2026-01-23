@@ -72,8 +72,8 @@ public struct DMReference {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static DMReference CreateField(int fieldId) {
-        return new DMReference { RefType = Type.Field, Index = fieldId };
+    public static DMReference CreateField(string fieldName) {
+        return new DMReference { RefType = Type.Field, Name = fieldName };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -87,8 +87,8 @@ public struct DMReference {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static DMReference CreateSrcProc(int procId) {
-        return new DMReference { RefType = Type.SrcProc, Index = procId };
+    public static DMReference CreateSrcProc(string procName) {
+        return new DMReference { RefType = Type.SrcProc, Name = procName };
     }
 
     public override string ToString() {

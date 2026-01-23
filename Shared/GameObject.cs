@@ -90,13 +90,14 @@ namespace Shared
                 return tValue;
             }
 
-            if (ObjectType.VariableNameIds != null && ObjectType.VariableNameIds.TryGetValue(propertyName, out var id) && ObjectType.Variables != null && id < ObjectType.Variables.Count)
+            var currentObjectType = ObjectType;
+            while (currentObjectType != null)
             {
-                var variableValue = ObjectType.Variables[id];
-                if (variableValue is T tDefaultValue)
+                if (currentObjectType.DefaultProperties.TryGetValue(propertyName, out value) && value is T tDefaultValue)
                 {
                     return tDefaultValue;
                 }
+                currentObjectType = currentObjectType.Parent;
             }
 
             return default;

@@ -41,9 +41,7 @@ namespace Core
                 }
 
                 // Load procs
-                var dreamVm = (DreamVM)_dreamVM;
-                dreamVm.ProcsById.Clear();
-                dreamVm.ProcNameIds.Clear();
+                _dreamVM.Procs.Clear();
                 if (json.Procs != null)
                 {
                     foreach (var procJson in json.Procs)
@@ -63,9 +61,7 @@ namespace Core
                             arguments,
                             procJson.Locals?.Count ?? 0
                         );
-                        var procId = dreamVm.ProcsById.Count;
-                        dreamVm.ProcsById.Add(newProc);
-                        dreamVm.ProcNameIds[newProc.Name] = procId;
+                        _dreamVM.Procs[newProc.Name] = newProc;
                     }
                 }
             }
@@ -86,15 +82,12 @@ namespace Core
                 }
                 _typeManager.RegisterObjectType(newType);
 
-                if (typeJson.Variables != null) {
-                    newType.Variables = new List<object>(typeJson.Variables.Count);
-                    foreach (var value in typeJson.Variables) {
-                        newType.Variables.Add(ConvertJsonElement(value));
+                if (typeJson.Variables != null)
+                {
+                    foreach (var (key, value) in typeJson.Variables)
+                    {
+                        newType.DefaultProperties[key] = ConvertJsonElement(value);
                     }
-                }
-
-                if (typeJson.VariableNameIds != null) {
-                    newType.VariableNameIds = typeJson.VariableNameIds;
                 }
             }
         }

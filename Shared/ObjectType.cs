@@ -11,13 +11,13 @@ namespace Shared
 
         [JsonIgnore]
         public ObjectType? Parent { get; set; }
-        public List<object>? Variables { get; set; }
-        public Dictionary<string, int>? VariableNameIds { get; set; }
+        public Dictionary<string, object?> DefaultProperties { get; set; }
 
         public ObjectType(int id, string name)
         {
             Id = id;
             Name = name;
+            DefaultProperties = new Dictionary<string, object?>();
         }
 
         public bool IsSubtypeOf(ObjectType other)

@@ -1,4 +1,4 @@
-namespace Core.VM.Opcodes;
+namespace Shared;
 
 // ReSharper disable MissingBlankLines
 public enum Opcode : byte {

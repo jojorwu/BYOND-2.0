@@ -291,19 +291,17 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
                 break;
 
             case DMReference.Type.Field:
+                int fieldId = compiler.DMObjectTree.AddString(reference.Name);
                 _annotatedBytecode[^1]
-                    .AddArg(compiler, new AnnotatedBytecodeReference(reference.RefType, reference.Index, location));
+                    .AddArg(compiler, new AnnotatedBytecodeReference(reference.RefType, fieldId, location));
                 ResizeStack(affectStack ? -1 : 0);
                 break;
 
             case DMReference.Type.SrcProc:
-                _annotatedBytecode[^1]
-                    .AddArg(compiler, new AnnotatedBytecodeReference(reference.RefType, reference.Index, location));
-                break;
             case DMReference.Type.SrcField:
-                var srcFieldId = compiler.DMObjectTree.AddString(reference.Name);
+                fieldId = compiler.DMObjectTree.AddString(reference.Name);
                 _annotatedBytecode[^1]
-                    .AddArg(compiler, new AnnotatedBytecodeReference(reference.RefType, srcFieldId, location));
+                    .AddArg(compiler, new AnnotatedBytecodeReference(reference.RefType, fieldId, location));
                 break;
 
             case DMReference.Type.ListIndex:

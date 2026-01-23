@@ -9,27 +9,16 @@ namespace Core.VM.Types
         public string Desc { get; set; } = string.Empty;
         public string Icon { get; set; } = string.Empty;
 
-        public ObjectType Type { get; }
-        public List<DreamValue> Variables { get; }
+        public Dictionary<string, DreamValue> Variables { get; } = new();
 
-        public DreamObject(ObjectType type) {
-            Type = type;
-            Variables = new List<DreamValue>(type.Variables?.Count ?? 0);
-            if (type.Variables != null) {
-                foreach (var value in type.Variables) {
-                    Variables.Add(DreamValue.FromObject(value));
-                }
-            }
+        public virtual DreamValue GetVariable(string name)
+        {
+            return Variables.TryGetValue(name, out var value) ? value : DreamValue.Null;
         }
 
-        public virtual DreamValue GetVariable(int id)
+        public virtual void SetVariable(string name, DreamValue value)
         {
-            return Variables[id];
-        }
-
-        public virtual void SetVariable(int id, DreamValue value)
-        {
-            Variables[id] = value;
+            Variables[name] = value;
         }
     }
 }

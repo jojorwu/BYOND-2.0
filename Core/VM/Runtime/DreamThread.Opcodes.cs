@@ -150,13 +150,12 @@ namespace Core.VM.Runtime
 
         private void Opcode_GetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var variableNameId = ReadInt32(proc, ref pc);
-            var variableName = _vm.Strings[variableNameId];
+            var variableId = ReadInt32(proc, ref pc);
 
             var instance = frame.Instance;
             if (instance != null)
             {
-                Push(instance.GetVariable(variableName));
+                Push(instance.GetVariable(variableId));
             }
             else
             {
@@ -166,14 +165,13 @@ namespace Core.VM.Runtime
 
         private void Opcode_SetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var variableNameId = ReadInt32(proc, ref pc);
-            var variableName = _vm.Strings[variableNameId];
+            var variableId = ReadInt32(proc, ref pc);
             var value = Pop();
 
             var instance = frame.Instance;
             if (instance != null)
             {
-                instance.SetVariable(variableName, value);
+                instance.SetVariable(variableId, value);
             }
         }
 

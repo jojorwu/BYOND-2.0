@@ -86,12 +86,15 @@ namespace Core
                 }
                 _typeManager.RegisterObjectType(newType);
 
-                if (typeJson.Variables != null)
-                {
-                    foreach (var (key, value) in typeJson.Variables)
-                    {
-                        newType.DefaultProperties[key] = ConvertJsonElement(value);
+                if (typeJson.Variables != null) {
+                    newType.Variables = new List<object>(typeJson.Variables.Count);
+                    foreach (var value in typeJson.Variables) {
+                        newType.Variables.Add(ConvertJsonElement(value));
                     }
+                }
+
+                if (typeJson.VariableNameIds != null) {
+                    newType.VariableNameIds = typeJson.VariableNameIds;
                 }
             }
         }

@@ -76,6 +76,7 @@ namespace DMCompiler
                 Procs = t.Procs,
                 Verbs = t.Verbs,
                 Variables = t.Variables,
+                VariableNameIds = t.VariableNameIds,
                 GlobalVariables = t.GlobalVariables,
                 ConstVariables = t.ConstVariables,
                 TmpVariables = t.TmpVariables

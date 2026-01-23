@@ -16,7 +16,8 @@ public sealed class PublicDreamTypeJson {
     public int? InitProc { get; set; }
     public List<List<int>>? Procs { get; set; }
     public HashSet<string>? Verbs { get; set; }
-    public Dictionary<string, object>? Variables { get; set; }
+    public List<object>? Variables { get; set; }
+    public Dictionary<string, int>? VariableNameIds { get; set; }
     public Dictionary<string, int>? GlobalVariables { get; set; }
     public HashSet<string>? ConstVariables { get; set; }
     public HashSet<string>? TmpVariables { get; set; }

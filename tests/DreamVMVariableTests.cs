@@ -35,18 +35,20 @@ namespace tests
         [Test]
         public void GetAndSetVariable_WorksCorrectly()
         {
-            _vm.Strings.Add("myVar");
+            var objectType = new ObjectType(1, "test");
+            objectType.Variables = new List<object> { null };
+            objectType.VariableNameIds = new Dictionary<string, int> { { "myVar", 0 } };
 
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(42f));
             bytecode.Add((byte)Opcode.SetVariable);
-            bytecode.AddRange(BitConverter.GetBytes(0)); // String ID for "myVar"
+            bytecode.AddRange(BitConverter.GetBytes(0)); // Variable ID for "myVar"
             bytecode.Add((byte)Opcode.GetVariable);
-            bytecode.AddRange(BitConverter.GetBytes(0)); // String ID for "myVar"
+            bytecode.AddRange(BitConverter.GetBytes(0)); // Variable ID for "myVar"
             bytecode.Add((byte)Opcode.Return);
 
-            var instance = new DreamObject();
+            var instance = new DreamObject(objectType);
             var result = RunTest(bytecode.ToArray(), instance);
 
             Assert.That(result.TryGetValue(out float value), Is.True);

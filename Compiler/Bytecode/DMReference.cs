@@ -72,8 +72,8 @@ public struct DMReference {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static DMReference CreateField(string fieldName) {
-        return new DMReference { RefType = Type.Field, Name = fieldName };
+    public static DMReference CreateField(int fieldId) {
+        return new DMReference { RefType = Type.Field, Index = fieldId };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -13,7 +13,8 @@ namespace tests
         {
             // Arrange
             var objectType = new ObjectType(1, "test");
-            objectType.DefaultProperties["SpritePath"] = "default.png";
+            objectType.Variables = new List<object> { "default.png" };
+            objectType.VariableNameIds = new Dictionary<string, int> { { "SpritePath", 0 } };
             var gameObject = new GameObject(objectType);
             gameObject.Properties["SpritePath"] = "instance.png";
 
@@ -29,7 +30,8 @@ namespace tests
         {
             // Arrange
             var objectType = new ObjectType(1, "test");
-            objectType.DefaultProperties["SpritePath"] = "default.png";
+            objectType.Variables = new List<object> { "default.png" };
+            objectType.VariableNameIds = new Dictionary<string, int> { { "SpritePath", 0 } };
             var gameObject = new GameObject(objectType);
 
             // Act

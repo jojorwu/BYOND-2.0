@@ -172,7 +172,13 @@ internal class Dereference : LValue {
                     ShortCircuitHandler(ctx, endLabel, shortCircuitMode);
                 }
 
-                return DMReference.CreateField(fieldOperation.Identifier);
+                var fieldId = ctx.Type.GetVariableId(fieldOperation.Identifier);
+                if (fieldId.HasValue) {
+                    return DMReference.CreateField(fieldId.Value);
+                }
+
+                ctx.Compiler.Emit(WarningCode.ItemDoesntExist, Location, $"Type {ctx.Type.Path} does not have a variable named \"{fieldOperation.Identifier}\"");
+                return DMReference.CreateField(-1);
 
             case IndexOperation indexOperation:
                 if (NestedPath is not null) {

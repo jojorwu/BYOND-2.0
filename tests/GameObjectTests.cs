@@ -12,12 +12,12 @@ namespace tests
         {
             // Arrange
             var parentType = new ObjectType(1, "/obj/parent");
-            parentType.DefaultProperties["parentProperty"] = "parentValue";
-            parentType.DefaultProperties["overrideProperty"] = "parentOverride";
+            parentType.Variables = new List<object> { "parentValue", "parentOverride" };
+            parentType.VariableNameIds = new Dictionary<string, int> { { "parentProperty", 0 }, { "overrideProperty", 1 } };
 
             var childType = new ObjectType(2, "/obj/child") { Parent = parentType };
-            childType.DefaultProperties["childProperty"] = "childValue";
-            childType.DefaultProperties["overrideProperty"] = "childOverride";
+            childType.Variables = new List<object> { "parentValue", "childOverride", "childValue" };
+            childType.VariableNameIds = new Dictionary<string, int> { { "parentProperty", 0 }, { "overrideProperty", 1 }, { "childProperty", 2 } };
 
             var gameObject = new GameObject(childType);
             gameObject.Properties["instanceProperty"] = "instanceValue";

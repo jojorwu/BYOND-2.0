@@ -56,6 +56,14 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
         return Parent?.GetVariable(name, visited);
     }
 
+    public int? GetVariableId(string name) {
+        var (_, variableNameIds) = GetVariableData();
+        if (variableNameIds.TryGetValue(name, out var id)) {
+            return id;
+        }
+        return null;
+    }
+
     /// <summary>
     /// Does a recursive search through self and parents to check if we already contain this variable, as a NON-STATIC VALUE!
     /// </summary>
@@ -198,28 +206,46 @@ internal sealed class DMObject(DMCompiler compiler, int id, DreamPath path, DMOb
         }
     }
 
+    private (List<object> Variables, Dictionary<string, int> VariableNameIds) GetVariableData() {
+        var variables = new List<object>();
+        var variableNameIds = new Dictionary<string, int>();
+        var visited = new HashSet<DMObject>();
+
+        void RecursivelyCollectVariables(DMObject? obj) {
+            if (obj == null || visited.Contains(obj)) return;
+            visited.Add(obj);
+
+            RecursivelyCollectVariables(obj.Parent);
+
+            foreach (var (name, variable) in obj.Variables) {
+                if (!variable.TryAsJsonRepresentation(compiler, out var valueJson))
+                    throw new Exception($"Failed to serialize {obj.Path}.{name}");
+
+                if (variableNameIds.TryGetValue(name, out var id)) {
+                    variables[id] = valueJson;
+                } else {
+                    id = variables.Count;
+                    variableNameIds[name] = id;
+                    variables.Add(valueJson);
+                }
+            }
+        }
+
+        RecursivelyCollectVariables(this);
+
+        return (variables, variableNameIds);
+    }
+
     public DreamTypeJson CreateJsonRepresentation() {
         DreamTypeJson typeJson = new DreamTypeJson {
             Path = Path.PathString,
             Parent = Parent?.Id
         };
 
-        if (Variables.Count > 0 || VariableOverrides.Count > 0) {
-            typeJson.Variables = new Dictionary<string, object>();
-
-            foreach (KeyValuePair<string, DMVariable> variable in Variables) {
-                if (!variable.Value.TryAsJsonRepresentation(compiler, out var valueJson))
-                    throw new Exception($"Failed to serialize {Path}.{variable.Key}");
-
-                typeJson.Variables.Add(variable.Key, valueJson);
-            }
-
-            foreach (KeyValuePair<string, DMVariable> variable in VariableOverrides) {
-                if (!variable.Value.TryAsJsonRepresentation(compiler, out var valueJson))
-                    throw new Exception($"Failed to serialize {Path}.{variable.Key}");
-
-                typeJson.Variables[variable.Key] = valueJson;
-            }
+        var (variables, variableNameIds) = GetVariableData();
+        if (variables.Count > 0) {
+            typeJson.Variables = variables;
+            typeJson.VariableNameIds = variableNameIds;
         }
 
         if (GlobalVariables.Count > 0) {

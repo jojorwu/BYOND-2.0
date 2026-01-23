@@ -35,7 +35,8 @@ namespace tests
         {
             // Arrange
             var objectType = new ObjectType(1, "test_object");
-            objectType.DefaultProperties["SpritePath"] = "default.png";
+            objectType.Variables = new List<object> { "default.png" };
+            objectType.VariableNameIds = new Dictionary<string, int> { { "SpritePath", 0 } };
             _objectTypeManager.RegisterObjectType(objectType);
 
             var map = new Map();

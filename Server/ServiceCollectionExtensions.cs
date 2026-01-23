@@ -38,6 +38,7 @@ namespace Server
                 new RegionalGameLoopStrategy(
                     provider.GetRequiredService<IScriptHost>(),
                     provider.GetRequiredService<IRegionManager>(),
+                    provider.GetRequiredService<Core.Regions.IRegionActivationStrategy>(),
                     provider.GetRequiredService<IUdpServer>(),
                     provider.GetRequiredService<IGameState>(),
                     provider.GetRequiredService<IGameStateSnapshotter>(),

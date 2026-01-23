@@ -26,6 +26,7 @@ namespace Core
             services.AddSingleton<IRegionApi>(provider =>
                 new RegionApi(
                     provider.GetRequiredService<IRegionManager>(),
+                    provider.GetRequiredService<IRegionActivationStrategy>(),
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
@@ -54,12 +55,10 @@ namespace Core
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
+            services.AddSingleton<IRegionActivationStrategy, PlayerBasedActivationStrategy>();
             services.AddSingleton<IRegionManager>(provider =>
                 new RegionManager(
                     provider.GetRequiredService<IMap>(),
-                    provider.GetRequiredService<IScriptHost>(),
-                    provider.GetRequiredService<IGameState>(),
-                    provider.GetRequiredService<IPlayerManager>(),
                     provider.GetRequiredService<ServerSettings>()
                 )
             );

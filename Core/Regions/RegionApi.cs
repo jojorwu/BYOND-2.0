@@ -7,17 +7,19 @@ namespace Core.Regions
     public class RegionApi : IRegionApi
     {
         private readonly IRegionManager _regionManager;
+        private readonly IRegionActivationStrategy _regionActivationStrategy;
         private readonly ServerSettings _settings;
 
-        public RegionApi(IRegionManager regionManager, ServerSettings settings)
+        public RegionApi(IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, ServerSettings settings)
         {
             _regionManager = regionManager;
+            _regionActivationStrategy = regionActivationStrategy;
             _settings = settings;
         }
 
         public void SetRegionActive(int x, int y, int z, bool active)
         {
-            _regionManager.SetRegionActive(x, y, z, active);
+            _regionActivationStrategy.SetRegionActive(x, y, z, active);
         }
 
         public bool IsRegionActive(int x, int y, int z)
@@ -32,7 +34,7 @@ namespace Core.Regions
             if (region == null)
                 return false;
 
-            return _regionManager.GetActiveRegions().Contains(region);
+            return _regionActivationStrategy.GetActiveRegions().Contains(region);
         }
     }
 }

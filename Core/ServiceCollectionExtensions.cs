@@ -21,6 +21,7 @@ namespace Core
             services.AddSingleton<IObjectApi, ObjectApi>();
             services.AddSingleton<IScriptApi, ScriptApi>();
             services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
+            services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
             services.AddSingleton<IGameApi, GameApi>();
             services.AddSingleton<IRegionApi>(provider =>
                 new RegionApi(

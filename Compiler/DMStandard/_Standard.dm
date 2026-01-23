@@ -126,6 +126,23 @@ proc/winexists(player, control_id) as text
 proc/winget(player, control_id, params)
 proc/winset(player, control_id, params)
 
+/proc/find_nearest_non_dense_turf(x, y, z)
+    var/turf/center_turf = locate(x, y, z)
+    if(center_turf && !center_turf.density)
+        return center_turf
+
+    var/radius = 1
+    while(radius <= 10) // Limit search to a reasonable radius
+        for(var/dx in -radius to radius)
+            for(var/dy in -radius to radius)
+                if(abs(dx) < radius && abs(dy) < radius) continue // Skip inner layers
+
+                var/turf/t = locate(x + dx, y + dy, z)
+                if(t && !t.density)
+                    return t
+        radius++
+    return null // No suitable turf found
+
 #include "_Globals.dm" // This needs to go before the defines
 #include "Defines.dm"
 #include "Types\AList.dm"

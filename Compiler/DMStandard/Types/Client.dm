@@ -63,7 +63,8 @@
 				break
 
 		if (mob == null) // No existing mob, create a default one
-			mob = new world.mob(locate(1,1,1)) // TODO: Find nearest non-dense turf
+			var/turf/spawn_turf = find_nearest_non_dense_turf(1, 1, 1)
+			mob = new world.mob(spawn_turf)
 
 		eye = mob
 		statobj = mob

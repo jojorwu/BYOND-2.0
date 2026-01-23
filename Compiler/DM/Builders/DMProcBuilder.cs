@@ -7,7 +7,7 @@ using DMCompiler.DM.Expressions;
 namespace DMCompiler.DM.Builders;
 
 internal sealed class DMProcBuilder(DMCompiler compiler, DMObject dmObject, DMProc proc) {
-    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc));
+    private readonly DMExpressionBuilder _exprBuilder = new(new(compiler, dmObject, proc), false);
 
     private ExpressionContext ExprContext => new(compiler, dmObject, proc);
 

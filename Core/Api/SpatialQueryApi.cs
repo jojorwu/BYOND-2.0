@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Robust.Shared.Maths;
 using Shared;
 using Shared.Api;
 
@@ -44,14 +46,11 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
-                var results = new List<GameObject>();
-                foreach (var obj in _gameState.GameObjects.Values)
-                {
-                    if (GetDistance(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distance)
-                    {
-                        results.Add(obj);
-                    }
-                }
+                var box = new Box2i(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
+                var results = _gameState.SpatialGrid.GetObjectsInBox(box)
+                    .Cast<GameObject>()
+                    .Where(obj => obj.Z == centerZ && GetDistance(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distance)
+                    .ToList();
                 return results;
             }
         }
@@ -60,19 +59,11 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
-                var results = new List<GameObject>();
-                foreach (var obj in _gameState.GameObjects.Values)
-                {
-                    if (obj == viewer) continue; // Can't see yourself
-
-                    if (GetDistance(viewer, obj) <= distance)
-                    {
-                        if (HasLineOfSight(viewer, obj))
-                        {
-                            results.Add(obj);
-                        }
-                    }
-                }
+                var box = new Box2i(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
+                var results = _gameState.SpatialGrid.GetObjectsInBox(box)
+                    .Cast<GameObject>()
+                    .Where(obj => obj != viewer && obj.Z == viewer.Z && GetDistance(viewer, obj) <= distance && HasLineOfSight(viewer, obj))
+                    .ToList();
                 return results;
             }
         }

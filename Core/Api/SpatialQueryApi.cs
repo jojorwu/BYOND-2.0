@@ -46,10 +46,11 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
+                var distanceSquared = distance * distance;
                 var box = new Box2i(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
                 var results = _gameState.SpatialGrid.GetObjectsInBox(box)
                     .Cast<GameObject>()
-                    .Where(obj => obj.Z == centerZ && GetDistance(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distance)
+                    .Where(obj => obj.Z == centerZ && GetDistanceSquared(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distanceSquared)
                     .ToList();
                 return results;
             }
@@ -59,10 +60,11 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
+                var distanceSquared = distance * distance;
                 var box = new Box2i(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
                 var results = _gameState.SpatialGrid.GetObjectsInBox(box)
                     .Cast<GameObject>()
-                    .Where(obj => obj != viewer && obj.Z == viewer.Z && GetDistance(viewer, obj) <= distance && HasLineOfSight(viewer, obj))
+                    .Where(obj => obj != viewer && obj.Z == viewer.Z && GetDistanceSquared(viewer, obj) <= distanceSquared && HasLineOfSight(viewer, obj))
                     .ToList();
                 return results;
             }
@@ -114,17 +116,17 @@ namespace Core.Api
             return true; // No obstructions
         }
 
-        private double GetDistance(GameObject a, GameObject b)
+        private double GetDistanceSquared(GameObject a, GameObject b)
         {
-            return GetDistance(a.X, a.Y, a.Z, b.X, b.Y, b.Z);
+            return GetDistanceSquared(a.X, a.Y, a.Z, b.X, b.Y, b.Z);
         }
 
-        private double GetDistance(int x1, int y1, int z1, int x2, int y2, int z2)
+        private double GetDistanceSquared(int x1, int y1, int z1, int x2, int y2, int z2)
         {
             var dx = x1 - x2;
             var dy = y1 - y2;
             var dz = z1 - z2;
-            return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            return dx * dx + dy * dy + dz * dz;
         }
     }
 }

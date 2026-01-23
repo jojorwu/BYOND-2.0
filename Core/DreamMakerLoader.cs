@@ -41,7 +41,9 @@ namespace Core
                 }
 
                 // Load procs
-                _dreamVM.Procs.Clear();
+                var dreamVm = (DreamVM)_dreamVM;
+                dreamVm.ProcsById.Clear();
+                dreamVm.ProcNameIds.Clear();
                 if (json.Procs != null)
                 {
                     foreach (var procJson in json.Procs)
@@ -61,7 +63,9 @@ namespace Core
                             arguments,
                             procJson.Locals?.Count ?? 0
                         );
-                        _dreamVM.Procs[newProc.Name] = newProc;
+                        var procId = dreamVm.ProcsById.Count;
+                        dreamVm.ProcsById.Add(newProc);
+                        dreamVm.ProcNameIds[newProc.Name] = procId;
                     }
                 }
             }

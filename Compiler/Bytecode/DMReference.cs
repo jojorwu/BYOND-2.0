@@ -87,8 +87,8 @@ public struct DMReference {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static DMReference CreateSrcProc(string procName) {
-        return new DMReference { RefType = Type.SrcProc, Name = procName };
+    public static DMReference CreateSrcProc(int procId) {
+        return new DMReference { RefType = Type.SrcProc, Index = procId };
     }
 
     public override string ToString() {

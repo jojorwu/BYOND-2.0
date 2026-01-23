@@ -72,11 +72,17 @@ namespace Core.VM.Runtime
             var procId = ReadInt32(proc, ref pc);
             var argCount = ReadByte(proc, ref pc);
 
-            var procName = _vm.Strings[procId];
-            if (!_vm.Procs.TryGetValue(procName, out var newProc) || newProc is not DreamProc dreamProc)
+            if (procId < 0 || procId >= _vm.ProcsById.Count)
             {
                 State = DreamThreadState.Error;
-                throw new Exception($"Attempted to call non-existent proc: {procName}");
+                throw new Exception($"Attempted to call non-existent proc with ID: {procId}");
+            }
+
+            var newProc = _vm.ProcsById[procId];
+            if (newProc is not DreamProc dreamProc)
+            {
+                State = DreamThreadState.Error;
+                throw new Exception($"Invalid proc type at ID: {procId}");
             }
 
             var stackBase = Stack.Count - argCount;

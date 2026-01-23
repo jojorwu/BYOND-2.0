@@ -298,6 +298,9 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
                 break;
 
             case DMReference.Type.SrcProc:
+                _annotatedBytecode[^1]
+                    .AddArg(compiler, new AnnotatedBytecodeReference(reference.RefType, reference.Index, location));
+                break;
             case DMReference.Type.SrcField:
                 fieldId = compiler.DMObjectTree.AddString(reference.Name);
                 _annotatedBytecode[^1]

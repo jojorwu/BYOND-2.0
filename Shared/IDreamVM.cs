@@ -5,7 +5,8 @@ namespace Shared
     public interface IDreamVM
     {
         List<string> Strings { get; }
-        Dictionary<string, IDreamProc> Procs { get; }
+        IReadOnlyList<IDreamProc> ProcsById { get; }
+        IReadOnlyDictionary<string, int> ProcNameIds { get; }
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
     }
 }

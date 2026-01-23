@@ -185,13 +185,26 @@ proc/replacetextEx_char(Haystack as text, Needle, Replacement, Start = 1, End = 
     return Ref.Move(get_step_away(Ref, Trg, Max), turn(get_dir(Ref, Trg), 180))
 
 /proc/step_to(atom/movable/Ref, atom/Trg, Min = 0, Speed = 0) as num
-	//TODO: Consider obstacles
-
 	var/dist = get_dist(Ref, Trg)
-	if (dist <= Min) return
+	if (dist <= Min) return 0
 
-	var/step_dir = get_dir(Ref, Trg)
-	return step(Ref, step_dir, Speed)
+	var/direction = get_dir(Ref, Trg)
+	var/turf/target_turf = get_step(Ref, direction)
+	if (target_turf && !target_turf.density)
+		return step(Ref, direction, Speed)
+
+	// Try to step left or right of the obstacle
+	var/left_dir = turn(direction, 45)
+	var/turf/left_turf = get_step(Ref, left_dir)
+	if (left_turf && !left_turf.density)
+		return step(Ref, left_dir, Speed)
+
+	var/right_dir = turn(direction, -45)
+	var/turf/right_turf = get_step(Ref, right_dir)
+	if (right_turf && !right_turf.density)
+		return step(Ref, right_dir, Speed)
+
+	return 0 // Can't move
 
 /proc/walk_away(Ref,Trg,Max=5,Lag=0,Speed=0)
 	set opendream_unimplemented = TRUE

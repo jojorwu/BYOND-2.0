@@ -41,6 +41,7 @@ namespace Editor
             services.AddSingleton(launchOptions);
             services.AddCoreServices();
             services.AddEditorServices();
+            services.AddEditorCompilerServices();
             services.AddUiPanels();
         }
     }

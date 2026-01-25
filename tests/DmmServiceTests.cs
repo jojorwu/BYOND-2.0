@@ -6,6 +6,7 @@ using Shared;
 using Core.Objects;
 using Core.Maps;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 
 namespace Core.Tests
 {
@@ -17,6 +18,7 @@ namespace Core.Tests
         private Project _project = null!;
         private string _projectPath = null!;
         private DmmService _dmmService = null!;
+        private Mock<IDmmParserService> _dmmParserServiceMock = null!;
 
         [SetUp]
         public void SetUp()
@@ -31,7 +33,8 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager();
             var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project);
             var logger = new NullLogger<DmmService>();
-            _dmmService = new DmmService(_objectTypeManager, _project, dreamMakerLoader, logger);
+            _dmmParserServiceMock = new Mock<IDmmParserService>();
+            _dmmService = new DmmService(_objectTypeManager, _project, dreamMakerLoader, logger, _dmmParserServiceMock.Object);
         }
 
         [TearDown]
@@ -64,6 +67,26 @@ ab
             var dmmRelativePath = Path.Combine("maps", "test.dmm");
             var dmmFullPath = _project.GetFullPath(dmmRelativePath);
             File.WriteAllText(dmmFullPath, dmmContent);
+
+            var mockMapData = new Mock<Shared.Json.IMapData>();
+            var mockCompiledJson = new Mock<Shared.Json.ICompiledJson>();
+            mockMapData.Setup(m => m.Blocks).Returns(new System.Collections.Generic.List<Shared.Json.MapBlockJson> { new Shared.Json.MapBlockJson { X = 1, Y = 1, Z = 1, Width = 2, Height = 1, Cells = new System.Collections.Generic.List<string> { "a", "b" } } });
+            mockMapData.Setup(m => m.CellDefinitions).Returns(new System.Collections.Generic.Dictionary<string, Shared.Json.MapCellJson> {
+                { "a", new Shared.Json.MapCellJson { Turf = new Shared.Json.MapJsonObjectJson { Type = 0 } } },
+                { "b", new Shared.Json.MapCellJson { Turf = new Shared.Json.MapJsonObjectJson { Type = 0 }, Objects = new System.Collections.Generic.List<Shared.Json.MapJsonObjectJson> { new Shared.Json.MapJsonObjectJson { Type = 1 } } } }
+            });
+
+            var turfTypeMock = new Mock<Shared.Json.ICompiledTypeJson>();
+            turfTypeMock.SetupGet(p => p.Path).Returns("/turf/floor");
+            var wallTypeMock = new Mock<Shared.Json.ICompiledTypeJson>();
+            wallTypeMock.SetupGet(p => p.Path).Returns("/obj/wall");
+
+            mockCompiledJson.Setup(m => m.Types).Returns(new System.Collections.Generic.List<Shared.Json.ICompiledTypeJson> {
+                turfTypeMock.Object,
+                wallTypeMock.Object
+            });
+
+            _dmmParserServiceMock.Setup(p => p.ParseDmm(It.IsAny<System.Collections.Generic.List<string>>(), dmmFullPath)).Returns((mockMapData.Object, mockCompiledJson.Object));
 
             // Act
             var map = await _dmmService.LoadMapAsync(dmmFullPath);

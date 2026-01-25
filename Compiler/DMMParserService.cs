@@ -6,13 +6,15 @@ using System.IO;
 using DMCompiler.DM;
 using DMCompiler.Compiler.DM;
 using DMCompiler.Compiler.DMPreprocessor;
+using Shared;
+using Shared.Json;
 using System.Linq;
 
 namespace DMCompiler
 {
-    public class DMMParserService
+    public class DMMParserService : IDmmParserService
     {
-        public (PublicDreamMapJson? MapJson, PublicDreamCompiledJson? CompiledJson) ParseDmm(List<string> dmFiles, string dmmPath)
+        public (IMapData?, ICompiledJson?) ParseDmm(List<string> dmFiles, string dmmPath)
         {
             if (!File.Exists(dmmPath))
             {
@@ -44,75 +46,53 @@ namespace DMCompiler
 
             var lexer = new DMLexer(dmmPath, preprocessor);
             var parser = new DMMParser(compiler, lexer, 0);
-            var mapJson = parser.ParseMap();
+            DreamMapJson mapJson = parser.ParseMap();
 
-            var publicMapJson = new PublicDreamMapJson
-            {
+            MapData mapData = new MapData {
                 MaxX = mapJson.MaxX,
                 MaxY = mapJson.MaxY,
-                MaxZ = mapJson.MaxZ,
-                Blocks = mapJson.Blocks.Select(b => new PublicMapBlockJson(b.X, b.Y, b.Z)
-                {
-                    Width = b.Width,
-                    Height = b.Height,
-                    Cells = b.Cells
-                }).ToList(),
-                CellDefinitions = mapJson.CellDefinitions.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => new PublicCellDefinitionJson(kvp.Value.Name)
-                    {
-                        Turf = kvp.Value.Turf != null ? new PublicMapObjectJson(kvp.Value.Turf.Type) { VarOverrides = kvp.Value.Turf.VarOverrides } : null,
-                        Area = kvp.Value.Area != null ? new PublicMapObjectJson(kvp.Value.Area.Type) { VarOverrides = kvp.Value.Area.VarOverrides } : null,
-                        Objects = kvp.Value.Objects.Select(o => new PublicMapObjectJson(o.Type) { VarOverrides = o.VarOverrides }).ToList()
-                    })
+                MaxZ = mapJson.MaxZ
             };
 
-            var (types, procs) = compiler.DMObjectTree.CreateJsonRepresentation();
+            foreach (var block in mapJson.Blocks) {
+                mapData.Blocks.Add(new Shared.Json.MapBlockJson {
+                    X = block.X,
+                    Y = block.Y,
+                    Z = block.Z,
+                    Width = block.Width,
+                    Height = block.Height,
+                    Cells = block.Cells
+                });
+            }
 
-            var publicTypes = types.Select(t => new PublicDreamTypeJson {
-                Path = t.Path,
-                Parent = t.Parent,
-                InitProc = t.InitProc,
-                Procs = t.Procs,
-                Verbs = t.Verbs,
-                Variables = t.Variables,
-                GlobalVariables = t.GlobalVariables,
-                ConstVariables = t.ConstVariables,
-                TmpVariables = t.TmpVariables
-            }).ToArray();
+            foreach (var (name, cell) in mapJson.CellDefinitions) {
+                var mapCell = new MapCellJson();
 
-            var publicProcs = procs.Select(p => new PublicProcDefinitionJson {
-                OwningTypeId = p.OwningTypeId,
-                Name = p.Name,
-                Attributes = p.Attributes,
-                MaxStackSize = p.MaxStackSize,
-                Arguments = p.Arguments?.Select(a => new PublicProcArgumentJson { Name = a.Name, Type = a.Type }).ToList(),
-                Locals = p.Locals?.Select(l => new PublicLocalVariableJson { Offset = l.Offset, Remove = l.Remove, Add = l.Add }).ToList(),
-                SourceInfo = p.SourceInfo.Select(s => new PublicSourceInfoJson { Offset = s.Offset, File = s.File, Line = s.Line }).ToList(),
-                Bytecode = p.Bytecode,
-                IsVerb = p.IsVerb,
-                VerbSrc = p.VerbSrc,
-                VerbName = p.VerbName,
-                VerbCategory = p.VerbCategory,
-                VerbDesc = p.VerbDesc,
-                Invisibility = p.Invisibility
-            }).ToArray();
-
-            var compiledJson = new PublicDreamCompiledJson {
-                Strings = compiler.DMObjectTree.StringTable,
-                Types = publicTypes,
-                Procs = publicProcs,
-                Globals = new GlobalListJson {
-                    GlobalCount = compiler.DMObjectTree.Globals.Count,
-                    Names = compiler.DMObjectTree.Globals.Select(g => g.Name).ToList(),
-                    Globals = compiler.DMObjectTree.Globals.Select((g, i) => {
-                        g.TryAsJsonRepresentation(compiler, out var json);
-                        return new { i, json };
-                    }).Where(x => x.json != null).ToDictionary(x => x.i, x => x.json!)
+                if (cell.Turf != null) {
+                    mapCell.Turf = new MapJsonObjectJson {
+                        Type = cell.Turf.Type,
+                        VarOverrides = cell.Turf.VarOverrides
+                    };
                 }
-            };
+                if (cell.Area != null) {
+                    mapCell.Area = new MapJsonObjectJson {
+                        Type = cell.Area.Type,
+                        VarOverrides = cell.Area.VarOverrides
+                    };
+                }
+                foreach (var obj in cell.Objects) {
+                    mapCell.Objects.Add(new MapJsonObjectJson {
+                        Type = obj.Type,
+                        VarOverrides = obj.VarOverrides
+                    });
+                }
 
-            return (publicMapJson, compiledJson);
+                mapData.CellDefinitions.Add(name, mapCell);
+            }
+
+            var compiledJson = compiler.CreateDreamCompiledJson(new List<DreamMapJson> { mapJson }, null);
+
+            return (mapData, compiledJson);
         }
     }
 }

@@ -1,3 +1,6 @@
+using Shared.Json;
+using System.Collections.Generic;
+
 ﻿namespace DMCompiler.Json;
 
 public enum JsonVariableType {
@@ -10,7 +13,7 @@ public enum JsonVariableType {
     AList = 6
 }
 
-public sealed class DreamTypeJson {
+public sealed class DreamTypeJson : ICompiledTypeJson {
     public required string Path { get; set; }
     public int? Parent { get; set; }
     public int? InitProc { get; set; }
@@ -20,10 +23,12 @@ public sealed class DreamTypeJson {
     public Dictionary<string, int>? GlobalVariables { get; set; }
     public HashSet<string>? ConstVariables { get; set; }
     public HashSet<string>? TmpVariables { get; set; }
+    IReadOnlyDictionary<string, object> ICompiledTypeJson.Variables => Variables;
 }
-
-public sealed class GlobalListJson {
+public sealed class GlobalListJson : IGlobalListJson {
     public int GlobalCount { get; set; }
     public required List<string> Names { get; set; }
     public required Dictionary<int, object> Globals { get; set; }
+    IReadOnlyList<string> IGlobalListJson.Names => Names;
+    IReadOnlyDictionary<int, object> IGlobalListJson.Globals => Globals;
 }

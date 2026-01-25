@@ -4,6 +4,7 @@ using Core.VM;
 using Core.VM.Runtime;
 using Core.VM.Procs;
 using Core.VM.Types;
+using Core.VM.Opcodes;
 using System;
 using System.Collections.Generic;
 using System.Linq;

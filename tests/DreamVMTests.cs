@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using Core.VM.Runtime;
 using Core.VM.Procs;
 using Core.VM.Types;
+using Core.VM.Opcodes;
 using System;
 using System.Linq;
 

@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text.Json;
 using Core.VM.Runtime;
 using Core.VM.Types;
-using DMCompiler.Json;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Json;
 
 namespace Core.Scripting.DM
 {
@@ -40,27 +40,20 @@ namespace Core.Scripting.DM
             if (dmFiles.Count == 0) return;
 
             _logger.LogInformation($"[DM] Compiling {dmFiles.Count} files...");
-            var (jsonPath, messages) = await Task.Run(() => _compiler.Compile(dmFiles));
+            var (compiledJson, messages) = await Task.Run(() => _compiler.Compile(dmFiles));
 
             foreach (var msg in messages)
             {
                 _logger.LogInformation($"[DM Compiler] {msg}");
             }
 
-            if (jsonPath != null && File.Exists(jsonPath))
+            if (compiledJson != null)
             {
-                _logger.LogInformation("[DM] Loading compiled JSON...");
-                await using var stream = File.OpenRead(jsonPath);
-                var compiledJson = await JsonSerializer.DeserializeAsync<PublicDreamCompiledJson>(stream);
-
-                if (compiledJson != null)
-                {
-                    _loader.Load(compiledJson);
-                }
-                else
-                {
-                    _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
-                }
+                _loader.Load(compiledJson);
+            }
+            else
+            {
+                _logger.LogError("[DM] Error: Compilation resulted in a null JSON object.");
             }
         }
 

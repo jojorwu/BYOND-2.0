@@ -1,10 +1,9 @@
 using Shared;
+using Shared.Json;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using DMCompiler;
-using DMCompiler.Json;
 using Microsoft.Extensions.Logging;
 using Robust.Shared.Maths;
 
@@ -16,13 +15,15 @@ namespace Core.Maps
         private readonly IProject _project;
         private readonly IDreamMakerLoader _dreamMakerLoader;
         private readonly ILogger<DmmService> _logger;
+        private readonly IDmmParserService _dmmParserService;
 
-        public DmmService(IObjectTypeManager objectTypeManager, IProject project, IDreamMakerLoader dreamMakerLoader, ILogger<DmmService> logger)
+        public DmmService(IObjectTypeManager objectTypeManager, IProject project, IDreamMakerLoader dreamMakerLoader, ILogger<DmmService> logger, IDmmParserService dmmParserService)
         {
             _objectTypeManager = objectTypeManager;
             _project = project;
             _dreamMakerLoader = dreamMakerLoader;
             _logger = logger;
+            _dmmParserService = dmmParserService;
         }
 
         public async Task<IMap?> LoadMapAsync(string filePath)
@@ -33,26 +34,27 @@ namespace Core.Maps
             }
 
             var dmFiles = _project.GetDmFiles();
-            var parserService = new DMMParserService();
 
-            var (publicDreamMapJson, compiledJson) = await Task.Run(() => parserService.ParseDmm(dmFiles, filePath));
+            var (mapData, compiledJson) = await Task.Run(() => _dmmParserService.ParseDmm(dmFiles, filePath));
 
-            if (publicDreamMapJson == null || compiledJson == null)
+            if (mapData == null || compiledJson == null)
             {
                 return null;
             }
 
             _dreamMakerLoader.Load(compiledJson);
 
-            var typeIdMap = compiledJson.Types.Select((t, i) => new { t, i })
-                .ToDictionary(x => x.i, x => _objectTypeManager.GetObjectType(x.t.Path))
-                .Where(x => x.Value != null)
-                .ToDictionary(x => x.Key, x => x.Value!);
+            var typeIdMap = new Dictionary<int, ObjectType>();
+            if (compiledJson?.Types != null) {
+                typeIdMap = compiledJson.Types.Select((t, i) => new { t, i })
+                    .Where(x => x.t?.Path != null && _objectTypeManager.GetObjectType(x.t.Path!) != null)
+                    .ToDictionary(x => x.i, x => _objectTypeManager.GetObjectType(x.t.Path!)!);
+            }
 
             var map = new Map();
             var chunksByZ = new Dictionary<int, Dictionary<Vector2i, Chunk>>();
 
-            foreach (var block in publicDreamMapJson.Blocks)
+            foreach (var block in mapData.Blocks)
             {
                 int cellIndex = 0;
                 for (int y = 0; y < block.Height; y++)
@@ -62,7 +64,7 @@ namespace Core.Maps
                         if (cellIndex < block.Cells.Count)
                         {
                             string cellName = block.Cells[cellIndex++];
-                            if (publicDreamMapJson.CellDefinitions.TryGetValue(cellName, out var cellDefinition))
+                            if (mapData.CellDefinitions.TryGetValue(cellName, out var cellDefinition))
                             {
                                 int mapX = block.X + x - 1;
                                 int mapY = block.Y + (block.Height - 1 - y) - 1; // In DMM, Y is top-to-bottom
@@ -123,7 +125,7 @@ namespace Core.Maps
             return map;
         }
 
-        private GameObject? CreateGameObject(PublicMapObjectJson mapObjectJson, int x, int y, int z, Dictionary<int, ObjectType> typeIdMap)
+        private GameObject? CreateGameObject(MapJsonObjectJson mapObjectJson, int x, int y, int z, Dictionary<int, ObjectType> typeIdMap)
         {
             if (!typeIdMap.TryGetValue(mapObjectJson.Type, out var objectType))
             {
@@ -137,7 +139,6 @@ namespace Core.Maps
             {
                 foreach (var varOverride in mapObjectJson.VarOverrides)
                 {
-                    if(varOverride.Value != null)
                         gameObject.SetProperty(varOverride.Key, varOverride.Value);
                 }
             }

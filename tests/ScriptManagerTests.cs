@@ -52,7 +52,7 @@ namespace Core.Tests
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
             var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
-            var compilerService = new OpenDreamCompilerService(_project);
+            var compilerService = new DMCompiler.OpenDreamCompilerService();
             var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]

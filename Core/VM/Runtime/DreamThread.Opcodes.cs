@@ -1,4 +1,5 @@
 using System;
+using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
 
@@ -161,27 +162,6 @@ namespace Core.VM.Runtime
         {
             var variableNameId = ReadInt32(proc, ref pc);
             var variableName = _vm.Strings[variableNameId];
-            var value = Pop();
-
-            var instance = frame.Instance;
-            if (instance != null)
-            {
-                instance.SetVariable(variableName, value);
-            }
-        }
-
-        private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var variableNameId = ReadInt32(proc, ref pc);
-            var variableName = _vm.Strings[variableNameId];
-
-            if (Stack.Count == 0)
-            {
-                // Handle stack underflow gracefully
-                State = DreamThreadState.Error;
-                Console.WriteLine("Error: Stack underflow in AssignNoPush.");
-                return;
-            }
             var value = Pop();
 
             var instance = frame.Instance;

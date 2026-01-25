@@ -41,6 +41,7 @@ class Program
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
         services.AddCoreServices();
+        services.AddServerServices();
         services.AddServerHostedServices();
     }
 

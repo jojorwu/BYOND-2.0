@@ -1,8 +1,11 @@
 ﻿using DMCompiler.DM;
+using Shared.Json;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace DMCompiler.Json;
 
-public sealed class ProcDefinitionJson {
+public sealed class ProcDefinitionJson : ICompiledProcJson {
     public int OwningTypeId { get; init; }
     public required string Name { get; init; }
     public ProcAttributes Attributes { get; init; }
@@ -19,11 +22,16 @@ public sealed class ProcDefinitionJson {
     public string? VerbCategory { get; init; }
     public string? VerbDesc { get; init; }
     public sbyte Invisibility { get; init; }
+    IReadOnlyList<byte> ICompiledProcJson.Bytecode => Bytecode;
+    IReadOnlyList<ICompiledArgumentJson> ICompiledProcJson.Arguments => Arguments?.Cast<ICompiledArgumentJson>().ToList();
+    int ICompiledProcJson.Locals => Locals?.Count ?? 0;
+    Shared.ProcAttributes ICompiledProcJson.Attributes => (Shared.ProcAttributes)Attributes;
 }
 
-public struct ProcArgumentJson {
+public struct ProcArgumentJson : ICompiledArgumentJson {
     public required string Name { get; init; }
     public DMValueType Type { get; init; }
+    Shared.DMValueType ICompiledArgumentJson.Type => (Shared.DMValueType)Type;
 }
 
 public struct LocalVariableJson {

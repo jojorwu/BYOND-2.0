@@ -1,22 +1,14 @@
+using DMCompiler.Compiler;
 using Shared;
-using System;
+using Shared.Json;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using DMCompiler;
 
-namespace Core
+namespace DMCompiler
 {
     public class OpenDreamCompilerService : ICompilerService
     {
-        private readonly IProject _project;
-
-        public OpenDreamCompilerService(IProject project)
-        {
-            _project = project;
-        }
-
-        public (string?, List<BuildMessage>) Compile(List<string> files)
+        public (ICompiledJson?, List<BuildMessage>) Compile(List<string> files)
         {
             if (files == null || files.Count == 0)
             {
@@ -29,8 +21,8 @@ namespace Core
                 StoreMessages = true
             };
 
-            var compiler = new DMCompiler.DMCompiler();
-            var (success, outputPath) = compiler.Compile(settings);
+            var compiler = new DMCompiler();
+            var (success, _) = compiler.Compile(settings);
 
             var messages = compiler.CompilerMessages.Select(ConvertCompilerMessage).ToList();
 
@@ -39,22 +31,23 @@ namespace Core
                 return (null, messages);
             }
 
-            return (outputPath, messages);
+            var compiledJson = compiler.CreateDreamCompiledJson(new(), null);
+            return (compiledJson, messages);
         }
 
-        private BuildMessage ConvertCompilerMessage(DMCompiler.Compiler.CompilerEmission message)
+        private BuildMessage ConvertCompilerMessage(CompilerEmission message)
         {
             var level = message.Level switch
             {
-                DMCompiler.Compiler.ErrorLevel.Error => BuildMessageLevel.Error,
-                DMCompiler.Compiler.ErrorLevel.Warning => BuildMessageLevel.Warning,
+                ErrorLevel.Error => BuildMessageLevel.Error,
+                ErrorLevel.Warning => BuildMessageLevel.Warning,
                 _ => BuildMessageLevel.Info
             };
 
             var file = message.Location.SourceFile ?? "";
             var line = message.Location.Line ?? 0;
 
-            return new BuildMessage(Path.GetFileName(file), line, message.Message, level);
+            return new BuildMessage(System.IO.Path.GetFileName(file), line, message.Message, level);
         }
     }
 }

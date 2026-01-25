@@ -1,7 +1,9 @@
+using Shared.Json;
+
 namespace Shared
 {
     public interface IDreamMakerLoader
     {
-        void Load(IPublicDreamCompiledJson compiledJson);
+        void Load(ICompiledJson compiledJson);
     }
 }

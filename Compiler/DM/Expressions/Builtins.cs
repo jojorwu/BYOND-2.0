@@ -2,6 +2,7 @@ using DMCompiler.Bytecode;
 using System.Diagnostics.CodeAnalysis;
 using DMCompiler.Compiler;
 using DMCompiler.Json;
+using Shared.Compiler;
 
 namespace DMCompiler.DM.Expressions;
 

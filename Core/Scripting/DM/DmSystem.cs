@@ -7,13 +7,12 @@ using Core.VM.Runtime;
 using Core.VM.Types;
 using Microsoft.Extensions.Logging;
 using Shared;
-using Shared.Json;
+using Shared.Compiler;
 
 namespace Core.Scripting.DM
 {
     public class DmSystem : IThreadSupportingScriptSystem
     {
-        private readonly ICompilerService _compiler;
         private readonly IObjectTypeManager _typeManager;
         private readonly IDreamMakerLoader _loader;
         private readonly IDreamVM _dreamVM;
@@ -22,10 +21,9 @@ namespace Core.Scripting.DM
         private IScriptHost _scriptHost => _scriptHostLazy.Value;
 
 
-        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
+        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
         {
             _typeManager = typeManager;
-            _compiler = compiler;
             _loader = loader;
             _dreamVM = dreamVM;
             _scriptHostLazy = scriptHostLazy;
@@ -36,24 +34,37 @@ namespace Core.Scripting.DM
 
         public async Task LoadScripts(string rootDirectory)
         {
-            var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
-            if (dmFiles.Count == 0) return;
-
-            _logger.LogInformation($"[DM] Compiling {dmFiles.Count} files...");
-            var (compiledJson, messages) = await Task.Run(() => _compiler.Compile(dmFiles));
-
-            foreach (var msg in messages)
+            // For now, let's assume there is a single compiled json file in the root directory
+            var jsonFiles = Directory.GetFiles(rootDirectory, "*.json", SearchOption.TopDirectoryOnly);
+            if (jsonFiles.Length == 0)
             {
-                _logger.LogInformation($"[DM Compiler] {msg}");
+                _logger.LogWarning("[DM] No compiled JSON file found.");
+                return;
             }
 
-            if (compiledJson != null)
+            var jsonPath = jsonFiles[0];
+            if (jsonFiles.Length > 1)
             {
-                _loader.Load(compiledJson);
+                _logger.LogWarning($"[DM] Multiple JSON files found, using {jsonPath}");
             }
-            else
+
+
+            if (File.Exists(jsonPath))
             {
-                _logger.LogError("[DM] Error: Compilation resulted in a null JSON object.");
+                _logger.LogInformation($"[DM] Loading compiled JSON from {jsonPath}...");
+                await using var stream = File.OpenRead(jsonPath);
+                var compiledJson = await JsonSerializer.DeserializeAsync<CompiledJson>(stream, new JsonSerializerOptions() {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (compiledJson != null)
+                {
+                    _loader.Load(compiledJson);
+                }
+                else
+                {
+                    _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
+                }
             }
         }
 

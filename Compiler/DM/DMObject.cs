@@ -1,7 +1,8 @@
-﻿using System.Linq;
+using System.Linq;
 using DMCompiler.Bytecode;
 using DMCompiler.DM.Expressions;
 using DMCompiler.Json;
+using Shared.Compiler;
 
 namespace DMCompiler.DM;
 

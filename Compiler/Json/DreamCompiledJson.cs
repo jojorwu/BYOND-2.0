@@ -1,9 +1,8 @@
-using Shared.Json;
-using System.Collections.Generic;
+using Shared.Compiler;
 
-﻿namespace DMCompiler.Json;
+namespace DMCompiler.Json;
 
-public sealed class DreamCompiledJson : ICompiledJson {
+public sealed class DreamCompiledJson {
     public required DreamCompiledJsonMetadata Metadata { get; set; }
     public required List<string> Strings { get; set; }
     public string[]? Resources { get; set; }
@@ -16,11 +15,6 @@ public sealed class DreamCompiledJson : ICompiledJson {
     public required ProcDefinitionJson[] Procs { get; set; }
 
     public required Dictionary<Compiler.WarningCode, Compiler.ErrorLevel> OptionalErrors { get; set; }
-    IReadOnlyList<string> ICompiledJson.Strings => Strings;
-    IReadOnlyList<ICompiledProcJson> ICompiledJson.Procs => Procs;
-    IReadOnlyList<ICompiledTypeJson> ICompiledJson.Types => Types;
-    IGlobalListJson? ICompiledJson.Globals => Globals;
-    ICompiledProcJson? ICompiledJson.GlobalInitProc => GlobalInitProc;
 }
 
 public sealed class DreamCompiledJsonMetadata {

@@ -15,6 +15,7 @@ using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM.Builders;
 using DMCompiler.Json;
 using DMCompiler.Optimizer;
+using Shared.Compiler;
 
 namespace DMCompiler;
 
@@ -299,7 +300,15 @@ public class DMCompiler {
         return maps;
     }
 
-    public DreamCompiledJson? CreateDreamCompiledJson(List<DreamMapJson> maps, string? interfaceFile) {
+    private string SaveJson(List<DreamMapJson> maps, string? interfaceFile, string outputFile) {
+        if (!string.IsNullOrWhiteSpace(interfaceFile) &&
+                Path.GetDirectoryName(Path.GetFullPath(outputFile)) is { } interfaceDirectory) {
+            interfaceFile = Path.GetRelativePath(interfaceDirectory, interfaceFile);
+            DMObjectTree.Resources.Add(interfaceFile); // Ensure the DMF is included in the list of resources
+        } else {
+            interfaceFile = string.Empty;
+        }
+
         var optionalErrors = new Dictionary<WarningCode, ErrorLevel>();
         foreach (var (code, level) in _errorConfig) {
             if (((int)code) is >= 4000 and <= 4999) {
@@ -313,7 +322,7 @@ public class DMCompiler {
             Strings = DMObjectTree.StringTable,
             Resources = DMObjectTree.Resources.ToArray(),
             Maps = maps,
-            Interface = interfaceFile ?? string.Empty,
+            Interface = interfaceFile,
             Types = jsonRep.Item1,
             Procs = jsonRep.Item2,
             OptionalErrors = optionalErrors,
@@ -353,19 +362,8 @@ public class DMCompiler {
             compiledDream.GlobalProcs = DMObjectTree.GlobalProcs.Values.ToArray();
         }
 
-        return _errorCount == 0 ? compiledDream : null;
-    }
-
-    private string SaveJson(List<DreamMapJson> maps, string? interfaceFile, string outputFile) {
-        if (!string.IsNullOrWhiteSpace(interfaceFile) &&
-                Path.GetDirectoryName(Path.GetFullPath(outputFile)) is { } interfaceDirectory) {
-            interfaceFile = Path.GetRelativePath(interfaceDirectory, interfaceFile);
-            DMObjectTree.Resources.Add(interfaceFile); // Ensure the DMF is included in the list of resources
-        }
-
-        var compiledDream = CreateDreamCompiledJson(maps, interfaceFile);
-
-        if (compiledDream != null) {
+        // Successful serialization
+        if (_errorCount == 0) {
             using var outputFileHandle = File.Create(outputFile);
 
             try {

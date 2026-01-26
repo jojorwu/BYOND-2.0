@@ -40,8 +40,10 @@ class Program
         services.AddSingleton(settings);
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
+        services.AddSingleton<Shared.IJsonService, DMCompiler.Json.JsonService>();
+        services.AddSingleton<Shared.ICompilerService, DMCompiler.CompilerService>();
+
         services.AddCoreServices();
-        services.AddServerServices();
         services.AddServerHostedServices();
     }
 

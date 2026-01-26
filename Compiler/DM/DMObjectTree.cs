@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using DMCompiler.Compiler;
 using DMCompiler.Compiler.DM.AST;
 using DMCompiler.Json;
+using Shared.Compiler;
 
 namespace DMCompiler.DM;
 

@@ -35,6 +35,11 @@ namespace Core.Tests
             Directory.CreateDirectory(_scriptsPath);
             File.WriteAllText(Path.Combine(projectPath, "project.json"), "{\"scripts_root\": \"scripts\"}");
 
+            // Create a dummy compiled json file for DmSystem to load
+            var compiledJson = new Shared.Compiler.CompiledJson { Strings = new(), Types = Array.Empty<Shared.Compiler.DreamTypeJson>(), Procs = Array.Empty<Shared.Compiler.ProcDefinitionJson>() };
+            var jsonContent = System.Text.Json.JsonSerializer.Serialize(compiledJson);
+            File.WriteAllText(Path.Combine(projectPath, "project.json"), jsonContent);
+
             _project = new Project(projectPath);
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager();
@@ -52,14 +57,13 @@ namespace Core.Tests
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
             var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
-            var compilerService = new DMCompiler.OpenDreamCompilerService();
             var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]
             {
                 new Core.Scripting.CSharp.CSharpSystem(_gameApi),
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
-                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
             };
             _scriptManager = new ScriptManager(_project, systems);
         }

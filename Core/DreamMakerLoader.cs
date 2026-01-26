@@ -5,7 +5,7 @@ using System.IO;
 using System.Text.Json;
 using Core.VM.Procs;
 using Core.VM.Runtime;
-using Shared.Json;
+using Shared.Compiler;
 
 namespace Core
 {
@@ -22,9 +22,10 @@ namespace Core
             _dreamVM = dreamVM;
         }
 
-        public void Load(ICompiledJson json)
+        public void Load(ICompiledJson compiledJson)
         {
-            if (json == null) return;
+            if (compiledJson is not CompiledJson json)
+                throw new ArgumentException("Invalid compiled json object", nameof(compiledJson));
 
             if (_dreamVM != null)
             {
@@ -45,7 +46,7 @@ namespace Core
                 {
                     foreach (var procJson in json.Procs)
                     {
-                        var bytecode = procJson.Bytecode.ToArray();
+                        var bytecode = procJson.Bytecode ?? Array.Empty<byte>();
                         var arguments = new string[procJson.Arguments?.Count ?? 0];
                         if (procJson.Arguments != null)
                         {
@@ -58,7 +59,7 @@ namespace Core
                             procJson.Name,
                             bytecode,
                             arguments,
-                            procJson.Locals
+                            procJson.Locals?.Count ?? 0
                         );
                         _dreamVM.Procs[newProc.Name] = newProc;
                     }
@@ -66,28 +67,26 @@ namespace Core
             }
 
             // Load types and their properties
-            if (json.Types != null) {
-                for (int i = 0; i < json.Types.Count; i++)
+            for (int i = 0; i < json.Types.Length; i++)
+            {
+                var typeJson = json.Types[i];
+                var newType = new ObjectType(i, typeJson.Path);
+
+                if (typeJson.Parent.HasValue)
                 {
-                    var typeJson = json.Types[i];
-                    var newType = new ObjectType(i, typeJson.Path);
-
-                    if (typeJson.Parent.HasValue)
+                    var parentId = typeJson.Parent.Value;
+                    if (parentId < json.Types.Length)
                     {
-                        var parentId = typeJson.Parent.Value;
-                        if (parentId < json.Types.Count)
-                        {
-                            newType.ParentName = json.Types[parentId].Path;
-                        }
+                        newType.ParentName = json.Types[parentId].Path;
                     }
-                    _typeManager.RegisterObjectType(newType);
+                }
+                _typeManager.RegisterObjectType(newType);
 
-                    if (typeJson.Variables != null)
+                if (typeJson.Variables != null)
+                {
+                    foreach (var (key, value) in typeJson.Variables)
                     {
-                        foreach (var (key, value) in typeJson.Variables)
-                        {
-                            newType.DefaultProperties[key] = ConvertJsonElement(value);
-                        }
+                        newType.DefaultProperties[key] = ConvertJsonElement(value);
                     }
                 }
             }
@@ -130,5 +129,6 @@ namespace Core
             }
             return element;
         }
+
     }
 }

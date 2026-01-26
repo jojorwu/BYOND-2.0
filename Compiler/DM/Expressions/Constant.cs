@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using DMCompiler.Compiler;
 using DMCompiler.Json;
+using Shared.Compiler;
 
 namespace DMCompiler.DM.Expressions;
 
@@ -53,11 +54,11 @@ internal sealed class Number : Constant {
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         // Positive/Negative infinity cannot be represented in JSON and need a special value
         if (float.IsPositiveInfinity(Value)) {
-            json = new Dictionary<string, JsonVariableType>() {
+            json = new Dictionary<string, object>() {
                 {"type", JsonVariableType.PositiveInfinity}
             };
         } else if (float.IsNegativeInfinity(Value)) {
-            json = new Dictionary<string, JsonVariableType>() {
+            json = new Dictionary<string, object>() {
                 {"type", JsonVariableType.NegativeInfinity}
             };
         } else {

@@ -26,7 +26,7 @@ namespace DMCompiler
                 StoreMessages = true
             };
 
-            var compiler = new DMCompiler();
+            var compiler = new global::DMCompiler.DMCompiler();
             compiler.Compile(settings);
 
             if (compiler.CompilerMessages.Count > 0)

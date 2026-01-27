@@ -33,12 +33,12 @@ namespace Core.Tests
             Directory.CreateDirectory(projectPath);
             _scriptsPath = Path.Combine(projectPath, "scripts");
             Directory.CreateDirectory(_scriptsPath);
-            File.WriteAllText(Path.Combine(projectPath, "project.json"), "{\"scripts_root\": \"scripts\"}");
 
             // Create a dummy compiled json file for DmSystem to load
             var compiledJson = new Shared.Compiler.CompiledJson { Strings = new(), Types = Array.Empty<Shared.Compiler.DreamTypeJson>(), Procs = Array.Empty<Shared.Compiler.ProcDefinitionJson>() };
             var jsonContent = System.Text.Json.JsonSerializer.Serialize(compiledJson);
-            File.WriteAllText(Path.Combine(projectPath, "project.json"), jsonContent);
+            File.WriteAllText(Path.Combine(projectPath, "project.compiled.json"), jsonContent);
+            File.WriteAllText(Path.Combine(projectPath, "project.json"), "{\"scripts_root\": \"scripts\"}");
 
             _project = new Project(projectPath);
             _gameState = new GameState();

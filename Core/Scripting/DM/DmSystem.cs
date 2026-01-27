@@ -34,37 +34,26 @@ namespace Core.Scripting.DM
 
         public async Task LoadScripts(string rootDirectory)
         {
-            // For now, let's assume there is a single compiled json file in the root directory
-            var jsonFiles = Directory.GetFiles(rootDirectory, "*.json", SearchOption.TopDirectoryOnly);
-            if (jsonFiles.Length == 0)
+            var jsonPath = Path.Combine(rootDirectory, "project.compiled.json");
+            if (!File.Exists(jsonPath))
             {
-                _logger.LogWarning("[DM] No compiled JSON file found.");
+                _logger.LogWarning($"[DM] No compiled JSON file found at {jsonPath}.");
                 return;
             }
 
-            var jsonPath = jsonFiles[0];
-            if (jsonFiles.Length > 1)
+            _logger.LogInformation($"[DM] Loading compiled JSON from {jsonPath}...");
+            await using var stream = File.OpenRead(jsonPath);
+            var compiledJson = await JsonSerializer.DeserializeAsync<CompiledJson>(stream, new JsonSerializerOptions() {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (compiledJson != null)
             {
-                _logger.LogWarning($"[DM] Multiple JSON files found, using {jsonPath}");
+                _loader.Load(compiledJson);
             }
-
-
-            if (File.Exists(jsonPath))
+            else
             {
-                _logger.LogInformation($"[DM] Loading compiled JSON from {jsonPath}...");
-                await using var stream = File.OpenRead(jsonPath);
-                var compiledJson = await JsonSerializer.DeserializeAsync<CompiledJson>(stream, new JsonSerializerOptions() {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                if (compiledJson != null)
-                {
-                    _loader.Load(compiledJson);
-                }
-                else
-                {
-                    _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
-                }
+                _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
             }
         }
 

@@ -78,8 +78,9 @@ public class DMCompiler {
             return (false, null);
         }
 
-        //Output file is the first file with the extension changed to .json
-        string outputFile = Path.ChangeExtension(settings.Files[0], "json");
+        //Output file is project.compiled.json in the same directory as the first file
+        string outputDir = Path.GetDirectoryName(settings.Files[0]) ?? ".";
+        string outputFile = Path.Combine(outputDir, "project.compiled.json");
         List<DreamMapJson> maps = ConvertMaps(this, preprocessor.IncludedMaps);
 
         if (_errorCount > 0)

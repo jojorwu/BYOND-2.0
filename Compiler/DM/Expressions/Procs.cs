@@ -1,5 +1,5 @@
 using System.Linq;
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.Compiler;
 
 namespace DMCompiler.DM.Expressions;

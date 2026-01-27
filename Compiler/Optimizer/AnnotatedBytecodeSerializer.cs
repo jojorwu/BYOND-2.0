@@ -1,5 +1,5 @@
 using System.IO;
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.Compiler;
 using DMCompiler.Json;
 using Shared.Compiler;

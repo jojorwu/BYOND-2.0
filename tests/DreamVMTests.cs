@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using Core.VM.Runtime;
 using Core.VM.Procs;
 using Core.VM.Types;
-using Core.VM.Opcodes;
 using System;
 using System.Linq;
 
@@ -26,7 +25,7 @@ namespace tests
         private DreamValue RunTest(byte[] bytecode)
         {
             var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
-            var thread = new DreamThread(proc, _vm, 1000);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
             return thread.Stack.Last();
         }
@@ -274,7 +273,7 @@ namespace tests
             bytecode.Add((byte)Opcode.Return);
 
             var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0);
-            var thread = new DreamThread(proc, _vm, 1000);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
 
             Assert.That(thread.Stack.Count, Is.EqualTo(1));

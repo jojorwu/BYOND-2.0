@@ -7,8 +7,11 @@ namespace Core.VM.Runtime
 {
     public class DreamVM : IDreamVM
     {
-        public List<string> Strings { get; } = new();
-        public Dictionary<string, IDreamProc> Procs { get; } = new();
+        public DreamVMContext Context { get; } = new();
+
+        public List<string> Strings => Context.Strings;
+        public Dictionary<string, IDreamProc> Procs => Context.Procs;
+
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)
@@ -20,7 +23,7 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions);
+                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions);
             }
             Console.WriteLine("Error: /world/proc/New not found. Is the script compiled correctly?");
             return null;
@@ -30,7 +33,7 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions, associatedObject);
+                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, associatedObject);
             }
 
             Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");

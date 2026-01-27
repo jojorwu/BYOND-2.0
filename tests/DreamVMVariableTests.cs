@@ -1,10 +1,9 @@
 using NUnit.Framework;
 using Shared;
 using Core.VM;
-using Core.VM.Runtime;
 using Core.VM.Procs;
 using Core.VM.Types;
-using Core.VM.Opcodes;
+using Core.VM.Runtime;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +24,7 @@ namespace tests
         private DreamValue RunTest(byte[] bytecode, DreamObject instance)
         {
             var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
-            var thread = new DreamThread(proc, _vm, 1000);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.CallStack.Pop();
             thread.CallStack.Push(new CallFrame(proc, 0, 0, instance));
             thread.Run(1000);

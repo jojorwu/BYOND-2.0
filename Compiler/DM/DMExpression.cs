@@ -1,4 +1,4 @@
-using DMCompiler.Bytecode;
+using Shared;
 using System.Diagnostics.CodeAnalysis;
 using DMCompiler.Compiler;
 using DMCompiler.DM.Expressions;

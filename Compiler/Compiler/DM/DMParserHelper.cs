@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.Compiler.DM.AST;
-using FormatSuffix = DMCompiler.Bytecode.StringFormatEncoder.FormatSuffix;
+using FormatSuffix = Shared.StringFormatEncoder.FormatSuffix;
 
 namespace DMCompiler.Compiler.DM;
 

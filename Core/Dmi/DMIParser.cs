@@ -127,6 +127,7 @@ public static class DmiParser {
         public bool Rewind;
         public int Dirs;
         public bool Movement;
+        public Vector2i? Hotspot;
 
         public readonly Dictionary<AtomDirection, ParsedDMIFrame[]> Directions = new();
 
@@ -205,6 +206,14 @@ public static class DmiParser {
 
             if(Movement) {
                 text.AppendLine("\tmovement = 1");
+            }
+
+            if (Hotspot.HasValue) {
+                text.Append("\thotspot = ");
+                text.Append(Hotspot.Value.X);
+                text.Append(',');
+                text.Append(Hotspot.Value.Y);
+                text.AppendLine();
             }
         }
 
@@ -446,9 +455,20 @@ public static class DmiParser {
                             throw new Exception("DMI description has a \"movement\" key before a \"state\" key");
                         currentState.Movement = (int.Parse(value) == 1);
                         break;
-                    case "hotspot":
-                        //TODO
+                    case "hotspot": {
+                        if (currentState == null)
+                            break;
+
+                        string[] split = value.Split(',');
+                        if (split.Length != 2)
+                            break;
+
+                        if (int.TryParse(split[0], out int x) && int.TryParse(split[1], out int y)) {
+                            currentState.Hotspot = new Vector2i(x, y);
+                        }
+
                         break;
+                    }
                     default:
                         throw new Exception($"Invalid key \"{key}\" in DMI description");
                 }

@@ -5,15 +5,14 @@ using System.Linq;
 using System.Text.Json;
 using Core.VM.Runtime;
 using Core.VM.Types;
-using DMCompiler.Json;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Compiler;
 
 namespace Core.Scripting.DM
 {
     public class DmSystem : IThreadSupportingScriptSystem
     {
-        private readonly ICompilerService _compiler;
         private readonly IObjectTypeManager _typeManager;
         private readonly IDreamMakerLoader _loader;
         private readonly IDreamVM _dreamVM;
@@ -22,10 +21,9 @@ namespace Core.Scripting.DM
         private IScriptHost _scriptHost => _scriptHostLazy.Value;
 
 
-        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, ICompilerService compiler, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
+        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
         {
             _typeManager = typeManager;
-            _compiler = compiler;
             _loader = loader;
             _dreamVM = dreamVM;
             _scriptHostLazy = scriptHostLazy;
@@ -36,31 +34,26 @@ namespace Core.Scripting.DM
 
         public async Task LoadScripts(string rootDirectory)
         {
-            var dmFiles = Directory.GetFiles(rootDirectory, "*.dm", SearchOption.AllDirectories).ToList();
-            if (dmFiles.Count == 0) return;
-
-            _logger.LogInformation($"[DM] Compiling {dmFiles.Count} files...");
-            var (jsonPath, messages) = await Task.Run(() => _compiler.Compile(dmFiles));
-
-            foreach (var msg in messages)
+            var jsonPath = Path.Combine(rootDirectory, "project.compiled.json");
+            if (!File.Exists(jsonPath))
             {
-                _logger.LogInformation($"[DM Compiler] {msg}");
+                _logger.LogWarning($"[DM] No compiled JSON file found at {jsonPath}.");
+                return;
             }
 
-            if (jsonPath != null && File.Exists(jsonPath))
-            {
-                _logger.LogInformation("[DM] Loading compiled JSON...");
-                await using var stream = File.OpenRead(jsonPath);
-                var compiledJson = await JsonSerializer.DeserializeAsync<PublicDreamCompiledJson>(stream);
+            _logger.LogInformation($"[DM] Loading compiled JSON from {jsonPath}...");
+            await using var stream = File.OpenRead(jsonPath);
+            var compiledJson = await JsonSerializer.DeserializeAsync<CompiledJson>(stream, new JsonSerializerOptions() {
+                PropertyNameCaseInsensitive = true
+            });
 
-                if (compiledJson != null)
-                {
-                    _loader.Load(compiledJson);
-                }
-                else
-                {
-                    _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
-                }
+            if (compiledJson != null)
+            {
+                _loader.Load(compiledJson);
+            }
+            else
+            {
+                _logger.LogError("[DM] Error: Failed to deserialize compiled JSON.");
             }
         }
 

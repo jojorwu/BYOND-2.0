@@ -33,6 +33,11 @@ namespace Core.Tests
             Directory.CreateDirectory(projectPath);
             _scriptsPath = Path.Combine(projectPath, "scripts");
             Directory.CreateDirectory(_scriptsPath);
+
+            // Create a dummy compiled json file for DmSystem to load
+            var compiledJson = new Shared.Compiler.CompiledJson { Strings = new(), Types = Array.Empty<Shared.Compiler.DreamTypeJson>(), Procs = Array.Empty<Shared.Compiler.ProcDefinitionJson>() };
+            var jsonContent = System.Text.Json.JsonSerializer.Serialize(compiledJson);
+            File.WriteAllText(Path.Combine(projectPath, "project.compiled.json"), jsonContent);
             File.WriteAllText(Path.Combine(projectPath, "project.json"), "{\"scripts_root\": \"scripts\"}");
 
             _project = new Project(projectPath);
@@ -43,7 +48,8 @@ namespace Core.Tests
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
             var scriptApi = new ScriptApi(_project);
-            var standardLibraryApi = new StandardLibraryApi(_gameState, _objectTypeManager, mapApi);
+            var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
+            var standardLibraryApi = new StandardLibraryApi(spatialQueryApi);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
 
             var serviceProviderMock = new Mock<IServiceProvider>();
@@ -51,14 +57,13 @@ namespace Core.Tests
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
             var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
-            var compilerService = new OpenDreamCompilerService(_project);
             var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]
             {
                 new Core.Scripting.CSharp.CSharpSystem(_gameApi),
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
-                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, compilerService, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
+                new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
             };
             _scriptManager = new ScriptManager(_project, systems);
         }

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Core.Regions;
 using Robust.Shared.Maths;
 using Shared;
 
@@ -11,15 +12,17 @@ namespace Server
     {
         private readonly IScriptHost _scriptHost;
         private readonly IRegionManager _regionManager;
+        private readonly IRegionActivationStrategy _regionActivationStrategy;
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
         private readonly IGameStateSnapshotter _gameStateSnapshotter;
         private readonly ServerSettings _settings;
 
-        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, ServerSettings settings)
+        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, ServerSettings settings)
         {
             _scriptHost = scriptHost;
             _regionManager = regionManager;
+            _regionActivationStrategy = regionActivationStrategy;
             _udpServer = udpServer;
             _gameState = gameState;
             _gameStateSnapshotter = gameStateSnapshotter;
@@ -31,7 +34,7 @@ namespace Server
             var globals = _scriptHost.GetThreads().Where(t => t.AssociatedObject == null).ToList();
             var remainingGlobals = _scriptHost.ExecuteThreads(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
 
-            var activeRegions = _regionManager.GetActiveRegions();
+            var activeRegions = _regionActivationStrategy.GetActiveRegions();
             var mergedRegions = MergeRegions(activeRegions);
 
             var regionData = new System.Collections.Concurrent.ConcurrentBag<(MergedRegion, string, IEnumerable<IGameObject>)>();

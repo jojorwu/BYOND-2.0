@@ -82,6 +82,7 @@ internal partial class DMCodeTree {
     private ObjectNode _root;
     private ObjectNode? _dmStandardRoot;
     private int _currentPass;
+    private bool _scopeOperatorEnabled;
 
     public DMCodeTree(DMCompiler compiler) {
         // Yep, not _dmStandardRoot
@@ -99,7 +100,7 @@ internal partial class DMCodeTree {
             foreach (var node in TraverseNodes(root)) {
                 var successful = (node is ObjectNode objectNode && objectNode.TryDefineType(_compiler)) ||
                                  (node is ProcNode procNode && procNode.TryDefineProc(_compiler)) ||
-                                 (node is VarNode varNode && varNode.TryDefineVar(_compiler, _currentPass));
+                                 (node is VarNode varNode && varNode.TryDefineVar(this, _compiler, _currentPass));
 
                 if (successful)
                     _waitingNodes.Remove(node);
@@ -107,7 +108,7 @@ internal partial class DMCodeTree {
         }
 
         // Pass 0
-        DMExpressionBuilder.ScopeOperatorEnabled = false;
+        _scopeOperatorEnabled = false;
         Pass(_root);
         Pass(_dmStandardRoot!);
 
@@ -121,7 +122,7 @@ internal partial class DMCodeTree {
         } while (_waitingNodes.Count < lastCount && _waitingNodes.Count > 0);
 
         // Scope operator pass
-        DMExpressionBuilder.ScopeOperatorEnabled = true;
+        _scopeOperatorEnabled = true;
         Pass(_root);
         Pass(_dmStandardRoot!);
 

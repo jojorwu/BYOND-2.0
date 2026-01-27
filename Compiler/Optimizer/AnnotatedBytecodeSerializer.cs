@@ -2,6 +2,7 @@ using System.IO;
 using DMCompiler.Bytecode;
 using DMCompiler.Compiler;
 using DMCompiler.Json;
+using Shared.Compiler;
 
 namespace DMCompiler.Optimizer;
 

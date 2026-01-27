@@ -21,22 +21,23 @@ namespace Core
             services.AddSingleton<IObjectApi, ObjectApi>();
             services.AddSingleton<IScriptApi, ScriptApi>();
             services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
+            services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
             services.AddSingleton<IGameApi, GameApi>();
             services.AddSingleton<IRegionApi>(provider =>
                 new RegionApi(
                     provider.GetRequiredService<IRegionManager>(),
+                    provider.GetRequiredService<IRegionActivationStrategy>(),
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
-            services.AddSingleton<IDmmService>(provider =>
-                new DmmService(
-                    provider.GetRequiredService<IObjectTypeManager>(),
-                    provider.GetRequiredService<IProject>(),
-                    provider.GetRequiredService<IDreamMakerLoader>(),
-                    provider.GetRequiredService<ILogger<DmmService>>()
-                )
-            );
-            services.AddSingleton<ICompilerService, OpenDreamCompilerService>();
+            // services.AddSingleton<IDmmService>(provider =>
+            //     new DmmService(
+            //         provider.GetRequiredService<IObjectTypeManager>(),
+            //         provider.GetRequiredService<IProject>(),
+            //         provider.GetRequiredService<IDreamMakerLoader>(),
+            //         provider.GetRequiredService<ILogger<DmmService>>()
+            //     )
+            // );
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
             services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
@@ -53,12 +54,10 @@ namespace Core
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
+            services.AddSingleton<IRegionActivationStrategy, PlayerBasedActivationStrategy>();
             services.AddSingleton<IRegionManager>(provider =>
                 new RegionManager(
                     provider.GetRequiredService<IMap>(),
-                    provider.GetRequiredService<IScriptHost>(),
-                    provider.GetRequiredService<IGameState>(),
-                    provider.GetRequiredService<IPlayerManager>(),
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
@@ -68,7 +67,6 @@ namespace Core
                 new Core.Scripting.DM.DmSystem(
                     provider.GetRequiredService<IObjectTypeManager>(),
                     provider.GetRequiredService<IDreamMakerLoader>(),
-                    provider.GetRequiredService<ICompilerService>(),
                     provider.GetRequiredService<IDreamVM>(),
                     new Lazy<IScriptHost>(() => provider.GetRequiredService<IScriptHost>()),
                     provider.GetRequiredService<ILogger<Core.Scripting.DM.DmSystem>>()

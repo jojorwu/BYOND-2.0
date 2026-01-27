@@ -7,6 +7,7 @@ using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM.Builders;
 using DMCompiler.Json;
 using DMCompiler.Optimizer;
+using Shared.Compiler;
 using VerbSrcEnum = DMCompiler.DM.VerbSrc;
 
 namespace DMCompiler.DM;
@@ -219,7 +220,7 @@ internal sealed class DMProc {
 
                 arguments.Add(new ProcArgumentJson {
                     Name = parameter.Name,
-                    Type = argumentType.Type
+                    Type = (Shared.Compiler.DMValueType)argumentType.Type
                 });
             }
         }
@@ -227,7 +228,7 @@ internal sealed class DMProc {
         return new ProcDefinitionJson {
             OwningTypeId = _dmObject.Id,
             Name = Name,
-            Attributes = Attributes,
+            Attributes = (Shared.Compiler.ProcAttributes)Attributes,
             MaxStackSize = AnnotatedBytecode.GetMaxStackSize(),
             Bytecode = serializer.Serialize(AnnotatedBytecode.GetAnnotatedBytecode()),
             Arguments = arguments,
@@ -235,7 +236,7 @@ internal sealed class DMProc {
             Locals = (_localVariableNames.Count > 0) ? serializer.GetLocalVariablesJson() : null,
 
             IsVerb = IsVerb,
-            VerbSrc = VerbSrc,
+            VerbSrc = (Shared.Compiler.VerbSrc?)VerbSrc,
             VerbName = VerbName,
             VerbDesc = VerbDesc,
             Invisibility = Invisibility,
@@ -348,7 +349,7 @@ internal sealed class DMProc {
             return;
         }
 
-        var exprBuilder = new DMExpressionBuilder(new ExpressionContext(_compiler, _dmObject, this));
+        var exprBuilder = new DMExpressionBuilder(new ExpressionContext(_compiler, _dmObject, this), false);
         if (!exprBuilder.TryConstant(statementSet.Value, out var constant)) { // If this set statement's rhs is not constant
             bool didError = _compiler.Emit(WarningCode.InvalidSetStatement, statementSet.Location, $"'{attribute}' attribute should be a constant");
             if (didError) // if this is an error

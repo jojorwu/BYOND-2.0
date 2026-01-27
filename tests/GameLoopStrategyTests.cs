@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Moq;
 using Server;
 using Shared;
+using Core.Regions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -15,6 +16,7 @@ namespace tests
         private Mock<IGameState> _gameStateMock = null!;
         private Mock<IUdpServer> _udpServerMock = null!;
         private Mock<IRegionManager> _regionManagerMock = null!;
+        private Mock<IRegionActivationStrategy> _regionActivationStrategyMock = null!;
         private Mock<IGameStateSnapshotter> _gameStateSnapshotterMock = null!;
         private ServerSettings _serverSettings = null!;
         private CancellationTokenSource _cancellationTokenSource = null!;
@@ -26,6 +28,7 @@ namespace tests
             _gameStateMock = new Mock<IGameState>();
             _udpServerMock = new Mock<IUdpServer>();
             _regionManagerMock = new Mock<IRegionManager>();
+            _regionActivationStrategyMock = new Mock<IRegionActivationStrategy>();
             _gameStateSnapshotterMock = new Mock<IGameStateSnapshotter>();
             _serverSettings = new ServerSettings();
             _cancellationTokenSource = new CancellationTokenSource();
@@ -57,10 +60,10 @@ namespace tests
         public async Task RegionalGameLoopStrategy_TickAsync_CallsDependencies()
         {
             // Arrange
-            var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _serverSettings);
+            var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _regionActivationStrategyMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _serverSettings);
             var activeRegions = new HashSet<Region> { new Region(new Robust.Shared.Maths.Vector2i(0,0), 0) };
 
-            _regionManagerMock.Setup(rm => rm.GetActiveRegions()).Returns(activeRegions);
+            _regionActivationStrategyMock.Setup(rm => rm.GetActiveRegions()).Returns(activeRegions);
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
             _gameStateSnapshotterMock.Setup(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>())).Returns("snapshot");
 
@@ -68,7 +71,7 @@ namespace tests
             await strategy.TickAsync(_cancellationTokenSource.Token);
 
             // Assert
-            _regionManagerMock.Verify(rm => rm.GetActiveRegions(), Times.Once);
+            _regionActivationStrategyMock.Verify(rm => rm.GetActiveRegions(), Times.Once);
             _gameStateSnapshotterMock.Verify(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>()), Times.AtLeastOnce);
             _scriptHostMock.Verify(s => s.ExecuteThreads(It.IsAny<List<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>()), Times.AtLeastOnce());
             _udpServerMock.Verify(u => u.BroadcastSnapshot(It.IsAny<MergedRegion>(), "snapshot"), Times.AtLeastOnce);
@@ -80,7 +83,7 @@ namespace tests
             // Arrange
             _serverSettings.Performance.RegionalProcessing.EnableRegionMerging = true;
             _serverSettings.Performance.RegionalProcessing.MinRegionsToMerge = 2;
-            var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _serverSettings);
+            var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _regionActivationStrategyMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _serverSettings);
 
             var region1 = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
             var region2 = new Region(new Robust.Shared.Maths.Vector2i(1, 0), 0);

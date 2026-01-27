@@ -2,6 +2,7 @@ using Shared;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Linq;
 using Core.VM.Procs;
 using Core.VM.Runtime;
 using Shared.Compiler;
@@ -53,19 +54,12 @@ namespace Core
             }
 
             // Load types and their properties
+            var objectTypes = new ObjectType[json.Types.Length];
             for (int i = 0; i < json.Types.Length; i++)
             {
                 var typeJson = json.Types[i];
                 var newType = new ObjectType(i, typeJson.Path);
-
-                if (typeJson.Parent.HasValue)
-                {
-                    var parentId = typeJson.Parent.Value;
-                    if (parentId < json.Types.Length)
-                    {
-                        newType.ParentName = json.Types[parentId].Path;
-                    }
-                }
+                objectTypes[i] = newType;
                 typeManager.RegisterObjectType(newType);
 
                 if (typeJson.Variables != null)
@@ -74,6 +68,72 @@ namespace Core
                     {
                         newType.DefaultProperties[key] = ConvertJsonElement(value);
                     }
+                }
+            }
+
+            // Resolve parents and flatten variables
+            for (int i = 0; i < json.Types.Length; i++)
+            {
+                var typeJson = json.Types[i];
+                var currentType = objectTypes[i];
+                if (typeJson.Parent.HasValue)
+                {
+                    currentType.Parent = objectTypes[typeJson.Parent.Value];
+                }
+            }
+
+            for (int i = 0; i < json.Types.Length; i++)
+            {
+                FlattenType(objectTypes[i], objectTypes, json.Types);
+            }
+
+            // Load globals
+            dreamVM.Globals.Clear();
+            if (json.Globals != null)
+            {
+                for (int i = 0; i < json.Globals.GlobalCount; i++)
+                {
+                    dreamVM.Globals.Add(DreamValue.Null);
+                }
+
+                foreach (var (id, value) in json.Globals.Globals)
+                {
+                    dreamVM.Globals[id] = DreamValue.FromObject(ConvertJsonElement(value));
+                }
+            }
+        }
+
+        private void FlattenType(ObjectType type, ObjectType[] allTypes, DreamTypeJson[] jsonTypes)
+        {
+            if (type.VariableNames.Count > 0 || type.Name == "/") return;
+
+            if (type.Parent == null && type.Name != "/")
+            {
+                var typeJson = jsonTypes[type.Id];
+                if (typeJson.Parent.HasValue)
+                {
+                    type.Parent = allTypes[typeJson.Parent.Value];
+                }
+            }
+
+            if (type.Parent != null)
+            {
+                FlattenType(type.Parent, allTypes, jsonTypes);
+                type.VariableNames.AddRange(type.Parent.VariableNames);
+                type.FlattenedDefaultValues.AddRange(type.Parent.FlattenedDefaultValues);
+            }
+
+            foreach (var (name, value) in type.DefaultProperties)
+            {
+                int index = type.VariableNames.IndexOf(name);
+                if (index != -1)
+                {
+                    type.FlattenedDefaultValues[index] = value;
+                }
+                else
+                {
+                    type.VariableNames.Add(name);
+                    type.FlattenedDefaultValues.Add(value);
                 }
             }
         }

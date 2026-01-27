@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 
-namespace Core.VM.Types
+namespace Shared
 {
     public readonly struct DreamValue
     {
@@ -35,6 +35,20 @@ namespace Core.VM.Types
         public DreamValue(DreamObject value)
         {
             Type = DreamValueType.DreamObject;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public DreamValue(ObjectType value)
+        {
+            Type = DreamValueType.DreamType;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public DreamValue(DreamResource value)
+        {
+            Type = DreamValueType.DreamResource;
             _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
@@ -75,6 +89,30 @@ namespace Core.VM.Types
             return false;
         }
 
+        public bool TryGetValue(out ObjectType? value)
+        {
+            if (Type == DreamValueType.DreamType)
+            {
+                value = (ObjectType?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        public bool TryGetValue(out DreamResource? value)
+        {
+            if (Type == DreamValueType.DreamResource)
+            {
+                value = (DreamResource?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
         public DreamObject? GetValueAsDreamObject()
         {
             if (Type == DreamValueType.DreamObject)
@@ -85,7 +123,7 @@ namespace Core.VM.Types
             return null;
         }
 
-        private float AsFloat()
+        public float AsFloat()
         {
             if (Type != DreamValueType.Float)
                 throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a float");
@@ -96,6 +134,8 @@ namespace Core.VM.Types
         public static implicit operator DreamValue(int value) => new DreamValue((float)value);
         public static implicit operator DreamValue(string value) => new DreamValue(value);
         public static implicit operator DreamValue(DreamObject value) => new DreamValue(value);
+        public static implicit operator DreamValue(ObjectType value) => new DreamValue(value);
+        public static implicit operator DreamValue(DreamResource value) => new DreamValue(value);
 
         public static DreamValue FromObject(object? value)
         {
@@ -105,7 +145,10 @@ namespace Core.VM.Types
                 string s => new DreamValue(s),
                 int i => new DreamValue(i),
                 float f => new DreamValue(f),
+                double d => new DreamValue((float)d),
                 DreamObject o => new DreamValue(o),
+                ObjectType t => new DreamValue(t),
+                DreamResource r => new DreamValue(r),
                 _ => throw new ArgumentException($"Unsupported type for DreamValue: {value.GetType()}")
             };
         }

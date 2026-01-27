@@ -1,13 +1,15 @@
 namespace Shared;
 
 /// <summary>
-/// This is a simple class to help with the encoding of string formatting macros.
-/// It works by having a special start character (0xFF) followed by a byte representing the macro.
+/// Handles how we write format data into our strings.
 /// </summary>
 public static class StringFormatEncoder {
-    public const char StartChar = (char)0xFF;
+    /// <summary>
+    /// This is the upper byte of the 2-byte markers we use for storing formatting data within our UTF16 strings.
+    /// </summary>
+    public const ushort FormatPrefix = 0xFF00;
 
-    public enum FormatSuffix : byte {
+    public enum FormatSuffix : ushort {
         StringifyWithArticle = 0x0, // []
         StringifyNoArticle = 0x1,   // \roman []
         ReferenceOfValue = 0x2,     // \ref []
@@ -37,17 +39,34 @@ public static class StringFormatEncoder {
         UpperRoman = 0x15, // \Roman
 
         Icon = 0x16, // \icon
+
+        ColorRed = 0x17,
+        ColorBlue = 0x18,
+        ColorGreen = 0x19,
+        ColorBlack = 0x1A,
+        ColorYellow = 0x1B,
+        ColorNavy = 0x1C,
+        ColorTeal = 0x1D,
+        ColorCyan = 0x1E,
+        Bold = 0x1F,
+        Italic = 0x20,
     }
 
     public const FormatSuffix InterpolationDefault = FormatSuffix.StringifyWithArticle;
 
-    public static string Encode(FormatSuffix suffix) {
-        return $"{StartChar}{(char)suffix}";
+    public static char Encode(FormatSuffix suffix) {
+        return (char)(FormatPrefix | (ushort)suffix);
     }
 
     public static bool Decode(char c, out FormatSuffix suffix) {
-        suffix = (FormatSuffix)c;
-        return Enum.IsDefined(typeof(FormatSuffix), suffix);
+        ushort val = c;
+        if ((val & 0xFF00) == FormatPrefix) {
+            suffix = (FormatSuffix)(val & 0xFF);
+            return true;
+        }
+
+        suffix = default;
+        return false;
     }
 
     public static bool IsInterpolation(FormatSuffix suffix) {

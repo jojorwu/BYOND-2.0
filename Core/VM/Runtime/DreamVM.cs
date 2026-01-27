@@ -10,6 +10,7 @@ namespace Core.VM.Runtime
         public DreamVMContext Context { get; } = new();
         public List<string> Strings => Context.Strings;
         public Dictionary<string, IDreamProc> Procs => Context.Procs;
+        public List<DreamValue> Globals => Context.Globals;
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)

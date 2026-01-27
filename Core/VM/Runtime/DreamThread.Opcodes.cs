@@ -1,6 +1,6 @@
 using System;
 using Core.VM.Procs;
-using Core.VM.Types;
+
 using Shared;
 
 namespace Core.VM.Runtime
@@ -171,12 +171,101 @@ namespace Core.VM.Runtime
             }
         }
 
+        private void Opcode_PushReferenceValue(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            Push(GetReferenceValue(reference, frame));
+        }
+
+        private void Opcode_Assign(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Stack[^1];
+            SetReferenceValue(reference, frame, value);
+        }
+
+        private void Opcode_PushGlobalVars()
+        {
+            Push(DreamValue.Null); // TODO: Implement global vars object
+        }
+
+        private void Opcode_IsNull()
+        {
+            var value = Pop();
+            Push(new DreamValue(value.Type == DreamValueType.Null ? 1 : 0));
+        }
+
+        private void Opcode_JumpIfNull(DreamProc proc, ref int pc)
+        {
+            var value = Pop();
+            var address = ReadInt32(proc, ref pc);
+            if (value.Type == DreamValueType.Null)
+                pc = address;
+        }
+
+        private void Opcode_JumpIfNullNoPop(DreamProc proc, ref int pc)
+        {
+            var value = Stack[^1];
+            var address = ReadInt32(proc, ref pc);
+            if (value.Type == DreamValueType.Null)
+                pc = address;
+        }
+
         private void Opcode_BitAnd() => PerformBinaryOperation((a, b) => a & b);
         private void Opcode_BitOr() => PerformBinaryOperation((a, b) => a | b);
         private void Opcode_BitXor() => PerformBinaryOperation((a, b) => a ^ b);
         private void Opcode_BitNot() => Stack[^1] = ~Stack[^1];
         private void Opcode_BitShiftLeft() => PerformBinaryOperation((a, b) => a << b);
         private void Opcode_BitShiftRight() => PerformBinaryOperation((a, b) => a >> b);
+
+        private void Opcode_BooleanAnd(DreamProc proc, ref int pc)
+        {
+            var value = Pop();
+            var jumpAddress = ReadInt32(proc, ref pc);
+            if (value.IsFalse())
+            {
+                Push(value);
+                pc = jumpAddress;
+            }
+        }
+
+        private void Opcode_BooleanOr(DreamProc proc, ref int pc)
+        {
+            var value = Pop();
+            var jumpAddress = ReadInt32(proc, ref pc);
+            if (!value.IsFalse())
+            {
+                Push(value);
+                pc = jumpAddress;
+            }
+        }
+
+        private void Opcode_Increment(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = GetReferenceValue(reference, frame);
+            var newValue = value + 1;
+            SetReferenceValue(reference, frame, newValue);
+            Push(newValue);
+        }
+
+        private void Opcode_Decrement(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = GetReferenceValue(reference, frame);
+            var newValue = value - 1;
+            SetReferenceValue(reference, frame, newValue);
+            Push(newValue);
+        }
+
+        private void Opcode_Modulus() => PerformBinaryOperation((a, b) => new DreamValue((float)Math.IEEERemainder(a.AsFloat(), b.AsFloat())));
+
+        private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            SetReferenceValue(reference, frame, value);
+        }
         #endregion
     }
 }

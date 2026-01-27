@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Core.VM.Procs;
-using Core.VM.Types;
+
 using Shared;
 
 namespace Core.VM.Runtime
@@ -42,6 +42,18 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.BitShiftRight] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftRight();
             _dispatchTable[(byte)Opcode.GetVariable] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetVariable(p, f, ref pc);
             _dispatchTable[(byte)Opcode.SetVariable] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SetVariable(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.PushReferenceValue] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushReferenceValue(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.Assign] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Assign(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.PushGlobalVars] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushGlobalVars();
+            _dispatchTable[(byte)Opcode.IsNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsNull();
+            _dispatchTable[(byte)Opcode.JumpIfNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfNull(p, ref pc);
+            _dispatchTable[(byte)Opcode.JumpIfNullNoPop] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfNullNoPop(p, ref pc);
+            _dispatchTable[(byte)Opcode.BooleanAnd] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanAnd(p, ref pc);
+            _dispatchTable[(byte)Opcode.BooleanOr] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanOr(p, ref pc);
+            _dispatchTable[(byte)Opcode.Increment] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Increment(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.Decrement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Decrement(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.Modulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Modulus();
+            _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
         }
 
         public List<DreamValue> Stack { get; } = new(128);
@@ -108,6 +120,65 @@ namespace Core.VM.Runtime
                 var frame = CallStack.Pop();
                 frame.PC = pc;
                 CallStack.Push(frame);
+            }
+        }
+
+        private DMReference ReadReference(DreamProc proc, ref int pc)
+        {
+            var refType = (DMReference.Type)ReadByte(proc, ref pc);
+            switch (refType)
+            {
+                case DMReference.Type.Argument:
+                case DMReference.Type.Local:
+                    return new DMReference { RefType = refType, Index = ReadByte(proc, ref pc) };
+                case DMReference.Type.Global:
+                case DMReference.Type.GlobalProc:
+                case DMReference.Type.Field:
+                case DMReference.Type.SrcProc:
+                case DMReference.Type.SrcField:
+                    return new DMReference { RefType = refType, Index = ReadInt32(proc, ref pc) };
+                default:
+                    return new DMReference { RefType = refType };
+            }
+        }
+
+        private DreamValue GetReferenceValue(DMReference reference, CallFrame frame)
+        {
+            switch (reference.RefType)
+            {
+                case DMReference.Type.Src:
+                    return frame.Instance != null ? new DreamValue(frame.Instance) : DreamValue.Null;
+                case DMReference.Type.Global:
+                    return _context.Globals[reference.Index];
+                case DMReference.Type.Argument:
+                    return Stack[frame.StackBase + reference.Index];
+                case DMReference.Type.Local:
+                    return Stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
+                case DMReference.Type.SrcField:
+                    return frame.Instance != null ? frame.Instance.GetVariable(_context.Strings[reference.Index]) : DreamValue.Null;
+                default:
+                    throw new Exception($"Unsupported reference type for reading: {reference.RefType}");
+            }
+        }
+
+        private void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value)
+        {
+            switch (reference.RefType)
+            {
+                case DMReference.Type.Global:
+                    _context.Globals[reference.Index] = value;
+                    break;
+                case DMReference.Type.Argument:
+                    Stack[frame.StackBase + reference.Index] = value;
+                    break;
+                case DMReference.Type.Local:
+                    Stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
+                    break;
+                case DMReference.Type.SrcField:
+                    frame.Instance?.SetVariable(_context.Strings[reference.Index], value);
+                    break;
+                default:
+                    throw new Exception($"Unsupported reference type for writing: {reference.RefType}");
             }
         }
 

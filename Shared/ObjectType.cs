@@ -12,6 +12,8 @@ namespace Shared
         [JsonIgnore]
         public ObjectType? Parent { get; set; }
         public Dictionary<string, object?> DefaultProperties { get; set; }
+        public List<string> VariableNames { get; } = new();
+        public List<object?> FlattenedDefaultValues { get; } = new();
 
         public ObjectType(int id, string name)
         {

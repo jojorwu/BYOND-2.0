@@ -1,22 +1,15 @@
-using Shared;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using DMCompiler;
+using System.Text.Json;
+using Shared;
+using Shared.Compiler;
 
-namespace Core
+namespace DMCompiler
 {
-    public class OpenDreamCompilerService : ICompilerService
+    public class CompilerService : ICompilerService
     {
-        private readonly IProject _project;
-
-        public OpenDreamCompilerService(IProject project)
-        {
-            _project = project;
-        }
-
-        public (string?, List<BuildMessage>) Compile(List<string> files)
+        public (ICompiledJson?, List<BuildMessage>) Compile(List<string> files)
         {
             if (files == null || files.Count == 0)
             {
@@ -29,25 +22,30 @@ namespace Core
                 StoreMessages = true
             };
 
-            var compiler = new DMCompiler.DMCompiler();
+            var compiler = new global::DMCompiler.DMCompiler();
             var (success, outputPath) = compiler.Compile(settings);
 
             var messages = compiler.CompilerMessages.Select(ConvertCompilerMessage).ToList();
 
-            if (!success)
+            if (!success || outputPath == null)
             {
                 return (null, messages);
             }
 
-            return (outputPath, messages);
+            var json = File.ReadAllText(outputPath);
+            var compiledJson = JsonSerializer.Deserialize<CompiledJson>(json, new JsonSerializerOptions() {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return (compiledJson, messages);
         }
 
-        private BuildMessage ConvertCompilerMessage(DMCompiler.Compiler.CompilerEmission message)
+        private BuildMessage ConvertCompilerMessage(Compiler.CompilerEmission message)
         {
             var level = message.Level switch
             {
-                DMCompiler.Compiler.ErrorLevel.Error => BuildMessageLevel.Error,
-                DMCompiler.Compiler.ErrorLevel.Warning => BuildMessageLevel.Warning,
+                Compiler.ErrorLevel.Error => BuildMessageLevel.Error,
+                Compiler.ErrorLevel.Warning => BuildMessageLevel.Warning,
                 _ => BuildMessageLevel.Info
             };
 

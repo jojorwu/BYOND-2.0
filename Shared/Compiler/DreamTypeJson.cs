@@ -1,6 +1,6 @@
-namespace DMCompiler.Json;
+namespace Shared.Compiler;
 
-public enum PublicJsonVariableType {
+public enum JsonVariableType {
     Resource = 0,
     Type = 1,
     Proc = 2,
@@ -10,7 +10,7 @@ public enum PublicJsonVariableType {
     AList = 6
 }
 
-public sealed class PublicDreamTypeJson {
+public sealed class DreamTypeJson {
     public required string Path { get; set; }
     public int? Parent { get; set; }
     public int? InitProc { get; set; }

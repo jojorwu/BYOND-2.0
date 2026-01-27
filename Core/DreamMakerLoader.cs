@@ -5,7 +5,7 @@ using System.IO;
 using System.Text.Json;
 using Core.VM.Procs;
 using Core.VM.Runtime;
-using DMCompiler.Json;
+using Shared.Compiler;
 
 namespace Core
 {
@@ -22,9 +22,9 @@ namespace Core
             _dreamVM = dreamVM;
         }
 
-        public void Load(IPublicDreamCompiledJson compiledJson)
+        public void Load(ICompiledJson compiledJson)
         {
-            if (compiledJson is not PublicDreamCompiledJson json)
+            if (compiledJson is not CompiledJson json)
                 throw new ArgumentException("Invalid compiled json object", nameof(compiledJson));
 
             if (_dreamVM != null)
@@ -115,7 +115,7 @@ namespace Core
                     case JsonValueKind.Object:
                         if (jsonElement.TryGetProperty("type", out var typeElement) &&
                             typeElement.ValueKind == JsonValueKind.Number &&
-                            (PublicJsonVariableType)typeElement.GetInt32() == PublicJsonVariableType.Resource &&
+                            (JsonVariableType)typeElement.GetInt32() == JsonVariableType.Resource &&
                             jsonElement.TryGetProperty("resourcePath", out var pathElement) &&
                             pathElement.ValueKind == JsonValueKind.String)
                         {

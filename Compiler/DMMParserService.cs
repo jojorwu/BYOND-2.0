@@ -1,6 +1,7 @@
 using DMCompiler.Compiler;
 using DMCompiler.Compiler.DMM;
 using DMCompiler.Json;
+using Shared.Compiler;
 using System.Collections.Generic;
 using System.IO;
 using DMCompiler.DM;
@@ -12,7 +13,7 @@ namespace DMCompiler
 {
     public class DMMParserService
     {
-        public (PublicDreamMapJson? MapJson, PublicDreamCompiledJson? CompiledJson) ParseDmm(List<string> dmFiles, string dmmPath)
+        public (PublicDreamMapJson? MapJson, CompiledJson? CompiledJson) ParseDmm(List<string> dmFiles, string dmmPath)
         {
             if (!File.Exists(dmmPath))
             {
@@ -25,7 +26,7 @@ namespace DMCompiler
                 StoreMessages = true
             };
 
-            var compiler = new DMCompiler();
+            var compiler = new global::DMCompiler.DMCompiler();
             compiler.Compile(settings);
 
             if (compiler.CompilerMessages.Count > 0)
@@ -69,7 +70,7 @@ namespace DMCompiler
 
             var (types, procs) = compiler.DMObjectTree.CreateJsonRepresentation();
 
-            var publicTypes = types.Select(t => new PublicDreamTypeJson {
+            var publicTypes = types.Select(t => new DreamTypeJson {
                 Path = t.Path,
                 Parent = t.Parent,
                 InitProc = t.InitProc,
@@ -81,24 +82,24 @@ namespace DMCompiler
                 TmpVariables = t.TmpVariables
             }).ToArray();
 
-            var publicProcs = procs.Select(p => new PublicProcDefinitionJson {
+            var publicProcs = procs.Select(p => new ProcDefinitionJson {
                 OwningTypeId = p.OwningTypeId,
                 Name = p.Name,
-                Attributes = p.Attributes,
+                Attributes = (Shared.Compiler.ProcAttributes)p.Attributes,
                 MaxStackSize = p.MaxStackSize,
-                Arguments = p.Arguments?.Select(a => new PublicProcArgumentJson { Name = a.Name, Type = a.Type }).ToList(),
-                Locals = p.Locals?.Select(l => new PublicLocalVariableJson { Offset = l.Offset, Remove = l.Remove, Add = l.Add }).ToList(),
-                SourceInfo = p.SourceInfo.Select(s => new PublicSourceInfoJson { Offset = s.Offset, File = s.File, Line = s.Line }).ToList(),
+                Arguments = p.Arguments?.Select(a => new ProcArgumentJson { Name = a.Name, Type = (Shared.Compiler.DMValueType)a.Type }).ToList(),
+                Locals = p.Locals?.Select(l => new LocalVariableJson { Offset = l.Offset, Remove = l.Remove, Add = l.Add }).ToList(),
+                SourceInfo = p.SourceInfo.Select(s => new SourceInfoJson { Offset = s.Offset, File = s.File, Line = s.Line }).ToList(),
                 Bytecode = p.Bytecode,
                 IsVerb = p.IsVerb,
-                VerbSrc = p.VerbSrc,
+                VerbSrc = (Shared.Compiler.VerbSrc?)p.VerbSrc,
                 VerbName = p.VerbName,
                 VerbCategory = p.VerbCategory,
                 VerbDesc = p.VerbDesc,
                 Invisibility = p.Invisibility
             }).ToArray();
 
-            var compiledJson = new PublicDreamCompiledJson {
+            var compiledJson = new CompiledJson {
                 Strings = compiler.DMObjectTree.StringTable,
                 Types = publicTypes,
                 Procs = publicProcs,

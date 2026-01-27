@@ -1,9 +1,10 @@
 using System.Collections.Generic;
+using Shared.Compiler;
 
 namespace Shared
 {
     public interface ICompilerService
     {
-        (string?, List<BuildMessage>) Compile(List<string> files);
+        (ICompiledJson?, List<BuildMessage>) Compile(List<string> files);
     }
 }

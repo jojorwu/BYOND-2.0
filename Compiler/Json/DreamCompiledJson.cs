@@ -1,4 +1,6 @@
-﻿namespace DMCompiler.Json;
+using Shared.Compiler;
+
+namespace DMCompiler.Json;
 
 public sealed class DreamCompiledJson {
     public required DreamCompiledJsonMetadata Metadata { get; set; }

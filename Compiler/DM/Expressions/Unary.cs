@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using DMCompiler.Bytecode;
+using Shared;
 
 namespace DMCompiler.DM.Expressions;
 

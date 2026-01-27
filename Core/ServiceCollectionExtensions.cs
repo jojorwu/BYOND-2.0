@@ -40,6 +40,7 @@ namespace Core
             // );
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
+            services.AddSingleton<ICompiledJsonService, CompiledJsonService>();
             services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
             services.AddSingleton<IScriptManager>(provider =>
                 new ScriptManager(

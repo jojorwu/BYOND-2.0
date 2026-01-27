@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
-namespace DMCompiler.Bytecode;
+namespace Shared;
 
 /// <summary>
 /// Handles how we write format data into our strings.

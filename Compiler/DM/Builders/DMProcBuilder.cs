@@ -1,4 +1,4 @@
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.Compiler;
 using DMCompiler.Compiler.DM;
 using DMCompiler.Compiler.DM.AST;

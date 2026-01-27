@@ -1,4 +1,4 @@
-using DMCompiler.Bytecode;
+using Shared;
 
 // ReSharper disable UnusedType.Global
 
@@ -10,10 +10,10 @@ namespace DMCompiler.Optimizer;
 internal sealed class AppendNoPush : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.Append,
-            DreamProcOpcode.Pop
+            Opcode.Append,
+            Opcode.Pop
         ];
     }
 
@@ -26,7 +26,7 @@ internal sealed class AppendNoPush : IOptimization {
         AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.AppendNoPush, [assignTarget]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.AppendNoPush, [assignTarget]));
     }
 }
 
@@ -36,10 +36,10 @@ internal sealed class AppendNoPush : IOptimization {
 internal sealed class AssignNoPush : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.Assign,
-            DreamProcOpcode.Pop
+            Opcode.Assign,
+            Opcode.Pop
         ];
     }
 
@@ -52,7 +52,7 @@ internal sealed class AssignNoPush : IOptimization {
         AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.AssignNoPush, [assignTarget]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.AssignNoPush, [assignTarget]));
     }
 }
 
@@ -62,10 +62,10 @@ internal sealed class AssignNoPush : IOptimization {
 internal sealed class AssignNull : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushNull,
-            DreamProcOpcode.AssignNoPush
+            Opcode.PushNull,
+            Opcode.AssignNoPush
         ];
     }
 
@@ -83,7 +83,7 @@ internal sealed class AssignNull : IOptimization {
         input.RemoveRange(index, 2);
 
         // Insert the new instruction with the extracted target as the only argument
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.NullRef, [assignTarget]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.NullRef, [assignTarget]));
     }
 }
 
@@ -93,10 +93,10 @@ internal sealed class AssignNull : IOptimization {
 internal sealed class PushField : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushReferenceValue,
-            DreamProcOpcode.DereferenceField
+            Opcode.PushReferenceValue,
+            Opcode.DereferenceField
         ];
     }
 
@@ -111,7 +111,7 @@ internal sealed class PushField : IOptimization {
         AnnotatedBytecodeString derefField = secondInstruction.GetArg<AnnotatedBytecodeString>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.PushRefAndDereferenceField,
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.PushRefAndDereferenceField,
             [pushVal, derefField]));
     }
 }
@@ -123,11 +123,11 @@ internal sealed class PushField : IOptimization {
 internal sealed class IndexRefWithString : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushReferenceValue,
-            DreamProcOpcode.PushString,
-            DreamProcOpcode.DereferenceIndex
+            Opcode.PushReferenceValue,
+            Opcode.PushString,
+            Opcode.DereferenceIndex
         ];
     }
 
@@ -139,7 +139,7 @@ internal sealed class IndexRefWithString : IOptimization {
         AnnotatedBytecodeString strIndex = secondInstruction.GetArg<AnnotatedBytecodeString>(0);
 
         input.RemoveRange(index, 3);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.IndexRefWithString, -1,
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.IndexRefWithString, -1,
             [pushVal, strIndex]));
     }
 }
@@ -150,10 +150,10 @@ internal sealed class IndexRefWithString : IOptimization {
 internal class ReturnReferenceValue : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushReferenceValue,
-            DreamProcOpcode.Return
+            Opcode.PushReferenceValue,
+            Opcode.Return
         ];
     }
 
@@ -161,7 +161,7 @@ internal class ReturnReferenceValue : IOptimization {
         AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input[index]);
         AnnotatedBytecodeReference pushVal = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.ReturnReferenceValue, [pushVal]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.ReturnReferenceValue, [pushVal]));
     }
 }
 
@@ -171,17 +171,17 @@ internal class ReturnReferenceValue : IOptimization {
 internal class ReturnFloat : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Return
+            Opcode.PushFloat,
+            Opcode.Return
         ];
     }
 
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index) {
         var firstInstruction = IOptimization.GetInstructionAndValue(input[index], out var pushVal);
         IOptimization.ReplaceInstructions(input, index, 2,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.ReturnFloat, [new AnnotatedBytecodeFloat(pushVal, firstInstruction.Location)]));
+            new AnnotatedBytecodeInstruction(Opcode.ReturnFloat, [new AnnotatedBytecodeFloat(pushVal, firstInstruction.Location)]));
     }
 }
 
@@ -191,10 +191,10 @@ internal class ReturnFloat : IOptimization {
 internal sealed class JumpIfReferenceFalse : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushReferenceValue,
-            DreamProcOpcode.JumpIfFalse
+            Opcode.PushReferenceValue,
+            Opcode.JumpIfFalse
         ];
     }
 
@@ -209,7 +209,7 @@ internal sealed class JumpIfReferenceFalse : IOptimization {
         AnnotatedBytecodeLabel jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.JumpIfReferenceFalse,
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.JumpIfReferenceFalse,
             [pushVal, jumpLabel]));
     }
 }
@@ -220,10 +220,10 @@ internal sealed class JumpIfReferenceFalse : IOptimization {
 internal sealed class RemoveJumpAfterReturn : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.Return,
-            DreamProcOpcode.Jump
+            Opcode.Return,
+            Opcode.Jump
         ];
     }
 
@@ -238,10 +238,10 @@ internal sealed class RemoveJumpAfterReturn : IOptimization {
 internal sealed class SwitchOnFloat : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.SwitchCase
+            Opcode.PushFloat,
+            Opcode.SwitchCase
         ];
     }
 
@@ -256,7 +256,7 @@ internal sealed class SwitchOnFloat : IOptimization {
         AnnotatedBytecodeLabel jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.SwitchOnFloat, [pushVal, jumpLabel]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.SwitchOnFloat, [pushVal, jumpLabel]));
     }
 }
 
@@ -266,10 +266,10 @@ internal sealed class SwitchOnFloat : IOptimization {
 internal sealed class SwitchOnString : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushString,
-            DreamProcOpcode.SwitchCase
+            Opcode.PushString,
+            Opcode.SwitchCase
         ];
     }
 
@@ -284,7 +284,7 @@ internal sealed class SwitchOnString : IOptimization {
         AnnotatedBytecodeLabel jumpLabel = secondInstruction.GetArg<AnnotatedBytecodeLabel>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.SwitchOnString, [pushVal, jumpLabel]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.SwitchOnString, [pushVal, jumpLabel]));
     }
 }
 
@@ -294,10 +294,10 @@ internal sealed class SwitchOnString : IOptimization {
 internal sealed class RemoveJumpFollowedByJump : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.Jump,
-            DreamProcOpcode.Jump
+            Opcode.Jump,
+            Opcode.Jump
         ];
     }
 
@@ -312,10 +312,10 @@ internal sealed class RemoveJumpFollowedByJump : IOptimization {
 internal sealed class IsTypeDirect : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushType,
-            DreamProcOpcode.IsType
+            Opcode.PushType,
+            Opcode.IsType
         ];
     }
 
@@ -328,7 +328,7 @@ internal sealed class IsTypeDirect : IOptimization {
         AnnotatedBytecodeTypeId pushVal = firstInstruction.GetArg<AnnotatedBytecodeTypeId>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.IsTypeDirect, [pushVal]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.IsTypeDirect, [pushVal]));
     }
 }
 
@@ -340,10 +340,10 @@ internal sealed class IsTypeDirect : IOptimization {
 internal sealed class ConstFoldBitNot : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitNot
+            Opcode.PushFloat,
+            Opcode.BitNot
         ];
     }
 
@@ -353,7 +353,7 @@ internal sealed class ConstFoldBitNot : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(((~(int)pushVal1) & 0xFFFFFF), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 2,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -364,11 +364,11 @@ internal sealed class ConstFoldBitNot : IOptimization {
 internal sealed class ConstFoldBitOr : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitOr,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.BitOr,
         ];
     }
 
@@ -380,7 +380,7 @@ internal sealed class ConstFoldBitOr : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(((int)pushVal1 | (int)pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -391,11 +391,11 @@ internal sealed class ConstFoldBitOr : IOptimization {
 internal sealed class ConstFoldBitAnd : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitAnd,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.BitAnd,
         ];
     }
 
@@ -407,7 +407,7 @@ internal sealed class ConstFoldBitAnd : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(((int)pushVal1 & (int)pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -418,11 +418,11 @@ internal sealed class ConstFoldBitAnd : IOptimization {
 internal sealed class ConstFoldMultiply : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Multiply,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.Multiply,
         ];
     }
 
@@ -434,7 +434,7 @@ internal sealed class ConstFoldMultiply : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 * pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -445,11 +445,11 @@ internal sealed class ConstFoldMultiply : IOptimization {
 internal sealed class ConstFoldDivide : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Divide,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.Divide,
         ];
     }
 
@@ -463,7 +463,7 @@ internal sealed class ConstFoldDivide : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 / pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -474,11 +474,11 @@ internal sealed class ConstFoldDivide : IOptimization {
 internal sealed class ConstFoldAdd : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Add,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.Add,
         ];
     }
 
@@ -490,7 +490,7 @@ internal sealed class ConstFoldAdd : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 + pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -501,11 +501,11 @@ internal sealed class ConstFoldAdd : IOptimization {
 internal sealed class ConstFoldAddStrings : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushString,
-            DreamProcOpcode.PushString,
-            DreamProcOpcode.Add,
+            Opcode.PushString,
+            Opcode.PushString,
+            Opcode.Add,
         ];
     }
 
@@ -519,7 +519,7 @@ internal sealed class ConstFoldAddStrings : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeString(combinedId, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushString, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushString, 1, args));
     }
 }
 
@@ -530,11 +530,11 @@ internal sealed class ConstFoldAddStrings : IOptimization {
 internal sealed class ConstFoldSubtract : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Subtract,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.Subtract,
         ];
     }
 
@@ -548,7 +548,7 @@ internal sealed class ConstFoldSubtract : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(pushVal1 - pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -559,11 +559,11 @@ internal sealed class ConstFoldSubtract : IOptimization {
 internal sealed class ConstFoldModulus : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Modulus,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.Modulus,
         ];
     }
 
@@ -577,7 +577,7 @@ internal sealed class ConstFoldModulus : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat((int)pushVal1 % (int)pushVal2, firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -588,11 +588,11 @@ internal sealed class ConstFoldModulus : IOptimization {
 internal sealed class ConstFoldPower : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.Power,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.Power,
         ];
     }
 
@@ -606,7 +606,7 @@ internal sealed class ConstFoldPower : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(MathF.Pow(pushVal1, pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -617,10 +617,10 @@ internal sealed class ConstFoldPower : IOptimization {
 internal sealed class AssignAndPushReferenceValue : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.AssignNoPush,
-            DreamProcOpcode.PushReferenceValue
+            Opcode.AssignNoPush,
+            Opcode.PushReferenceValue
         ];
     }
 
@@ -653,7 +653,7 @@ internal sealed class AssignAndPushReferenceValue : IOptimization {
         AnnotatedBytecodeReference assignTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.Assign, [assignTarget]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.Assign, [assignTarget]));
     }
 }
 
@@ -664,10 +664,10 @@ internal sealed class AssignAndPushReferenceValue : IOptimization {
 internal sealed class AppendAndPushReferenceValue : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.AppendNoPush,
-            DreamProcOpcode.PushReferenceValue
+            Opcode.AppendNoPush,
+            Opcode.PushReferenceValue
         ];
     }
 
@@ -695,7 +695,7 @@ internal sealed class AppendAndPushReferenceValue : IOptimization {
         AnnotatedBytecodeReference appendTarget = firstInstruction.GetArg<AnnotatedBytecodeReference>(0);
 
         input.RemoveRange(index, 2);
-        input.Insert(index, new AnnotatedBytecodeInstruction(DreamProcOpcode.Append, [appendTarget]));
+        input.Insert(index, new AnnotatedBytecodeInstruction(Opcode.Append, [appendTarget]));
     }
 }
 
@@ -706,11 +706,11 @@ internal sealed class AppendAndPushReferenceValue : IOptimization {
 internal sealed class ConstFoldBitshiftLeft : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitShiftLeft,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.BitShiftLeft,
         ];
     }
 
@@ -723,7 +723,7 @@ internal sealed class ConstFoldBitshiftLeft : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(SharedOperations.BitShiftLeft((int)pushVal1, (int)pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 
@@ -734,11 +734,11 @@ internal sealed class ConstFoldBitshiftLeft : IOptimization {
 internal sealed class ConstFoldBitshiftRight : IOptimization {
     public OptPass OptimizationPass => OptPass.PeepholeOptimization;
 
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes() {
+    public ReadOnlySpan<Opcode> GetOpcodes() {
         return [
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.PushFloat,
-            DreamProcOpcode.BitShiftRight,
+            Opcode.PushFloat,
+            Opcode.PushFloat,
+            Opcode.BitShiftRight,
         ];
     }
 
@@ -751,7 +751,7 @@ internal sealed class ConstFoldBitshiftRight : IOptimization {
         var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(SharedOperations.BitShiftRight((int)pushVal1, (int)pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
-            new AnnotatedBytecodeInstruction(DreamProcOpcode.PushFloat, 1, args));
+            new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));
     }
 }
 

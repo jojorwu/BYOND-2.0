@@ -56,7 +56,7 @@ namespace Core.Tests
             var scriptHostMock = new Mock<IScriptHost>();
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
-            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, _project, _dreamVM);
+            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, new CompiledJsonService(), _dreamVM);
             var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]

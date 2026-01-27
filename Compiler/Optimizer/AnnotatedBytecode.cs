@@ -1,5 +1,5 @@
 using System.Diagnostics.Contracts;
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.DM;
 
 namespace DMCompiler.Optimizer;
@@ -13,13 +13,13 @@ internal interface IAnnotatedBytecode {
 
 internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
     public Location Location;
-    public DreamProcOpcode Opcode;
+    public Opcode Opcode;
     public int StackSizeDelta;
 
     private readonly List<IAnnotatedBytecode> _args = new();
     private Location? _location;
 
-    public AnnotatedBytecodeInstruction(DreamProcOpcode opcode, int stackSizeDelta, Location location) {
+    public AnnotatedBytecodeInstruction(Opcode opcode, int stackSizeDelta, Location location) {
         Opcode = opcode;
         StackSizeDelta = stackSizeDelta;
         Location = location;
@@ -34,7 +34,7 @@ internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
     }
 
     // Look up the stack delta for the opcode and create a new instruction with that stack delta and args
-    public AnnotatedBytecodeInstruction(DreamProcOpcode op, List<IAnnotatedBytecode> args) {
+    public AnnotatedBytecodeInstruction(Opcode op, List<IAnnotatedBytecode> args) {
         Opcode = op;
         OpcodeMetadata metadata = OpcodeMetadataCache.GetMetadata(op);
         StackSizeDelta = metadata.StackDelta;
@@ -43,7 +43,7 @@ internal sealed class AnnotatedBytecodeInstruction : IAnnotatedBytecode {
         _args = args;
     }
 
-    public AnnotatedBytecodeInstruction(DreamProcOpcode opcode, int stackSizeDelta, List<IAnnotatedBytecode> args) {
+    public AnnotatedBytecodeInstruction(Opcode opcode, int stackSizeDelta, List<IAnnotatedBytecode> args) {
         Opcode = opcode;
         StackSizeDelta = stackSizeDelta;
         Location = new Location("Internal", null, null);

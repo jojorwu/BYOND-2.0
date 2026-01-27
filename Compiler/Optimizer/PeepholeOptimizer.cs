@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using DMCompiler.Bytecode;
+using Shared;
 
 namespace DMCompiler.Optimizer;
 
@@ -8,7 +8,7 @@ namespace DMCompiler.Optimizer;
 /// </summary>
 internal interface IOptimization {
     public OptPass OptimizationPass { get; }
-    public ReadOnlySpan<DreamProcOpcode> GetOpcodes();
+    public ReadOnlySpan<Opcode> GetOpcodes();
     public void Apply(DMCompiler compiler, List<IAnnotatedBytecode> input, int index);
 
     public bool CheckPreconditions(List<IAnnotatedBytecode> input, int index) {
@@ -44,7 +44,7 @@ internal sealed class PeepholeOptimizer {
 
     private class OptimizationTreeEntry {
         public IOptimization? Optimization;
-        public Dictionary<DreamProcOpcode, OptimizationTreeEntry>? Children;
+        public Dictionary<Opcode, OptimizationTreeEntry>? Children;
     }
 
     /// <summary>
@@ -55,14 +55,14 @@ internal sealed class PeepholeOptimizer {
     /// <summary>
     /// Trees matching chains of opcodes to peephole optimizations
     /// </summary>
-    private readonly Dictionary<DreamProcOpcode, OptimizationTreeEntry>[] _optimizationTrees;
+    private readonly Dictionary<Opcode, OptimizationTreeEntry>[] _optimizationTrees;
 
     public PeepholeOptimizer(DMCompiler compiler) {
         _compiler = compiler;
         _passes = (OptPass[])Enum.GetValues(typeof(OptPass));
-        _optimizationTrees = new Dictionary<DreamProcOpcode, OptimizationTreeEntry>[_passes.Length];
+        _optimizationTrees = new Dictionary<Opcode, OptimizationTreeEntry>[_passes.Length];
         for (int i = 0; i < _optimizationTrees.Length; i++) {
-            _optimizationTrees[i] = new Dictionary<DreamProcOpcode, OptimizationTreeEntry>();
+            _optimizationTrees[i] = new Dictionary<Opcode, OptimizationTreeEntry>();
         }
 
         GetOptimizations();

@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.Compiler;
 using DMCompiler.DM;
 
@@ -33,7 +33,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     /// </summary>
     /// <param name="opcode">The opcode to write</param>
     /// <param name="location">The location of the opcode in the source code</param>
-    public void WriteOpcode(DreamProcOpcode opcode, Location location) {
+    public void WriteOpcode(Opcode opcode, Location location) {
         _location = location;
         if (_currentMetadata is not null) {
             if (_requiredArgIdx < _currentMetadata.Value.RequiredArgs.Count - 1) {

@@ -2,6 +2,7 @@ using Shared;
 using System.Collections.Generic;
 using System.Linq;
 using Core.VM.Procs;
+using System;
 
 namespace Core.VM.Runtime
 {
@@ -11,6 +12,7 @@ namespace Core.VM.Runtime
         public List<string> Strings => Context.Strings;
         public Dictionary<string, IDreamProc> Procs => Context.Procs;
         public List<DreamValue> Globals => Context.Globals;
+        public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)

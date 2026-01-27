@@ -69,6 +69,11 @@ namespace Core
                         newType.DefaultProperties[key] = ConvertJsonElement(value);
                     }
                 }
+
+                if (newType.Name == "/list")
+                {
+                    dreamVM.ListType = newType;
+                }
             }
 
             // Resolve parents and flatten variables

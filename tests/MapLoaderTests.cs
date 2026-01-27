@@ -4,6 +4,7 @@ using Core;
 using System.IO;
 using Core.Objects;
 using Core.Maps;
+using System.Threading.Tasks;
 
 namespace tests
 {
@@ -35,13 +36,17 @@ namespace tests
         {
             // Arrange
             var objectType = new ObjectType(1, "test_object");
-            objectType.DefaultProperties["SpritePath"] = "default.png";
+            objectType.VariableNames.Add("SpritePath");
+            objectType.FlattenedDefaultValues.Add("default.png");
+            objectType.VariableNames.Add("InstanceProp");
+            objectType.FlattenedDefaultValues.Add(null);
+
             _objectTypeManager.RegisterObjectType(objectType);
 
             var map = new Map();
             var turf = new Turf(1);
             var gameObject = new GameObject(objectType);
-            gameObject.Properties["InstanceProp"] = "instance_value";
+            gameObject.SetVariable("InstanceProp", new DreamValue("instance_value"));
             turf.Contents.Add(gameObject);
             map.SetTurf(17, 33, 0, turf); // Coordinates that will fall into a non-zero chunk
 
@@ -57,8 +62,8 @@ namespace tests
 
             var loadedGameObject = loadedTurf.Contents[0];
             Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
-            Assert.That(loadedGameObject.GetProperty<string>("SpritePath"), Is.EqualTo("default.png"));
-            Assert.That(loadedGameObject.GetProperty<string>("InstanceProp"), Is.EqualTo("instance_value"));
+            Assert.That(loadedGameObject.GetVariable("SpritePath").ToString(), Is.EqualTo("default.png"));
+            Assert.That(loadedGameObject.GetVariable("InstanceProp").ToString(), Is.EqualTo("instance_value"));
         }
 
         [Test]

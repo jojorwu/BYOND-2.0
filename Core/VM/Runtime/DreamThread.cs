@@ -54,6 +54,14 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.Decrement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Decrement(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Modulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Modulus();
             _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.CreateList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateList(p, ref pc);
+            _dispatchTable[(byte)Opcode.IsInList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsInList();
+            _dispatchTable[(byte)Opcode.DereferenceField] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceField(p, ref pc);
+            _dispatchTable[(byte)Opcode.DereferenceIndex] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceIndex();
+            _dispatchTable[(byte)Opcode.DereferenceCall] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceCall(p, ref pc);
+            _dispatchTable[(byte)Opcode.Initial] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Initial();
+            _dispatchTable[(byte)Opcode.IsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsType();
+            _dispatchTable[(byte)Opcode.AsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AsType();
         }
 
         public List<DreamValue> Stack { get; } = new(128);

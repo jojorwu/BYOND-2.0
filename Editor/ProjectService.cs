@@ -59,7 +59,18 @@ namespace Editor
 
         public void SaveProject()
         {
-            // Implementation for saving project
+            var project = _projectHolder.Project;
+            if (project == null) return;
+
+            var projectSettingsPath = Path.Combine(project.RootPath, "project.json");
+            // In a real application, we would save the actual project settings here.
+            // For now, we ensure the basic project structure is maintained.
+            var projectSettings = new { MainMap = "maps/default.json" };
+            File.WriteAllText(projectSettingsPath, JsonSerializer.Serialize(projectSettings, new JsonSerializerOptions { Indented = true }));
+
+            // We could also trigger a compilation here if needed,
+            // but usually saving just means persisting the source files and project metadata.
+            Console.WriteLine($"Project saved to {project.RootPath}");
         }
     }
 }

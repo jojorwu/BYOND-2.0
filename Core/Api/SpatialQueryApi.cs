@@ -90,7 +90,7 @@ namespace Core.Api
                     {
                         if (content != from && content != to)
                         {
-                            if (content.GetProperty<int>("opacity") == 1)
+                            if (content.GetVariable("opacity").AsFloat() == 1.0f)
                             {
                                 return false; // Blocked
                             }

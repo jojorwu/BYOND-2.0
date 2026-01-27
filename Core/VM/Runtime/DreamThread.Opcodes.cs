@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Core.VM.Procs;
+using Core.VM.Objects;
+using System.Linq;
 
 using Shared;
 
@@ -265,6 +268,127 @@ namespace Core.VM.Runtime
             var reference = ReadReference(proc, ref pc);
             var value = Pop();
             SetReferenceValue(reference, frame, value);
+        }
+
+        private void Opcode_CreateList(DreamProc proc, ref int pc)
+        {
+            var size = ReadInt32(proc, ref pc);
+            var list = new DreamList(_context.ListType!, size);
+            for (int i = size - 1; i >= 0; i--)
+            {
+                list.Values[i] = Pop();
+            }
+            Push(new DreamValue(list));
+        }
+
+        private void Opcode_IsInList()
+        {
+            var listValue = Pop();
+            var value = Pop();
+
+            if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                Push(new DreamValue(list.Values.Contains(value) ? 1 : 0));
+            }
+            else
+            {
+                Push(new DreamValue(0));
+            }
+        }
+
+        private void Opcode_DereferenceField(DreamProc proc, ref int pc)
+        {
+            var fieldNameId = ReadInt32(proc, ref pc);
+            var fieldName = _context.Strings[fieldNameId];
+            var objValue = Pop();
+
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                Push(obj.GetVariable(fieldName));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_DereferenceIndex()
+        {
+            var indexValue = Pop();
+            var objValue = Pop();
+
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                if (indexValue.TryGetValue(out float indexFloat))
+                {
+                    int index = (int)indexFloat - 1; // DM indices are 1-based
+                    if (index >= 0 && index < list.Values.Count)
+                    {
+                        Push(list.Values[index]);
+                        return;
+                    }
+                }
+            }
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_DereferenceCall(DreamProc proc, ref int pc)
+        {
+            var procNameId = ReadInt32(proc, ref pc);
+            var procName = _context.Strings[procNameId];
+            var argCount = ReadByte(proc, ref pc);
+            // In a real implementation, we would look up the proc on the object and call it.
+            // For now, let's just pop arguments and push null.
+            for (int i = 0; i < argCount; i++) Pop();
+            Pop(); // Pop object
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_Initial()
+        {
+            // Pops a variable reference and pushes its initial value.
+            // Simplified: pop object and push null.
+            Pop();
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_IsType()
+        {
+            var typeValue = Pop();
+            var objValue = Pop();
+
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
+                typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+            {
+                Push(new DreamValue(obj.ObjectType.IsSubtypeOf(type) ? 1 : 0));
+            }
+            else
+            {
+                Push(new DreamValue(0));
+            }
+        }
+
+        private void Opcode_AsType()
+        {
+            var typeValue = Pop();
+            var objValue = Pop();
+
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
+                typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+            {
+                if (obj.ObjectType.IsSubtypeOf(type))
+                {
+                    Push(objValue);
+                }
+                else
+                {
+                    Push(DreamValue.Null);
+                }
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
         }
         #endregion
     }

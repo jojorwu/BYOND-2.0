@@ -13,6 +13,8 @@ using AssetManager = Core.AssetManager;
 using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
+using Shared;
+using System.Collections.Generic;
 
 namespace Client
 {
@@ -207,16 +209,23 @@ namespace Client
 
         private Vector2 GetPosition(GameObject obj)
         {
-            if (obj.Properties.TryGetValue("Position", out var pos) && pos is JsonElement posElement)
+            var pos = obj.GetVariable("Position");
+            if (pos.Type == DreamValueType.String && pos.TryGetValue(out string? posStr) && posStr != null)
             {
-                return new Vector2(posElement.GetProperty("X").GetSingle(), posElement.GetProperty("Y").GetSingle());
+                try {
+                    var posElement = JsonDocument.Parse(posStr).RootElement;
+                    return new Vector2(posElement.GetProperty("X").GetSingle(), posElement.GetProperty("Y").GetSingle());
+                } catch {
+                     return Vector2.Zero;
+                }
             }
             return Vector2.Zero;
         }
 
         private string? GetIcon(GameObject obj)
         {
-            if (obj.Properties.TryGetValue("Icon", out var icon) && icon is string iconStr)
+            var icon = obj.GetVariable("Icon");
+            if (icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr))
             {
                 return iconStr;
             }

@@ -1,8 +1,11 @@
 using System;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Shared
 {
+    [JsonConverter(typeof(DreamValueConverter))]
     public readonly struct DreamValue
     {
         public readonly DreamValueType Type;
@@ -139,6 +142,7 @@ namespace Shared
 
         public static DreamValue FromObject(object? value)
         {
+            if (value is DreamValue dv) return dv;
             return value switch
             {
                 null => Null,
@@ -149,8 +153,25 @@ namespace Shared
                 DreamObject o => new DreamValue(o),
                 ObjectType t => new DreamValue(t),
                 DreamResource r => new DreamValue(r),
+                JsonElement e => FromJsonElement(e),
                 _ => throw new ArgumentException($"Unsupported type for DreamValue: {value.GetType()}")
             };
+        }
+
+        private static DreamValue FromJsonElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Number:
+                    return new DreamValue(element.GetSingle());
+                case JsonValueKind.String:
+                    return new DreamValue(element.GetString()!);
+                case JsonValueKind.Null:
+                    return Null;
+                default:
+                    // For complex types, we might want to store them as strings or handle them specifically
+                    return new DreamValue(element.ToString());
+            }
         }
 
         public override string ToString()
@@ -314,6 +335,52 @@ namespace Shared
                 return true;
 
             return false;
+        }
+    }
+
+    public class DreamValueConverter : JsonConverter<DreamValue>
+    {
+        public override DreamValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.Number:
+                    return new DreamValue(reader.GetSingle());
+                case JsonTokenType.String:
+                    return new DreamValue(reader.GetString()!);
+                case JsonTokenType.True:
+                    return new DreamValue(1.0f);
+                case JsonTokenType.False:
+                    return new DreamValue(0.0f);
+                case JsonTokenType.Null:
+                    return DreamValue.Null;
+                default:
+                    // For complex objects, we might need more logic
+                    using (var doc = JsonDocument.ParseValue(ref reader))
+                    {
+                        return DreamValue.FromObject(doc.RootElement.Clone());
+                    }
+            }
+        }
+
+        public override void Write(Utf8JsonWriter writer, DreamValue value, JsonSerializerOptions options)
+        {
+            switch (value.Type)
+            {
+                case DreamValueType.Float:
+                    writer.WriteNumberValue(value.AsFloat());
+                    break;
+                case DreamValueType.String:
+                    value.TryGetValue(out string? s);
+                    writer.WriteStringValue(s);
+                    break;
+                case DreamValueType.Null:
+                    writer.WriteNullValue();
+                    break;
+                default:
+                    writer.WriteStringValue(value.ToString());
+                    break;
+            }
         }
     }
 }

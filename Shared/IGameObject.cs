@@ -9,9 +9,15 @@ namespace Shared
         int Y { get; set; }
         int Z { get; set; }
         ObjectType ObjectType { get; }
-        Dictionary<string, object?> Properties { get; }
+
+        // Removed Properties dictionary in favor of DreamObject's variable system
+
         void SetPosition(int x, int y, int z);
-        T? GetProperty<T>(string propertyName);
-        void SetProperty(string propertyName, object? value);
+
+        // Now using DreamValue and index-based or name-based access
+        DreamValue GetVariable(string name);
+        void SetVariable(string name, DreamValue value);
+        DreamValue GetVariable(int index);
+        void SetVariable(int index, DreamValue value);
     }
 }

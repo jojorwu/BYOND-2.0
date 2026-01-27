@@ -38,13 +38,13 @@ namespace Editor
         {
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
-            _objectTypeManager.Reset();
+            _objectTypeManager.Clear();
 
             var compiledJsonPath = Path.Combine(project.RootPath, "project.compiled.json");
             if (File.Exists(compiledJsonPath))
             {
                 var json = File.ReadAllText(compiledJsonPath);
-                var compiledDream = _jsonService.DeserializePublicDreamCompiledJson(json);
+                var compiledDream = _jsonService.Deserialize(json);
                 if (compiledDream != null)
                 {
                     _dreamMakerLoader.Load(compiledDream);
@@ -55,6 +55,11 @@ namespace Editor
 
             _uiService.SetActiveTab(EditorTab.Scene);
             return true;
+        }
+
+        public void SaveProject()
+        {
+            // Implementation for saving project
         }
     }
 }

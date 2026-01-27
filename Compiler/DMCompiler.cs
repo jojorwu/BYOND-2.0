@@ -1,4 +1,4 @@
-using DMCompiler.Bytecode;
+using Shared;
 using DMCompiler.Compiler.DM;
 using DMCompiler.Compiler.DMM;
 using DMCompiler.Compiler.DMPreprocessor;
@@ -319,7 +319,7 @@ public class DMCompiler {
 
         var jsonRep = DMObjectTree.CreateJsonRepresentation();
         var compiledDream = new DreamCompiledJson {
-            Metadata = new DreamCompiledJsonMetadata { Version = OpcodeVerifier.GetOpcodesHash() },
+            Metadata = new DreamCompiledJsonMetadata { Version = OpcodeVerifier.GetOpcodeHash() },
             Strings = DMObjectTree.StringTable,
             Resources = DMObjectTree.Resources.ToArray(),
             Maps = maps,

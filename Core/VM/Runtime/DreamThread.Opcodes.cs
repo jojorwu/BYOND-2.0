@@ -1,7 +1,7 @@
 using System;
-using Core.VM.Opcodes;
 using Core.VM.Procs;
 using Core.VM.Types;
+using Shared;
 
 namespace Core.VM.Runtime
 {
@@ -11,7 +11,7 @@ namespace Core.VM.Runtime
         private void Opcode_PushString(DreamProc proc, ref int pc)
         {
             var stringId = ReadInt32(proc, ref pc);
-            Push(new DreamValue(_vm.Strings[stringId]));
+            Push(new DreamValue(_context.Strings[stringId]));
         }
 
         private void Opcode_PushFloat(DreamProc proc, ref int pc)
@@ -72,8 +72,8 @@ namespace Core.VM.Runtime
             var procId = ReadInt32(proc, ref pc);
             var argCount = ReadByte(proc, ref pc);
 
-            var procName = _vm.Strings[procId];
-            if (!_vm.Procs.TryGetValue(procName, out var newProc) || newProc is not DreamProc dreamProc)
+            var procName = _context.Strings[procId];
+            if (!_context.Procs.TryGetValue(procName, out var newProc) || newProc is not DreamProc dreamProc)
             {
                 State = DreamThreadState.Error;
                 throw new Exception($"Attempted to call non-existent proc: {procName}");
@@ -145,7 +145,7 @@ namespace Core.VM.Runtime
         private void Opcode_GetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
             var variableNameId = ReadInt32(proc, ref pc);
-            var variableName = _vm.Strings[variableNameId];
+            var variableName = _context.Strings[variableNameId];
 
             var instance = frame.Instance;
             if (instance != null)
@@ -161,7 +161,7 @@ namespace Core.VM.Runtime
         private void Opcode_SetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
             var variableNameId = ReadInt32(proc, ref pc);
-            var variableName = _vm.Strings[variableNameId];
+            var variableName = _context.Strings[variableNameId];
             var value = Pop();
 
             var instance = frame.Instance;

@@ -1,4 +1,5 @@
 using ImGuiNET;
+using Shared;
 
 namespace Editor.UI
 {
@@ -19,12 +20,16 @@ namespace Editor.UI
             if (!IsOpen)
                 return;
 
-            if (ImGui.Begin(Name, ref IsOpen))
+            bool isOpen = IsOpen;
+            if (ImGui.Begin(Name, ref isOpen))
             {
                 var settings = _settingsManager.Settings;
 
-                ImGui.InputText("Server Executable", ref settings.ServerExecutablePath, 260);
-                ImGui.InputText("Client Executable", ref settings.ClientExecutablePath, 260);
+                string serverPath = settings.ServerExecutablePath;
+                string clientPath = settings.ClientExecutablePath;
+
+                if (ImGui.InputText("Server Executable", ref serverPath, 260)) settings.ServerExecutablePath = serverPath;
+                if (ImGui.InputText("Client Executable", ref clientPath, 260)) settings.ClientExecutablePath = clientPath;
 
                 if (ImGui.Button("Save"))
                 {
@@ -33,6 +38,7 @@ namespace Editor.UI
 
                 ImGui.End();
             }
+            IsOpen = isOpen;
         }
     }
 }

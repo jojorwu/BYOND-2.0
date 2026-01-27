@@ -43,7 +43,8 @@ namespace Editor
                 ImGui.OpenPopup("Error");
             }
 
-            if (ImGui.BeginPopupModal("Error", out var isOpen, ImGuiWindowFlags.AlwaysAutoResize))
+            bool isOpen = true;
+            if (ImGui.BeginPopupModal("Error", ref isOpen, ImGuiWindowFlags.AlwaysAutoResize))
             {
                 ImGui.Text(_error);
                 if (ImGui.Button("OK"))

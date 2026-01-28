@@ -24,7 +24,7 @@ namespace Server
         public void RecordBytesSent(long bytes) => Interlocked.Add(ref _bytesSent, bytes);
         public void RecordBytesReceived(long bytes) => Interlocked.Add(ref _bytesReceived, bytes);
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        public virtual Task StartAsync(CancellationToken cancellationToken)
         {
             _timer = new Timer(LogStats, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
             return Task.CompletedTask;
@@ -43,7 +43,7 @@ namespace Server
             _logger.LogInformation($"Memory: {workingSet / 1024.0 / 1024.0:F1} MB");
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public virtual Task StopAsync(CancellationToken cancellationToken)
         {
             _timer?.Change(Timeout.Infinite, 0);
             return Task.CompletedTask;

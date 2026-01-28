@@ -17,6 +17,8 @@ namespace Core
             if (compiledJson is not CompiledJson json)
                 throw new ArgumentException("Invalid compiled json object", nameof(compiledJson));
 
+            dreamVM.ObjectTypeManager = typeManager;
+
             // Load strings
             dreamVM.Strings.Clear();
             if (json.Strings != null)

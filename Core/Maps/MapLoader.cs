@@ -35,7 +35,9 @@ namespace Core.Maps
             var map = new Map();
             foreach (var turfData in mapData.Turfs)
             {
-                var turf = new Turf(turfData.Id);
+                var turfType = _objectTypeManager.GetTurfType();
+                var turf = new Turf(turfType, turfData.X, turfData.Y, turfData.Z);
+                turf.Id = turfData.Id;
                 foreach (var objData in turfData.Contents)
                 {
                     var objectType = _objectTypeManager.GetObjectType(objData.TypeName);

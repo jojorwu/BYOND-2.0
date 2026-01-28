@@ -556,6 +556,125 @@ namespace Core.VM.Runtime
         private void Opcode_ArcCos() => Stack[^1] = new DreamValue(SharedOperations.ArcCos(Stack[^1].AsFloat()));
         private void Opcode_ArcTan() => Stack[^1] = new DreamValue(SharedOperations.ArcTan(Stack[^1].AsFloat()));
         private void Opcode_ArcTan2() => PerformBinaryOperation((x, y) => new DreamValue(SharedOperations.ArcTan(x.AsFloat(), y.AsFloat())));
+
+        private void Opcode_PushType(DreamProc proc, ref int pc)
+        {
+            var typeId = ReadInt32(proc, ref pc);
+            var type = _context.ObjectTypeManager?.GetObjectType(typeId);
+            if (type != null)
+            {
+                Push(new DreamValue(type));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_CreateObject(DreamProc proc, ref int pc)
+        {
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argCount = ReadInt32(proc, ref pc);
+
+            var values = new DreamValue[argCount];
+            for (int i = argCount - 1; i >= 0; i--)
+            {
+                values[i] = Pop();
+            }
+
+            var typeValue = Pop();
+            if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+            {
+                var newObj = new GameObject(type);
+                _context.GameState?.AddGameObject(newObj);
+
+                // TODO: Call /proc/New with arguments
+
+                Push(new DreamValue(newObj));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_LocateCoord()
+        {
+            var zValue = Pop();
+            var yValue = Pop();
+            var xValue = Pop();
+
+            if (xValue.TryGetValue(out float x) && yValue.TryGetValue(out float y) && zValue.TryGetValue(out float z))
+            {
+                var turf = _context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
+                if (turf != null)
+                {
+                    // For now, we assume we need to wrap Turf in a DreamValue.
+                    // If Turf is not a DreamObject, we might need a wrapper.
+                    // Looking at existing code, Turf seems to be a specialized object.
+                    Push(new DreamValue((DreamObject)(object)turf));
+                    return;
+                }
+            }
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_Locate()
+        {
+            var containerValue = Pop();
+            var typeValue = Pop();
+
+            if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+            {
+                if (containerValue.Type == DreamValueType.DreamObject && containerValue.TryGetValue(out DreamObject? container) && container is DreamList list)
+                {
+                    foreach (var item in list.Values)
+                    {
+                        if (item.Type == DreamValueType.DreamObject && item.TryGetValue(out DreamObject? obj) && obj != null && obj.ObjectType.IsSubtypeOf(type))
+                        {
+                            Push(item);
+                            return;
+                        }
+                    }
+                }
+            }
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_Length()
+        {
+            var value = Pop();
+            if (value.Type == DreamValueType.String && value.TryGetValue(out string? str))
+            {
+                Push(new DreamValue(str?.Length ?? 0));
+            }
+            else if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                Push(new DreamValue(list.Values.Count));
+            }
+            else
+            {
+                Push(new DreamValue(0));
+            }
+        }
+
+        private void Opcode_Throw()
+        {
+            var value = Pop();
+            State = DreamThreadState.Error;
+            Console.WriteLine($"Script threw an error: {value}");
+        }
+
+        private void Opcode_Spawn(DreamProc proc, ref int pc)
+        {
+            var address = ReadInt32(proc, ref pc);
+            var delay = Pop();
+
+            // For now, spawn is a no-op that just continues.
+            // In a full implementation, this would create a new thread starting at 'address'
+            // and schedule it to run after 'delay'.
+            Console.WriteLine($"Warning: 'spawn' opcode encountered. Scheduling is not yet implemented. Continuing from address {address} with delay {delay}.");
+        }
         #endregion
     }
 }

@@ -80,6 +80,13 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.ArcCos] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcCos();
             _dispatchTable[(byte)Opcode.ArcTan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcTan();
             _dispatchTable[(byte)Opcode.ArcTan2] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcTan2();
+            _dispatchTable[(byte)Opcode.PushType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushType(p, ref pc);
+            _dispatchTable[(byte)Opcode.CreateObject] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateObject(p, ref pc);
+            _dispatchTable[(byte)Opcode.LocateCoord] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_LocateCoord();
+            _dispatchTable[(byte)Opcode.Locate] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Locate();
+            _dispatchTable[(byte)Opcode.Length] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Length();
+            _dispatchTable[(byte)Opcode.Throw] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Throw();
+            _dispatchTable[(byte)Opcode.Spawn] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Spawn(p, ref pc);
         }
 
         public List<DreamValue> Stack { get; } = new(128);

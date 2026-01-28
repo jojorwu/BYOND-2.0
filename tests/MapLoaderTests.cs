@@ -35,6 +35,9 @@ namespace tests
         public async Task SaveAndLoadMap_PreservesGameObjectsAndProperties()
         {
             // Arrange
+            var turfType = new ObjectType(0, "/turf");
+            _objectTypeManager.RegisterObjectType(turfType);
+
             var objectType = new ObjectType(1, "test_object");
             objectType.VariableNames.Add("SpritePath");
             objectType.FlattenedDefaultValues.Add("default.png");

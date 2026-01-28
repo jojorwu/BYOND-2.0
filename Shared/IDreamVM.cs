@@ -8,6 +8,8 @@ namespace Shared
         Dictionary<string, IDreamProc> Procs { get; }
         List<DreamValue> Globals { get; }
         ObjectType? ListType { get; set; }
+        IObjectTypeManager? ObjectTypeManager { get; set; }
+        IGameState? GameState { get; set; }
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
     }
 }

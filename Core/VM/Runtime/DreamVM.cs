@@ -13,6 +13,9 @@ namespace Core.VM.Runtime
         public Dictionary<string, IDreamProc> Procs => Context.Procs;
         public List<DreamValue> Globals => Context.Globals;
         public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
+        public IObjectTypeManager? ObjectTypeManager { get => Context.ObjectTypeManager; set => Context.ObjectTypeManager = value; }
+        public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
+
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Robust.Shared.Maths;
 
-namespace DMCompiler;
+namespace Shared;
 
 /// <summary>
 /// A class containing operations used by both the compiler and the server.

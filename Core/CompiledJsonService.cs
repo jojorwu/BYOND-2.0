@@ -94,11 +94,24 @@ namespace Core
 
             // Load globals
             dreamVM.Globals.Clear();
+            if (dreamVM is DreamVM concreteVM)
+            {
+                concreteVM.Context.GlobalNames.Clear();
+            }
+
             if (json.Globals != null)
             {
                 for (int i = 0; i < json.Globals.GlobalCount; i++)
                 {
                     dreamVM.Globals.Add(DreamValue.Null);
+                }
+
+                if (json.Globals.Names != null && dreamVM is DreamVM vm)
+                {
+                    for (int i = 0; i < json.Globals.Names.Count; i++)
+                    {
+                        vm.Context.GlobalNames[json.Globals.Names[i]] = i;
+                    }
                 }
 
                 foreach (var (id, value) in json.Globals.Globals)

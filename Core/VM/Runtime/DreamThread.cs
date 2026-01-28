@@ -67,6 +67,19 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.DestroyEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DestroyEnumerator(p, ref pc);
             _dispatchTable[(byte)Opcode.Append] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Append(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Remove] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Remove(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.Prob] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Prob();
+            _dispatchTable[(byte)Opcode.MassConcatenation] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_MassConcatenation(p, ref pc);
+            _dispatchTable[(byte)Opcode.FormatString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_FormatString(p, ref pc);
+            _dispatchTable[(byte)Opcode.Power] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Power();
+            _dispatchTable[(byte)Opcode.Sqrt] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Sqrt();
+            _dispatchTable[(byte)Opcode.Abs] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Abs();
+            _dispatchTable[(byte)Opcode.Sin] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Sin();
+            _dispatchTable[(byte)Opcode.Cos] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Cos();
+            _dispatchTable[(byte)Opcode.Tan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Tan();
+            _dispatchTable[(byte)Opcode.ArcSin] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcSin();
+            _dispatchTable[(byte)Opcode.ArcCos] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcCos();
+            _dispatchTable[(byte)Opcode.ArcTan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcTan();
+            _dispatchTable[(byte)Opcode.ArcTan2] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcTan2();
         }
 
         public List<DreamValue> Stack { get; } = new(128);

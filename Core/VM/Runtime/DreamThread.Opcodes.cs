@@ -204,9 +204,11 @@ namespace Core.VM.Runtime
             SetReferenceValue(reference, frame, value);
         }
 
+        private GlobalVarsObject? _globalVars;
         private void Opcode_PushGlobalVars()
         {
-            Push(DreamValue.Null); // TODO: Implement global vars object
+            _globalVars ??= new GlobalVarsObject(_context);
+            Push(new DreamValue(_globalVars));
         }
 
         private void Opcode_IsNull()
@@ -479,6 +481,81 @@ namespace Core.VM.Runtime
                 list.Values.Remove(value);
             }
         }
+
+        private void Opcode_Prob()
+        {
+            var chanceValue = Pop();
+            if (chanceValue.TryGetValue(out float chance))
+            {
+                var roll = Random.Shared.NextDouble() * 100;
+                Push(new DreamValue(roll < chance ? 1 : 0));
+            }
+            else
+            {
+                Push(new DreamValue(0));
+            }
+        }
+
+        private void Opcode_MassConcatenation(DreamProc proc, ref int pc)
+        {
+            var count = ReadInt32(proc, ref pc);
+            var strings = new string[count];
+            for (int i = count - 1; i >= 0; i--)
+            {
+                strings[i] = Pop().ToString();
+            }
+            Push(new DreamValue(string.Concat(strings)));
+        }
+
+        private void Opcode_FormatString(DreamProc proc, ref int pc)
+        {
+            var stringId = ReadInt32(proc, ref pc);
+            var formatCount = ReadInt32(proc, ref pc);
+            var formatString = _context.Strings[stringId];
+
+            var values = new DreamValue[formatCount];
+            for (int i = formatCount - 1; i >= 0; i--)
+            {
+                values[i] = Pop();
+            }
+
+            var result = new System.Text.StringBuilder();
+            int valueIndex = 0;
+
+            for (int i = 0; i < formatString.Length; i++)
+            {
+                char c = formatString[i];
+                if (StringFormatEncoder.Decode(c, out var suffix))
+                {
+                    if (StringFormatEncoder.IsInterpolation(suffix))
+                    {
+                        if (valueIndex < values.Length)
+                        {
+                            // Basic interpolation for now
+                            result.Append(values[valueIndex++].ToString());
+                        }
+                    }
+                    // Handle other macros if needed (The, the, etc.)
+                }
+                else
+                {
+                    result.Append(c);
+                }
+            }
+
+            Push(new DreamValue(result.ToString()));
+        }
+
+        private void Opcode_Power() => PerformBinaryOperation((a, b) => new DreamValue(MathF.Pow(a.AsFloat(), b.AsFloat())));
+        private void Opcode_Sqrt() => Stack[^1] = new DreamValue(SharedOperations.Sqrt(Stack[^1].AsFloat()));
+        private void Opcode_Abs() => Stack[^1] = new DreamValue(SharedOperations.Abs(Stack[^1].AsFloat()));
+        private void Opcode_Sin() => Stack[^1] = new DreamValue(SharedOperations.Sin(Stack[^1].AsFloat()));
+        private void Opcode_Cos() => Stack[^1] = new DreamValue(SharedOperations.Cos(Stack[^1].AsFloat()));
+        private void Opcode_Tan() => Stack[^1] = new DreamValue(SharedOperations.Tan(Stack[^1].AsFloat()));
+        private void Opcode_ArcSin() => Stack[^1] = new DreamValue(SharedOperations.ArcSin(Stack[^1].AsFloat()));
+        private void Opcode_ArcCos() => Stack[^1] = new DreamValue(SharedOperations.ArcCos(Stack[^1].AsFloat()));
+        private void Opcode_ArcTan() => Stack[^1] = new DreamValue(SharedOperations.ArcTan(Stack[^1].AsFloat()));
+        private void Opcode_ArcTan2() => PerformBinaryOperation((x, y) => new DreamValue(SharedOperations.ArcTan(x.AsFloat(), y.AsFloat())));
         #endregion
     }
 }

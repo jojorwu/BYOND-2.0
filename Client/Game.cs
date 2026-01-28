@@ -9,7 +9,6 @@ using Core.Dmi;
 using System.Numerics;
 using System.Text.Json;
 using Client.Assets;
-using AssetManager = Core.AssetManager;
 using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
@@ -29,8 +28,12 @@ namespace Client
         private IWindow _window;
         private GL _gl;
         private LogicThread _logicThread;
-        private AssetManager _assetManager;
         private SpriteRenderer _spriteRenderer;
+        private ModelRenderer _modelRenderer;
+        private CSharpShaderManager _csharpShaderManager;
+        private ICSharpShader? _sampleCSharpShader;
+        private Graphics.Shader? _sampleGlShader;
+        private Mesh _cubeMesh;
         private Camera _camera;
         private ImGuiController _imGuiController;
         private ConnectionPanel _connectionPanel;
@@ -72,9 +75,60 @@ namespace Client
             _connectionPanel = new ConnectionPanel();
 
             TextureCache.Init(_gl);
-            _assetManager = new AssetManager();
             _spriteRenderer = new SpriteRenderer(_gl);
+            _modelRenderer = new ModelRenderer(_gl);
+            _csharpShaderManager = new CSharpShaderManager(_gl);
+            _cubeMesh = MeshFactory.CreateCube(_gl);
             _camera = new Camera(new Vector2(0, 0), 1.0f);
+
+            LoadCSharpShader();
+        }
+
+        private async void LoadCSharpShader()
+        {
+            string code = @"
+using System;
+using System.Numerics;
+using Client.Graphics;
+
+public class MyShader : ICSharpShader
+{
+    public string GetVertexSource() => @""#version 330 core
+layout (location = 0) in vec3 aPosition;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+out vec2 TexCoords;
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+void main() {
+    TexCoords = aTexCoords;
+    gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
+}"";
+
+    public string GetFragmentSource() => @""#version 330 core
+out vec4 FragColor;
+in vec2 TexCoords;
+uniform sampler2D uTexture;
+uniform float uTime;
+void main() {
+    vec4 texColor = texture(uTexture, TexCoords);
+    FragColor = texColor * vec4(sin(uTime) * 0.5 + 0.5, cos(uTime) * 0.5 + 0.5, 1.0, 1.0);
+}"";
+
+    public void Setup(Graphics.Shader shader) { }
+    public void Update(Graphics.Shader shader, float deltaTime) {
+         shader.SetUniform(""uTime"", (float)DateTime.Now.TimeOfDay.TotalSeconds);
+    }
+}
+new MyShader()
+";
+            try {
+                _sampleCSharpShader = await _csharpShaderManager.CompileShaderAsync(code);
+                _sampleGlShader = _csharpShaderManager.CreateGlShader(_sampleCSharpShader);
+            } catch (Exception e) {
+                Console.WriteLine($"Failed to load C# shader: {e.Message}");
+            }
         }
 
         private void OnUpdate(double deltaTime)
@@ -133,10 +187,13 @@ namespace Client
             }
         }
 
+        private float _time;
+
         private void OnRender(double deltaTime)
         {
+            _time += (float)deltaTime;
             _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-            _gl.Clear(ClearBufferMask.ColorBufferBit);
+            _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             if (_clientState == ClientState.Connecting)
             {
@@ -144,7 +201,29 @@ namespace Client
             }
             else if (_clientState == ClientState.InGame)
             {
-                _spriteRenderer.Begin(_camera.GetViewMatrix(), _camera.GetProjectionMatrix((float)_window.FramebufferSize.X / _window.FramebufferSize.Y));
+                // Render 3D test
+                _gl.Enable(EnableCap.DepthTest);
+                var view = _camera.GetViewMatrix();
+                var projection = _camera.GetProjectionMatrix((float)_window.FramebufferSize.X / _window.FramebufferSize.Y);
+                var model = Matrix4x4.CreateRotationY(_time) * Matrix4x4.CreateRotationX(_time * 0.5f) * Matrix4x4.CreateScale(100.0f);
+
+                if (_sampleGlShader != null && _sampleCSharpShader != null)
+                {
+                    _sampleGlShader.Use();
+                    _sampleGlShader.SetUniform("uModel", model);
+                    _sampleGlShader.SetUniform("uView", view);
+                    _sampleGlShader.SetUniform("uProjection", projection);
+                    _sampleCSharpShader.Update(_sampleGlShader, (float)deltaTime);
+                    _cubeMesh.Draw();
+                }
+                else
+                {
+                    _modelRenderer.Render(_cubeMesh, 0, model, view, projection, Vector3.One);
+                }
+
+                _gl.Disable(EnableCap.DepthTest);
+
+                _spriteRenderer.Begin(view, projection);
 
                 if (_currentState?.GameObjects != null)
                 {
@@ -236,6 +315,9 @@ namespace Client
         {
             _logicThread?.Stop();
             _spriteRenderer.Dispose();
+            _modelRenderer.Dispose();
+            _sampleGlShader?.Dispose();
+            _cubeMesh.Dispose();
             TextureCache.Dispose();
             _imGuiController.Dispose();
         }

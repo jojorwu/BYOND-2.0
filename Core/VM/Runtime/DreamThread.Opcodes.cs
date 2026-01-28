@@ -800,6 +800,114 @@ namespace Core.VM.Runtime
             for (int i = 0; i < argCount; i++) Pop();
             Push(new DreamValue("#000000"));
         }
+
+        private void Opcode_AppendNoPush(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var listValue = GetReferenceValue(reference, frame);
+
+            if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                list.Values.Add(value);
+            }
+        }
+
+        private void Opcode_PushRefAndDereferenceField(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var fieldNameId = ReadInt32(proc, ref pc);
+            var fieldName = _context.Strings[fieldNameId];
+
+            var objValue = GetReferenceValue(reference, frame);
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                Push(obj.GetVariable(fieldName));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_PushNRefs(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var count = ReadInt32(proc, ref pc);
+            for (int i = 0; i < count; i++)
+            {
+                var reference = ReadReference(proc, ref pc);
+                Push(GetReferenceValue(reference, frame));
+            }
+        }
+
+        private void Opcode_PushNFloats(DreamProc proc, ref int pc)
+        {
+            var count = ReadInt32(proc, ref pc);
+            for (int i = 0; i < count; i++)
+            {
+                Push(new DreamValue(ReadSingle(proc, ref pc)));
+            }
+        }
+
+        private void Opcode_PushStringFloat(DreamProc proc, ref int pc)
+        {
+            var stringId = ReadInt32(proc, ref pc);
+            var value = ReadSingle(proc, ref pc);
+            Push(new DreamValue(_context.Strings[stringId]));
+            Push(new DreamValue(value));
+        }
+
+        private void Opcode_JumpIfReferenceFalse(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var address = ReadInt32(proc, ref pc);
+            if (GetReferenceValue(reference, frame).IsFalse())
+            {
+                pc = address;
+            }
+        }
+
+        private void Opcode_ReturnFloat(DreamProc proc, ref int pc)
+        {
+            var value = ReadSingle(proc, ref pc);
+            Push(new DreamValue(value));
+            Opcode_Return(ref proc, ref pc);
+        }
+
+        private void Opcode_NPushFloatAssign(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var count = ReadInt32(proc, ref pc);
+            for (int i = 0; i < count; i++)
+            {
+                var value = ReadSingle(proc, ref pc);
+                var reference = ReadReference(proc, ref pc);
+                var val = new DreamValue(value);
+                SetReferenceValue(reference, frame, val);
+                Push(val);
+            }
+        }
+
+        private void Opcode_IsTypeDirect(DreamProc proc, ref int pc)
+        {
+            var typeId = ReadInt32(proc, ref pc);
+            var type = _context.ObjectTypeManager?.GetObjectType(typeId);
+            var objValue = Pop();
+
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null && type != null)
+            {
+                Push(new DreamValue(obj.ObjectType.IsSubtypeOf(type) ? 1 : 0));
+            }
+            else
+            {
+                Push(new DreamValue(0));
+            }
+        }
+
+        private void Opcode_NullRef(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            SetReferenceValue(reference, frame, DreamValue.Null);
+        }
         #endregion
     }
 }

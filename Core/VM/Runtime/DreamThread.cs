@@ -92,6 +92,19 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.Spawn] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Spawn(p, ref pc);
             _dispatchTable[(byte)Opcode.Rgb] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Rgb(p, ref pc);
             _dispatchTable[(byte)Opcode.Gradient] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Gradient(p, ref pc);
+
+            // Optimized opcodes
+            _dispatchTable[(byte)Opcode.AppendNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AppendNoPush(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.PushRefAndDereferenceField] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushRefAndDereferenceField(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.PushNRefs] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNRefs(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.PushNFloats] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNFloats(p, ref pc);
+            _dispatchTable[(byte)Opcode.PushStringFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushStringFloat(p, ref pc);
+            _dispatchTable[(byte)Opcode.JumpIfReferenceFalse] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfReferenceFalse(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.ReturnFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ReturnFloat(p, ref pc);
+            _dispatchTable[(byte)Opcode.NPushFloatAssign] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_NPushFloatAssign(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.IsTypeDirect] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsTypeDirect(p, ref pc);
+            _dispatchTable[(byte)Opcode.NullRef] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_NullRef(p, f, ref pc);
         }
 
         private DreamValue[] _stack = new DreamValue[1024];
@@ -219,7 +232,12 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Local:
                     return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
                 case DMReference.Type.SrcField:
-                    return frame.Instance != null ? frame.Instance.GetVariable(_context.Strings[reference.Index]) : DreamValue.Null;
+                    return frame.Instance != null ? frame.Instance.GetVariable(reference.Name) : DreamValue.Null;
+                case DMReference.Type.Field:
+                    var obj = Pop();
+                    if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
+                        return dreamObject.GetVariable(reference.Name);
+                    return DreamValue.Null;
                 default:
                     throw new Exception($"Unsupported reference type for reading: {reference.RefType}");
             }
@@ -239,7 +257,12 @@ namespace Core.VM.Runtime
                     _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
                     break;
                 case DMReference.Type.SrcField:
-                    frame.Instance?.SetVariable(_context.Strings[reference.Index], value);
+                    frame.Instance?.SetVariable(reference.Name, value);
+                    break;
+                case DMReference.Type.Field:
+                    var obj = Pop();
+                    if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
+                        dreamObject.SetVariable(reference.Name, value);
                     break;
                 default:
                     throw new Exception($"Unsupported reference type for writing: {reference.RefType}");

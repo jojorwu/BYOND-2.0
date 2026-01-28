@@ -45,8 +45,8 @@ namespace Client.Graphics
         {
             _gl = gl;
 
-            string vertexShaderSource = File.ReadAllText("Client/Shaders/sprite.vert");
-            string fragmentShaderSource = File.ReadAllText("Client/Shaders/sprite.frag");
+            string vertexShaderSource = File.ReadAllText("Shaders/sprite.vert");
+            string fragmentShaderSource = File.ReadAllText("Shaders/sprite.frag");
 
             uint vertexShader = CompileShader(ShaderType.VertexShader, vertexShaderSource);
             uint fragmentShader = CompileShader(ShaderType.FragmentShader, fragmentShaderSource);
@@ -137,7 +137,7 @@ namespace Client.Graphics
             Flush();
         }
 
-        private void Flush()
+        private unsafe void Flush()
         {
             if (_vertices.Count == 0)
                 return;
@@ -146,12 +146,9 @@ namespace Client.Graphics
             _gl.BindVertexArray(_vao);
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
 
-            unsafe
+            fixed (Vertex* p = CollectionsMarshal.AsSpan(_vertices))
             {
-                fixed (Vertex* p = &_vertices[0])
-                {
-                    _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_vertices.Count * sizeof(Vertex)), p);
-                }
+                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_vertices.Count * sizeof(Vertex)), p);
             }
 
             _gl.DrawElements(PrimitiveType.Triangles, (uint)(_vertices.Count / 4 * 6), DrawElementsType.UnsignedInt, null);

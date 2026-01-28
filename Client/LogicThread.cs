@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
 using Core;
+using Shared;
 using LiteNetLib;
 
 namespace Client

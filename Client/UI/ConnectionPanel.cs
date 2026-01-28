@@ -5,7 +5,7 @@ namespace Client.UI
 {
     public class ConnectionPanel
     {
-        public string ServerAddress { get; private set; } = "127.0.0.1:12345";
+        public string ServerAddress = "127.0.0.1:12345";
         public bool IsConnectRequested { get; set; }
 
         public void Draw()

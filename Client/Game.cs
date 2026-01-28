@@ -263,19 +263,18 @@ new MyShader()
                                             (float)(frame.Y + dmi.Description.Height) / dmi.Height
                                         );
 
-                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White);
+                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, GetLayer(currentObj));
                                     }
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
-                                    Console.WriteLine($"Error rendering icon {icon}: {e.Message}");
-                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red); // Draw red square on error
+                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red, GetLayer(currentObj)); // Draw red square on error
                                 }
                             } else {
-                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta); // Draw magenta square for missing dmi
+                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta, GetLayer(currentObj)); // Draw magenta square for missing dmi
                             }
                         } else {
-                             _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White);
+                             _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White, GetLayer(currentObj));
                         }
                     }
                 }
@@ -288,17 +287,17 @@ new MyShader()
 
         private Vector2 GetPosition(GameObject obj)
         {
-            var pos = obj.GetVariable("Position");
-            if (pos.Type == DreamValueType.String && pos.TryGetValue(out string? posStr) && posStr != null)
+            return new Vector2(obj.X, obj.Y);
+        }
+
+        private float GetLayer(GameObject obj)
+        {
+            var layer = obj.GetVariable("layer");
+            if (layer.Type == DreamValueType.Float)
             {
-                try {
-                    var posElement = JsonDocument.Parse(posStr).RootElement;
-                    return new Vector2(posElement.GetProperty("X").GetSingle(), posElement.GetProperty("Y").GetSingle());
-                } catch {
-                     return Vector2.Zero;
-                }
+                return layer.AsFloat();
             }
-            return Vector2.Zero;
+            return 2.0f; // Default atom layer
         }
 
         private string? GetIcon(GameObject obj)

@@ -23,6 +23,7 @@ namespace Server
         private readonly IGameState _gameState;
         private ScriptingEnvironment? _currentEnvironment;
         private CancellationTokenSource? _cancellationTokenSource;
+        private int _isReloading = 0;
 
         public ScriptHost(IScriptWatcher scriptWatcher, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
         {
@@ -162,13 +163,20 @@ namespace Server
 
         private void ReloadScripts()
         {
+            if (Interlocked.CompareExchange(ref _isReloading, 1, 0) != 0)
+            {
+                _logger.LogDebug("Script reload already in progress. Skipping.");
+                return;
+            }
+
             _logger.LogInformation("Starting background script reload...");
             Task.Run(async () =>
             {
-                if (_cancellationTokenSource?.IsCancellationRequested ?? true)
-                    return;
                 try
                 {
+                    if (_cancellationTokenSource?.IsCancellationRequested ?? true)
+                        return;
+
                     var newEnvironment = new ScriptingEnvironment(_serviceProvider);
                     await newEnvironment.Initialize();
 
@@ -182,6 +190,10 @@ namespace Server
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error during background script reload.");
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _isReloading, 0);
                 }
             });
         }

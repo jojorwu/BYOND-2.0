@@ -20,19 +20,22 @@ namespace Server
         private readonly IUdpServer _udpServer;
         private readonly IHostedService _gameLoop;
         private readonly IHostedService _httpServer;
+        private readonly IHostedService _performanceMonitor;
 
         public ServerApplication(
             ILogger<ServerApplication> logger,
             IScriptHost scriptHost,
             IUdpServer udpServer,
             GameLoop gameLoop,
-            HttpServer httpServer)
+            HttpServer httpServer,
+            PerformanceMonitor performanceMonitor)
         {
             _logger = logger;
             _scriptHost = scriptHost;
             _udpServer = udpServer;
             _gameLoop = gameLoop;
             _httpServer = httpServer;
+            _performanceMonitor = performanceMonitor;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -40,6 +43,7 @@ namespace Server
             _logger.LogInformation("Starting Server Application...");
 
             // Start order is important
+            await _performanceMonitor.StartAsync(cancellationToken);
             await ((IHostedService)_scriptHost).StartAsync(cancellationToken);
             await ((IHostedService)_udpServer).StartAsync(cancellationToken);
             await _httpServer.StartAsync(cancellationToken);
@@ -57,6 +61,7 @@ namespace Server
             await _httpServer.StopAsync(cancellationToken);
             await ((IHostedService)_udpServer).StopAsync(cancellationToken);
             await ((IHostedService)_scriptHost).StopAsync(cancellationToken);
+            await _performanceMonitor.StopAsync(cancellationToken);
 
             _logger.LogInformation("Server Application stopped.");
         }

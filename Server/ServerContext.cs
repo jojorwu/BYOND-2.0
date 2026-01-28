@@ -9,13 +9,15 @@ namespace Server
         public IPlayerManager PlayerManager { get; }
         public ServerSettings Settings { get; }
         public IRegionManager RegionManager { get; }
+        public PerformanceMonitor PerformanceMonitor { get; }
 
-        public ServerContext(IGameState gameState, IPlayerManager playerManager, ServerSettings settings, IRegionManager regionManager)
+        public ServerContext(IGameState gameState, IPlayerManager playerManager, ServerSettings settings, IRegionManager regionManager, PerformanceMonitor performanceMonitor)
         {
             GameState = gameState;
             PlayerManager = playerManager;
             Settings = settings;
             RegionManager = regionManager;
+            PerformanceMonitor = performanceMonitor;
         }
     }
 }

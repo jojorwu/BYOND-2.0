@@ -9,5 +9,6 @@ namespace Server
         IPlayerManager PlayerManager { get; }
         ServerSettings Settings { get; }
         IRegionManager RegionManager { get; }
+        PerformanceMonitor PerformanceMonitor { get; }
     }
 }

@@ -1,8 +1,10 @@
 using Core;
 using Editor.UI;
 using Shared;
+using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace Editor
 {
@@ -59,18 +61,17 @@ namespace Editor
 
         public void SaveProject()
         {
-            var project = _projectHolder.Project;
-            if (project == null) return;
+            if (string.IsNullOrEmpty(_projectHolder.RootPath)) return;
 
-            var projectSettingsPath = Path.Combine(project.RootPath, "project.json");
+            var projectSettingsPath = Path.Combine(_projectHolder.RootPath, "project.json");
             // In a real application, we would save the actual project settings here.
             // For now, we ensure the basic project structure is maintained.
             var projectSettings = new { MainMap = "maps/default.json" };
-            File.WriteAllText(projectSettingsPath, JsonSerializer.Serialize(projectSettings, new JsonSerializerOptions { Indented = true }));
+            File.WriteAllText(projectSettingsPath, JsonSerializer.Serialize(projectSettings, new JsonSerializerOptions { WriteIndented = true }));
 
             // We could also trigger a compilation here if needed,
             // but usually saving just means persisting the source files and project metadata.
-            Console.WriteLine($"Project saved to {project.RootPath}");
+            Console.WriteLine($"Project saved to {_projectHolder.RootPath}");
         }
     }
 }

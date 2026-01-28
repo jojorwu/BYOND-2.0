@@ -13,6 +13,9 @@ namespace Server
     {
         public static IServiceCollection AddServerHostedServices(this IServiceCollection services)
         {
+            // Diagnostics
+            services.AddSingleton<PerformanceMonitor>();
+
             // Core Server Context
             services.AddSingleton<IServerContext, ServerContext>();
 

@@ -92,7 +92,7 @@ namespace Editor.UI
                             {
                                 foreach (var gameObject in turf.Contents)
                                 {
-                                    var spritePath = gameObject.GetProperty<string>("SpritePath");
+                                    var spritePath = gameObject.GetVariable("SpritePath").ToString();
                                     if (!string.IsNullOrEmpty(spritePath))
                                     {
                                         uint textureId = _textureManager.GetTexture(spritePath);

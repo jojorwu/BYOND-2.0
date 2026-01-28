@@ -10,8 +10,6 @@ namespace Client.UI
 
         public void Draw()
         {
-            ImGui.StyleColorsDark();
-
             ImGui.SetNextWindowPos(new Vector2(ImGui.GetIO().DisplaySize.X * 0.5f, ImGui.GetIO().DisplaySize.Y * 0.5f), ImGuiCond.Always, new Vector2(0.5f, 0.5f));
             ImGui.Begin("Connect to Server", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize);
 

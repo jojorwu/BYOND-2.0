@@ -37,10 +37,12 @@ namespace Client
         private Camera _camera;
         private ImGuiController _imGuiController;
         private ConnectionPanel _connectionPanel;
+        private MainHud _mainHud;
 
         private ClientState _clientState = ClientState.Connecting;
         private GameState _previousState;
         private GameState _currentState;
+        private GameObject? _playerObject;
         private double _accumulator;
         private float _alpha;
 
@@ -73,6 +75,11 @@ namespace Client
             _gl = GL.GetApi(_window);
             _imGuiController = new ImGuiController(_gl, _window, input);
             _connectionPanel = new ConnectionPanel();
+            _mainHud = new MainHud();
+            _mainHud.AddMessage("Welcome to BYOND 2.0!");
+            _mainHud.AddMessage("Connecting to server...");
+
+            UiTheme.Apply();
 
             TextureCache.Init(_gl);
             _spriteRenderer = new SpriteRenderer(_gl);
@@ -157,6 +164,8 @@ new MyShader()
                     _previousState = states.Item1;
                     _currentState = states.Item2;
                     _accumulator -= LogicThread.TimeStep;
+
+                    UpdatePlayerObject();
                 }
 
                 _alpha = (float)(_accumulator / LogicThread.TimeStep);
@@ -280,6 +289,8 @@ new MyShader()
                 }
 
                 _spriteRenderer.End();
+
+                _mainHud.Draw(_playerObject);
             }
 
             _imGuiController.Render();
@@ -288,6 +299,24 @@ new MyShader()
         private Vector2 GetPosition(GameObject obj)
         {
             return new Vector2(obj.X, obj.Y);
+        }
+
+        private void UpdatePlayerObject()
+        {
+            if (_currentState?.GameObjects != null)
+            {
+                // In a real scenario, the server would tell us our player ID.
+                // For now, we'll just find the first object of type "player".
+                foreach (var obj in _currentState.GameObjects.Values)
+                {
+                    if (obj.ObjectType?.Name == "player")
+                    {
+                        _playerObject = obj;
+                        return;
+                    }
+                }
+            }
+            _playerObject = null;
         }
 
         private float GetLayer(GameObject obj)
@@ -329,7 +358,7 @@ new MyShader()
             }
             if (key == Key.P)
             {
-                Console.WriteLine("Sending ping...");
+                _mainHud.AddMessage("Sending ping...");
                 _logicThread?.SendCommand("ping");
             }
         }

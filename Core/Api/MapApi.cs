@@ -47,7 +47,7 @@ namespace Core.Api
 
             using (_gameState.WriteLock())
             {
-                _gameState.Map?.SetTurf(x, y, z, new Turf(turfId));
+                _gameState.Map?.SetTurf(x, y, z, new Turf(turfType, x, y, z));
             }
         }
 

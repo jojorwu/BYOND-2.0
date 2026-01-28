@@ -313,9 +313,9 @@ namespace Core.VM.Runtime
                     if (handler != null)
                     {
                         handler(this, ref proc, frame, ref pc);
-                        if (opcode == Opcode.Call || opcode == Opcode.Return)
+                        if (opcode == Opcode.Call || opcode == Opcode.Return || opcode == Opcode.CreateObject || opcode == Opcode.DereferenceCall)
                         {
-                            if (State == DreamThreadState.Running)
+                            if (State == DreamThreadState.Running && CallStack.Count > 0)
                             {
                                 frame = CallStack.Peek();
                                 proc = frame.Proc;

@@ -110,7 +110,7 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argStackDelta = ReadInt32(proc, ref pc);
 
-            _stackPtr -= (argStackDelta + 1);
+            _stackPtr -= argStackDelta;
             Push(DreamValue.Null);
         }
 
@@ -127,7 +127,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int argCount)
+        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int stackDelta)
         {
             IDreamProc? newProc = null;
             DreamObject? instance = null;
@@ -141,11 +141,13 @@ namespace Core.VM.Runtime
                 case DMReference.Type.SrcProc:
                     var frame = CallStack.Peek();
                     instance = frame.Instance;
-                    // TODO: Look up proc on instance
                     if (instance != null)
                     {
-                        // For now, use the global dictionary if it's there, but procs should be on ObjectType
-                        _context.Procs.TryGetValue(reference.Name, out newProc);
+                        newProc = instance.ObjectType.GetProc(reference.Name);
+                        if (newProc == null)
+                        {
+                            _context.Procs.TryGetValue(reference.Name, out newProc);
+                        }
                     }
                     break;
                 default:
@@ -159,32 +161,7 @@ namespace Core.VM.Runtime
                 throw new Exception($"Attempted to call non-existent proc: {reference}");
             }
 
-            var stackBase = _stackPtr - argCount;
-
-            if (newProc is DreamProc dreamProc)
-            {
-                var frame = new CallFrame(dreamProc, 0, stackBase, instance);
-                CallStack.Push(frame);
-
-                for (int i = 0; i < dreamProc.LocalVariableCount; i++)
-                {
-                    Push(DreamValue.Null);
-                }
-            }
-            else if (newProc is NativeProc nativeProc)
-            {
-                var arguments = new DreamValue[argCount];
-                for (int i = 0; i < argCount; i++)
-                {
-                    arguments[i] = _stack[stackBase + i];
-                }
-
-                // Remove arguments from stack
-                _stackPtr -= argCount;
-
-                var result = nativeProc.Call(this, instance, arguments);
-                Push(result);
-            }
+            PerformCall(newProc, instance, stackDelta, stackDelta);
         }
 
         private void Opcode_Jump(DreamProc proc, ref int pc)
@@ -447,19 +424,73 @@ namespace Core.VM.Runtime
         {
             var procNameId = ReadInt32(proc, ref pc);
             var procName = _context.Strings[procNameId];
-            var argCount = ReadByte(proc, ref pc);
-            // In a real implementation, we would look up the proc on the object and call it.
-            // For now, let's just pop arguments and push null.
-            for (int i = 0; i < argCount; i++) Pop();
-            Pop(); // Pop object
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argStackDelta = ReadInt32(proc, ref pc);
+
+            var objValue = _stack[_stackPtr - argStackDelta];
+            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                var targetProc = obj.ObjectType.GetProc(procName);
+                if (targetProc != null)
+                {
+                    PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
+                    return;
+                }
+            }
+
+            // Fallback: pop everything and push null
+            _stackPtr -= argStackDelta;
             Push(DreamValue.Null);
+        }
+
+        private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount)
+        {
+            var stackBase = _stackPtr - stackDelta;
+
+            if (newProc is DreamProc dreamProc)
+            {
+                var frame = new CallFrame(dreamProc, 0, stackBase, instance);
+                CallStack.Push(frame);
+
+                for (int i = 0; i < dreamProc.LocalVariableCount; i++)
+                {
+                    Push(DreamValue.Null);
+                }
+            }
+            else if (newProc is NativeProc nativeProc)
+            {
+                var arguments = new DreamValue[argCount];
+                var argBase = _stackPtr - argCount;
+                for (int i = 0; i < argCount; i++)
+                {
+                    arguments[i] = _stack[argBase + i];
+                }
+
+                // Remove everything (args + optional obj) from stack
+                _stackPtr = stackBase;
+
+                var result = nativeProc.Call(this, instance, arguments);
+                Push(result);
+            }
         }
 
         private void Opcode_Initial()
         {
-            // Pops a variable reference and pushes its initial value.
-            // Simplified: pop object and push null.
-            Pop();
+            var key = Pop();
+            var objValue = Pop();
+
+            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                if (key.TryGetValue(out string? varName) && varName != null)
+                {
+                    int index = obj.ObjectType.GetVariableIndex(varName);
+                    if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
+                    {
+                        Push(DreamValue.FromObject(obj.ObjectType.FlattenedDefaultValues[index]));
+                        return;
+                    }
+                }
+            }
             Push(DreamValue.Null);
         }
 
@@ -674,8 +705,9 @@ namespace Core.VM.Runtime
         private void Opcode_CreateObject(DreamProc proc, ref int pc)
         {
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
-            var argCount = ReadInt32(proc, ref pc);
+            var argStackDelta = ReadInt32(proc, ref pc);
 
+            var argCount = argStackDelta - 1;
             var values = new DreamValue[argCount];
             for (int i = argCount - 1; i >= 0; i--)
             {
@@ -688,9 +720,18 @@ namespace Core.VM.Runtime
                 var newObj = new GameObject(type);
                 _context.GameState?.AddGameObject(newObj);
 
-                // TODO: Call /proc/New with arguments
-
                 Push(new DreamValue(newObj));
+
+                var newProc = newObj.ObjectType.GetProc("New");
+                if (newProc != null)
+                {
+                    // Push arguments for New
+                    for (int i = 0; i < argCount; i++)
+                    {
+                        Push(values[i]);
+                    }
+                    PerformCall(newProc, newObj, argCount + 1, argCount);
+                }
             }
             else
             {

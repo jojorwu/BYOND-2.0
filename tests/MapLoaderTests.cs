@@ -47,7 +47,7 @@ namespace tests
             _objectTypeManager.RegisterObjectType(objectType);
 
             var map = new Map();
-            var turf = new Turf(1);
+            var turf = new Turf(turfType, 17, 33, 0);
             var gameObject = new GameObject(objectType);
             gameObject.SetVariable("InstanceProp", new DreamValue("instance_value"));
             turf.Contents.Add(gameObject);
@@ -74,7 +74,8 @@ namespace tests
         {
             // Arrange
             var map = new Map();
-            var turf = new Turf(1);
+            var turfType = new ObjectType(0, "/turf");
+            var turf = new Turf(turfType, -1, -1, 0);
 
             // Act
             map.SetTurf(-1, -1, 0, turf);

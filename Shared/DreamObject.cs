@@ -23,7 +23,7 @@ namespace Shared
         public virtual DreamValue GetVariable(string name)
         {
             if (ObjectType == null) return DreamValue.Null;
-            int index = ObjectType.VariableNames.IndexOf(name);
+            int index = ObjectType.GetVariableIndex(name);
             if (index != -1 && index < VariableValues.Count) return VariableValues[index];
             return DreamValue.Null;
         }
@@ -31,7 +31,7 @@ namespace Shared
         public virtual void SetVariable(string name, DreamValue value)
         {
             if (ObjectType == null) return;
-            int index = ObjectType.VariableNames.IndexOf(name);
+            int index = ObjectType.GetVariableIndex(name);
             if (index != -1)
             {
                 while (VariableValues.Count <= index) VariableValues.Add(DreamValue.Null);

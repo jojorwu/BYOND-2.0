@@ -29,7 +29,7 @@ namespace tests
             thread.CallStack.Pop();
             thread.CallStack.Push(new CallFrame(proc, 0, 0, instance));
             thread.Run(1000);
-            return thread.Stack.Last();
+            return thread.Peek();
         }
 
         [Test]

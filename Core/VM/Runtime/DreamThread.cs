@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
 
@@ -93,9 +94,11 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.Gradient] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Gradient(p, ref pc);
         }
 
-        public List<DreamValue> Stack { get; } = new(128);
+        private DreamValue[] _stack = new DreamValue[1024];
+        private int _stackPtr = 0;
         public Stack<CallFrame> CallStack { get; } = new();
         public Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators { get; } = new();
+        public int StackCount => _stackPtr;
 
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
@@ -116,14 +119,35 @@ namespace Core.VM.Runtime
 
         public void Push(DreamValue value)
         {
-            Stack.Add(value);
+            if (_stackPtr >= _stack.Length)
+            {
+                Array.Resize(ref _stack, _stack.Length * 2);
+            }
+            _stack[_stackPtr++] = value;
         }
 
         public DreamValue Pop()
         {
-            var value = Stack[^1];
-            Stack.RemoveAt(Stack.Count - 1);
-            return value;
+            if (_stackPtr <= 0) throw new InvalidOperationException("Stack underflow");
+            return _stack[--_stackPtr];
+        }
+
+        public DreamValue Peek()
+        {
+            if (_stackPtr <= 0) throw new InvalidOperationException("Stack is empty");
+            return _stack[_stackPtr - 1];
+        }
+
+        public DreamValue Peek(int offset)
+        {
+            if (_stackPtr - offset - 1 < 0) throw new InvalidOperationException("Stack underflow in peek");
+            return _stack[_stackPtr - offset - 1];
+        }
+
+        public void PopCount(int count)
+        {
+            if (_stackPtr < count) throw new InvalidOperationException("Stack underflow in popcount");
+            _stackPtr -= count;
         }
 
         private byte ReadByte(DreamProc proc, ref int pc)
@@ -137,7 +161,7 @@ namespace Core.VM.Runtime
         {
             if (pc + 4 > proc.Bytecode.Length)
                 throw new Exception("Attempted to read past the end of the bytecode.");
-            var value = BitConverter.ToInt32(proc.Bytecode, pc);
+            var value = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
             pc += 4;
             return value;
         }
@@ -146,7 +170,7 @@ namespace Core.VM.Runtime
         {
             if (pc + 4 > proc.Bytecode.Length)
                 throw new Exception("Attempted to read past the end of the bytecode.");
-            var value = BitConverter.ToSingle(proc.Bytecode, pc);
+            var value = BinaryPrimitives.ReadSingleLittleEndian(proc.Bytecode.AsSpan(pc));
             pc += 4;
             return value;
         }
@@ -191,9 +215,9 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Global:
                     return _context.Globals[reference.Index];
                 case DMReference.Type.Argument:
-                    return Stack[frame.StackBase + reference.Index];
+                    return _stack[frame.StackBase + reference.Index];
                 case DMReference.Type.Local:
-                    return Stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
+                    return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
                 case DMReference.Type.SrcField:
                     return frame.Instance != null ? frame.Instance.GetVariable(_context.Strings[reference.Index]) : DreamValue.Null;
                 default:
@@ -209,10 +233,10 @@ namespace Core.VM.Runtime
                     _context.Globals[reference.Index] = value;
                     break;
                 case DMReference.Type.Argument:
-                    Stack[frame.StackBase + reference.Index] = value;
+                    _stack[frame.StackBase + reference.Index] = value;
                     break;
                 case DMReference.Type.Local:
-                    Stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
+                    _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
                     break;
                 case DMReference.Type.SrcField:
                     frame.Instance?.SetVariable(_context.Strings[reference.Index], value);

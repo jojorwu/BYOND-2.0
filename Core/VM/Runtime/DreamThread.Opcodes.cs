@@ -23,41 +23,66 @@ namespace Core.VM.Runtime
             Push(new DreamValue(value));
         }
 
-        private void PerformBinaryOperation(Func<DreamValue, DreamValue, DreamValue> operation)
+        private void Opcode_Add()
         {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = operation(a, b);
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] += b;
         }
-        private void Opcode_Add() => PerformBinaryOperation((a, b) => a + b);
-        private void Opcode_Subtract() => PerformBinaryOperation((a, b) => a - b);
-        private void Opcode_Multiply() => PerformBinaryOperation((a, b) => a * b);
-        private void Opcode_Divide() => PerformBinaryOperation((a, b) => a / b);
-
-        private void PerformComparisonOperation(Func<DreamValue, DreamValue, bool> operation)
+        private void Opcode_Subtract()
         {
-            var b = Stack[^1];
-            var a = Stack[^2];
-            Stack.RemoveAt(Stack.Count - 1);
-            Stack[^1] = new DreamValue(operation(a, b) ? 1 : 0);
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] -= b;
+        }
+        private void Opcode_Multiply()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] *= b;
+        }
+        private void Opcode_Divide()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] /= b;
         }
 
-        private void Opcode_CompareEquals() => PerformComparisonOperation((a, b) => a == b);
-        private void Opcode_CompareNotEquals() => PerformComparisonOperation((a, b) => a != b);
-        private void Opcode_CompareLessThan() => PerformComparisonOperation((a, b) => a < b);
-        private void Opcode_CompareGreaterThan() => PerformComparisonOperation((a, b) => a > b);
-        private void Opcode_CompareLessThanOrEqual() => PerformComparisonOperation((a, b) => a <= b);
-        private void Opcode_CompareGreaterThanOrEqual() => PerformComparisonOperation((a, b) => a >= b);
+        private void Opcode_CompareEquals()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] == b ? 1 : 0);
+        }
+        private void Opcode_CompareNotEquals()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] != b ? 1 : 0);
+        }
+        private void Opcode_CompareLessThan()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] < b ? 1 : 0);
+        }
+        private void Opcode_CompareGreaterThan()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] > b ? 1 : 0);
+        }
+        private void Opcode_CompareLessThanOrEqual()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] <= b ? 1 : 0);
+        }
+        private void Opcode_CompareGreaterThanOrEqual()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] >= b ? 1 : 0);
+        }
 
         private void Opcode_Negate()
         {
-            Stack[^1] = -Stack[^1];
+            _stack[_stackPtr - 1] = -_stack[_stackPtr - 1];
         }
 
         private void Opcode_BooleanNot()
         {
-            Stack[^1] = !Stack[^1];
+            _stack[_stackPtr - 1] = !_stack[_stackPtr - 1];
         }
 
         private void Opcode_PushNull()
@@ -85,17 +110,7 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argStackDelta = ReadInt32(proc, ref pc);
 
-            // Pop object and arguments from stack
-            // CallStatement is like Call but it doesn't push a return value or use a reference
-            // Wait, CallStatement usually calls the object on the stack.
-            var objValue = Stack[Stack.Count - argStackDelta - 1];
-            // In BYOND, CallStatement is used for dynamic calls.
-            // For now, let's just pop everything as ResizeStack(-(argumentStackSize)) was called in compiler.
-            // ResizeStack already happened in the compiler logic (effectively).
-            // Actually, my VM doesn't use ResizeStack, it just Pops.
-
-            // This is complex. Let's simplify for now.
-            Stack.RemoveRange(Stack.Count - argStackDelta - 1, argStackDelta + 1);
+            _stackPtr -= (argStackDelta + 1);
             Push(DreamValue.Null);
         }
 
@@ -144,7 +159,7 @@ namespace Core.VM.Runtime
                 throw new Exception($"Attempted to call non-existent proc: {reference}");
             }
 
-            var stackBase = Stack.Count - argCount;
+            var stackBase = _stackPtr - argCount;
 
             if (newProc is DreamProc dreamProc)
             {
@@ -161,11 +176,11 @@ namespace Core.VM.Runtime
                 var arguments = new DreamValue[argCount];
                 for (int i = 0; i < argCount; i++)
                 {
-                    arguments[i] = Stack[stackBase + i];
+                    arguments[i] = _stack[stackBase + i];
                 }
 
                 // Remove arguments from stack
-                Stack.RemoveRange(stackBase, argCount);
+                _stackPtr -= argCount;
 
                 var result = nativeProc.Call(this, instance, arguments);
                 Push(result);
@@ -199,10 +214,7 @@ namespace Core.VM.Runtime
             var returnedFrame = CallStack.Pop();
             if (CallStack.Count > 0)
             {
-                var cleanupStart = returnedFrame.StackBase;
-                var cleanupCount = Stack.Count - cleanupStart;
-                if (cleanupCount > 0)
-                    Stack.RemoveRange(cleanupStart, cleanupCount);
+                _stackPtr = returnedFrame.StackBase;
 
                 Push(returnValue);
 
@@ -212,7 +224,7 @@ namespace Core.VM.Runtime
             }
             else
             {
-                Stack.Clear();
+                _stackPtr = 0;
                 Push(returnValue);
                 State = DreamThreadState.Finished;
             }
@@ -256,7 +268,7 @@ namespace Core.VM.Runtime
         private void Opcode_Assign(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc, ref pc);
-            var value = Stack[^1];
+            var value = _stack[_stackPtr - 1];
             SetReferenceValue(reference, frame, value);
         }
 
@@ -283,18 +295,38 @@ namespace Core.VM.Runtime
 
         private void Opcode_JumpIfNullNoPop(DreamProc proc, ref int pc)
         {
-            var value = Stack[^1];
+            var value = _stack[_stackPtr - 1];
             var address = ReadInt32(proc, ref pc);
             if (value.Type == DreamValueType.Null)
                 pc = address;
         }
 
-        private void Opcode_BitAnd() => PerformBinaryOperation((a, b) => a & b);
-        private void Opcode_BitOr() => PerformBinaryOperation((a, b) => a | b);
-        private void Opcode_BitXor() => PerformBinaryOperation((a, b) => a ^ b);
-        private void Opcode_BitNot() => Stack[^1] = ~Stack[^1];
-        private void Opcode_BitShiftLeft() => PerformBinaryOperation((a, b) => a << b);
-        private void Opcode_BitShiftRight() => PerformBinaryOperation((a, b) => a >> b);
+        private void Opcode_BitAnd()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] &= b;
+        }
+        private void Opcode_BitOr()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] |= b;
+        }
+        private void Opcode_BitXor()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] ^= b;
+        }
+        private void Opcode_BitNot() => _stack[_stackPtr - 1] = ~_stack[_stackPtr - 1];
+        private void Opcode_BitShiftLeft()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] <<= b;
+        }
+        private void Opcode_BitShiftRight()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] >>= b;
+        }
 
         private void Opcode_BooleanAnd(DreamProc proc, ref int pc)
         {
@@ -336,7 +368,11 @@ namespace Core.VM.Runtime
             Push(newValue);
         }
 
-        private void Opcode_Modulus() => PerformBinaryOperation((a, b) => new DreamValue((float)Math.IEEERemainder(a.AsFloat(), b.AsFloat())));
+        private void Opcode_Modulus()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue((float)Math.IEEERemainder(_stack[_stackPtr - 1].AsFloat(), b.AsFloat()));
+        }
 
         private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
         {
@@ -575,7 +611,7 @@ namespace Core.VM.Runtime
                 values[i] = Pop();
             }
 
-            var result = new System.Text.StringBuilder();
+            var result = new System.Text.StringBuilder(formatString.Length + formatCount * 8);
             int valueIndex = 0;
 
             for (int i = 0; i < formatString.Length; i++)
@@ -602,16 +638,24 @@ namespace Core.VM.Runtime
             Push(new DreamValue(result.ToString()));
         }
 
-        private void Opcode_Power() => PerformBinaryOperation((a, b) => new DreamValue(MathF.Pow(a.AsFloat(), b.AsFloat())));
-        private void Opcode_Sqrt() => Stack[^1] = new DreamValue(SharedOperations.Sqrt(Stack[^1].AsFloat()));
-        private void Opcode_Abs() => Stack[^1] = new DreamValue(SharedOperations.Abs(Stack[^1].AsFloat()));
-        private void Opcode_Sin() => Stack[^1] = new DreamValue(SharedOperations.Sin(Stack[^1].AsFloat()));
-        private void Opcode_Cos() => Stack[^1] = new DreamValue(SharedOperations.Cos(Stack[^1].AsFloat()));
-        private void Opcode_Tan() => Stack[^1] = new DreamValue(SharedOperations.Tan(Stack[^1].AsFloat()));
-        private void Opcode_ArcSin() => Stack[^1] = new DreamValue(SharedOperations.ArcSin(Stack[^1].AsFloat()));
-        private void Opcode_ArcCos() => Stack[^1] = new DreamValue(SharedOperations.ArcCos(Stack[^1].AsFloat()));
-        private void Opcode_ArcTan() => Stack[^1] = new DreamValue(SharedOperations.ArcTan(Stack[^1].AsFloat()));
-        private void Opcode_ArcTan2() => PerformBinaryOperation((x, y) => new DreamValue(SharedOperations.ArcTan(x.AsFloat(), y.AsFloat())));
+        private void Opcode_Power()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(MathF.Pow(_stack[_stackPtr - 1].AsFloat(), b.AsFloat()));
+        }
+        private void Opcode_Sqrt() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Sqrt(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_Abs() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Abs(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_Sin() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Sin(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_Cos() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Cos(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_Tan() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Tan(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_ArcSin() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcSin(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_ArcCos() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcCos(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_ArcTan() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcTan(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_ArcTan2()
+        {
+            var y = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcTan(_stack[_stackPtr - 1].AsFloat(), y.AsFloat()));
+        }
 
         private void Opcode_PushType(DreamProc proc, ref int pc)
         {

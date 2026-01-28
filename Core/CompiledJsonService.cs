@@ -105,7 +105,9 @@ namespace Core
 
             for (int i = 0; i < json.Types.Length; i++)
             {
-                FlattenType(objectTypes[i], objectTypes, json.Types);
+                var type = objectTypes[i];
+                type.ClearCache();
+                FlattenType(type, objectTypes, json.Types);
             }
 
             // Load globals

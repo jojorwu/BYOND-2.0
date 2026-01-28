@@ -28,7 +28,7 @@ namespace tests
             var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
-            return thread.Stack.Last();
+            return thread.Peek();
         }
 
         [Test]
@@ -277,8 +277,8 @@ namespace tests
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
 
-            Assert.That(thread.Stack.Count, Is.EqualTo(1));
-            Assert.That(thread.Stack.Last().TryGetValue(out float value), Is.True);
+            Assert.That(thread.StackCount, Is.EqualTo(1));
+            Assert.That(thread.Peek().TryGetValue(out float value), Is.True);
             Assert.That(value, Is.EqualTo(10f));
         }
 

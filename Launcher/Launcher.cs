@@ -45,6 +45,8 @@ namespace Launcher
                 _inputContext = _window.CreateInput();
                 _imGuiController = new ImGuiController(_gl, _window, _inputContext);
 
+                UiTheme.Apply();
+
                 try
                 {
                     _logoTexture = new Texture(_gl, Path.Combine("assets", "logo.png"));

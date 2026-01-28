@@ -1,0 +1,13 @@
+using Shared;
+using Core;
+
+namespace Server
+{
+    public interface IServerContext
+    {
+        IGameState GameState { get; }
+        IPlayerManager PlayerManager { get; }
+        ServerSettings Settings { get; }
+        IRegionManager RegionManager { get; }
+    }
+}

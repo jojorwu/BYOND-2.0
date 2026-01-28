@@ -38,13 +38,13 @@ namespace Editor
         {
             var project = new Project(projectPath);
             _projectHolder.SetProject(project);
-            _objectTypeManager.Reset();
+            _objectTypeManager.Clear();
 
             var compiledJsonPath = Path.Combine(project.RootPath, "project.compiled.json");
             if (File.Exists(compiledJsonPath))
             {
                 var json = File.ReadAllText(compiledJsonPath);
-                var compiledDream = _jsonService.DeserializePublicDreamCompiledJson(json);
+                var compiledDream = _jsonService.Deserialize(json);
                 if (compiledDream != null)
                 {
                     _dreamMakerLoader.Load(compiledDream);
@@ -55,6 +55,22 @@ namespace Editor
 
             _uiService.SetActiveTab(EditorTab.Scene);
             return true;
+        }
+
+        public void SaveProject()
+        {
+            var project = _projectHolder.Project;
+            if (project == null) return;
+
+            var projectSettingsPath = Path.Combine(project.RootPath, "project.json");
+            // In a real application, we would save the actual project settings here.
+            // For now, we ensure the basic project structure is maintained.
+            var projectSettings = new { MainMap = "maps/default.json" };
+            File.WriteAllText(projectSettingsPath, JsonSerializer.Serialize(projectSettings, new JsonSerializerOptions { Indented = true }));
+
+            // We could also trigger a compilation here if needed,
+            // but usually saving just means persisting the source files and project metadata.
+            Console.WriteLine($"Project saved to {project.RootPath}");
         }
     }
 }

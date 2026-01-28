@@ -9,48 +9,50 @@ namespace tests
     public class ObjectTypeTests
     {
         [Test]
-        public void GetProperty_WhenInstancePropertyExists_ReturnsInstanceValue()
+        public void GetVariable_WhenInstancePropertyExists_ReturnsInstanceValue()
         {
             // Arrange
             var objectType = new ObjectType(1, "test");
-            objectType.DefaultProperties["SpritePath"] = "default.png";
+            objectType.VariableNames.Add("SpritePath");
+            objectType.FlattenedDefaultValues.Add("default.png");
             var gameObject = new GameObject(objectType);
-            gameObject.Properties["SpritePath"] = "instance.png";
+            gameObject.SetVariable("SpritePath", new DreamValue("instance.png"));
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath");
+            var spritePath = gameObject.GetVariable("SpritePath").ToString();
 
             // Assert
             Assert.That(spritePath, Is.EqualTo("instance.png"));
         }
 
         [Test]
-        public void GetProperty_WhenInstancePropertyDoesNotExist_ReturnsDefaultValue()
+        public void GetVariable_WhenInstancePropertyDoesNotExist_ReturnsDefaultValue()
         {
             // Arrange
             var objectType = new ObjectType(1, "test");
-            objectType.DefaultProperties["SpritePath"] = "default.png";
+            objectType.VariableNames.Add("SpritePath");
+            objectType.FlattenedDefaultValues.Add("default.png");
             var gameObject = new GameObject(objectType);
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath");
+            var spritePath = gameObject.GetVariable("SpritePath").ToString();
 
             // Assert
             Assert.That(spritePath, Is.EqualTo("default.png"));
         }
 
         [Test]
-        public void GetProperty_WhenPropertyDoesNotExist_ReturnsNull()
+        public void GetVariable_WhenPropertyDoesNotExist_ReturnsNull()
         {
             // Arrange
             var objectType = new ObjectType(1, "test");
             var gameObject = new GameObject(objectType);
 
             // Act
-            var spritePath = gameObject.GetProperty<string>("SpritePath");
+            var spritePath = gameObject.GetVariable("SpritePath");
 
             // Assert
-            Assert.That(spritePath, Is.Null);
+            Assert.That(spritePath, Is.EqualTo(DreamValue.Null));
         }
 
         [Test]

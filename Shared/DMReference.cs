@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 
-namespace DMCompiler.Bytecode;
+namespace Shared;
 
 public struct DMReference {
     public static readonly DMReference Src = new() { RefType = Type.Src };

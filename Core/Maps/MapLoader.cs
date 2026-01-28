@@ -35,7 +35,9 @@ namespace Core.Maps
             var map = new Map();
             foreach (var turfData in mapData.Turfs)
             {
-                var turf = new Turf(turfData.Id);
+                var turfType = _objectTypeManager.GetTurfType();
+                var turf = new Turf(turfType, turfData.X, turfData.Y, turfData.Z);
+                turf.Id = turfData.Id;
                 foreach (var objData in turfData.Contents)
                 {
                     var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
@@ -44,16 +46,13 @@ namespace Core.Maps
                         var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
                         foreach (var prop in objData.Properties)
                         {
-                            // Note: Deserializing object properties may require a custom converter
-                            // for System.Text.Json depending on the actual types stored.
-                            // For now, we assume they are simple primitives.
                             if (prop.Value is JsonElement element)
                             {
-                                gameObject.Properties[prop.Key] = GetValueFromJsonElement(element);
+                                gameObject.SetVariable(prop.Key, DreamValue.FromObject(GetValueFromJsonElement(element)));
                             }
                             else
                             {
-                                gameObject.Properties[prop.Key] = prop.Value;
+                                gameObject.SetVariable(prop.Key, DreamValue.FromObject(prop.Value));
                             }
                         }
                         turf.Contents.Add(gameObject);
@@ -96,7 +95,22 @@ namespace Core.Maps
                                 writer.WriteStartObject();
                                 writer.WriteString("TypeName", obj.ObjectType.Name);
                                 writer.WritePropertyName("Properties");
-                                JsonSerializer.Serialize(writer, obj.Properties);
+
+                                var props = new Dictionary<string, object?>();
+                                for (int i = 0; i < obj.ObjectType.VariableNames.Count; i++)
+                                {
+                                    var varName = obj.ObjectType.VariableNames[i];
+                                    var val = obj.GetVariable(i);
+
+                                    // We only save it if it's different from the default value
+                                    // To keep it simple for now, we save everything
+                                    if (val.TryGetValue(out float f)) props[varName] = f;
+                                    else if (val.TryGetValue(out string? s)) props[varName] = s;
+                                    else if (val.Type == DreamValueType.Null) props[varName] = null;
+                                    else props[varName] = val.ToString();
+                                }
+
+                                JsonSerializer.Serialize(writer, props);
                                 writer.WriteEndObject();
                             }
 

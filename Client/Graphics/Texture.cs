@@ -31,7 +31,9 @@ namespace Client.Graphics
                 _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.LinearMipmapLinear);
                 _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
 
-                fixed (void* data = image.GetPixelRowSpan(0))
+                Rgba32[] pixels = new Rgba32[Width * Height];
+                image.CopyPixelDataTo(pixels);
+                fixed (void* data = pixels)
                 {
                     _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)Width, (uint)Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
                 }

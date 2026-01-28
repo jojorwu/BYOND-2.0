@@ -28,14 +28,13 @@ namespace Editor
                 return;
             }
 
-            var (jsonPath, compilerMessages) = _compilerService.Compile(dmFiles);
+            var (compiledJson, compilerMessages) = _compilerService.Compile(dmFiles);
 
             Messages.AddRange(compilerMessages);
 
-            if (jsonPath != null)
+            if (compiledJson != null)
             {
-                Messages.Add(new BuildMessage("", 0, $"Compilation successful. Output: {jsonPath}", BuildMessageLevel.Info));
-                File.Delete(jsonPath); // Clean up
+                Messages.Add(new BuildMessage("", 0, $"Compilation successful.", BuildMessageLevel.Info));
             }
             else
             {

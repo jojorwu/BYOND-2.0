@@ -5,13 +5,8 @@ namespace Shared
     /// <summary>
     /// Represents a tile on the game map.
     /// </summary>
-    public class Turf : ITurf
+    public class Turf : GameObject, ITurf
     {
-        /// <summary>
-        /// Gets or sets the identifier for the turf type.
-        /// </summary>
-        public int Id { get; set; }
-
         /// <summary>
         /// Gets the list of game objects currently on this turf.
         /// </summary>
@@ -21,9 +16,13 @@ namespace Shared
         /// Initializes a new instance of the <see cref="Turf"/> class.
         /// </summary>
         /// <param name="id">The identifier for the turf type.</param>
-        public Turf(int id)
+        public Turf(int id) : base(null!) // TODO: Pass proper ObjectType for turf
         {
             Id = id;
+        }
+
+        public Turf(ObjectType objectType, int x, int y, int z) : base(objectType, x, y, z)
+        {
         }
     }
 }

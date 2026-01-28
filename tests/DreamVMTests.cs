@@ -5,8 +5,8 @@ using Core;
 using System.Collections.Generic;
 using Core.VM.Runtime;
 using Core.VM.Procs;
-using Core.VM.Types;
-using Core.VM.Opcodes;
+
+
 using System;
 using System.Linq;
 
@@ -26,9 +26,9 @@ namespace tests
         private DreamValue RunTest(byte[] bytecode)
         {
             var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
-            var thread = new DreamThread(proc, _vm, 1000);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
-            return thread.Stack.Last();
+            return thread.Peek();
         }
 
         [Test]
@@ -274,11 +274,11 @@ namespace tests
             bytecode.Add((byte)Opcode.Return);
 
             var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0);
-            var thread = new DreamThread(proc, _vm, 1000);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
 
-            Assert.That(thread.Stack.Count, Is.EqualTo(1));
-            Assert.That(thread.Stack.Last().TryGetValue(out float value), Is.True);
+            Assert.That(thread.StackCount, Is.EqualTo(1));
+            Assert.That(thread.Peek().TryGetValue(out float value), Is.True);
             Assert.That(value, Is.EqualTo(10f));
         }
 

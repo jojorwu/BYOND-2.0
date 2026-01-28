@@ -8,34 +8,40 @@ namespace tests
     public class GameObjectTests
     {
         [Test]
-        public void GetProperty_ShouldResolveFromInstance_ThenDirectType_ThenParentType()
+        public void GetVariable_ShouldResolveFromInstance_ThenDirectType_ThenParentType()
         {
             // Arrange
             var parentType = new ObjectType(1, "/obj/parent");
-            parentType.DefaultProperties["parentProperty"] = "parentValue";
-            parentType.DefaultProperties["overrideProperty"] = "parentOverride";
+            parentType.VariableNames.Add("parentProperty");
+            parentType.FlattenedDefaultValues.Add("parentValue");
+            parentType.VariableNames.Add("overrideProperty");
+            parentType.FlattenedDefaultValues.Add("parentOverride");
 
             var childType = new ObjectType(2, "/obj/child") { Parent = parentType };
-            childType.DefaultProperties["childProperty"] = "childValue";
-            childType.DefaultProperties["overrideProperty"] = "childOverride";
+            childType.VariableNames.AddRange(parentType.VariableNames);
+            childType.VariableNames.Add("childProperty");
+
+            childType.FlattenedDefaultValues.AddRange(parentType.FlattenedDefaultValues);
+            // override property in child
+            childType.FlattenedDefaultValues[1] = "childOverride";
+            childType.FlattenedDefaultValues.Add("childValue");
 
             var gameObject = new GameObject(childType);
-            gameObject.Properties["instanceProperty"] = "instanceValue";
-            gameObject.Properties["overrideProperty"] = "instanceOverride";
 
             // Act & Assert
-            // Should get from instance
-            Assert.That(gameObject.GetProperty<string>("instanceProperty"), Is.EqualTo("instanceValue"));
-            Assert.That(gameObject.GetProperty<string>("overrideProperty"), Is.EqualTo("instanceOverride"));
-
             // Should get from direct type (child)
-            Assert.That(gameObject.GetProperty<string>("childProperty"), Is.EqualTo("childValue"));
+            Assert.That(gameObject.GetVariable("childProperty").ToString(), Is.EqualTo("childValue"));
+            Assert.That(gameObject.GetVariable("overrideProperty").ToString(), Is.EqualTo("childOverride"));
+
+            // Set override in instance
+            gameObject.SetVariable("overrideProperty", new DreamValue("instanceOverride"));
+            Assert.That(gameObject.GetVariable("overrideProperty").ToString(), Is.EqualTo("instanceOverride"));
 
             // Should get from parent type
-            Assert.That(gameObject.GetProperty<string>("parentProperty"), Is.EqualTo("parentValue"));
+            Assert.That(gameObject.GetVariable("parentProperty").ToString(), Is.EqualTo("parentValue"));
 
             // Should not find non-existent property
-            Assert.That(gameObject.GetProperty<string>("nonExistentProperty"), Is.Null);
+            Assert.That(gameObject.GetVariable("nonExistentProperty"), Is.EqualTo(DreamValue.Null));
         }
     }
 }

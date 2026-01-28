@@ -1,8 +1,11 @@
 using System;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-namespace Core.VM.Types
+namespace Shared
 {
+    [JsonConverter(typeof(DreamValueConverter))]
     public readonly struct DreamValue
     {
         public readonly DreamValueType Type;
@@ -35,6 +38,27 @@ namespace Core.VM.Types
         public DreamValue(DreamObject value)
         {
             Type = DreamValueType.DreamObject;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public DreamValue(ObjectType value)
+        {
+            Type = DreamValueType.DreamType;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public DreamValue(DreamResource value)
+        {
+            Type = DreamValueType.DreamResource;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        public DreamValue(IDreamProc value)
+        {
+            Type = DreamValueType.DreamProc;
             _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
@@ -75,6 +99,42 @@ namespace Core.VM.Types
             return false;
         }
 
+        public bool TryGetValue(out ObjectType? value)
+        {
+            if (Type == DreamValueType.DreamType)
+            {
+                value = (ObjectType?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        public bool TryGetValue(out DreamResource? value)
+        {
+            if (Type == DreamValueType.DreamResource)
+            {
+                value = (DreamResource?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        public bool TryGetValue(out IDreamProc? value)
+        {
+            if (Type == DreamValueType.DreamProc)
+            {
+                value = (IDreamProc?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
         public DreamObject? GetValueAsDreamObject()
         {
             if (Type == DreamValueType.DreamObject)
@@ -85,7 +145,7 @@ namespace Core.VM.Types
             return null;
         }
 
-        private float AsFloat()
+        public float AsFloat()
         {
             if (Type != DreamValueType.Float)
                 throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a float");
@@ -96,18 +156,42 @@ namespace Core.VM.Types
         public static implicit operator DreamValue(int value) => new DreamValue((float)value);
         public static implicit operator DreamValue(string value) => new DreamValue(value);
         public static implicit operator DreamValue(DreamObject value) => new DreamValue(value);
+        public static implicit operator DreamValue(ObjectType value) => new DreamValue(value);
+        public static implicit operator DreamValue(DreamResource value) => new DreamValue(value);
 
         public static DreamValue FromObject(object? value)
         {
+            if (value is DreamValue dv) return dv;
             return value switch
             {
                 null => Null,
                 string s => new DreamValue(s),
                 int i => new DreamValue(i),
                 float f => new DreamValue(f),
+                double d => new DreamValue((float)d),
                 DreamObject o => new DreamValue(o),
+                ObjectType t => new DreamValue(t),
+                DreamResource r => new DreamValue(r),
+                IDreamProc p => new DreamValue(p),
+                JsonElement e => FromJsonElement(e),
                 _ => throw new ArgumentException($"Unsupported type for DreamValue: {value.GetType()}")
             };
+        }
+
+        private static DreamValue FromJsonElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.Number:
+                    return new DreamValue(element.GetSingle());
+                case JsonValueKind.String:
+                    return new DreamValue(element.GetString()!);
+                case JsonValueKind.Null:
+                    return Null;
+                default:
+                    // For complex types, we might want to store them as strings or handle them specifically
+                    return new DreamValue(element.ToString());
+            }
         }
 
         public override string ToString()
@@ -271,6 +355,52 @@ namespace Core.VM.Types
                 return true;
 
             return false;
+        }
+    }
+
+    public class DreamValueConverter : JsonConverter<DreamValue>
+    {
+        public override DreamValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.Number:
+                    return new DreamValue(reader.GetSingle());
+                case JsonTokenType.String:
+                    return new DreamValue(reader.GetString()!);
+                case JsonTokenType.True:
+                    return new DreamValue(1.0f);
+                case JsonTokenType.False:
+                    return new DreamValue(0.0f);
+                case JsonTokenType.Null:
+                    return DreamValue.Null;
+                default:
+                    // For complex objects, we might need more logic
+                    using (var doc = JsonDocument.ParseValue(ref reader))
+                    {
+                        return DreamValue.FromObject(doc.RootElement.Clone());
+                    }
+            }
+        }
+
+        public override void Write(Utf8JsonWriter writer, DreamValue value, JsonSerializerOptions options)
+        {
+            switch (value.Type)
+            {
+                case DreamValueType.Float:
+                    writer.WriteNumberValue(value.AsFloat());
+                    break;
+                case DreamValueType.String:
+                    value.TryGetValue(out string? s);
+                    writer.WriteStringValue(s);
+                    break;
+                case DreamValueType.Null:
+                    writer.WriteNullValue();
+                    break;
+                default:
+                    writer.WriteStringValue(value.ToString());
+                    break;
+            }
         }
     }
 }

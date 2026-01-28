@@ -1,4 +1,4 @@
-using DMCompiler.Bytecode;
+using Shared;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using DMCompiler.DM.Expressions;
@@ -542,7 +542,7 @@ internal sealed class DMProc {
     }
 
     public void Error() {
-        WriteOpcode(DreamProcOpcode.Error);
+        WriteOpcode(Opcode.Error);
     }
 
     public void DebugSource(Location location) {
@@ -567,34 +567,34 @@ internal sealed class DMProc {
     }
 
     public void PushReferenceValue(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.PushReferenceValue);
+        WriteOpcode(Opcode.PushReferenceValue);
         WriteReference(reference);
     }
 
     public void CreateListEnumerator() {
-        WriteOpcode(DreamProcOpcode.CreateListEnumerator);
+        WriteOpcode(Opcode.CreateListEnumerator);
         WriteEnumeratorId(_enumeratorIdCounter++);
     }
 
     public void CreateFilteredListEnumerator(int filterTypeId, DreamPath filterType) {
-        WriteOpcode(DreamProcOpcode.CreateFilteredListEnumerator);
+        WriteOpcode(Opcode.CreateFilteredListEnumerator);
         WriteEnumeratorId(_enumeratorIdCounter++);
         WriteFilterId(filterTypeId, filterType);
     }
 
     public void CreateTypeEnumerator() {
-        WriteOpcode(DreamProcOpcode.CreateTypeEnumerator);
+        WriteOpcode(Opcode.CreateTypeEnumerator);
         WriteEnumeratorId(_enumeratorIdCounter++);
     }
 
     public void CreateRangeEnumerator() {
-        WriteOpcode(DreamProcOpcode.CreateRangeEnumerator);
+        WriteOpcode(Opcode.CreateRangeEnumerator);
         WriteEnumeratorId(_enumeratorIdCounter++);
     }
 
     public void Enumerate(DMReference reference) {
         if (_loopStack?.TryPeek(out var peek) ?? false) {
-            WriteOpcode(DreamProcOpcode.Enumerate);
+            WriteOpcode(Opcode.Enumerate);
             WriteEnumeratorId(_enumeratorIdCounter - 1);
             WriteReference(reference);
             WriteLabel($"{peek}_end");
@@ -605,7 +605,7 @@ internal sealed class DMProc {
 
     public void EnumerateAssoc(DMReference assocRef, DMReference outputRef) {
         if (_loopStack?.TryPeek(out var peek) ?? false) {
-            WriteOpcode(DreamProcOpcode.EnumerateAssoc);
+            WriteOpcode(Opcode.EnumerateAssoc);
             WriteEnumeratorId(_enumeratorIdCounter - 1);
             WriteReference(assocRef);
             WriteReference(outputRef);
@@ -617,7 +617,7 @@ internal sealed class DMProc {
 
     public void EnumerateNoAssign() {
         if (_loopStack?.TryPeek(out var peek) ?? false) {
-            WriteOpcode(DreamProcOpcode.EnumerateNoAssign);
+            WriteOpcode(Opcode.EnumerateNoAssign);
             WriteEnumeratorId(_enumeratorIdCounter - 1);
             WriteLabel($"{peek}_end");
         } else {
@@ -626,31 +626,31 @@ internal sealed class DMProc {
     }
 
     public void DestroyEnumerator() {
-        WriteOpcode(DreamProcOpcode.DestroyEnumerator);
+        WriteOpcode(Opcode.DestroyEnumerator);
         WriteEnumeratorId(--_enumeratorIdCounter);
     }
 
     public void CreateList(int size) {
         ResizeStack(-(size - 1)); //Shrinks by the size of the list, grows by 1
-        WriteOpcode(DreamProcOpcode.CreateList);
+        WriteOpcode(Opcode.CreateList);
         WriteListSize(size);
     }
 
     public void CreateMultidimensionalList(int dimensionCount) {
         ResizeStack(-(dimensionCount - 1)); // Pops the amount of dimensions, then pushes the list
-        WriteOpcode(DreamProcOpcode.CreateMultidimensionalList);
+        WriteOpcode(Opcode.CreateMultidimensionalList);
         WriteListSize(dimensionCount);
     }
 
     public void CreateAssociativeList(int size) {
         ResizeStack(-(size * 2 - 1)); //Shrinks by twice the size of the list, grows by 1
-        WriteOpcode(DreamProcOpcode.CreateAssociativeList);
+        WriteOpcode(Opcode.CreateAssociativeList);
         WriteListSize(size);
     }
 
     public void CreateStrictAssociativeList(int size) {
         ResizeStack(-(size * 2 - 1)); //Shrinks by twice the size of the alist, grows by 1
-        WriteOpcode(DreamProcOpcode.CreateStrictAssociativeList);
+        WriteOpcode(Opcode.CreateStrictAssociativeList);
         WriteListSize(size);
     }
 
@@ -701,52 +701,52 @@ internal sealed class DMProc {
     }
 
     public void SwitchCase(string caseLabel) {
-        WriteOpcode(DreamProcOpcode.SwitchCase);
+        WriteOpcode(Opcode.SwitchCase);
         WriteLabel(caseLabel);
     }
 
     public void SwitchCaseRange(string caseLabel) {
-        WriteOpcode(DreamProcOpcode.SwitchCaseRange);
+        WriteOpcode(Opcode.SwitchCaseRange);
         WriteLabel(caseLabel);
     }
 
     public void Browse() {
-        WriteOpcode(DreamProcOpcode.Browse);
+        WriteOpcode(Opcode.Browse);
     }
 
     public void BrowseResource() {
-        WriteOpcode(DreamProcOpcode.BrowseResource);
+        WriteOpcode(Opcode.BrowseResource);
     }
 
     public void OutputControl() {
-        WriteOpcode(DreamProcOpcode.OutputControl);
+        WriteOpcode(Opcode.OutputControl);
     }
 
     public void Link() {
-        WriteOpcode(DreamProcOpcode.Link);
+        WriteOpcode(Opcode.Link);
     }
 
     public void Ftp() {
-        WriteOpcode(DreamProcOpcode.Ftp);
+        WriteOpcode(Opcode.Ftp);
     }
 
     public void OutputReference(DMReference leftRef) {
-        WriteOpcode(DreamProcOpcode.OutputReference);
+        WriteOpcode(Opcode.OutputReference);
         WriteReference(leftRef);
     }
 
     public void Output() {
-        WriteOpcode(DreamProcOpcode.Output);
+        WriteOpcode(Opcode.Output);
     }
 
     public void Input(DMReference leftRef, DMReference rightRef) {
-        WriteOpcode(DreamProcOpcode.Input);
+        WriteOpcode(Opcode.Input);
         WriteReference(leftRef);
         WriteReference(rightRef);
     }
 
     public void Spawn(string jumpTo) {
-        WriteOpcode(DreamProcOpcode.Spawn);
+        WriteOpcode(Opcode.Spawn);
         WriteLabel(jumpTo);
     }
 
@@ -819,16 +819,16 @@ internal sealed class DMProc {
     }
 
     public void Pop() {
-        WriteOpcode(DreamProcOpcode.Pop);
+        WriteOpcode(Opcode.Pop);
     }
 
     public void BooleanOr(string endLabel) {
-        WriteOpcode(DreamProcOpcode.BooleanOr);
+        WriteOpcode(Opcode.BooleanOr);
         WriteLabel(endLabel);
     }
 
     public void BooleanAnd(string endLabel) {
-        WriteOpcode(DreamProcOpcode.BooleanAnd);
+        WriteOpcode(Opcode.BooleanAnd);
         WriteLabel(endLabel);
     }
 
@@ -842,50 +842,50 @@ internal sealed class DMProc {
     }
 
     public void Jump(string label) {
-        WriteOpcode(DreamProcOpcode.Jump);
+        WriteOpcode(Opcode.Jump);
         WriteLabel(label);
     }
 
     public void JumpIfFalse(string label) {
-        WriteOpcode(DreamProcOpcode.JumpIfFalse);
+        WriteOpcode(Opcode.JumpIfFalse);
         WriteLabel(label);
     }
 
     public void JumpIfNull(string label) {
         // Conditionally pops one value
-        WriteOpcode(DreamProcOpcode.JumpIfNull);
+        WriteOpcode(Opcode.JumpIfNull);
         WriteLabel(label);
     }
 
     public void JumpIfNullNoPop(string label) {
-        WriteOpcode(DreamProcOpcode.JumpIfNullNoPop);
+        WriteOpcode(Opcode.JumpIfNullNoPop);
         WriteLabel(label);
     }
 
     public void JumpIfTrueReference(DMReference reference, string label) {
-        WriteOpcode(DreamProcOpcode.JumpIfTrueReference);
+        WriteOpcode(Opcode.JumpIfTrueReference);
         WriteReference(reference, affectStack: false);
         WriteLabel(label);
     }
 
     public void JumpIfFalseReference(DMReference reference, string label) {
-        WriteOpcode(DreamProcOpcode.JumpIfFalseReference);
+        WriteOpcode(Opcode.JumpIfFalseReference);
         WriteReference(reference, affectStack: false);
         WriteLabel(label);
     }
 
     public void DereferenceField(string field) {
-        WriteOpcode(DreamProcOpcode.DereferenceField);
+        WriteOpcode(Opcode.DereferenceField);
         WriteString(field);
     }
 
     public void DereferenceIndex() {
-        WriteOpcode(DreamProcOpcode.DereferenceIndex);
+        WriteOpcode(Opcode.DereferenceIndex);
     }
 
     public void DereferenceCall(string field, DMCallArgumentsType argumentsType, int argumentStackSize) {
         ResizeStack(-argumentStackSize); // Pops proc owner and arguments, pushes result
-        WriteOpcode(DreamProcOpcode.DereferenceCall);
+        WriteOpcode(Opcode.DereferenceCall);
         WriteString(field);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
@@ -893,7 +893,7 @@ internal sealed class DMProc {
 
     public void Call(DMReference reference, DMCallArgumentsType argumentsType, int argumentStackSize) {
         ResizeStack(-(argumentStackSize - 1)); // Pops all arguments, pushes return value
-        WriteOpcode(DreamProcOpcode.Call);
+        WriteOpcode(Opcode.Call);
         WriteReference(reference);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
@@ -903,281 +903,281 @@ internal sealed class DMProc {
     public void CallStatement(DMCallArgumentsType argumentsType, int argumentStackSize) {
         //Shrinks the stack by argumentStackSize. Could also shrink it by argumentStackSize+1, but assume not.
         ResizeStack(-argumentStackSize);
-        WriteOpcode(DreamProcOpcode.CallStatement);
+        WriteOpcode(Opcode.CallStatement);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
     }
 
     public void Prompt(DMValueType types) {
-        WriteOpcode(DreamProcOpcode.Prompt);
+        WriteOpcode(Opcode.Prompt);
         WriteType(types);
     }
 
     public void Initial() {
-        WriteOpcode(DreamProcOpcode.Initial);
+        WriteOpcode(Opcode.Initial);
     }
 
     public void Return() {
-        WriteOpcode(DreamProcOpcode.Return);
+        WriteOpcode(Opcode.Return);
     }
 
     public void Throw() {
-        WriteOpcode(DreamProcOpcode.Throw);
+        WriteOpcode(Opcode.Throw);
     }
 
     public void Assign(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Assign);
+        WriteOpcode(Opcode.Assign);
         WriteReference(reference);
     }
 
     public void AssignInto(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.AssignInto);
+        WriteOpcode(Opcode.AssignInto);
         WriteReference(reference);
     }
 
     public void CreateObject(DMCallArgumentsType argumentsType, int argumentStackSize) {
         ResizeStack(-argumentStackSize); // Pops type and arguments, pushes new object
-        WriteOpcode(DreamProcOpcode.CreateObject);
+        WriteOpcode(Opcode.CreateObject);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
     }
 
     public void DeleteObject() {
-        WriteOpcode(DreamProcOpcode.DeleteObject);
+        WriteOpcode(Opcode.DeleteObject);
     }
 
     public void Not() {
-        WriteOpcode(DreamProcOpcode.BooleanNot);
+        WriteOpcode(Opcode.BooleanNot);
     }
 
     public void Negate() {
-        WriteOpcode(DreamProcOpcode.Negate);
+        WriteOpcode(Opcode.Negate);
     }
 
     public void Add() {
-        WriteOpcode(DreamProcOpcode.Add);
+        WriteOpcode(Opcode.Add);
     }
 
     public void Subtract() {
-        WriteOpcode(DreamProcOpcode.Subtract);
+        WriteOpcode(Opcode.Subtract);
     }
 
     public void Multiply() {
-        WriteOpcode(DreamProcOpcode.Multiply);
+        WriteOpcode(Opcode.Multiply);
     }
 
     public void MultiplyReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.MultiplyReference);
+        WriteOpcode(Opcode.MultiplyReference);
         WriteReference(reference);
     }
 
     public void Divide() {
-        WriteOpcode(DreamProcOpcode.Divide);
+        WriteOpcode(Opcode.Divide);
     }
 
     public void DivideReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.DivideReference);
+        WriteOpcode(Opcode.DivideReference);
         WriteReference(reference);
     }
 
     public void Modulus() {
-        WriteOpcode(DreamProcOpcode.Modulus);
+        WriteOpcode(Opcode.Modulus);
     }
 
     public void ModulusModulus() {
-        WriteOpcode(DreamProcOpcode.ModulusModulus);
+        WriteOpcode(Opcode.ModulusModulus);
     }
 
     public void ModulusReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.ModulusReference);
+        WriteOpcode(Opcode.ModulusReference);
         WriteReference(reference);
     }
 
     public void ModulusModulusReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.ModulusModulusReference);
+        WriteOpcode(Opcode.ModulusModulusReference);
         WriteReference(reference);
     }
 
     public void Power() {
-        WriteOpcode(DreamProcOpcode.Power);
+        WriteOpcode(Opcode.Power);
     }
 
     public void Append(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Append);
+        WriteOpcode(Opcode.Append);
         WriteReference(reference);
     }
 
     public void Increment(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Increment);
+        WriteOpcode(Opcode.Increment);
         WriteReference(reference);
     }
 
     public void Decrement(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Decrement);
+        WriteOpcode(Opcode.Decrement);
         WriteReference(reference);
     }
 
     public void Remove(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Remove);
+        WriteOpcode(Opcode.Remove);
         WriteReference(reference);
     }
 
     public void Combine(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Combine);
+        WriteOpcode(Opcode.Combine);
         WriteReference(reference);
     }
 
     public void Mask(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Mask);
+        WriteOpcode(Opcode.Mask);
         WriteReference(reference);
     }
 
     public void BitShiftLeft() {
-        WriteOpcode(DreamProcOpcode.BitShiftLeft);
+        WriteOpcode(Opcode.BitShiftLeft);
     }
 
     public void BitShiftLeftReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.BitShiftLeftReference);
+        WriteOpcode(Opcode.BitShiftLeftReference);
         WriteReference(reference);
     }
 
     public void BitShiftRight() {
-        WriteOpcode(DreamProcOpcode.BitShiftRight);
+        WriteOpcode(Opcode.BitShiftRight);
     }
 
     public void BitShiftRightReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.BitShiftRightReference);
+        WriteOpcode(Opcode.BitShiftRightReference);
         WriteReference(reference);
     }
 
     public void BinaryNot() {
-        WriteOpcode(DreamProcOpcode.BitNot);
+        WriteOpcode(Opcode.BitNot);
     }
 
     public void BinaryAnd() {
-        WriteOpcode(DreamProcOpcode.BitAnd);
+        WriteOpcode(Opcode.BitAnd);
     }
 
     public void BinaryXor() {
-        WriteOpcode(DreamProcOpcode.BitXor);
+        WriteOpcode(Opcode.BitXor);
     }
 
     public void BinaryXorReference(DMReference reference) {
-        WriteOpcode(DreamProcOpcode.BitXorReference);
+        WriteOpcode(Opcode.BitXorReference);
         WriteReference(reference);
     }
 
     public void BinaryOr() {
-        WriteOpcode(DreamProcOpcode.BitOr);
+        WriteOpcode(Opcode.BitOr);
     }
 
     public void Equal() {
-        WriteOpcode(DreamProcOpcode.CompareEquals);
+        WriteOpcode(Opcode.CompareEquals);
     }
 
     public void NotEqual() {
-        WriteOpcode(DreamProcOpcode.CompareNotEquals);
+        WriteOpcode(Opcode.CompareNotEquals);
     }
 
     public void Equivalent() {
-        WriteOpcode(DreamProcOpcode.CompareEquivalent);
+        WriteOpcode(Opcode.CompareEquivalent);
     }
 
     public void NotEquivalent() {
-        WriteOpcode(DreamProcOpcode.CompareNotEquivalent);
+        WriteOpcode(Opcode.CompareNotEquivalent);
     }
 
     public void GreaterThan() {
-        WriteOpcode(DreamProcOpcode.CompareGreaterThan);
+        WriteOpcode(Opcode.CompareGreaterThan);
     }
 
     public void GreaterThanOrEqual() {
-        WriteOpcode(DreamProcOpcode.CompareGreaterThanOrEqual);
+        WriteOpcode(Opcode.CompareGreaterThanOrEqual);
     }
 
     public void LessThan() {
-        WriteOpcode(DreamProcOpcode.CompareLessThan);
+        WriteOpcode(Opcode.CompareLessThan);
     }
 
     public void LessThanOrEqual() {
-        WriteOpcode(DreamProcOpcode.CompareLessThanOrEqual);
+        WriteOpcode(Opcode.CompareLessThanOrEqual);
     }
 
     public void Sin() {
-        WriteOpcode(DreamProcOpcode.Sin);
+        WriteOpcode(Opcode.Sin);
     }
 
     public void Cos() {
-        WriteOpcode(DreamProcOpcode.Cos);
+        WriteOpcode(Opcode.Cos);
     }
 
     public void Tan() {
-        WriteOpcode(DreamProcOpcode.Tan);
+        WriteOpcode(Opcode.Tan);
     }
 
     public void ArcSin() {
-        WriteOpcode(DreamProcOpcode.ArcSin);
+        WriteOpcode(Opcode.ArcSin);
     }
 
     public void ArcCos() {
-        WriteOpcode(DreamProcOpcode.ArcCos);
+        WriteOpcode(Opcode.ArcCos);
     }
 
     public void ArcTan() {
-        WriteOpcode(DreamProcOpcode.ArcTan);
+        WriteOpcode(Opcode.ArcTan);
     }
 
     public void ArcTan2() {
-        WriteOpcode(DreamProcOpcode.ArcTan2);
+        WriteOpcode(Opcode.ArcTan2);
     }
 
     public void Sqrt() {
-        WriteOpcode(DreamProcOpcode.Sqrt);
+        WriteOpcode(Opcode.Sqrt);
     }
 
     public void Log() {
-        WriteOpcode(DreamProcOpcode.Log);
+        WriteOpcode(Opcode.Log);
     }
 
     public void LogE() {
-        WriteOpcode(DreamProcOpcode.LogE);
+        WriteOpcode(Opcode.LogE);
     }
 
     public void Abs() {
-        WriteOpcode(DreamProcOpcode.Abs);
+        WriteOpcode(Opcode.Abs);
     }
 
     public void PushFloat(float value) {
-        WriteOpcode(DreamProcOpcode.PushFloat);
+        WriteOpcode(Opcode.PushFloat);
         WriteFloat(value);
     }
 
     public void PushString(string value) {
-        WriteOpcode(DreamProcOpcode.PushString);
+        WriteOpcode(Opcode.PushString);
         WriteString(value);
     }
 
     public void PushResource(string value) {
-        WriteOpcode(DreamProcOpcode.PushResource);
+        WriteOpcode(Opcode.PushResource);
         WriteResource(value);
     }
 
     public void PushType(int typeId) {
-        WriteOpcode(DreamProcOpcode.PushType);
+        WriteOpcode(Opcode.PushType);
         WriteTypeId(typeId);
     }
 
     public void PushProc(int procId) {
-        WriteOpcode(DreamProcOpcode.PushProc);
+        WriteOpcode(Opcode.PushProc);
         WriteProcId(procId);
     }
 
     public void PushNull() {
-        WriteOpcode(DreamProcOpcode.PushNull);
+        WriteOpcode(Opcode.PushNull);
     }
 
     public void PushGlobalVars() {
-        WriteOpcode(DreamProcOpcode.PushGlobalVars);
+        WriteOpcode(Opcode.PushGlobalVars);
     }
 
     /// <summary>
@@ -1194,114 +1194,114 @@ internal sealed class DMProc {
             if (!StringFormatEncoder.Decode(c, out var formatType))
                 continue;
 
-            if(StringFormatEncoder.IsInterpolation(formatType.Value))
+            if(StringFormatEncoder.IsInterpolation(formatType))
                 formatCount++;
         }
 
         ResizeStack(-(formatCount - 1)); //Shrinks by the amount of formats in the string, grows 1
-        WriteOpcode(DreamProcOpcode.FormatString);
+        WriteOpcode(Opcode.FormatString);
         WriteString(value);
         WriteFormatCount(formatCount);
     }
 
     public void IsInList() {
-        WriteOpcode(DreamProcOpcode.IsInList);
+        WriteOpcode(Opcode.IsInList);
     }
 
     public void IsInRange() {
-        WriteOpcode(DreamProcOpcode.IsInRange);
+        WriteOpcode(Opcode.IsInRange);
     }
 
     public void IsSaved() {
-        WriteOpcode(DreamProcOpcode.IsSaved);
+        WriteOpcode(Opcode.IsSaved);
     }
 
     public void AsType() {
-        WriteOpcode(DreamProcOpcode.AsType);
+        WriteOpcode(Opcode.AsType);
     }
 
     public void IsType() {
-        WriteOpcode(DreamProcOpcode.IsType);
+        WriteOpcode(Opcode.IsType);
     }
 
     public void IsNull() {
-        WriteOpcode(DreamProcOpcode.IsNull);
+        WriteOpcode(Opcode.IsNull);
     }
 
     public void Length() {
-        WriteOpcode(DreamProcOpcode.Length);
+        WriteOpcode(Opcode.Length);
     }
 
     public void GetStep() {
-        WriteOpcode(DreamProcOpcode.GetStep);
+        WriteOpcode(Opcode.GetStep);
     }
 
     public void GetDir() {
-        WriteOpcode(DreamProcOpcode.GetDir);
+        WriteOpcode(Opcode.GetDir);
     }
 
     public void LocateCoordinates() {
-        WriteOpcode(DreamProcOpcode.LocateCoord);
+        WriteOpcode(Opcode.LocateCoord);
     }
 
     public void Gradient(DMCallArgumentsType argumentsType, int argumentStackSize) {
         ResizeStack(-(argumentStackSize - 1)); // Pops arguments, pushes gradient result
-        WriteOpcode(DreamProcOpcode.Gradient);
+        WriteOpcode(Opcode.Gradient);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
     }
 
     public void Rgb(DMCallArgumentsType argumentsType, int argumentStackSize) {
         ResizeStack(-(argumentStackSize - 1)); // Pops arguments, pushes rgb result
-        WriteOpcode(DreamProcOpcode.Rgb);
+        WriteOpcode(Opcode.Rgb);
         WriteArgumentType(argumentsType);
         WriteStackDelta(argumentStackSize);
     }
 
     public void PickWeighted(int count) {
         ResizeStack(-(count - 1));
-        WriteOpcode(DreamProcOpcode.PickWeighted);
+        WriteOpcode(Opcode.PickWeighted);
         WritePickCount(count);
     }
 
     public void PickUnweighted(int count) {
         ResizeStack(-(count - 1));
-        WriteOpcode(DreamProcOpcode.PickUnweighted);
+        WriteOpcode(Opcode.PickUnweighted);
         WritePickCount(count);
     }
 
     public void Prob() {
         //Pops 1, pushes 1
-        WriteOpcode(DreamProcOpcode.Prob);
+        WriteOpcode(Opcode.Prob);
     }
 
     public void MassConcatenation(int count) {
         ResizeStack(-(count - 1));
-        WriteOpcode(DreamProcOpcode.MassConcatenation);
+        WriteOpcode(Opcode.MassConcatenation);
         WriteConcatCount(count);
     }
 
     public void Locate() {
-        WriteOpcode(DreamProcOpcode.Locate);
+        WriteOpcode(Opcode.Locate);
     }
 
     public void StartTry(string label, DMReference reference) {
-        WriteOpcode(DreamProcOpcode.Try);
+        WriteOpcode(Opcode.Try);
         WriteLabel(label);
         WriteReference(reference);
     }
 
     public void StartTryNoValue(string label) {
-        WriteOpcode(DreamProcOpcode.TryNoValue);
+        WriteOpcode(Opcode.TryNoValue);
         WriteLabel(label);
     }
 
     public void EndTry() {
-        WriteOpcode(DreamProcOpcode.EndTry);
+        WriteOpcode(Opcode.EndTry);
     }
 
     // Annotated bytecode wrapper procedures
-    private void WriteOpcode(DreamProcOpcode opcode) {
+    private void WriteOpcode(Opcode opcode) {
         AnnotatedBytecode.WriteOpcode(opcode, _writerLocation);
     }
 

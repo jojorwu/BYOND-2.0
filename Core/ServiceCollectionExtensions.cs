@@ -30,16 +30,9 @@ namespace Core
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
-            // services.AddSingleton<IDmmService>(provider =>
-            //     new DmmService(
-            //         provider.GetRequiredService<IObjectTypeManager>(),
-            //         provider.GetRequiredService<IProject>(),
-            //         provider.GetRequiredService<IDreamMakerLoader>(),
-            //         provider.GetRequiredService<ILogger<DmmService>>()
-            //     )
-            // );
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
+            services.AddSingleton<ICompiledJsonService, CompiledJsonService>();
             services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
             services.AddSingleton<IScriptManager>(provider =>
                 new ScriptManager(

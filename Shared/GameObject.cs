@@ -1,19 +1,20 @@
 using System.Collections.Generic;
 using System.Threading;
+using System.Text.Json.Serialization;
 
 namespace Shared
 {
     /// <summary>
     /// Represents an object in the game world.
     /// </summary>
-    public class GameObject : IGameObject
+    public class GameObject : DreamObject, IGameObject
     {
         private static int nextId = 1;
 
         /// <summary>
         /// Gets the unique identifier for the game object.
         /// </summary>
-        public int Id { get; }
+        public int Id { get; set; }
 
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
@@ -31,23 +32,54 @@ namespace Shared
         public int Z { get; set; }
 
         /// <summary>
-        /// Gets the ObjectType of this game object.
+        /// Gets the TypeName of this game object for serialization.
         /// </summary>
-        public ObjectType ObjectType { get; }
+        public string TypeName => ObjectType?.Name ?? string.Empty;
 
         /// <summary>
-        /// Gets the instance-specific properties of this game object.
+        /// Gets the instance-specific properties for serialization.
         /// </summary>
-        public Dictionary<string, object?> Properties { get; } = new();
+        public Dictionary<string, DreamValue> Properties
+        {
+            get
+            {
+                var dict = new Dictionary<string, DreamValue>();
+                if (ObjectType != null)
+                {
+                    for (int i = 0; i < ObjectType.VariableNames.Count; i++)
+                    {
+                        dict[ObjectType.VariableNames[i]] = GetVariable(i);
+                    }
+                }
+                return dict;
+            }
+            set
+            {
+                if (value != null)
+                {
+                    foreach (var kvp in value)
+                    {
+                        SetVariable(kvp.Key, kvp.Value);
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GameObject"/> class.
         /// </summary>
         /// <param name="objectType">The ObjectType of the game object.</param>
-        public GameObject(ObjectType objectType)
+        public GameObject(ObjectType objectType) : base(objectType)
         {
             Id = Interlocked.Increment(ref nextId);
-            ObjectType = objectType;
+        }
+
+        /// <summary>
+        /// Parameterless constructor for deserialization.
+        /// </summary>
+        [JsonConstructor]
+        public GameObject() : base(null!)
+        {
         }
 
         /// <summary>
@@ -75,42 +107,6 @@ namespace Shared
             X = x;
             Y = y;
             Z = z;
-        }
-
-        /// <summary>
-        /// Gets a property value, checking instance properties first, then falling back to the ObjectType's default properties.
-        /// </summary>
-        /// <typeparam name="T">The type of the property.</typeparam>
-        /// <param name="propertyName">The name of the property.</param>
-        /// <returns>The value of the property, or default(T) if not found.</returns>
-        public T? GetProperty<T>(string propertyName)
-        {
-            if (Properties.TryGetValue(propertyName, out var value) && value is T tValue)
-            {
-                return tValue;
-            }
-
-            var currentObjectType = ObjectType;
-            while (currentObjectType != null)
-            {
-                if (currentObjectType.DefaultProperties.TryGetValue(propertyName, out value) && value is T tDefaultValue)
-                {
-                    return tDefaultValue;
-                }
-                currentObjectType = currentObjectType.Parent;
-            }
-
-            return default;
-        }
-
-        /// <summary>
-        /// Sets an instance-specific property value.
-        /// </summary>
-        /// <param name="propertyName">The name of the property.</param>
-        /// <param name="value">The value to set.</param>
-        public void SetProperty(string propertyName, object? value)
-        {
-            Properties[propertyName] = value;
         }
     }
 }

@@ -2,13 +2,20 @@ using Shared;
 using System.Collections.Generic;
 using System.Linq;
 using Core.VM.Procs;
+using System;
 
 namespace Core.VM.Runtime
 {
     public class DreamVM : IDreamVM
     {
-        public List<string> Strings { get; } = new();
-        public Dictionary<string, IDreamProc> Procs { get; } = new();
+        public DreamVMContext Context { get; } = new();
+        public List<string> Strings => Context.Strings;
+        public Dictionary<string, IDreamProc> Procs => Context.Procs;
+        public List<DreamValue> Globals => Context.Globals;
+        public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
+        public IObjectTypeManager? ObjectTypeManager { get => Context.ObjectTypeManager; set => Context.ObjectTypeManager = value; }
+        public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
+
         private readonly ServerSettings _settings;
 
         public DreamVM(ServerSettings settings)
@@ -20,7 +27,7 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions);
+                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions);
             }
             Console.WriteLine("Error: /world/proc/New not found. Is the script compiled correctly?");
             return null;
@@ -30,7 +37,7 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, this, _settings.VmMaxInstructions, associatedObject);
+                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, associatedObject);
             }
 
             Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");

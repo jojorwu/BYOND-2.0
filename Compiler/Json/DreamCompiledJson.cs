@@ -19,7 +19,7 @@ public sealed class DreamCompiledJson {
 
 public sealed class DreamCompiledJsonMetadata {
     /// <summary>
-    ///  Hash of all the <c>DreamProcOpcode</c>s
+    ///  Hash of all the <c>Opcode</c>s
     /// </summary>
     public required string Version { get; set; }
 }

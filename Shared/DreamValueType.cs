@@ -1,9 +1,11 @@
-namespace Core.VM.Types;
+namespace Shared;
 
 public enum DreamValueType {
     Float,
     String,
     Null,
     DreamObject,
-    DreamType
+    DreamType,
+    DreamResource,
+    DreamProc
 }

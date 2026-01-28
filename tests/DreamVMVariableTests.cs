@@ -3,8 +3,8 @@ using Shared;
 using Core.VM;
 using Core.VM.Runtime;
 using Core.VM.Procs;
-using Core.VM.Types;
-using Core.VM.Opcodes;
+
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,17 +25,20 @@ namespace tests
         private DreamValue RunTest(byte[] bytecode, DreamObject instance)
         {
             var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
-            var thread = new DreamThread(proc, _vm, 1000);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.CallStack.Pop();
             thread.CallStack.Push(new CallFrame(proc, 0, 0, instance));
             thread.Run(1000);
-            return thread.Stack.Last();
+            return thread.Peek();
         }
 
         [Test]
         public void GetAndSetVariable_WorksCorrectly()
         {
             _vm.Strings.Add("myVar");
+            var type = new ObjectType(0, "/");
+            type.VariableNames.Add("myVar");
+            type.FlattenedDefaultValues.Add(null);
 
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
@@ -46,7 +49,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(0)); // String ID for "myVar"
             bytecode.Add((byte)Opcode.Return);
 
-            var instance = new DreamObject();
+            var instance = new DreamObject(type);
             var result = RunTest(bytecode.ToArray(), instance);
 
             Assert.That(result.TryGetValue(out float value), Is.True);

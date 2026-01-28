@@ -56,6 +56,13 @@ namespace Shared
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
+        public DreamValue(IDreamProc value)
+        {
+            Type = DreamValueType.DreamProc;
+            _floatValue = 0;
+            _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
         public bool TryGetValue(out float value)
         {
             if (Type == DreamValueType.Float)
@@ -116,6 +123,18 @@ namespace Shared
             return false;
         }
 
+        public bool TryGetValue(out IDreamProc? value)
+        {
+            if (Type == DreamValueType.DreamProc)
+            {
+                value = (IDreamProc?)_objectValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
         public DreamObject? GetValueAsDreamObject()
         {
             if (Type == DreamValueType.DreamObject)
@@ -153,6 +172,7 @@ namespace Shared
                 DreamObject o => new DreamValue(o),
                 ObjectType t => new DreamValue(t),
                 DreamResource r => new DreamValue(r),
+                IDreamProc p => new DreamValue(p),
                 JsonElement e => FromJsonElement(e),
                 _ => throw new ArgumentException($"Unsupported type for DreamValue: {value.GetType()}")
             };

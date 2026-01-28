@@ -30,6 +30,8 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.PushNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNull();
             _dispatchTable[(byte)Opcode.Pop] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Pop();
             _dispatchTable[(byte)Opcode.Call] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Call(p, ref pc);
+            _dispatchTable[(byte)Opcode.CallStatement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CallStatement(p, ref pc);
+            _dispatchTable[(byte)Opcode.PushProc] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushProc(p, ref pc);
             _dispatchTable[(byte)Opcode.Jump] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Jump(p, ref pc);
             _dispatchTable[(byte)Opcode.JumpIfFalse] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfFalse(p, ref pc);
             _dispatchTable[(byte)Opcode.Output] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Output();
@@ -87,6 +89,8 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.Length] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Length();
             _dispatchTable[(byte)Opcode.Throw] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Throw();
             _dispatchTable[(byte)Opcode.Spawn] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Spawn(p, ref pc);
+            _dispatchTable[(byte)Opcode.Rgb] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Rgb(p, ref pc);
+            _dispatchTable[(byte)Opcode.Gradient] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Gradient(p, ref pc);
         }
 
         public List<DreamValue> Stack { get; } = new(128);
@@ -167,10 +171,12 @@ namespace Core.VM.Runtime
                     return new DMReference { RefType = refType, Index = ReadByte(proc, ref pc) };
                 case DMReference.Type.Global:
                 case DMReference.Type.GlobalProc:
+                    return new DMReference { RefType = refType, Index = ReadInt32(proc, ref pc) };
                 case DMReference.Type.Field:
                 case DMReference.Type.SrcProc:
                 case DMReference.Type.SrcField:
-                    return new DMReference { RefType = refType, Index = ReadInt32(proc, ref pc) };
+                    var nameId = ReadInt32(proc, ref pc);
+                    return new DMReference { RefType = refType, Name = _context.Strings[nameId] };
                 default:
                     return new DMReference { RefType = refType };
             }

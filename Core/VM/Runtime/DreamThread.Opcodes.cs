@@ -72,26 +72,82 @@ namespace Core.VM.Runtime
 
         private void Opcode_Call(DreamProc proc, ref int pc)
         {
-            var procId = ReadInt32(proc, ref pc);
-            var argCount = ReadByte(proc, ref pc);
+            var reference = ReadReference(proc, ref pc);
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argStackDelta = ReadInt32(proc, ref pc);
+            var unusedStackDelta = ReadInt32(proc, ref pc);
 
-            var procName = _context.Strings[procId];
-            if (!_context.Procs.TryGetValue(procName, out var newProc))
+            PerformCall(reference, argType, argStackDelta);
+        }
+
+        private void Opcode_CallStatement(DreamProc proc, ref int pc)
+        {
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argStackDelta = ReadInt32(proc, ref pc);
+
+            // Pop object and arguments from stack
+            // CallStatement is like Call but it doesn't push a return value or use a reference
+            // Wait, CallStatement usually calls the object on the stack.
+            var objValue = Stack[Stack.Count - argStackDelta - 1];
+            // In BYOND, CallStatement is used for dynamic calls.
+            // For now, let's just pop everything as ResizeStack(-(argumentStackSize)) was called in compiler.
+            // ResizeStack already happened in the compiler logic (effectively).
+            // Actually, my VM doesn't use ResizeStack, it just Pops.
+
+            // This is complex. Let's simplify for now.
+            Stack.RemoveRange(Stack.Count - argStackDelta - 1, argStackDelta + 1);
+            Push(DreamValue.Null);
+        }
+
+        private void Opcode_PushProc(DreamProc proc, ref int pc)
+        {
+            var procId = ReadInt32(proc, ref pc);
+            if (procId >= 0 && procId < _context.AllProcs.Count)
+            {
+                Push(new DreamValue((IDreamProc)_context.AllProcs[procId]));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int argCount)
+        {
+            IDreamProc? newProc = null;
+            DreamObject? instance = null;
+
+            switch (reference.RefType)
+            {
+                case DMReference.Type.GlobalProc:
+                    if (reference.Index >= 0 && reference.Index < _context.AllProcs.Count)
+                        newProc = _context.AllProcs[reference.Index];
+                    break;
+                case DMReference.Type.SrcProc:
+                    var frame = CallStack.Peek();
+                    instance = frame.Instance;
+                    // TODO: Look up proc on instance
+                    if (instance != null)
+                    {
+                        // For now, use the global dictionary if it's there, but procs should be on ObjectType
+                        _context.Procs.TryGetValue(reference.Name, out newProc);
+                    }
+                    break;
+                default:
+                    // Handle other reference types (Field, etc.) if they can be called
+                    break;
+            }
+
+            if (newProc == null)
             {
                 State = DreamThreadState.Error;
-                throw new Exception($"Attempted to call non-existent proc: {procName}");
+                throw new Exception($"Attempted to call non-existent proc: {reference}");
             }
 
             var stackBase = Stack.Count - argCount;
-            var instanceValue = Stack[stackBase - 1];
-            var instance = instanceValue.GetValueAsDreamObject();
 
             if (newProc is DreamProc dreamProc)
             {
-                var currentFrame = CallStack.Pop();
-                currentFrame.PC = pc;
-                CallStack.Push(currentFrame);
-
                 var frame = new CallFrame(dreamProc, 0, stackBase, instance);
                 CallStack.Push(frame);
 
@@ -108,8 +164,8 @@ namespace Core.VM.Runtime
                     arguments[i] = Stack[stackBase + i];
                 }
 
-                // Remove arguments and instance from stack
-                Stack.RemoveRange(stackBase - 1, argCount + 1);
+                // Remove arguments from stack
+                Stack.RemoveRange(stackBase, argCount);
 
                 var result = nativeProc.Call(this, instance, arguments);
                 Push(result);
@@ -674,6 +730,31 @@ namespace Core.VM.Runtime
             // In a full implementation, this would create a new thread starting at 'address'
             // and schedule it to run after 'delay'.
             Console.WriteLine($"Warning: 'spawn' opcode encountered. Scheduling is not yet implemented. Continuing from address {address} with delay {delay}.");
+        }
+
+        private void Opcode_Rgb(DreamProc proc, ref int pc)
+        {
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argCount = ReadInt32(proc, ref pc);
+
+            var values = new (string? Name, float? Value)[argCount];
+            for (int i = argCount - 1; i >= 0; i--)
+            {
+                // TODO: Handle keyed arguments if argType is FromStackKeyed
+                values[i] = (null, Pop().AsFloat());
+            }
+
+            Push(new DreamValue(SharedOperations.ParseRgb(values)));
+        }
+
+        private void Opcode_Gradient(DreamProc proc, ref int pc)
+        {
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argCount = ReadInt32(proc, ref pc);
+
+            // Stub for gradient
+            for (int i = 0; i < argCount; i++) Pop();
+            Push(new DreamValue("#000000"));
         }
         #endregion
     }

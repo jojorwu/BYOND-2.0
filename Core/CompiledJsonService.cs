@@ -18,6 +18,7 @@ namespace Core
                 throw new ArgumentException("Invalid compiled json object", nameof(compiledJson));
 
             dreamVM.ObjectTypeManager = typeManager;
+            StandardLibrary.Register(dreamVM);
 
             // Load strings
             dreamVM.Strings.Clear();
@@ -32,6 +33,11 @@ namespace Core
 
             // Load procs
             dreamVM.Procs.Clear();
+            if (dreamVM is DreamVM vm)
+            {
+                vm.Context.AllProcs.Clear();
+            }
+
             if (json.Procs != null)
             {
                 foreach (var procJson in json.Procs)
@@ -51,6 +57,14 @@ namespace Core
                         arguments,
                         procJson.Locals?.Count ?? 0
                     );
+
+                    if (dreamVM is DreamVM vm2)
+                    {
+                        vm2.Context.AllProcs.Add(newProc);
+                    }
+
+                    // Global procs are those where OwningTypeId is the root type (or some specific logic)
+                    // For now, let's just use the name for global lookup if it's unique enough or handled elsewhere
                     dreamVM.Procs[newProc.Name] = newProc;
                 }
             }
@@ -96,9 +110,9 @@ namespace Core
 
             // Load globals
             dreamVM.Globals.Clear();
-            if (dreamVM is DreamVM concreteVM)
+            if (dreamVM is DreamVM vm3)
             {
-                concreteVM.Context.GlobalNames.Clear();
+                vm3.Context.GlobalNames.Clear();
             }
 
             if (json.Globals != null)
@@ -108,11 +122,11 @@ namespace Core
                     dreamVM.Globals.Add(DreamValue.Null);
                 }
 
-                if (json.Globals.Names != null && dreamVM is DreamVM vm)
+                if (json.Globals.Names != null && dreamVM is DreamVM vm4)
                 {
                     for (int i = 0; i < json.Globals.Names.Count; i++)
                     {
-                        vm.Context.GlobalNames[json.Globals.Names[i]] = i;
+                        vm4.Context.GlobalNames[json.Globals.Names[i]] = i;
                     }
                 }
 

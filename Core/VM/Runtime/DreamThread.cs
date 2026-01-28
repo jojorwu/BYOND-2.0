@@ -62,10 +62,16 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.Initial] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Initial();
             _dispatchTable[(byte)Opcode.IsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsType();
             _dispatchTable[(byte)Opcode.AsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AsType();
+            _dispatchTable[(byte)Opcode.CreateListEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateListEnumerator(p, ref pc);
+            _dispatchTable[(byte)Opcode.Enumerate] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Enumerate(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.DestroyEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DestroyEnumerator(p, ref pc);
+            _dispatchTable[(byte)Opcode.Append] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Append(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.Remove] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Remove(p, f, ref pc);
         }
 
         public List<DreamValue> Stack { get; } = new(128);
         public Stack<CallFrame> CallStack { get; } = new();
+        public Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators { get; } = new();
 
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;

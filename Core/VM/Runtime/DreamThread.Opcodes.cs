@@ -76,7 +76,7 @@ namespace Core.VM.Runtime
             var argCount = ReadByte(proc, ref pc);
 
             var procName = _context.Strings[procId];
-            if (!_context.Procs.TryGetValue(procName, out var newProc) || newProc is not DreamProc dreamProc)
+            if (!_context.Procs.TryGetValue(procName, out var newProc))
             {
                 State = DreamThreadState.Error;
                 throw new Exception($"Attempted to call non-existent proc: {procName}");
@@ -86,16 +86,33 @@ namespace Core.VM.Runtime
             var instanceValue = Stack[stackBase - 1];
             var instance = instanceValue.GetValueAsDreamObject();
 
-            var currentFrame = CallStack.Pop();
-            currentFrame.PC = pc;
-            CallStack.Push(currentFrame);
-
-            var frame = new CallFrame(dreamProc, 0, stackBase, instance);
-            CallStack.Push(frame);
-
-            for (int i = 0; i < dreamProc.LocalVariableCount; i++)
+            if (newProc is DreamProc dreamProc)
             {
-                Push(DreamValue.Null);
+                var currentFrame = CallStack.Pop();
+                currentFrame.PC = pc;
+                CallStack.Push(currentFrame);
+
+                var frame = new CallFrame(dreamProc, 0, stackBase, instance);
+                CallStack.Push(frame);
+
+                for (int i = 0; i < dreamProc.LocalVariableCount; i++)
+                {
+                    Push(DreamValue.Null);
+                }
+            }
+            else if (newProc is NativeProc nativeProc)
+            {
+                var arguments = new DreamValue[argCount];
+                for (int i = 0; i < argCount; i++)
+                {
+                    arguments[i] = Stack[stackBase + i];
+                }
+
+                // Remove arguments and instance from stack
+                Stack.RemoveRange(stackBase - 1, argCount + 1);
+
+                var result = nativeProc.Call(this, instance, arguments);
+                Push(result);
             }
         }
 
@@ -388,6 +405,78 @@ namespace Core.VM.Runtime
             else
             {
                 Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_CreateListEnumerator(DreamProc proc, ref int pc)
+        {
+            var enumeratorId = ReadInt32(proc, ref pc);
+            var listValue = Pop();
+
+            if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                ActiveEnumerators[enumeratorId] = list.Values.GetEnumerator();
+            }
+            else
+            {
+                ActiveEnumerators[enumeratorId] = Enumerable.Empty<DreamValue>().GetEnumerator();
+            }
+        }
+
+        private void Opcode_Enumerate(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var enumeratorId = ReadInt32(proc, ref pc);
+            var reference = ReadReference(proc, ref pc);
+            var jumpAddress = ReadInt32(proc, ref pc);
+
+            if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
+            {
+                if (enumerator.MoveNext())
+                {
+                    SetReferenceValue(reference, frame, enumerator.Current);
+                }
+                else
+                {
+                    pc = jumpAddress;
+                }
+            }
+            else
+            {
+                pc = jumpAddress;
+            }
+        }
+
+        private void Opcode_DestroyEnumerator(DreamProc proc, ref int pc)
+        {
+            var enumeratorId = ReadInt32(proc, ref pc);
+            if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
+            {
+                enumerator.Dispose();
+                ActiveEnumerators.Remove(enumeratorId);
+            }
+        }
+
+        private void Opcode_Append(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var listValue = GetReferenceValue(reference, frame);
+
+            if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                list.Values.Add(value);
+            }
+        }
+
+        private void Opcode_Remove(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var listValue = GetReferenceValue(reference, frame);
+
+            if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                list.Values.Remove(value);
             }
         }
         #endregion

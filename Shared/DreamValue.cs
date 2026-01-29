@@ -215,35 +215,42 @@ namespace Shared
             throw new InvalidOperationException("Invalid DreamValue type");
         }
 
+        private float GetValueAsFloat()
+        {
+            if (Type == DreamValueType.Float) return _floatValue;
+            if (Type == DreamValueType.Null) return 0;
+            return _floatValue;
+        }
+
         public static DreamValue operator +(DreamValue a, DreamValue b)
         {
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
-                var sA = a.Type == DreamValueType.String ? (string)a._objectValue! : a.ToString();
-                var sB = b.Type == DreamValueType.String ? (string)b._objectValue! : b.ToString();
+                var sA = a.ToString();
+                var sB = b.ToString();
                 return new DreamValue(sA + sB);
             }
 
-            return new DreamValue(a.AsFloat() + b.AsFloat());
+            return new DreamValue(a.GetValueAsFloat() + b.GetValueAsFloat());
         }
 
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
-            return new DreamValue(a.AsFloat() - b.AsFloat());
+            return new DreamValue(a.GetValueAsFloat() - b.GetValueAsFloat());
         }
 
         public static DreamValue operator *(DreamValue a, DreamValue b)
         {
-            return new DreamValue(a.AsFloat() * b.AsFloat());
+            return new DreamValue(a.GetValueAsFloat() * b.GetValueAsFloat());
         }
 
         public static DreamValue operator /(DreamValue a, DreamValue b)
         {
-            var floatB = b.AsFloat();
+            var floatB = b.GetValueAsFloat();
             if (floatB == 0)
                 return new DreamValue(0); // Avoid division by zero
 
-            return new DreamValue(a.AsFloat() / floatB);
+            return new DreamValue(a.GetValueAsFloat() / floatB);
         }
 
         public override bool Equals(object? obj)
@@ -285,27 +292,27 @@ namespace Shared
 
         public static bool operator >(DreamValue a, DreamValue b)
         {
-            return a.AsFloat() > b.AsFloat();
+            return a.GetValueAsFloat() > b.GetValueAsFloat();
         }
 
         public static bool operator <(DreamValue a, DreamValue b)
         {
-            return a.AsFloat() < b.AsFloat();
+            return a.GetValueAsFloat() < b.GetValueAsFloat();
         }
 
         public static bool operator >=(DreamValue a, DreamValue b)
         {
-            return a.AsFloat() >= b.AsFloat();
+            return a.GetValueAsFloat() >= b.GetValueAsFloat();
         }
 
         public static bool operator <=(DreamValue a, DreamValue b)
         {
-            return a.AsFloat() <= b.AsFloat();
+            return a.GetValueAsFloat() <= b.GetValueAsFloat();
         }
 
         public static DreamValue operator -(DreamValue a)
         {
-            return new DreamValue(-a.AsFloat());
+            return new DreamValue(-a.GetValueAsFloat());
         }
 
         public static DreamValue operator !(DreamValue a)
@@ -315,32 +322,32 @@ namespace Shared
 
         public static DreamValue operator &(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.AsFloat() & (int)b.AsFloat());
+            return new DreamValue((int)a.GetValueAsFloat() & (int)b.GetValueAsFloat());
         }
 
         public static DreamValue operator |(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.AsFloat() | (int)b.AsFloat());
+            return new DreamValue((int)a.GetValueAsFloat() | (int)b.GetValueAsFloat());
         }
 
         public static DreamValue operator ^(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.AsFloat() ^ (int)b.AsFloat());
+            return new DreamValue((int)a.GetValueAsFloat() ^ (int)b.GetValueAsFloat());
         }
 
         public static DreamValue operator ~(DreamValue a)
         {
-            return new DreamValue(~(int)a.AsFloat());
+            return new DreamValue(~(int)a.GetValueAsFloat());
         }
 
         public static DreamValue operator <<(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.AsFloat() << (int)b.AsFloat());
+            return new DreamValue((int)a.GetValueAsFloat() << (int)b.GetValueAsFloat());
         }
 
         public static DreamValue operator >>(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.AsFloat() >> (int)b.AsFloat());
+            return new DreamValue((int)a.GetValueAsFloat() >> (int)b.GetValueAsFloat());
         }
 
         public bool IsFalse()

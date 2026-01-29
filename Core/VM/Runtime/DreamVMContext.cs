@@ -13,5 +13,6 @@ namespace Core.VM.Runtime
         public ObjectType? ListType { get; set; }
         public IObjectTypeManager? ObjectTypeManager { get; set; }
         public IGameState? GameState { get; set; }
+        public IScriptHost? ScriptHost { get; set; }
     }
 }

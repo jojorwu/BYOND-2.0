@@ -811,10 +811,12 @@ namespace Core.VM.Runtime
             var address = ReadInt32(proc, ref pc);
             var delay = Pop();
 
-            // For now, spawn is a no-op that just continues.
-            // In a full implementation, this would create a new thread starting at 'address'
-            // and schedule it to run after 'delay'.
-            Console.WriteLine($"Warning: 'spawn' opcode encountered. Scheduling is not yet implemented. Continuing from address {address} with delay {delay}.");
+            var newThread = new DreamThread(this, address);
+            if (delay.TryGetValue(out float seconds))
+            {
+                newThread.Sleep(seconds / 10.0f);
+            }
+            _context.ScriptHost?.AddThread(newThread);
         }
 
         private void Opcode_Rgb(DreamProc proc, ref int pc)
@@ -823,10 +825,21 @@ namespace Core.VM.Runtime
             var argCount = ReadInt32(proc, ref pc);
 
             var values = new (string? Name, float? Value)[argCount];
-            for (int i = argCount - 1; i >= 0; i--)
+            if (argType == DMCallArgumentsType.FromStackKeyed)
             {
-                // TODO: Handle keyed arguments if argType is FromStackKeyed
-                values[i] = (null, Pop().AsFloat());
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    var value = Pop();
+                    var name = Pop().ToString();
+                    values[i] = (name, value.AsFloat());
+                }
+            }
+            else
+            {
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    values[i] = (null, Pop().AsFloat());
+                }
             }
 
             Push(new DreamValue(SharedOperations.ParseRgb(values)));

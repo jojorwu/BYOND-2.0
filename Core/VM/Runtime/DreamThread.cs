@@ -115,6 +115,7 @@ namespace Core.VM.Runtime
 
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
+        public DateTime SleepUntil { get; private set; }
         public IGameObject? AssociatedObject { get; }
 
         private readonly DreamVMContext _context;
@@ -128,6 +129,22 @@ namespace Core.VM.Runtime
             AssociatedObject = associatedObject;
 
             CallStack.Push(new CallFrame(proc, 0, 0, null));
+        }
+
+        public DreamThread(DreamThread other, int pc)
+        {
+            _context = other._context;
+            _maxInstructions = other._maxInstructions;
+            AssociatedObject = other.AssociatedObject;
+
+            var currentFrame = other.CallStack.Peek();
+            CallStack.Push(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
+        }
+
+        public void Sleep(float seconds)
+        {
+            State = DreamThreadState.Sleeping;
+            SleepUntil = DateTime.Now.AddSeconds(seconds);
         }
 
         public void Push(DreamValue value)
@@ -271,6 +288,11 @@ namespace Core.VM.Runtime
 
         public DreamThreadState Run(int instructionBudget)
         {
+            if (State == DreamThreadState.Sleeping && DateTime.Now >= SleepUntil)
+            {
+                State = DreamThreadState.Running;
+            }
+
             if (State != DreamThreadState.Running)
                 return State;
 

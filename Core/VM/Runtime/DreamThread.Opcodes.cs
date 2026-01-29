@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
 using Core.VM.Objects;
@@ -26,22 +27,41 @@ namespace Core.VM.Runtime
         private void Opcode_Add()
         {
             var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] += b;
+            var a = _stack[_stackPtr - 1];
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                _stack[_stackPtr - 1] = new DreamValue(a.RawFloat + b.RawFloat);
+            else
+                _stack[_stackPtr - 1] = a + b;
         }
         private void Opcode_Subtract()
         {
             var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] -= b;
+            var a = _stack[_stackPtr - 1];
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                _stack[_stackPtr - 1] = new DreamValue(a.RawFloat - b.RawFloat);
+            else
+                _stack[_stackPtr - 1] = a - b;
         }
         private void Opcode_Multiply()
         {
             var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] *= b;
+            var a = _stack[_stackPtr - 1];
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                _stack[_stackPtr - 1] = new DreamValue(a.RawFloat * b.RawFloat);
+            else
+                _stack[_stackPtr - 1] = a * b;
         }
         private void Opcode_Divide()
         {
             var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] /= b;
+            var a = _stack[_stackPtr - 1];
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+            {
+                var fb = b.RawFloat;
+                _stack[_stackPtr - 1] = new DreamValue(fb != 0 ? a.RawFloat / fb : 0);
+            }
+            else
+                _stack[_stackPtr - 1] = a / b;
         }
 
         private void Opcode_CompareEquals()
@@ -268,7 +288,8 @@ namespace Core.VM.Runtime
 
         private void Opcode_GetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var variableNameId = ReadInt32(proc, ref pc);
+            var variableNameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+            pc += 4;
             var variableName = _context.Strings[variableNameId];
 
             var instance = frame.Instance;
@@ -284,7 +305,8 @@ namespace Core.VM.Runtime
 
         private void Opcode_SetVariable(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var variableNameId = ReadInt32(proc, ref pc);
+            var variableNameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+            pc += 4;
             var variableName = _context.Strings[variableNameId];
             var value = Pop();
 
@@ -297,15 +319,49 @@ namespace Core.VM.Runtime
 
         private void Opcode_PushReferenceValue(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
-            Push(GetReferenceValue(reference, frame));
+            var refType = (DMReference.Type)proc.Bytecode[pc++];
+            switch (refType)
+            {
+                case DMReference.Type.Local:
+                    Push(_stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]]);
+                    break;
+                case DMReference.Type.Argument:
+                    Push(_stack[frame.StackBase + proc.Bytecode[pc++]]);
+                    break;
+                case DMReference.Type.Global:
+                    Push(_context.GetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc))));
+                    pc += 4;
+                    break;
+                default:
+                    pc--; // Back up and use full path
+                    var reference = ReadReference(proc, ref pc);
+                    Push(GetReferenceValue(reference, frame));
+                    break;
+            }
         }
 
         private void Opcode_Assign(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var refType = (DMReference.Type)proc.Bytecode[pc++];
             var value = _stack[_stackPtr - 1];
-            SetReferenceValue(reference, frame, value);
+            switch (refType)
+            {
+                case DMReference.Type.Local:
+                    _stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]] = value;
+                    break;
+                case DMReference.Type.Argument:
+                    _stack[frame.StackBase + proc.Bytecode[pc++]] = value;
+                    break;
+                case DMReference.Type.Global:
+                    _context.SetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc)), value);
+                    pc += 4;
+                    break;
+                default:
+                    pc--; // Back up
+                    var reference = ReadReference(proc, ref pc);
+                    SetReferenceValue(reference, frame, value);
+                    break;
+            }
         }
 
         private GlobalVarsObject? _globalVars;

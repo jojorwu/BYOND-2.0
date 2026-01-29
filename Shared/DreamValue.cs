@@ -165,6 +165,15 @@ namespace Shared
             return _floatValue;
         }
 
+        public int AsInt()
+        {
+            if (Type != DreamValueType.Float)
+                throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as an int");
+            return (int)_floatValue;
+        }
+
+        public float RawFloat => _floatValue;
+
         public static implicit operator DreamValue(float value) => new DreamValue(value);
         public static implicit operator DreamValue(int value) => new DreamValue((float)value);
         public static implicit operator DreamValue(string value) => new DreamValue(value);

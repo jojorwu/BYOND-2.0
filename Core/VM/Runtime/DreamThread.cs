@@ -241,19 +241,22 @@ namespace Core.VM.Runtime
 
         private DMReference ReadReference(DreamProc proc, ref int pc)
         {
-            var refType = (DMReference.Type)ReadByte(proc, ref pc);
+            var refType = (DMReference.Type)proc.Bytecode[pc++];
             switch (refType)
             {
                 case DMReference.Type.Argument:
                 case DMReference.Type.Local:
-                    return new DMReference { RefType = refType, Index = ReadByte(proc, ref pc) };
+                    return new DMReference { RefType = refType, Index = proc.Bytecode[pc++] };
                 case DMReference.Type.Global:
                 case DMReference.Type.GlobalProc:
-                    return new DMReference { RefType = refType, Index = ReadInt32(proc, ref pc) };
+                    var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                    pc += 4;
+                    return new DMReference { RefType = refType, Index = globalIdx };
                 case DMReference.Type.Field:
                 case DMReference.Type.SrcProc:
                 case DMReference.Type.SrcField:
-                    var nameId = ReadInt32(proc, ref pc);
+                    var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                    pc += 4;
                     return new DMReference { RefType = refType, Name = _context.Strings[nameId] };
                 default:
                     return new DMReference { RefType = refType };

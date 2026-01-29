@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
+using Core.VM.Objects;
 
 using Shared;
 
@@ -40,9 +41,12 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.BitAnd] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitAnd();
             _dispatchTable[(byte)Opcode.BitOr] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitOr();
             _dispatchTable[(byte)Opcode.BitXor] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitXor();
+            _dispatchTable[(byte)Opcode.BitXorReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitXorReference(p, f, ref pc);
             _dispatchTable[(byte)Opcode.BitNot] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitNot();
             _dispatchTable[(byte)Opcode.BitShiftLeft] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftLeft();
+            _dispatchTable[(byte)Opcode.BitShiftLeftReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftLeftReference(p, f, ref pc);
             _dispatchTable[(byte)Opcode.BitShiftRight] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftRight();
+            _dispatchTable[(byte)Opcode.BitShiftRightReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftRightReference(p, f, ref pc);
             _dispatchTable[(byte)Opcode.GetVariable] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetVariable(p, f, ref pc);
             _dispatchTable[(byte)Opcode.SetVariable] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SetVariable(p, f, ref pc);
             _dispatchTable[(byte)Opcode.PushReferenceValue] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushReferenceValue(p, f, ref pc);
@@ -51,14 +55,25 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.IsNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsNull();
             _dispatchTable[(byte)Opcode.JumpIfNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfNull(p, ref pc);
             _dispatchTable[(byte)Opcode.JumpIfNullNoPop] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfNullNoPop(p, ref pc);
+            _dispatchTable[(byte)Opcode.SwitchCase] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchCase(p, ref pc);
+            _dispatchTable[(byte)Opcode.SwitchCaseRange] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchCaseRange(p, ref pc);
             _dispatchTable[(byte)Opcode.BooleanAnd] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanAnd(p, ref pc);
             _dispatchTable[(byte)Opcode.BooleanOr] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanOr(p, ref pc);
             _dispatchTable[(byte)Opcode.Increment] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Increment(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Decrement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Decrement(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Modulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Modulus();
             _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.AssignInto] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignInto(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.ModulusReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusReference(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.ModulusModulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusModulus();
+            _dispatchTable[(byte)Opcode.ModulusModulusReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusModulusReference(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
             _dispatchTable[(byte)Opcode.CreateList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateList(p, ref pc);
+            _dispatchTable[(byte)Opcode.CreateAssociativeList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateAssociativeList(p, ref pc);
+            _dispatchTable[(byte)Opcode.CreateStrictAssociativeList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateStrictAssociativeList(p, ref pc);
             _dispatchTable[(byte)Opcode.IsInList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsInList();
+            _dispatchTable[(byte)Opcode.PickUnweighted] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PickUnweighted(p, ref pc);
+            _dispatchTable[(byte)Opcode.PickWeighted] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PickWeighted(p, ref pc);
             _dispatchTable[(byte)Opcode.DereferenceField] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceField(p, ref pc);
             _dispatchTable[(byte)Opcode.DereferenceIndex] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceIndex();
             _dispatchTable[(byte)Opcode.DereferenceCall] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceCall(p, ref pc);
@@ -67,16 +82,23 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.AsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AsType();
             _dispatchTable[(byte)Opcode.CreateListEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateListEnumerator(p, ref pc);
             _dispatchTable[(byte)Opcode.Enumerate] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Enumerate(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.EnumerateAssoc] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_EnumerateAssoc(p, f, ref pc);
             _dispatchTable[(byte)Opcode.DestroyEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DestroyEnumerator(p, ref pc);
             _dispatchTable[(byte)Opcode.Append] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Append(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Remove] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Remove(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Prob] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Prob();
+            _dispatchTable[(byte)Opcode.GetStep] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetStep();
+            _dispatchTable[(byte)Opcode.GetStepTo] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetStepTo();
+            _dispatchTable[(byte)Opcode.GetDist] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetDist();
+            _dispatchTable[(byte)Opcode.GetDir] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetDir();
             _dispatchTable[(byte)Opcode.MassConcatenation] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_MassConcatenation(p, ref pc);
             _dispatchTable[(byte)Opcode.FormatString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_FormatString(p, ref pc);
             _dispatchTable[(byte)Opcode.Power] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Power();
             _dispatchTable[(byte)Opcode.Sqrt] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Sqrt();
             _dispatchTable[(byte)Opcode.Abs] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Abs();
+            _dispatchTable[(byte)Opcode.MultiplyReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_MultiplyReference(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Sin] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Sin();
+            _dispatchTable[(byte)Opcode.DivideReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DivideReference(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Cos] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Cos();
             _dispatchTable[(byte)Opcode.Tan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Tan();
             _dispatchTable[(byte)Opcode.ArcSin] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcSin();
@@ -100,21 +122,26 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.PushNRefs] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNRefs(p, f, ref pc);
             _dispatchTable[(byte)Opcode.PushNFloats] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNFloats(p, ref pc);
             _dispatchTable[(byte)Opcode.PushStringFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushStringFloat(p, ref pc);
+            _dispatchTable[(byte)Opcode.SwitchOnFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchOnFloat(p, ref pc);
+            _dispatchTable[(byte)Opcode.SwitchOnString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchOnString(p, ref pc);
             _dispatchTable[(byte)Opcode.JumpIfReferenceFalse] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfReferenceFalse(p, f, ref pc);
             _dispatchTable[(byte)Opcode.ReturnFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ReturnFloat(p, ref pc);
             _dispatchTable[(byte)Opcode.NPushFloatAssign] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_NPushFloatAssign(p, f, ref pc);
             _dispatchTable[(byte)Opcode.IsTypeDirect] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsTypeDirect(p, ref pc);
             _dispatchTable[(byte)Opcode.NullRef] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_NullRef(p, f, ref pc);
+            _dispatchTable[(byte)Opcode.IndexRefWithString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IndexRefWithString(p, f, ref pc);
         }
 
         private DreamValue[] _stack = new DreamValue[1024];
         private int _stackPtr = 0;
         public Stack<CallFrame> CallStack { get; } = new();
         public Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators { get; } = new();
+        public Dictionary<int, DreamList> EnumeratorLists { get; } = new();
         public int StackCount => _stackPtr;
 
         public DreamProc CurrentProc => CallStack.Peek().Proc;
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
+        public DateTime SleepUntil { get; private set; }
         public IGameObject? AssociatedObject { get; }
 
         private readonly DreamVMContext _context;
@@ -128,6 +155,22 @@ namespace Core.VM.Runtime
             AssociatedObject = associatedObject;
 
             CallStack.Push(new CallFrame(proc, 0, 0, null));
+        }
+
+        public DreamThread(DreamThread other, int pc)
+        {
+            _context = other._context;
+            _maxInstructions = other._maxInstructions;
+            AssociatedObject = other.AssociatedObject;
+
+            var currentFrame = other.CallStack.Peek();
+            CallStack.Push(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
+        }
+
+        public void Sleep(float seconds)
+        {
+            State = DreamThreadState.Sleeping;
+            SleepUntil = DateTime.Now.AddSeconds(seconds);
         }
 
         public void Push(DreamValue value)
@@ -226,7 +269,7 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Src:
                     return frame.Instance != null ? new DreamValue(frame.Instance) : DreamValue.Null;
                 case DMReference.Type.Global:
-                    return _context.Globals[reference.Index];
+                    return _context.GetGlobal(reference.Index);
                 case DMReference.Type.Argument:
                     return _stack[frame.StackBase + reference.Index];
                 case DMReference.Type.Local:
@@ -238,6 +281,19 @@ namespace Core.VM.Runtime
                     if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                         return dreamObject.GetVariable(reference.Name);
                     return DreamValue.Null;
+                case DMReference.Type.ListIndex:
+                    var index = Pop();
+                    var listValue = Pop();
+                    if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
+                    {
+                        if (index.Type == DreamValueType.Float && index.TryGetValue(out float f))
+                        {
+                            int i = (int)f - 1;
+                            return (i >= 0 && i < list.Values.Count) ? list.Values[i] : DreamValue.Null;
+                        }
+                        return list.GetValue(index);
+                    }
+                    return DreamValue.Null;
                 default:
                     throw new Exception($"Unsupported reference type for reading: {reference.RefType}");
             }
@@ -248,7 +304,7 @@ namespace Core.VM.Runtime
             switch (reference.RefType)
             {
                 case DMReference.Type.Global:
-                    _context.Globals[reference.Index] = value;
+                    _context.SetGlobal(reference.Index, value);
                     break;
                 case DMReference.Type.Argument:
                     _stack[frame.StackBase + reference.Index] = value;
@@ -264,6 +320,25 @@ namespace Core.VM.Runtime
                     if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                         dreamObject.SetVariable(reference.Name, value);
                     break;
+                case DMReference.Type.ListIndex:
+                    var index = Pop();
+                    var listValue = Pop();
+                    if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
+                    {
+                        if (index.Type == DreamValueType.Float && index.TryGetValue(out float f))
+                        {
+                            int i = (int)f - 1;
+                            if (i >= 0 && i < list.Values.Count)
+                                list.Values[i] = value;
+                            else if (i == list.Values.Count)
+                                list.Values.Add(value);
+                        }
+                        else
+                        {
+                            list.SetValue(index, value);
+                        }
+                    }
+                    break;
                 default:
                     throw new Exception($"Unsupported reference type for writing: {reference.RefType}");
             }
@@ -271,6 +346,11 @@ namespace Core.VM.Runtime
 
         public DreamThreadState Run(int instructionBudget)
         {
+            if (State == DreamThreadState.Sleeping && DateTime.Now >= SleepUntil)
+            {
+                State = DreamThreadState.Running;
+            }
+
             if (State != DreamThreadState.Running)
                 return State;
 
@@ -313,9 +393,9 @@ namespace Core.VM.Runtime
                     if (handler != null)
                     {
                         handler(this, ref proc, frame, ref pc);
-                        if (opcode == Opcode.Call || opcode == Opcode.Return)
+                        if (opcode == Opcode.Call || opcode == Opcode.Return || opcode == Opcode.CreateObject || opcode == Opcode.DereferenceCall)
                         {
-                            if (State == DreamThreadState.Running)
+                            if (State == DreamThreadState.Running && CallStack.Count > 0)
                             {
                                 frame = CallStack.Peek();
                                 proc = frame.Proc;

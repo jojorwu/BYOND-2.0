@@ -10,13 +10,13 @@ namespace Server
     {
         private readonly INetworkService _networkService;
         private readonly NetworkEventHandler _networkEventHandler;
-        private readonly IPlayerManager _playerManager;
+        private readonly IServerContext _context;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IPlayerManager playerManager)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
-            _playerManager = playerManager;
+            _context = context;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -40,7 +40,7 @@ namespace Server
         public void BroadcastSnapshot(MergedRegion region, string snapshot)
         {
             foreach(var r in region.Regions)
-                _playerManager.ForEachPlayerInRegion(r, peer => peer.Send(snapshot));
+                _context.PlayerManager.ForEachPlayerInRegion(r, peer => peer.Send(snapshot));
         }
     }
 }

@@ -103,6 +103,20 @@ namespace Core
                 }
             }
 
+            // Map procs to types
+            if (json.Procs != null && dreamVM is DreamVM vm5)
+            {
+                for (int i = 0; i < json.Procs.Length; i++)
+                {
+                    var procJson = json.Procs[i];
+                    var proc = vm5.Context.AllProcs[i];
+                    if (procJson.OwningTypeId >= 0 && procJson.OwningTypeId < objectTypes.Length)
+                    {
+                        objectTypes[procJson.OwningTypeId].Procs[proc.Name] = proc;
+                    }
+                }
+            }
+
             for (int i = 0; i < json.Types.Length; i++)
             {
                 var type = objectTypes[i];

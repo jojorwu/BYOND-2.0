@@ -16,7 +16,7 @@ namespace Core.VM.Objects
         {
             if (_context.GlobalNames.TryGetValue(name, out var index))
             {
-                return _context.Globals[index];
+                return _context.GetGlobal(index);
             }
             return DreamValue.Null;
         }
@@ -25,7 +25,7 @@ namespace Core.VM.Objects
         {
             if (_context.GlobalNames.TryGetValue(name, out var index))
             {
-                _context.Globals[index] = value;
+                _context.SetGlobal(index, value);
             }
         }
     }

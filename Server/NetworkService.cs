@@ -14,9 +14,10 @@ namespace Server
     {
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
-        private readonly ServerSettings _settings;
+        private readonly IServerContext _context;
         private readonly ILogger<NetworkService> _logger;
         private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();
+        private readonly NetDataWriterPool _writerPool = new();
         private Task? _networkTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
@@ -24,14 +25,14 @@ namespace Server
         public event Action<INetworkPeer, DisconnectInfo>? PeerDisconnected;
         public event Action<INetworkPeer, string>? CommandReceived;
 
-        public NetworkService(ServerSettings settings, ILogger<NetworkService> logger)
+        public NetworkService(IServerContext context, ILogger<NetworkService> logger)
         {
-            _settings = settings;
+            _context = context;
             _logger = logger;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
-                DisconnectTimeout = settings.Network.DisconnectTimeout
+                DisconnectTimeout = _context.Settings.Network.DisconnectTimeout
             };
 
             _listener.ConnectionRequestEvent += OnConnectionRequest;
@@ -43,9 +44,9 @@ namespace Server
         public void Start()
         {
             _cancellationTokenSource = new CancellationTokenSource();
-            if (_netManager.Start(_settings.Network.UdpPort))
+            if (_netManager.Start(_context.Settings.Network.UdpPort))
             {
-                _logger.LogInformation($"Network service started on port {_settings.Network.UdpPort}");
+                _logger.LogInformation($"Network service started on port {_context.Settings.Network.UdpPort}");
                 _networkTask = PollEvents(_cancellationTokenSource.Token);
             }
             else
@@ -56,10 +57,12 @@ namespace Server
 
         private async Task PollEvents(CancellationToken token)
         {
+            _logger.LogInformation("Network event polling started.");
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
-                await Task.Delay(15, token);
+                // Lower delay for better responsiveness, but enough to avoid CPU pinning
+                await Task.Delay(5, token);
             }
         }
 
@@ -73,19 +76,20 @@ namespace Server
         private void OnConnectionRequest(ConnectionRequest request)
         {
             _logger.LogInformation($"Incoming connection from {request.RemoteEndPoint}");
-            request.AcceptIfKey(_settings.Network.ConnectionKey);
+            request.AcceptIfKey(_context.Settings.Network.ConnectionKey);
         }
 
         private void OnPeerConnected(NetPeer peer)
         {
             _logger.LogInformation($"Client connected: {peer}");
-            var networkPeer = new UdpNetworkPeer(peer);
+            var networkPeer = new UdpNetworkPeer(peer, _writerPool);
             _peers[peer] = networkPeer;
             PeerConnected?.Invoke(networkPeer);
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
+            _context.PerformanceMonitor.RecordBytesReceived(reader.AvailableBytes);
             if (reader.AvailableBytes > 0)
             {
                 var command = reader.GetString();
@@ -106,9 +110,17 @@ namespace Server
         }
 
         public void BroadcastSnapshot(string snapshot) {
-            var writer = new LiteNetLib.Utils.NetDataWriter();
-            writer.Put(snapshot);
-            _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
+            var writer = _writerPool.Get();
+            try
+            {
+                writer.Put(snapshot);
+                _context.PerformanceMonitor.RecordBytesSent(writer.Length);
+                _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
         }
 
         public void Dispose()

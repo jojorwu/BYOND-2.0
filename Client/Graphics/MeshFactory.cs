@@ -59,5 +59,20 @@ namespace Client.Graphics
 
             return new Mesh(gl, vertices, indices);
         }
+
+        public static Mesh CreatePlane(GL gl)
+        {
+            MeshVertex[] vertices = new[]
+            {
+                new MeshVertex(new Vector3(-0.5f, 0, -0.5f), new Vector3(0, 1, 0), new Vector2(0, 0)),
+                new MeshVertex(new Vector3( 0.5f, 0, -0.5f), new Vector3(0, 1, 0), new Vector2(1, 0)),
+                new MeshVertex(new Vector3( 0.5f, 0,  0.5f), new Vector3(0, 1, 0), new Vector2(1, 1)),
+                new MeshVertex(new Vector3(-0.5f, 0,  0.5f), new Vector3(0, 1, 0), new Vector2(0, 1)),
+            };
+
+            uint[] indices = new uint[] { 0, 1, 2, 2, 3, 0 };
+
+            return new Mesh(gl, vertices, indices);
+        }
     }
 }

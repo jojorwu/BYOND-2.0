@@ -43,5 +43,39 @@ namespace tests
             // Should not find non-existent property
             Assert.That(gameObject.GetVariable("nonExistentProperty"), Is.EqualTo(DreamValue.Null));
         }
+
+        [Test]
+        public void IGameObject_InterfaceMethods_WorkCorrectly()
+        {
+            var type = new ObjectType(1, "/obj");
+            IGameObject obj = new GameObject(type, 1, 2, 3);
+
+            Assert.That(obj.X, Is.EqualTo(1));
+            Assert.That(obj.Y, Is.EqualTo(2));
+            Assert.That(obj.Z, Is.EqualTo(3));
+
+            obj.SetPosition(10, 20, 30);
+            Assert.That(obj.X, Is.EqualTo(10));
+            Assert.That(obj.Y, Is.EqualTo(20));
+            Assert.That(obj.Z, Is.EqualTo(30));
+
+            obj.X = 5;
+            Assert.That(obj.X, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void GetVariableByIndex_WorksCorrectly()
+        {
+            var type = new ObjectType(1, "/obj");
+            type.VariableNames.Add("test");
+            type.FlattenedDefaultValues.Add(100f);
+
+            var obj = new GameObject(type);
+
+            Assert.That(obj.GetVariable(0).AsFloat(), Is.EqualTo(100f));
+
+            obj.SetVariable(0, 200f);
+            Assert.That(obj.GetVariable("test").AsFloat(), Is.EqualTo(200f));
+        }
     }
 }

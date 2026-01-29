@@ -10,6 +10,19 @@ namespace Core
         public static void Register(IDreamVM vm)
         {
             RegisterMath(vm);
+            RegisterSystem(vm);
+        }
+
+        private static void RegisterSystem(IDreamVM vm)
+        {
+            RegisterNativeProc(vm, "sleep", (thread, src, args) =>
+            {
+                if (args.Length > 0 && args[0].TryGetValue(out float seconds))
+                {
+                    thread.Sleep(seconds / 10.0f); // DM sleep is in deciseconds
+                }
+                return DreamValue.Null;
+            });
         }
 
         private static void RegisterMath(IDreamVM vm)

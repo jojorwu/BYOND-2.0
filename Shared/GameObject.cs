@@ -31,6 +31,40 @@ namespace Shared
         /// </summary>
         public int Z { get; set; }
 
+        protected readonly object _contentsLock = new();
+        protected readonly List<IGameObject> _contents = new();
+
+        /// <summary>
+        /// Gets the contents of this game object.
+        /// </summary>
+        public virtual IEnumerable<IGameObject> Contents
+        {
+            get
+            {
+                lock (_contentsLock)
+                {
+                    return new List<IGameObject>(_contents);
+                }
+            }
+        }
+
+        public virtual void AddContent(IGameObject obj)
+        {
+            lock (_contentsLock)
+            {
+                if (!_contents.Contains(obj))
+                    _contents.Add(obj);
+            }
+        }
+
+        public virtual void RemoveContent(IGameObject obj)
+        {
+            lock (_contentsLock)
+            {
+                _contents.Remove(obj);
+            }
+        }
+
         /// <summary>
         /// Gets the TypeName of this game object for serialization.
         /// </summary>

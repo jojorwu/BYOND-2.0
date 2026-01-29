@@ -110,7 +110,7 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argStackDelta = ReadInt32(proc, ref pc);
 
-            _stackPtr -= (argStackDelta + 1);
+            _stackPtr -= argStackDelta;
             Push(DreamValue.Null);
         }
 
@@ -127,7 +127,59 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int argCount)
+        private void Opcode_GetStepTo()
+        {
+            var minDistValue = Pop();
+            var targetValue = Pop();
+            var srcValue = Pop();
+
+            if (srcValue.TryGetValueAsGameObject(out var src) && targetValue.TryGetValueAsGameObject(out var target))
+            {
+                var minDist = minDistValue.AsFloat();
+                var dx = target.X - src.X;
+                var dy = target.Y - src.Y;
+
+                if (Math.Max(Math.Abs(dx), Math.Abs(dy)) <= minDist)
+                {
+                    Push(DreamValue.Null);
+                    return;
+                }
+
+                int stepX = Math.Sign(dx);
+                int stepY = Math.Sign(dy);
+
+                var turf = _context.GameState?.Map?.GetTurf(src.X + stepX, src.Y + stepY, src.Z);
+                Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_GetDist()
+        {
+            var b = Pop();
+            var a = Pop();
+
+            if (a.TryGetValueAsGameObject(out var objA) && b.TryGetValueAsGameObject(out var objB))
+            {
+                if (objA.Z != objB.Z)
+                {
+                    Push(new DreamValue(1000000.0f));
+                    return;
+                }
+                var dx = Math.Abs(objA.X - objB.X);
+                var dy = Math.Abs(objA.Y - objB.Y);
+                Push(new DreamValue((float)Math.Max(dx, dy)));
+            }
+            else
+            {
+                Push(new DreamValue(0.0f));
+            }
+        }
+
+        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int stackDelta)
         {
             IDreamProc? newProc = null;
             DreamObject? instance = null;
@@ -141,11 +193,13 @@ namespace Core.VM.Runtime
                 case DMReference.Type.SrcProc:
                     var frame = CallStack.Peek();
                     instance = frame.Instance;
-                    // TODO: Look up proc on instance
                     if (instance != null)
                     {
-                        // For now, use the global dictionary if it's there, but procs should be on ObjectType
-                        _context.Procs.TryGetValue(reference.Name, out newProc);
+                        newProc = instance.ObjectType.GetProc(reference.Name);
+                        if (newProc == null)
+                        {
+                            _context.Procs.TryGetValue(reference.Name, out newProc);
+                        }
                     }
                     break;
                 default:
@@ -159,32 +213,7 @@ namespace Core.VM.Runtime
                 throw new Exception($"Attempted to call non-existent proc: {reference}");
             }
 
-            var stackBase = _stackPtr - argCount;
-
-            if (newProc is DreamProc dreamProc)
-            {
-                var frame = new CallFrame(dreamProc, 0, stackBase, instance);
-                CallStack.Push(frame);
-
-                for (int i = 0; i < dreamProc.LocalVariableCount; i++)
-                {
-                    Push(DreamValue.Null);
-                }
-            }
-            else if (newProc is NativeProc nativeProc)
-            {
-                var arguments = new DreamValue[argCount];
-                for (int i = 0; i < argCount; i++)
-                {
-                    arguments[i] = _stack[stackBase + i];
-                }
-
-                // Remove arguments from stack
-                _stackPtr -= argCount;
-
-                var result = nativeProc.Call(this, instance, arguments);
-                Push(result);
-            }
+            PerformCall(newProc, instance, stackDelta, stackDelta);
         }
 
         private void Opcode_Jump(DreamProc proc, ref int pc)
@@ -204,6 +233,13 @@ namespace Core.VM.Runtime
         private void Opcode_Output()
         {
             var value = Pop();
+            Console.WriteLine(value.ToString());
+        }
+
+        private void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = GetReferenceValue(reference, frame);
             Console.WriteLine(value.ToString());
         }
 
@@ -301,6 +337,25 @@ namespace Core.VM.Runtime
                 pc = address;
         }
 
+        private void Opcode_SwitchCase(DreamProc proc, ref int pc)
+        {
+            var caseValue = Pop();
+            var switchValue = Peek();
+            var jumpAddress = ReadInt32(proc, ref pc);
+            if (switchValue == caseValue)
+                pc = jumpAddress;
+        }
+
+        private void Opcode_SwitchCaseRange(DreamProc proc, ref int pc)
+        {
+            var max = Pop();
+            var min = Pop();
+            var switchValue = Peek();
+            var jumpAddress = ReadInt32(proc, ref pc);
+            if (switchValue >= min && switchValue <= max)
+                pc = jumpAddress;
+        }
+
         private void Opcode_BitAnd()
         {
             var b = _stack[--_stackPtr];
@@ -326,6 +381,30 @@ namespace Core.VM.Runtime
         {
             var b = _stack[--_stackPtr];
             _stack[_stackPtr - 1] >>= b;
+        }
+
+        private void Opcode_BitShiftLeftReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, refValue << value);
+        }
+
+        private void Opcode_BitShiftRightReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, refValue >> value);
+        }
+
+        private void Opcode_BitXorReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, refValue ^ value);
         }
 
         private void Opcode_BooleanAnd(DreamProc proc, ref int pc)
@@ -374,11 +453,146 @@ namespace Core.VM.Runtime
             _stack[_stackPtr - 1] = new DreamValue((float)Math.IEEERemainder(_stack[_stackPtr - 1].AsFloat(), b.AsFloat()));
         }
 
+        private void Opcode_ModulusModulus()
+        {
+            var b = _stack[--_stackPtr];
+            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1].AsFloat() % b.AsFloat());
+        }
+
+        private void Opcode_ModulusReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, new DreamValue((float)Math.IEEERemainder(refValue.AsFloat(), value.AsFloat())));
+        }
+
+        private void Opcode_ModulusModulusReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, new DreamValue(refValue.AsFloat() % value.AsFloat()));
+        }
+
         private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc, ref pc);
             var value = Pop();
             SetReferenceValue(reference, frame, value);
+        }
+
+        private void Opcode_AssignInto(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            SetReferenceValue(reference, frame, value);
+            Push(value);
+        }
+
+        private void Opcode_GetStep()
+        {
+            var dirValue = Pop();
+            var objValue = Pop();
+
+            if (objValue.TryGetValue(out DreamObject? obj) && obj is GameObject gameObject)
+            {
+                var dir = (int)dirValue.AsFloat();
+                int dx = 0, dy = 0;
+                if ((dir & 1) != 0) dy++; // NORTH
+                if ((dir & 2) != 0) dy--; // SOUTH
+                if ((dir & 4) != 0) dx++; // EAST
+                if ((dir & 8) != 0) dx--; // WEST
+
+                var turf = _context.GameState?.Map?.GetTurf(gameObject.X + dx, gameObject.Y + dy, gameObject.Z);
+                Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
+        }
+
+        private void Opcode_GetDir()
+        {
+            var targetValue = Pop();
+            var sourceValue = Pop();
+
+            if (sourceValue.TryGetValue(out DreamObject? src) && src is GameObject srcObj &&
+                targetValue.TryGetValue(out DreamObject? dst) && dst is GameObject dstObj)
+            {
+                int dx = dstObj.X - srcObj.X;
+                int dy = dstObj.Y - srcObj.Y;
+
+                int dir = 0;
+                if (dy > 0) dir |= 1; // NORTH
+                else if (dy < 0) dir |= 2; // SOUTH
+                if (dx > 0) dir |= 4; // EAST
+                else if (dx < 0) dir |= 8; // WEST
+
+                Push(new DreamValue((float)dir));
+            }
+            else
+            {
+                Push(new DreamValue(0f));
+            }
+        }
+
+        private void Opcode_PickUnweighted(DreamProc proc, ref int pc)
+        {
+            var count = ReadInt32(proc, ref pc);
+            if (count == 0)
+            {
+                Push(DreamValue.Null);
+                return;
+            }
+
+            var values = new DreamValue[count];
+            for (int i = count - 1; i >= 0; i--)
+                values[i] = Pop();
+
+            var result = values[Random.Shared.Next(0, count)];
+            Push(result);
+        }
+
+        private void Opcode_PickWeighted(DreamProc proc, ref int pc)
+        {
+            var count = ReadInt32(proc, ref pc);
+            if (count == 0)
+            {
+                Push(DreamValue.Null);
+                return;
+            }
+
+            var values = new (DreamValue Value, float Weight)[count];
+            float totalWeight = 0;
+            for (int i = count - 1; i >= 0; i--)
+            {
+                var weight = Pop().AsFloat();
+                var val = Pop();
+                values[i] = (val, weight);
+                totalWeight += weight;
+            }
+
+            if (totalWeight <= 0)
+            {
+                Push(values[0].Value);
+                return;
+            }
+
+            var pick = (float)Random.Shared.NextDouble() * totalWeight;
+            float currentWeight = 0;
+            for (int i = 0; i < count; i++)
+            {
+                currentWeight += values[i].Weight;
+                if (pick <= currentWeight)
+                {
+                    Push(values[i].Value);
+                    return;
+                }
+            }
+
+            Push(values[count - 1].Value);
         }
 
         private void Opcode_CreateList(DreamProc proc, ref int pc)
@@ -390,6 +604,25 @@ namespace Core.VM.Runtime
                 list.Values[i] = Pop();
             }
             Push(new DreamValue(list));
+        }
+
+        private void Opcode_CreateAssociativeList(DreamProc proc, ref int pc)
+        {
+            var size = ReadInt32(proc, ref pc);
+            var list = new DreamList(_context.ListType!);
+            for (int i = 0; i < size; i++)
+            {
+                var value = Pop();
+                var key = Pop();
+                list.SetValue(key, value);
+            }
+            Push(new DreamValue(list));
+        }
+
+        private void Opcode_CreateStrictAssociativeList(DreamProc proc, ref int pc)
+        {
+            // Same for now
+            Opcode_CreateAssociativeList(proc, ref pc);
         }
 
         private void Opcode_IsInList()
@@ -430,7 +663,7 @@ namespace Core.VM.Runtime
 
             if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
-                if (indexValue.TryGetValue(out float indexFloat))
+                if (indexValue.Type == DreamValueType.Float && indexValue.TryGetValue(out float indexFloat))
                 {
                     int index = (int)indexFloat - 1; // DM indices are 1-based
                     if (index >= 0 && index < list.Values.Count)
@@ -438,6 +671,12 @@ namespace Core.VM.Runtime
                         Push(list.Values[index]);
                         return;
                     }
+                }
+                else
+                {
+                    // Associative lookup
+                    Push(list.GetValue(indexValue));
+                    return;
                 }
             }
             Push(DreamValue.Null);
@@ -447,19 +686,73 @@ namespace Core.VM.Runtime
         {
             var procNameId = ReadInt32(proc, ref pc);
             var procName = _context.Strings[procNameId];
-            var argCount = ReadByte(proc, ref pc);
-            // In a real implementation, we would look up the proc on the object and call it.
-            // For now, let's just pop arguments and push null.
-            for (int i = 0; i < argCount; i++) Pop();
-            Pop(); // Pop object
+            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
+            var argStackDelta = ReadInt32(proc, ref pc);
+
+            var objValue = _stack[_stackPtr - argStackDelta];
+            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                var targetProc = obj.ObjectType.GetProc(procName);
+                if (targetProc != null)
+                {
+                    PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
+                    return;
+                }
+            }
+
+            // Fallback: pop everything and push null
+            _stackPtr -= argStackDelta;
             Push(DreamValue.Null);
+        }
+
+        private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount)
+        {
+            var stackBase = _stackPtr - stackDelta;
+
+            if (newProc is DreamProc dreamProc)
+            {
+                var frame = new CallFrame(dreamProc, 0, stackBase, instance);
+                CallStack.Push(frame);
+
+                for (int i = 0; i < dreamProc.LocalVariableCount; i++)
+                {
+                    Push(DreamValue.Null);
+                }
+            }
+            else if (newProc is NativeProc nativeProc)
+            {
+                var arguments = new DreamValue[argCount];
+                var argBase = _stackPtr - argCount;
+                for (int i = 0; i < argCount; i++)
+                {
+                    arguments[i] = _stack[argBase + i];
+                }
+
+                // Remove everything (args + optional obj) from stack
+                _stackPtr = stackBase;
+
+                var result = nativeProc.Call(this, instance, arguments);
+                Push(result);
+            }
         }
 
         private void Opcode_Initial()
         {
-            // Pops a variable reference and pushes its initial value.
-            // Simplified: pop object and push null.
-            Pop();
+            var key = Pop();
+            var objValue = Pop();
+
+            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                if (key.TryGetValue(out string? varName) && varName != null)
+                {
+                    int index = obj.ObjectType.GetVariableIndex(varName);
+                    if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
+                    {
+                        Push(DreamValue.FromObject(obj.ObjectType.FlattenedDefaultValues[index]));
+                        return;
+                    }
+                }
+            }
             Push(DreamValue.Null);
         }
 
@@ -510,6 +803,7 @@ namespace Core.VM.Runtime
             if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
                 ActiveEnumerators[enumeratorId] = list.Values.GetEnumerator();
+                EnumeratorLists[enumeratorId] = list;
             }
             else
             {
@@ -540,6 +834,38 @@ namespace Core.VM.Runtime
             }
         }
 
+        private void Opcode_EnumerateAssoc(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var enumeratorId = ReadInt32(proc, ref pc);
+            var assocRef = ReadReference(proc, ref pc);
+            var outputRef = ReadReference(proc, ref pc);
+            var jumpAddress = ReadInt32(proc, ref pc);
+
+            if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
+            {
+                if (enumerator.MoveNext())
+                {
+                    var key = enumerator.Current;
+                    SetReferenceValue(outputRef, frame, key);
+
+                    DreamValue value = DreamValue.Null;
+                    if (EnumeratorLists.TryGetValue(enumeratorId, out var list))
+                    {
+                        value = list.GetValue(key);
+                    }
+                    SetReferenceValue(assocRef, frame, value);
+                }
+                else
+                {
+                    pc = jumpAddress;
+                }
+            }
+            else
+            {
+                pc = jumpAddress;
+            }
+        }
+
         private void Opcode_DestroyEnumerator(DreamProc proc, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
@@ -548,6 +874,7 @@ namespace Core.VM.Runtime
                 enumerator.Dispose();
                 ActiveEnumerators.Remove(enumeratorId);
             }
+            EnumeratorLists.Remove(enumeratorId);
         }
 
         private void Opcode_Append(DreamProc proc, CallFrame frame, ref int pc)
@@ -645,6 +972,23 @@ namespace Core.VM.Runtime
         }
         private void Opcode_Sqrt() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Sqrt(_stack[_stackPtr - 1].AsFloat()));
         private void Opcode_Abs() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Abs(_stack[_stackPtr - 1].AsFloat()));
+
+        private void Opcode_MultiplyReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, refValue * value);
+        }
+
+        private void Opcode_DivideReference(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var value = Pop();
+            var refValue = GetReferenceValue(reference, frame);
+            SetReferenceValue(reference, frame, refValue / value);
+        }
+
         private void Opcode_Sin() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Sin(_stack[_stackPtr - 1].AsFloat()));
         private void Opcode_Cos() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Cos(_stack[_stackPtr - 1].AsFloat()));
         private void Opcode_Tan() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Tan(_stack[_stackPtr - 1].AsFloat()));
@@ -674,8 +1018,9 @@ namespace Core.VM.Runtime
         private void Opcode_CreateObject(DreamProc proc, ref int pc)
         {
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
-            var argCount = ReadInt32(proc, ref pc);
+            var argStackDelta = ReadInt32(proc, ref pc);
 
+            var argCount = argStackDelta - 1;
             var values = new DreamValue[argCount];
             for (int i = argCount - 1; i >= 0; i--)
             {
@@ -688,9 +1033,18 @@ namespace Core.VM.Runtime
                 var newObj = new GameObject(type);
                 _context.GameState?.AddGameObject(newObj);
 
-                // TODO: Call /proc/New with arguments
-
                 Push(new DreamValue(newObj));
+
+                var newProc = newObj.ObjectType.GetProc("New");
+                if (newProc != null)
+                {
+                    // Push arguments for New
+                    for (int i = 0; i < argCount; i++)
+                    {
+                        Push(values[i]);
+                    }
+                    PerformCall(newProc, newObj, argCount + 1, argCount);
+                }
             }
             else
             {
@@ -709,10 +1063,8 @@ namespace Core.VM.Runtime
                 var turf = _context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
                 if (turf != null)
                 {
-                    // For now, we assume we need to wrap Turf in a DreamValue.
-                    // If Turf is not a DreamObject, we might need a wrapper.
-                    // Looking at existing code, Turf seems to be a specialized object.
-                    Push(new DreamValue((DreamObject)(object)turf));
+                    // Turf is ITurf, but the implementation inherits from GameObject which is a DreamObject
+                    Push(new DreamValue((GameObject)turf));
                     return;
                 }
             }
@@ -726,14 +1078,42 @@ namespace Core.VM.Runtime
 
             if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
             {
-                if (containerValue.Type == DreamValueType.DreamObject && containerValue.TryGetValue(out DreamObject? container) && container is DreamList list)
+                if (containerValue.Type == DreamValueType.DreamObject && containerValue.TryGetValue(out DreamObject? container))
                 {
-                    foreach (var item in list.Values)
+                    if (container is DreamList list)
                     {
-                        if (item.Type == DreamValueType.DreamObject && item.TryGetValue(out DreamObject? obj) && obj != null && obj.ObjectType.IsSubtypeOf(type))
+                        foreach (var item in list.Values)
                         {
-                            Push(item);
-                            return;
+                            if (item.Type == DreamValueType.DreamObject && item.TryGetValue(out DreamObject? obj) && obj != null && obj.ObjectType.IsSubtypeOf(type))
+                            {
+                                Push(item);
+                                return;
+                            }
+                        }
+                    }
+                    else if (container is GameObject gameObject)
+                    {
+                        foreach (var content in gameObject.Contents)
+                        {
+                            if (content.ObjectType.IsSubtypeOf(type) && content is GameObject contentObj)
+                            {
+                                Push(new DreamValue(contentObj));
+                                return;
+                            }
+                        }
+                    }
+                }
+                else if (containerValue.IsNull)
+                {
+                    if (_context.GameState != null)
+                    {
+                        foreach (var obj in _context.GameState.GameObjects.Values)
+                        {
+                            if (obj.ObjectType.IsSubtypeOf(type))
+                            {
+                                Push(new DreamValue(obj));
+                                return;
+                            }
                         }
                     }
                 }
@@ -765,15 +1145,25 @@ namespace Core.VM.Runtime
             Console.WriteLine($"Script threw an error: {value}");
         }
 
+        private void Opcode_IsInRange()
+        {
+            var max = Pop();
+            var min = Pop();
+            var val = Pop();
+            Push(new DreamValue(val >= min && val <= max ? 1 : 0));
+        }
+
         private void Opcode_Spawn(DreamProc proc, ref int pc)
         {
             var address = ReadInt32(proc, ref pc);
             var delay = Pop();
 
-            // For now, spawn is a no-op that just continues.
-            // In a full implementation, this would create a new thread starting at 'address'
-            // and schedule it to run after 'delay'.
-            Console.WriteLine($"Warning: 'spawn' opcode encountered. Scheduling is not yet implemented. Continuing from address {address} with delay {delay}.");
+            var newThread = new DreamThread(this, address);
+            if (delay.TryGetValue(out float seconds))
+            {
+                newThread.Sleep(seconds / 10.0f);
+            }
+            _context.ScriptHost?.AddThread(newThread);
         }
 
         private void Opcode_Rgb(DreamProc proc, ref int pc)
@@ -782,10 +1172,21 @@ namespace Core.VM.Runtime
             var argCount = ReadInt32(proc, ref pc);
 
             var values = new (string? Name, float? Value)[argCount];
-            for (int i = argCount - 1; i >= 0; i--)
+            if (argType == DMCallArgumentsType.FromStackKeyed)
             {
-                // TODO: Handle keyed arguments if argType is FromStackKeyed
-                values[i] = (null, Pop().AsFloat());
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    var value = Pop();
+                    var name = Pop().ToString();
+                    values[i] = (name, value.AsFloat());
+                }
+            }
+            else
+            {
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    values[i] = (null, Pop().AsFloat());
+                }
             }
 
             Push(new DreamValue(SharedOperations.ParseRgb(values)));
@@ -796,8 +1197,30 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argCount = ReadInt32(proc, ref pc);
 
-            // Stub for gradient
-            for (int i = 0; i < argCount; i++) Pop();
+            var values = new DreamValue[argCount];
+            for (int i = argCount - 1; i >= 0; i--)
+            {
+                values[i] = Pop();
+            }
+
+            if (argCount >= 3)
+            {
+                // Simple 2-color interpolation: gradient(color1, color2, index)
+                var color1Str = values[0].ToString();
+                var color2Str = values[1].ToString();
+                var index = values[2].AsFloat();
+
+                var c1 = Robust.Shared.Maths.Color.TryFromHex(color1Str);
+                var c2 = Robust.Shared.Maths.Color.TryFromHex(color2Str);
+
+                if (c1.HasValue && c2.HasValue)
+                {
+                    var interpolated = Robust.Shared.Maths.Color.InterpolateBetween(c1.Value, c2.Value, Math.Clamp(index / 100f, 0, 1));
+                    Push(new DreamValue(interpolated.ToHex()));
+                    return;
+                }
+            }
+
             Push(new DreamValue("#000000"));
         }
 
@@ -857,6 +1280,24 @@ namespace Core.VM.Runtime
             Push(new DreamValue(value));
         }
 
+        private void Opcode_SwitchOnFloat(DreamProc proc, ref int pc)
+        {
+            var value = ReadSingle(proc, ref pc);
+            var jumpAddress = ReadInt32(proc, ref pc);
+            var switchValue = Peek();
+            if (switchValue.Type == DreamValueType.Float && switchValue.AsFloat() == value)
+                pc = jumpAddress;
+        }
+
+        private void Opcode_SwitchOnString(DreamProc proc, ref int pc)
+        {
+            var stringId = ReadInt32(proc, ref pc);
+            var jumpAddress = ReadInt32(proc, ref pc);
+            var switchValue = Peek();
+            if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == _context.Strings[stringId])
+                pc = jumpAddress;
+        }
+
         private void Opcode_JumpIfReferenceFalse(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc, ref pc);
@@ -907,6 +1348,23 @@ namespace Core.VM.Runtime
         {
             var reference = ReadReference(proc, ref pc);
             SetReferenceValue(reference, frame, DreamValue.Null);
+        }
+
+        private void Opcode_IndexRefWithString(DreamProc proc, CallFrame frame, ref int pc)
+        {
+            var reference = ReadReference(proc, ref pc);
+            var stringId = ReadInt32(proc, ref pc);
+            var stringValue = new DreamValue(_context.Strings[stringId]);
+
+            var objValue = GetReferenceValue(reference, frame);
+            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+            {
+                Push(list.GetValue(stringValue));
+            }
+            else
+            {
+                Push(DreamValue.Null);
+            }
         }
         #endregion
     }

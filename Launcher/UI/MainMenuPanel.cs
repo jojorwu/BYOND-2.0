@@ -1,6 +1,7 @@
 using ImGuiNET;
 using System.Numerics;
 using System;
+using System.Collections.Generic;
 
 namespace Launcher.UI
 {
@@ -16,6 +17,12 @@ namespace Launcher.UI
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
 
+        private int _selectedTab = 0;
+        private readonly List<string> _tabs = new() { "Home", "Play", "Develop", "Settings" };
+
+        private bool _checkForUpdates = true;
+        private bool _sendAnalytics = false;
+
         public MainMenuPanel(Texture? logoTexture)
         {
             _logoTexture = logoTexture;
@@ -29,60 +36,155 @@ namespace Launcher.UI
 
         public void Draw()
         {
-            ImGui.StyleColorsDark(); // Use a dark theme
+            var io = ImGui.GetIO();
+            var displaySize = io.DisplaySize;
 
-            // Create a full-screen, non-interactable window to serve as a background
+            // Background
             ImGui.SetNextWindowPos(Vector2.Zero);
-            ImGui.SetNextWindowSize(ImGui.GetIO().DisplaySize);
+            ImGui.SetNextWindowSize(displaySize);
             ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 0.0f);
             ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0.0f);
-            ImGui.Begin("MainMenuBackground",
-                ImGuiWindowFlags.NoDecoration |
-                ImGuiWindowFlags.NoResize |
-                ImGuiWindowFlags.NoMove |
-                ImGuiWindowFlags.NoBringToFrontOnFocus |
-                ImGuiWindowFlags.NoFocusOnAppearing);
+            ImGui.Begin("Background", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoBringToFrontOnFocus);
             ImGui.PopStyleVar(2);
             ImGui.End();
 
-            // Main menu window
-            ImGui.SetNextWindowPos(new Vector2(ImGui.GetIO().DisplaySize.X * 0.5f, ImGui.GetIO().DisplaySize.Y * 0.5f), ImGuiCond.Always, new Vector2(0.5f, 0.5f));
-            ImGui.Begin("Main Menu", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize);
+            // Side bar
+            float sidebarWidth = 150;
+            ImGui.SetNextWindowPos(Vector2.Zero);
+            ImGui.SetNextWindowSize(new Vector2(sidebarWidth, displaySize.Y));
+            ImGui.Begin("Sidebar", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove);
 
             if (_logoTexture != null)
             {
-                ImGui.Image((IntPtr)_logoTexture.Handle, new Vector2(_logoTexture.Width, _logoTexture.Height));
+                float logoWidth = sidebarWidth - 24;
+                float logoHeight = (float)_logoTexture.Height / _logoTexture.Width * logoWidth;
+                ImGui.SetCursorPosX(12);
+                ImGui.Image((IntPtr)_logoTexture.Handle, new Vector2(logoWidth, logoHeight));
+                ImGui.Spacing();
+                ImGui.Separator();
                 ImGui.Spacing();
             }
 
-            if (ImGui.Button("Server Browser", new Vector2(200, 40)))
+            for (int i = 0; i < _tabs.Count; i++)
             {
-                IsServerBrowserRequested = true;
+                bool isSelected = _selectedTab == i;
+                if (isSelected) ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonActive]);
+
+                if (ImGui.Button(_tabs[i], new Vector2(sidebarWidth - 16, 40)))
+                {
+                    _selectedTab = i;
+                }
+
+                if (isSelected) ImGui.PopStyleColor();
+                ImGui.Spacing();
             }
-            ImGui.Spacing();
-            if (ImGui.Button("Project Editor", new Vector2(200, 40)))
-            {
-                IsEditorRequested = true;
-            }
-            ImGui.Spacing();
-            if (ImGui.Button("Start Local Server", new Vector2(200, 40)))
-            {
-                IsServerRequested = true;
-            }
-            ImGui.Spacing();
-            if (ImGui.Button("Start Client", new Vector2(200, 40)))
-            {
-                IsClientRequested = true;
-            }
-            ImGui.Spacing();
-            if (ImGui.Button("Exit", new Vector2(200, 40)))
+
+            ImGui.SetCursorPosY(displaySize.Y - 50);
+            if (ImGui.Button("Exit", new Vector2(sidebarWidth - 16, 40)))
             {
                 IsExitRequested = true;
             }
 
             ImGui.End();
 
+            // Main Content Area
+            ImGui.SetNextWindowPos(new Vector2(sidebarWidth, 0));
+            ImGui.SetNextWindowSize(new Vector2(displaySize.X - sidebarWidth, displaySize.Y));
+            ImGui.Begin("Content", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove);
+
+            DrawTabContent();
+
+            ImGui.End();
+
             DrawErrorModal();
+        }
+
+        private void DrawTabContent()
+        {
+            ImGui.PushFont(ImGui.GetIO().Fonts.Fonts[0]); // Assumes default font for now
+            ImGui.TextDisabled($"Launcher > {_tabs[_selectedTab]}");
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            switch (_selectedTab)
+            {
+                case 0: // Home
+                    DrawHomeTab();
+                    break;
+                case 1: // Play
+                    DrawPlayTab();
+                    break;
+                case 2: // Develop
+                    DrawDevelopTab();
+                    break;
+                case 3: // Settings
+                    DrawSettingsTab();
+                    break;
+            }
+        }
+
+        private void DrawHomeTab()
+        {
+            ImGui.TextWrapped("Welcome to BYOND 2.0! This engine is designed for high-performance multiplayer games with a focus on deep simulation and community-driven content.");
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Latest News:");
+            ImGui.BeginChild("News", new Vector2(0, 0), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+            ImGui.TextWrapped("- [2024-05-20] Multi-threaded Z-level processing implemented.");
+            ImGui.TextWrapped("- [2024-05-18] Hot-reloading via Lua now supports complex object hierarchies.");
+            ImGui.TextWrapped("- [2024-05-15] New 2.5D rendering pipeline added to the Client.");
+            ImGui.EndChild();
+        }
+
+        private void DrawPlayTab()
+        {
+            if (ImGui.Button("Server Browser", new Vector2(250, 50)))
+            {
+                IsServerBrowserRequested = true;
+            }
+            ImGui.TextDisabled("Find and join community servers.");
+
+            ImGui.Spacing();
+            ImGui.Spacing();
+
+            if (ImGui.Button("Start Client (Direct Connect)", new Vector2(250, 50)))
+            {
+                IsClientRequested = true;
+            }
+            ImGui.TextDisabled("Open the client to manually enter a server address.");
+        }
+
+        private void DrawDevelopTab()
+        {
+            if (ImGui.Button("Open Project Editor", new Vector2(250, 50)))
+            {
+                IsEditorRequested = true;
+            }
+            ImGui.TextDisabled("Create and edit your game maps, scripts, and assets.");
+
+            ImGui.Spacing();
+            ImGui.Spacing();
+
+            if (ImGui.Button("Start Local Server", new Vector2(250, 50)))
+            {
+                IsServerRequested = true;
+            }
+            ImGui.TextDisabled("Host a server on your local machine for testing.");
+        }
+
+        private void DrawSettingsTab()
+        {
+            ImGui.Text("Launcher Settings");
+            ImGui.Separator();
+
+            ImGui.Checkbox("Check for updates on startup", ref _checkForUpdates);
+
+            ImGui.Checkbox("Send anonymous usage data", ref _sendAnalytics);
+
+            ImGui.Spacing();
+            if (ImGui.Button("Clear Cache"))
+            {
+                // Action
+            }
         }
 
         private void DrawErrorModal()
@@ -90,7 +192,7 @@ namespace Launcher.UI
             if (_showErrorModal)
             {
                 ImGui.OpenPopup("Error");
-                _showErrorModal = false; // Reset flag after opening the popup
+                _showErrorModal = false;
             }
 
             if (ImGui.BeginPopupModal("Error", ref _showErrorModal, ImGuiWindowFlags.AlwaysAutoResize))

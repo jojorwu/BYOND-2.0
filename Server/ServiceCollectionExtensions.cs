@@ -3,7 +3,9 @@ using Core.VM.Runtime;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Shared;
+using System;
 
 namespace Server
 {
@@ -11,22 +13,30 @@ namespace Server
     {
         public static IServiceCollection AddServerHostedServices(this IServiceCollection services)
         {
+            // Diagnostics
+            services.AddSingleton<PerformanceMonitor>();
+
+            // Core Server Context
+            services.AddSingleton<IServerContext, ServerContext>();
+
+            // Scripting logic
+            services.AddSingleton<IScriptWatcher, ScriptWatcher>();
             services.AddSingleton(provider => new ScriptHost(
-                provider.GetRequiredService<IProject>(),
+                provider.GetRequiredService<IScriptWatcher>(),
                 provider.GetRequiredService<ServerSettings>(),
                 provider.GetRequiredService<IServiceProvider>(),
                 provider.GetRequiredService<ILogger<ScriptHost>>(),
                 provider.GetRequiredService<IGameState>()
             ));
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
-            services.AddHostedService(provider => provider.GetRequiredService<ScriptHost>());
 
+            // Networking
             services.AddSingleton<INetworkService, NetworkService>();
             services.AddSingleton<NetworkEventHandler>();
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
-            services.AddHostedService(provider => provider.GetRequiredService<UdpServer>());
 
+            // Game Loop strategies
             services.AddSingleton<IGameStateSnapshotter, GameStateSnapshotter>();
             services.AddSingleton(provider => new GlobalGameLoopStrategy(
                 provider.GetRequiredService<IScriptHost>(),
@@ -58,11 +68,13 @@ namespace Server
                 }
             });
 
+            // Services that will be managed by ServerApplication
             services.AddSingleton<GameLoop>();
-            services.AddHostedService(provider => provider.GetRequiredService<GameLoop>());
-
             services.AddSingleton<HttpServer>();
-            services.AddHostedService<HttpServer>();
+
+            // The main application coordinator
+            services.AddSingleton<ServerApplication>();
+            services.AddHostedService(provider => provider.GetRequiredService<ServerApplication>());
 
             return services;
         }

@@ -63,24 +63,21 @@ namespace Editor.UI
                         selectedObject.SetPosition(position[0], position[1], position[2]);
                     }
 
-                    var allProperties = new Dictionary<string, object?>(selectedObject.ObjectType.DefaultProperties);
-                    foreach (var prop in selectedObject.Properties)
+                    for (int i = 0; i < selectedObject.ObjectType.VariableNames.Count; i++)
                     {
-                        allProperties[prop.Key] = prop.Value;
-                    }
+                        var varName = selectedObject.ObjectType.VariableNames[i];
+                        var varValue = selectedObject.GetVariable(i);
 
-                    foreach (var prop in allProperties)
-                    {
-                        if (prop.Value is DreamResource resource)
+                        if (varValue.TryGetValue(out DreamResource? resource) && resource != null)
                         {
-                            ImGui.Text($"{prop.Key}: {resource.Type} ('{resource.Path}')");
+                            ImGui.Text($"{varName}: {resource.Type} ('{resource.Path}')");
                         }
                         else
                         {
-                            string valueStr = prop.Value?.ToString() ?? "";
-                            if (ImGui.InputText(prop.Key, ref valueStr, 256))
+                            string valueStr = varValue.ToString();
+                            if (ImGui.InputText(varName, ref valueStr, 256))
                             {
-                                selectedObject.Properties[prop.Key] = valueStr;
+                                selectedObject.SetVariable(varName, valueStr);
                             }
                         }
                     }

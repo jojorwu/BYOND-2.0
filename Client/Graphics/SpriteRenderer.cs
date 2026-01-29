@@ -23,52 +23,41 @@ namespace Client.Graphics
         }
     }
 
+    public struct SpriteDrawCommand
+    {
+        public uint TextureId;
+        public Box2 Uv;
+        public Vector2 Position;
+        public Vector2 Size;
+        public Color Color;
+        public float Layer;
+        public int Plane;
+        public Box2? Scissor;
+        public float Rotation;
+    }
+
     public class SpriteRenderer : IDisposable
     {
-        private const int MaxQuads = 2000;
+        private const int MaxQuads = 10000;
         private const int MaxVertices = MaxQuads * 4;
         private const int MaxIndices = MaxQuads * 6;
 
         private readonly GL _gl;
-        private readonly uint _shaderProgram;
+        private readonly Shader _shader;
         private readonly uint _vao;
         private readonly uint _vbo;
         private readonly uint _ebo;
 
-        private readonly int _uProjectionLocation;
-        private readonly int _uViewLocation;
-
         private readonly List<Vertex> _vertices = new(MaxVertices);
+        private readonly List<SpriteDrawCommand> _commands = new();
         private uint _activeTextureId;
+        private Box2? _activeScissor;
 
         public SpriteRenderer(GL gl)
         {
             _gl = gl;
 
-            string vertexShaderSource = File.ReadAllText("Shaders/sprite.vert");
-            string fragmentShaderSource = File.ReadAllText("Shaders/sprite.frag");
-
-            uint vertexShader = CompileShader(ShaderType.VertexShader, vertexShaderSource);
-            uint fragmentShader = CompileShader(ShaderType.FragmentShader, fragmentShaderSource);
-
-            _shaderProgram = _gl.CreateProgram();
-            _gl.AttachShader(_shaderProgram, vertexShader);
-            _gl.AttachShader(_shaderProgram, fragmentShader);
-            _gl.LinkProgram(_shaderProgram);
-            _gl.GetProgram(_shaderProgram, GLEnum.LinkStatus, out int success);
-            if (success == 0)
-            {
-                string infoLog = _gl.GetProgramInfoLog(_shaderProgram);
-                throw new Exception($"Error linking shader program: {infoLog}");
-            }
-
-            _gl.DetachShader(_shaderProgram, vertexShader);
-            _gl.DetachShader(_shaderProgram, fragmentShader);
-            _gl.DeleteShader(vertexShader);
-            _gl.DeleteShader(fragmentShader);
-
-            _uProjectionLocation = _gl.GetUniformLocation(_shaderProgram, "uProjection");
-            _uViewLocation = _gl.GetUniformLocation(_shaderProgram, "uView");
+            _shader = new Shader(_gl, File.ReadAllText("Shaders/sprite.vert"), File.ReadAllText("Shaders/sprite.frag"));
 
             _vao = _gl.GenVertexArray();
             _vbo = _gl.GenBuffer();
@@ -107,15 +96,15 @@ namespace Client.Graphics
 
             unsafe
             {
-                 var size = sizeof(Vertex);
+                var size = (uint)sizeof(Vertex);
                 _gl.EnableVertexAttribArray(0); // Position
-                _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, (uint)size, (void*)0);
+                _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, size, (void*)0);
 
                 _gl.EnableVertexAttribArray(1); // TexCoords
-                _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, (uint)size, (void*)Marshal.OffsetOf<Vertex>("TexCoords"));
+                _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("TexCoords"));
 
                 _gl.EnableVertexAttribArray(2); // Color
-                _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, (uint)size, (void*)Marshal.OffsetOf<Vertex>("Color"));
+                _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("Color"));
             }
 
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
@@ -124,16 +113,89 @@ namespace Client.Graphics
 
         public unsafe void Begin(Matrix4x4 view, Matrix4x4 projection)
         {
-            _gl.UseProgram(_shaderProgram);
-            _gl.UniformMatrix4(_uViewLocation, 1, false, (float*)&view);
-            _gl.UniformMatrix4(_uProjectionLocation, 1, false, (float*)&projection);
+            _shader.Use();
+            _shader.SetUniform("uView", view);
+            _shader.SetUniform("uProjection", projection);
 
-            _activeTextureId = 0;
-            _vertices.Clear();
+            _commands.Clear();
+        }
+
+        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0, Box2? scissor = null, float rotation = 0)
+        {
+            _commands.Add(new SpriteDrawCommand
+            {
+                TextureId = textureId,
+                Uv = uv,
+                Position = position,
+                Size = size,
+                Color = color,
+                Layer = layer,
+                Plane = plane,
+                Scissor = scissor,
+                Rotation = rotation
+            });
+        }
+
+        public void DrawQuad(Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0)
+        {
+            Draw(0, new Box2(0, 0, 1, 1), position, size, color, layer, plane);
         }
 
         public void End()
         {
+            if (_commands.Count == 0) return;
+
+            // Sort by Plane, then by Layer, then by TextureId to minimize switches
+            _commands.Sort((a, b) =>
+            {
+                if (a.Plane != b.Plane) return a.Plane.CompareTo(b.Plane);
+                int layerCmp = a.Layer.CompareTo(b.Layer);
+                if (layerCmp != 0) return layerCmp;
+                return a.TextureId.CompareTo(b.TextureId);
+            });
+
+            _activeTextureId = _commands[0].TextureId;
+            _activeScissor = _commands[0].Scissor;
+            _vertices.Clear();
+
+            foreach (var cmd in _commands)
+            {
+                if (cmd.TextureId != _activeTextureId || cmd.Scissor != _activeScissor || _vertices.Count + 4 > MaxVertices)
+                {
+                    Flush();
+                    _activeTextureId = cmd.TextureId;
+                    _activeScissor = cmd.Scissor;
+                }
+
+                if (cmd.Rotation == 0)
+                {
+                    _vertices.Add(new Vertex(cmd.Position, new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(cmd.Position + new Vector2(cmd.Size.X, 0), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(cmd.Position + cmd.Size, new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
+                    _vertices.Add(new Vertex(cmd.Position + new Vector2(0, cmd.Size.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                }
+                else
+                {
+                    var cos = (float)Math.Cos(cmd.Rotation);
+                    var sin = (float)Math.Sin(cmd.Rotation);
+                    var center = cmd.Position + cmd.Size * 0.5f;
+
+                    Vector2 Rotate(Vector2 p)
+                    {
+                        var rel = p - center;
+                        return new Vector2(
+                            rel.X * cos - rel.Y * sin + center.X,
+                            rel.X * sin + rel.Y * cos + center.Y
+                        );
+                    }
+
+                    _vertices.Add(new Vertex(Rotate(cmd.Position), new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(Rotate(cmd.Position + new Vector2(cmd.Size.X, 0)), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(Rotate(cmd.Position + cmd.Size), new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
+                    _vertices.Add(new Vertex(Rotate(cmd.Position + new Vector2(0, cmd.Size.Y)), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                }
+            }
+
             Flush();
         }
 
@@ -142,7 +204,21 @@ namespace Client.Graphics
             if (_vertices.Count == 0)
                 return;
 
+            if (_activeScissor.HasValue)
+            {
+                _gl.Enable(EnableCap.ScissorTest);
+                var s = _activeScissor.Value;
+                _gl.Scissor((int)s.Left, (int)s.Bottom, (uint)s.Width, (uint)s.Height);
+            }
+            else
+            {
+                _gl.Disable(EnableCap.ScissorTest);
+            }
+
+            _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, _activeTextureId);
+            _shader.SetUniform("uTexture", 0);
+
             _gl.BindVertexArray(_vao);
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
 
@@ -156,51 +232,12 @@ namespace Client.Graphics
             _vertices.Clear();
         }
 
-        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color)
-        {
-            if (textureId != _activeTextureId)
-            {
-                if(_activeTextureId != 0)
-                    Flush();
-                _activeTextureId = textureId;
-            }
-
-            if (_vertices.Count + 4 > MaxVertices)
-            {
-                Flush();
-            }
-
-            _vertices.Add(new Vertex(position, new Vector2(uv.Left, uv.Top), color));
-            _vertices.Add(new Vertex(position + new Vector2(size.X, 0), new Vector2(uv.Right, uv.Top), color));
-            _vertices.Add(new Vertex(position + size, new Vector2(uv.Right, uv.Bottom), color));
-            _vertices.Add(new Vertex(position + new Vector2(0, size.Y), new Vector2(uv.Left, uv.Bottom), color));
-        }
-
-        public void DrawQuad(Vector2 position, Vector2 size, Color color)
-        {
-            Draw(0, new Box2(0, 0, 1, 1), position, size, color);
-        }
-
-        private uint CompileShader(ShaderType type, string source)
-        {
-            uint shader = _gl.CreateShader(type);
-            _gl.ShaderSource(shader, source);
-            _gl.CompileShader(shader);
-            _gl.GetShader(shader, ShaderParameterName.CompileStatus, out int success);
-            if (success == 0)
-            {
-                string infoLog = _gl.GetShaderInfoLog(shader);
-                throw new Exception($"Error compiling shader of type {type}: {infoLog}");
-            }
-            return shader;
-        }
-
         public void Dispose()
         {
             _gl.DeleteVertexArray(_vao);
             _gl.DeleteBuffer(_vbo);
             _gl.DeleteBuffer(_ebo);
-            _gl.DeleteProgram(_shaderProgram);
+            _shader.Dispose();
         }
     }
 }

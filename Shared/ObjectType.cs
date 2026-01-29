@@ -14,6 +14,7 @@ namespace Shared
         public Dictionary<string, object?> DefaultProperties { get; set; }
         public List<string> VariableNames { get; } = new();
         public List<object?> FlattenedDefaultValues { get; } = new();
+        public Dictionary<string, IDreamProc> Procs { get; } = new();
         private readonly Dictionary<string, int> _variableIndexCache = new();
 
         public ObjectType(int id, string name)
@@ -21,6 +22,16 @@ namespace Shared
             Id = id;
             Name = name;
             DefaultProperties = new Dictionary<string, object?>();
+        }
+
+        public IDreamProc? GetProc(string name)
+        {
+            if (Procs.TryGetValue(name, out var proc))
+            {
+                return proc;
+            }
+
+            return Parent?.GetProc(name);
         }
 
         public int GetVariableIndex(string name)

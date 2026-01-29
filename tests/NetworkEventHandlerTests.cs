@@ -12,6 +12,7 @@ namespace tests
         private Mock<INetworkService> _networkServiceMock = null!;
         private Mock<IPlayerManager> _playerManagerMock = null!;
         private Mock<IScriptHost> _scriptHostMock = null!;
+        private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
         private NetworkEventHandler _networkEventHandler = null!;
 
@@ -22,7 +23,11 @@ namespace tests
             _playerManagerMock = new Mock<IPlayerManager>();
             _scriptHostMock = new Mock<IScriptHost>();
             _serverSettings = new ServerSettings();
-            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _playerManagerMock.Object, _scriptHostMock.Object, _serverSettings);
+            _serverContextMock = new Mock<IServerContext>();
+            _serverContextMock.Setup(c => c.PlayerManager).Returns(_playerManagerMock.Object);
+            _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
+
+            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object);
             _networkEventHandler.SubscribeToEvents();
         }
 

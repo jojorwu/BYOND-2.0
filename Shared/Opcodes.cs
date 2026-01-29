@@ -301,6 +301,10 @@ namespace Shared {
         PushFloatAssign = 0x9A,
         [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
         NPushFloatAssign = 0x9B,
+        [OpcodeMetadata(-2)]
+        GetStepTo = 0x9D,
+        [OpcodeMetadata(-1)]
+        GetDist = 0x9E,
     }
 
     public enum OpcodeArgType {

@@ -1,9 +1,7 @@
 using Shared;
 using Core;
 using System;
-using System.IO;
 using System.Threading;
-using Core.VM;
 using Core.VM.Runtime;
 using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,9 +14,7 @@ namespace Server
 {
     public class ScriptHost : IHostedService, IDisposable, IScriptHost
     {
-        private readonly IProject _project;
-        private FileSystemWatcher? _watcher;
-        private Timer? _debounceTimer;
+        private readonly IScriptWatcher _scriptWatcher;
         private readonly object _scriptLock = new object();
         private readonly ServerSettings _settings;
         private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
@@ -27,10 +23,11 @@ namespace Server
         private readonly IGameState _gameState;
         private ScriptingEnvironment? _currentEnvironment;
         private CancellationTokenSource? _cancellationTokenSource;
+        private int _isReloading = 0;
 
-        public ScriptHost(IProject project, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
+        public ScriptHost(IScriptWatcher scriptWatcher, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
         {
-            _project = project;
+            _scriptWatcher = scriptWatcher;
             _settings = settings;
             _serviceProvider = serviceProvider;
             _logger = logger;
@@ -42,32 +39,25 @@ namespace Server
             _logger.LogInformation("Starting script host...");
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-            _watcher = new FileSystemWatcher(_project.GetFullPath(Constants.ScriptsRoot))
-            {
-                Filter = "*.*",
-                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
-                IncludeSubdirectories = true,
-                EnableRaisingEvents = true
-            };
-            _debounceTimer = new Timer(ReloadScripts, null, Timeout.Infinite, Timeout.Infinite);
+            _scriptWatcher.OnReloadRequested += OnReloadRequested;
+            _scriptWatcher.Start();
 
-            ReloadScripts(null); // Initial script load
-            _watcher.Changed += OnScriptChanged;
-            _watcher.Created += OnScriptChanged;
-            _watcher.Deleted += OnScriptChanged;
-            _watcher.Renamed += OnScriptChanged;
-            _logger.LogInformation($"Watching for changes in '{_project.GetFullPath(Constants.ScriptsRoot)}' directory.");
+            ReloadScripts(); // Initial script load
             return Task.CompletedTask;
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource?.Cancel();
-            _watcher?.Dispose();
-            _debounceTimer?.Dispose();
+            _scriptWatcher.Stop();
+            _scriptWatcher.OnReloadRequested -= OnReloadRequested;
             return Task.CompletedTask;
         }
 
+        private void OnReloadRequested()
+        {
+            ReloadScripts();
+        }
 
         public void Tick()
         {
@@ -104,9 +94,9 @@ namespace Server
             }
         }
 
-        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
         {
-            var objectIds = new HashSet<int>(objectsToTick.Select(o => o.Id));
+            objectIds ??= new HashSet<int>(objectsToTick.Select(o => o.Id));
             var dreamThreads = threads.OfType<DreamThread>().ToList();
             var nextThreads = new System.Collections.Concurrent.ConcurrentBag<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
@@ -116,7 +106,7 @@ namespace Server
             {
                 if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
                 {
-                    nextThreads.Add(thread); // Add unprocessed threads back to the list
+                    nextThreads.Add(thread);
                     continue;
                 }
 
@@ -125,13 +115,9 @@ namespace Server
                 if (shouldProcess)
                 {
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
-                    if (state == DreamThreadState.Running)
+                    if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
                     {
                         nextThreads.Add(thread);
-                    }
-                    else
-                    {
-                        _logger.LogDebug($"Thread for proc '{thread.CurrentProc.Name}' finished with state: {state}");
                     }
                 }
                 else
@@ -175,25 +161,22 @@ namespace Server
             }
         }
 
-        private void OnScriptChanged(object source, FileSystemEventArgs e)
+        private void ReloadScripts()
         {
-            var ext = Path.GetExtension(e.FullPath).ToLower();
-            if (ext == ".lua" || ext == ".dm" || ext == ".cs")
+            if (Interlocked.CompareExchange(ref _isReloading, 1, 0) != 0)
             {
-                _logger.LogInformation($"File {e.FullPath} has been changed. Debouncing reload...");
-                _debounceTimer?.Change(_settings.Development.ScriptReloadDebounceMs, Timeout.Infinite);
+                _logger.LogDebug("Script reload already in progress. Skipping.");
+                return;
             }
-        }
 
-        private void ReloadScripts(object? state)
-        {
             _logger.LogInformation("Starting background script reload...");
             Task.Run(async () =>
             {
-                if (_cancellationTokenSource?.IsCancellationRequested ?? true)
-                    return;
                 try
                 {
+                    if (_cancellationTokenSource?.IsCancellationRequested ?? true)
+                        return;
+
                     var newEnvironment = new ScriptingEnvironment(_serviceProvider);
                     await newEnvironment.Initialize();
 
@@ -208,9 +191,12 @@ namespace Server
                 {
                     _logger.LogError(ex, "Error during background script reload.");
                 }
+                finally
+                {
+                    Interlocked.Exchange(ref _isReloading, 0);
+                }
             });
         }
-
 
         public void Dispose()
         {

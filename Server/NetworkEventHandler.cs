@@ -8,16 +8,14 @@ namespace Server
     public class NetworkEventHandler
     {
         private readonly INetworkService _networkService;
-        private readonly IPlayerManager _playerManager;
+        private readonly IServerContext _context;
         private readonly IScriptHost _scriptHost;
-        private readonly ServerSettings _settings;
 
-        public NetworkEventHandler(INetworkService networkService, IPlayerManager playerManager, IScriptHost scriptHost, ServerSettings settings)
+        public NetworkEventHandler(INetworkService networkService, IServerContext context, IScriptHost scriptHost)
         {
             _networkService = networkService;
-            _playerManager = playerManager;
+            _context = context;
             _scriptHost = scriptHost;
-            _settings = settings;
         }
 
         public void SubscribeToEvents()
@@ -29,14 +27,14 @@ namespace Server
 
         private void OnPeerConnected(INetworkPeer peer)
         {
-            _playerManager.AddPlayer(peer);
+            _context.PlayerManager.AddPlayer(peer);
 
             var serverInfo = new ServerInfo
             {
-                ServerName = _settings.ServerName,
-                ServerDescription = _settings.ServerDescription,
-                MaxPlayers = _settings.MaxPlayers,
-                AssetUrl = $"http://{_settings.Network.IpAddress}:{_settings.HttpServer.Port}"
+                ServerName = _context.Settings.ServerName,
+                ServerDescription = _context.Settings.ServerDescription,
+                MaxPlayers = _context.Settings.MaxPlayers,
+                AssetUrl = $"http://{_context.Settings.Network.IpAddress}:{_context.Settings.HttpServer.Port}"
             };
 
             var json = JsonSerializer.Serialize(serverInfo);
@@ -45,7 +43,7 @@ namespace Server
 
         private void OnPeerDisconnected(INetworkPeer peer, DisconnectInfo disconnectInfo)
         {
-            _playerManager.RemovePlayer(peer);
+            _context.PlayerManager.RemovePlayer(peer);
         }
 
         private void OnCommandReceived(INetworkPeer peer, string command)

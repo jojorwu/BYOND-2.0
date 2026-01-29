@@ -7,7 +7,9 @@ internal partial class DMCodeTree {
     private class ProcsNode() : TypeNode("proc");
 
     private class ProcNode(DMCodeTree codeTree, DreamPath owner, DMASTProcDefinition procDef) : TypeNode(procDef.Name) {
-        private string ProcName => procDef.Name;
+        public DreamPath Owner => owner;
+        public string ProcName => procDef.Name;
+        public Location Location => procDef.Location;
         private bool IsOverride => procDef.IsOverride;
 
         private bool _defined;

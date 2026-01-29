@@ -13,7 +13,7 @@ namespace Server
 {
     public class HttpServer : IHostedService
     {
-        private readonly IWebHost _host;
+        private readonly IWebHost? _host;
         private readonly ILogger<HttpServer> _logger;
 
         public HttpServer(ServerSettings settings, IProject project, ILogger<HttpServer> logger)
@@ -21,7 +21,6 @@ namespace Server
             _logger = logger;
             if (!settings.HttpServer.Enabled)
             {
-                _host = new WebHostBuilder().Build(); // Create a dummy host
                 return;
             }
 
@@ -51,9 +50,9 @@ namespace Server
                 .Build();
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public virtual async Task StartAsync(CancellationToken cancellationToken)
         {
-            if (_host.Services != null) // Check if the host is not a dummy
+            if (_host != null)
             {
                 _logger.LogInformation("Starting HTTP server...");
                 await _host.StartAsync(cancellationToken);
@@ -61,9 +60,9 @@ namespace Server
             }
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public virtual async Task StopAsync(CancellationToken cancellationToken)
         {
-            if (_host.Services != null)
+            if (_host != null)
             {
                 _logger.LogInformation("Stopping HTTP server...");
                 await _host.StopAsync(cancellationToken);

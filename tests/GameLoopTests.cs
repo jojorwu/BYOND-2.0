@@ -14,6 +14,7 @@ namespace tests
     {
         private Mock<IGameLoopStrategy> _strategyMock = null!;
         private Mock<IRegionManager> _regionManagerMock = null!;
+        private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
         private GameLoop _gameLoop = null!;
         private CancellationTokenSource _cancellationTokenSource = null!;
@@ -24,8 +25,12 @@ namespace tests
             _strategyMock = new Mock<IGameLoopStrategy>();
             _regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
+            _serverContextMock = new Mock<IServerContext>();
+            _serverContextMock.Setup(c => c.RegionManager).Returns(_regionManagerMock.Object);
+            _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
+            _serverContextMock.Setup(c => c.PerformanceMonitor).Returns(new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object));
 
-            _gameLoop = new GameLoop(_strategyMock.Object, _regionManagerMock.Object, _serverSettings);
+            _gameLoop = new GameLoop(_strategyMock.Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

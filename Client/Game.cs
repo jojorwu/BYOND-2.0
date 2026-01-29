@@ -37,10 +37,12 @@ namespace Client
         private Camera _camera;
         private ImGuiController _imGuiController;
         private ConnectionPanel _connectionPanel;
+        private MainHud _mainHud;
 
         private ClientState _clientState = ClientState.Connecting;
         private GameState _previousState;
         private GameState _currentState;
+        private GameObject? _playerObject;
         private double _accumulator;
         private float _alpha;
 
@@ -73,6 +75,11 @@ namespace Client
             _gl = GL.GetApi(_window);
             _imGuiController = new ImGuiController(_gl, _window, input);
             _connectionPanel = new ConnectionPanel();
+            _mainHud = new MainHud();
+            _mainHud.AddMessage("Welcome to BYOND 2.0!");
+            _mainHud.AddMessage("Connecting to server...");
+
+            UiTheme.Apply();
 
             TextureCache.Init(_gl);
             _spriteRenderer = new SpriteRenderer(_gl);
@@ -157,6 +164,8 @@ new MyShader()
                     _previousState = states.Item1;
                     _currentState = states.Item2;
                     _accumulator -= LogicThread.TimeStep;
+
+                    UpdatePlayerObject();
                 }
 
                 _alpha = (float)(_accumulator / LogicThread.TimeStep);
@@ -263,24 +272,25 @@ new MyShader()
                                             (float)(frame.Y + dmi.Description.Height) / dmi.Height
                                         );
 
-                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White);
+                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, GetLayer(currentObj));
                                     }
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
-                                    Console.WriteLine($"Error rendering icon {icon}: {e.Message}");
-                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red); // Draw red square on error
+                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red, GetLayer(currentObj)); // Draw red square on error
                                 }
                             } else {
-                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta); // Draw magenta square for missing dmi
+                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta, GetLayer(currentObj)); // Draw magenta square for missing dmi
                             }
                         } else {
-                             _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White);
+                             _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White, GetLayer(currentObj));
                         }
                     }
                 }
 
                 _spriteRenderer.End();
+
+                _mainHud.Draw(_playerObject);
             }
 
             _imGuiController.Render();
@@ -288,17 +298,35 @@ new MyShader()
 
         private Vector2 GetPosition(GameObject obj)
         {
-            var pos = obj.GetVariable("Position");
-            if (pos.Type == DreamValueType.String && pos.TryGetValue(out string? posStr) && posStr != null)
+            return new Vector2(obj.X, obj.Y);
+        }
+
+        private void UpdatePlayerObject()
+        {
+            if (_currentState?.GameObjects != null)
             {
-                try {
-                    var posElement = JsonDocument.Parse(posStr).RootElement;
-                    return new Vector2(posElement.GetProperty("X").GetSingle(), posElement.GetProperty("Y").GetSingle());
-                } catch {
-                     return Vector2.Zero;
+                // In a real scenario, the server would tell us our player ID.
+                // For now, we'll just find the first object of type "player".
+                foreach (var obj in _currentState.GameObjects.Values)
+                {
+                    if (obj.ObjectType?.Name == "player")
+                    {
+                        _playerObject = obj;
+                        return;
+                    }
                 }
             }
-            return Vector2.Zero;
+            _playerObject = null;
+        }
+
+        private float GetLayer(GameObject obj)
+        {
+            var layer = obj.GetVariable("layer");
+            if (layer.Type == DreamValueType.Float)
+            {
+                return layer.AsFloat();
+            }
+            return 2.0f; // Default atom layer
         }
 
         private string? GetIcon(GameObject obj)
@@ -330,7 +358,7 @@ new MyShader()
             }
             if (key == Key.P)
             {
-                Console.WriteLine("Sending ping...");
+                _mainHud.AddMessage("Sending ping...");
                 _logicThread?.SendCommand("ping");
             }
         }

@@ -10,126 +10,6 @@ namespace Core.VM.Runtime
 {
     public partial class DreamThread : IScriptThread
     {
-        private delegate void OpcodeHandler(DreamThread thread, ref DreamProc proc, CallFrame frame, ref int pc);
-        private static readonly OpcodeHandler?[] _dispatchTable = new OpcodeHandler?[256];
-
-        static DreamThread()
-        {
-            _dispatchTable[(byte)Opcode.PushString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushString(p, ref pc);
-            _dispatchTable[(byte)Opcode.PushFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushFloat(p, ref pc);
-            _dispatchTable[(byte)Opcode.Add] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Add();
-            _dispatchTable[(byte)Opcode.Subtract] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Subtract();
-            _dispatchTable[(byte)Opcode.Multiply] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Multiply();
-            _dispatchTable[(byte)Opcode.Divide] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Divide();
-            _dispatchTable[(byte)Opcode.CompareEquals] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CompareEquals();
-            _dispatchTable[(byte)Opcode.CompareNotEquals] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CompareNotEquals();
-            _dispatchTable[(byte)Opcode.CompareLessThan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CompareLessThan();
-            _dispatchTable[(byte)Opcode.CompareGreaterThan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CompareGreaterThan();
-            _dispatchTable[(byte)Opcode.CompareLessThanOrEqual] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CompareLessThanOrEqual();
-            _dispatchTable[(byte)Opcode.CompareGreaterThanOrEqual] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CompareGreaterThanOrEqual();
-            _dispatchTable[(byte)Opcode.Negate] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Negate();
-            _dispatchTable[(byte)Opcode.BooleanNot] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanNot();
-            _dispatchTable[(byte)Opcode.PushNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNull();
-            _dispatchTable[(byte)Opcode.Pop] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Pop();
-            _dispatchTable[(byte)Opcode.Call] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Call(p, ref pc);
-            _dispatchTable[(byte)Opcode.CallStatement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CallStatement(p, ref pc);
-            _dispatchTable[(byte)Opcode.PushProc] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushProc(p, ref pc);
-            _dispatchTable[(byte)Opcode.Jump] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Jump(p, ref pc);
-            _dispatchTable[(byte)Opcode.JumpIfFalse] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfFalse(p, ref pc);
-            _dispatchTable[(byte)Opcode.Output] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Output();
-            _dispatchTable[(byte)Opcode.Return] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Return(ref p, ref pc);
-            _dispatchTable[(byte)Opcode.BitAnd] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitAnd();
-            _dispatchTable[(byte)Opcode.BitOr] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitOr();
-            _dispatchTable[(byte)Opcode.BitXor] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitXor();
-            _dispatchTable[(byte)Opcode.BitXorReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitXorReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.BitNot] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitNot();
-            _dispatchTable[(byte)Opcode.BitShiftLeft] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftLeft();
-            _dispatchTable[(byte)Opcode.BitShiftLeftReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftLeftReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.BitShiftRight] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftRight();
-            _dispatchTable[(byte)Opcode.BitShiftRightReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BitShiftRightReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.GetVariable] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetVariable(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.SetVariable] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SetVariable(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.PushReferenceValue] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushReferenceValue(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Assign] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Assign(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.PushGlobalVars] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushGlobalVars();
-            _dispatchTable[(byte)Opcode.IsNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsNull();
-            _dispatchTable[(byte)Opcode.JumpIfNull] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfNull(p, ref pc);
-            _dispatchTable[(byte)Opcode.JumpIfNullNoPop] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfNullNoPop(p, ref pc);
-            _dispatchTable[(byte)Opcode.SwitchCase] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchCase(p, ref pc);
-            _dispatchTable[(byte)Opcode.SwitchCaseRange] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchCaseRange(p, ref pc);
-            _dispatchTable[(byte)Opcode.BooleanAnd] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanAnd(p, ref pc);
-            _dispatchTable[(byte)Opcode.BooleanOr] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_BooleanOr(p, ref pc);
-            _dispatchTable[(byte)Opcode.Increment] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Increment(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Decrement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Decrement(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Modulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Modulus();
-            _dispatchTable[(byte)Opcode.AssignInto] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignInto(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.ModulusReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.ModulusModulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusModulus();
-            _dispatchTable[(byte)Opcode.ModulusModulusReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusModulusReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.CreateList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateList(p, ref pc);
-            _dispatchTable[(byte)Opcode.CreateAssociativeList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateAssociativeList(p, ref pc);
-            _dispatchTable[(byte)Opcode.CreateStrictAssociativeList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateStrictAssociativeList(p, ref pc);
-            _dispatchTable[(byte)Opcode.IsInList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsInList();
-            _dispatchTable[(byte)Opcode.PickUnweighted] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PickUnweighted(p, ref pc);
-            _dispatchTable[(byte)Opcode.PickWeighted] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PickWeighted(p, ref pc);
-            _dispatchTable[(byte)Opcode.DereferenceField] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceField(p, ref pc);
-            _dispatchTable[(byte)Opcode.DereferenceIndex] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceIndex();
-            _dispatchTable[(byte)Opcode.DereferenceCall] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DereferenceCall(p, ref pc);
-            _dispatchTable[(byte)Opcode.Initial] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Initial();
-            _dispatchTable[(byte)Opcode.IsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsType();
-            _dispatchTable[(byte)Opcode.AsType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AsType();
-            _dispatchTable[(byte)Opcode.CreateListEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateListEnumerator(p, ref pc);
-            _dispatchTable[(byte)Opcode.Enumerate] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Enumerate(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.EnumerateAssoc] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_EnumerateAssoc(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.DestroyEnumerator] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DestroyEnumerator(p, ref pc);
-            _dispatchTable[(byte)Opcode.Append] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Append(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Remove] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Remove(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Prob] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Prob();
-            _dispatchTable[(byte)Opcode.GetStep] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetStep();
-            _dispatchTable[(byte)Opcode.GetStepTo] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetStepTo();
-            _dispatchTable[(byte)Opcode.GetDist] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetDist();
-            _dispatchTable[(byte)Opcode.GetDir] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_GetDir();
-            _dispatchTable[(byte)Opcode.MassConcatenation] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_MassConcatenation(p, ref pc);
-            _dispatchTable[(byte)Opcode.FormatString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_FormatString(p, ref pc);
-            _dispatchTable[(byte)Opcode.Power] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Power();
-            _dispatchTable[(byte)Opcode.Sqrt] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Sqrt();
-            _dispatchTable[(byte)Opcode.Abs] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Abs();
-            _dispatchTable[(byte)Opcode.MultiplyReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_MultiplyReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Sin] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Sin();
-            _dispatchTable[(byte)Opcode.DivideReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_DivideReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.Cos] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Cos();
-            _dispatchTable[(byte)Opcode.Tan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Tan();
-            _dispatchTable[(byte)Opcode.ArcSin] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcSin();
-            _dispatchTable[(byte)Opcode.ArcCos] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcCos();
-            _dispatchTable[(byte)Opcode.ArcTan] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcTan();
-            _dispatchTable[(byte)Opcode.ArcTan2] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ArcTan2();
-            _dispatchTable[(byte)Opcode.PushType] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushType(p, ref pc);
-            _dispatchTable[(byte)Opcode.CreateObject] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateObject(p, ref pc);
-            _dispatchTable[(byte)Opcode.LocateCoord] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_LocateCoord();
-            _dispatchTable[(byte)Opcode.Locate] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Locate();
-            _dispatchTable[(byte)Opcode.Length] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Length();
-            _dispatchTable[(byte)Opcode.Throw] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Throw();
-            _dispatchTable[(byte)Opcode.Spawn] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Spawn(p, ref pc);
-            _dispatchTable[(byte)Opcode.Rgb] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Rgb(p, ref pc);
-            _dispatchTable[(byte)Opcode.Gradient] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Gradient(p, ref pc);
-
-            // Optimized opcodes
-            _dispatchTable[(byte)Opcode.AppendNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AppendNoPush(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.PushRefAndDereferenceField] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushRefAndDereferenceField(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.PushNRefs] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNRefs(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.PushNFloats] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushNFloats(p, ref pc);
-            _dispatchTable[(byte)Opcode.PushStringFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_PushStringFloat(p, ref pc);
-            _dispatchTable[(byte)Opcode.SwitchOnFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchOnFloat(p, ref pc);
-            _dispatchTable[(byte)Opcode.SwitchOnString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_SwitchOnString(p, ref pc);
-            _dispatchTable[(byte)Opcode.JumpIfReferenceFalse] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_JumpIfReferenceFalse(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.ReturnFloat] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ReturnFloat(p, ref pc);
-            _dispatchTable[(byte)Opcode.NPushFloatAssign] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_NPushFloatAssign(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.IsTypeDirect] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IsTypeDirect(p, ref pc);
-            _dispatchTable[(byte)Opcode.NullRef] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_NullRef(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.IndexRefWithString] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_IndexRefWithString(p, f, ref pc);
-        }
-
         private DreamValue[] _stack = new DreamValue[1024];
         private int _stackPtr = 0;
         public Stack<CallFrame> CallStack { get; } = new();
@@ -278,23 +158,27 @@ namespace Core.VM.Runtime
                 case DMReference.Type.SrcField:
                     return frame.Instance != null ? frame.Instance.GetVariable(reference.Name) : DreamValue.Null;
                 case DMReference.Type.Field:
-                    var obj = Pop();
-                    if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
-                        return dreamObject.GetVariable(reference.Name);
-                    return DreamValue.Null;
-                case DMReference.Type.ListIndex:
-                    var index = Pop();
-                    var listValue = Pop();
-                    if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
                     {
-                        if (index.Type == DreamValueType.Float && index.TryGetValue(out float f))
-                        {
-                            int i = (int)f - 1;
-                            return (i >= 0 && i < list.Values.Count) ? list.Values[i] : DreamValue.Null;
-                        }
-                        return list.GetValue(index);
+                        var obj = _stack[--_stackPtr];
+                        if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
+                            return dreamObject.GetVariable(reference.Name);
+                        return DreamValue.Null;
                     }
-                    return DreamValue.Null;
+                case DMReference.Type.ListIndex:
+                    {
+                        var index = _stack[--_stackPtr];
+                        var listValue = _stack[--_stackPtr];
+                        if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
+                        {
+                            if (index.Type == DreamValueType.Float)
+                            {
+                                int i = (int)index.RawFloat - 1;
+                                return (i >= 0 && i < list.Values.Count) ? list.Values[i] : DreamValue.Null;
+                            }
+                            return list.GetValue(index);
+                        }
+                        return DreamValue.Null;
+                    }
                 default:
                     throw new Exception($"Unsupported reference type for reading: {reference.RefType}");
             }
@@ -317,26 +201,30 @@ namespace Core.VM.Runtime
                     frame.Instance?.SetVariable(reference.Name, value);
                     break;
                 case DMReference.Type.Field:
-                    var obj = Pop();
-                    if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
-                        dreamObject.SetVariable(reference.Name, value);
+                    {
+                        var obj = _stack[--_stackPtr];
+                        if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
+                            dreamObject.SetVariable(reference.Name, value);
+                    }
                     break;
                 case DMReference.Type.ListIndex:
-                    var index = Pop();
-                    var listValue = Pop();
-                    if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
                     {
-                        if (index.Type == DreamValueType.Float && index.TryGetValue(out float f))
+                        var index = _stack[--_stackPtr];
+                        var listValue = _stack[--_stackPtr];
+                        if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
                         {
-                            int i = (int)f - 1;
-                            if (i >= 0 && i < list.Values.Count)
-                                list.Values[i] = value;
-                            else if (i == list.Values.Count)
-                                list.Values.Add(value);
-                        }
-                        else
-                        {
-                            list.SetValue(index, value);
+                            if (index.Type == DreamValueType.Float)
+                            {
+                                int i = (int)index.RawFloat - 1;
+                                if (i >= 0 && i < list.Values.Count)
+                                    list.Values[i] = value;
+                                else if (i == list.Values.Count)
+                                    list.Values.Add(value);
+                            }
+                            else
+                            {
+                                list.SetValue(index, value);
+                            }
                         }
                     }
                     break;
@@ -391,27 +279,422 @@ namespace Core.VM.Runtime
                 try
                 {
                     var opcode = (Opcode)proc.Bytecode[pc++];
-                    var handler = _dispatchTable[(byte)opcode];
-                    if (handler != null)
-                    {
-                        handler(this, ref proc, frame, ref pc);
+                    bool potentiallyChangedStack = false;
 
-                        // Only refresh if the opcode could have changed the call stack
-                        if (opcode == Opcode.Call || opcode == Opcode.Return || opcode == Opcode.CreateObject ||
-                            opcode == Opcode.DereferenceCall)
-                        {
-                            if (State == DreamThreadState.Running && CallStack.Count > 0)
-                            {
-                                frame = CallStack.Peek();
-                                proc = frame.Proc;
-                                pc = frame.PC;
-                            }
-                        }
-                    }
-                    else
+                    switch (opcode)
                     {
-                        State = DreamThreadState.Error;
-                        throw new Exception($"Unknown opcode: {opcode}");
+                        case Opcode.PushString:
+                            {
+                                var stringId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var val = new DreamValue(_context.Strings[stringId]);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = val;
+                            }
+                            break;
+                        case Opcode.PushFloat:
+                            {
+                                var val = BinaryPrimitives.ReadSingleLittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var dv = new DreamValue(val);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = dv;
+                            }
+                            break;
+                        case Opcode.Add:
+                            {
+                                var b = _stack[--_stackPtr];
+                                var a = _stack[_stackPtr - 1];
+                                if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                                    _stack[_stackPtr - 1] = new DreamValue(a.RawFloat + b.RawFloat);
+                                else
+                                    _stack[_stackPtr - 1] = a + b;
+                            }
+                            break;
+                        case Opcode.Subtract:
+                            {
+                                var b = _stack[--_stackPtr];
+                                var a = _stack[_stackPtr - 1];
+                                if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                                    _stack[_stackPtr - 1] = new DreamValue(a.RawFloat - b.RawFloat);
+                                else
+                                    _stack[_stackPtr - 1] = a - b;
+                            }
+                            break;
+                        case Opcode.Multiply:
+                            {
+                                var b = _stack[--_stackPtr];
+                                var a = _stack[_stackPtr - 1];
+                                if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                                    _stack[_stackPtr - 1] = new DreamValue(a.RawFloat * b.RawFloat);
+                                else
+                                    _stack[_stackPtr - 1] = a * b;
+                            }
+                            break;
+                        case Opcode.Divide:
+                            {
+                                var b = _stack[--_stackPtr];
+                                var a = _stack[_stackPtr - 1];
+                                if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                                {
+                                    var fb = b.RawFloat;
+                                    _stack[_stackPtr - 1] = new DreamValue(fb != 0 ? a.RawFloat / fb : 0);
+                                }
+                                else
+                                    _stack[_stackPtr - 1] = a / b;
+                            }
+                            break;
+                        case Opcode.CompareEquals:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1] == b ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.CompareNotEquals:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1] != b ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.CompareLessThan:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1] < b ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.CompareGreaterThan:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1] > b ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.CompareLessThanOrEqual:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1] <= b ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.CompareGreaterThanOrEqual:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1] >= b ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.Negate: _stack[_stackPtr - 1] = -_stack[_stackPtr - 1]; break;
+                        case Opcode.BooleanNot: _stack[_stackPtr - 1] = _stack[_stackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False; break;
+                        case Opcode.PushNull:
+                            {
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = DreamValue.Null;
+                            }
+                            break;
+                        case Opcode.Pop: _stackPtr--; break;
+                        case Opcode.Call: Opcode_Call(proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.CallStatement: Opcode_CallStatement(proc, ref pc); break;
+                        case Opcode.PushProc: Opcode_PushProc(proc, ref pc); break;
+                        case Opcode.Jump:
+                            {
+                                pc = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                            }
+                            break;
+                        case Opcode.JumpIfFalse:
+                            {
+                                var val = _stack[--_stackPtr];
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (val.IsFalse())
+                                    pc = address;
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.Output:
+                            {
+                                Console.WriteLine(_stack[--_stackPtr].ToString());
+                            }
+                            break;
+                        case Opcode.Return: Opcode_Return(ref proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.BitAnd:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] &= b;
+                            }
+                            break;
+                        case Opcode.BitOr:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] |= b;
+                            }
+                            break;
+                        case Opcode.BitXor:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] ^= b;
+                            }
+                            break;
+                        case Opcode.BitXorReference: Opcode_BitXorReference(proc, frame, ref pc); break;
+                        case Opcode.BitNot: _stack[_stackPtr - 1] = ~_stack[_stackPtr - 1]; break;
+                        case Opcode.BitShiftLeft:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] <<= b;
+                            }
+                            break;
+                        case Opcode.BitShiftLeftReference: Opcode_BitShiftLeftReference(proc, frame, ref pc); break;
+                        case Opcode.BitShiftRight:
+                            {
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] >>= b;
+                            }
+                            break;
+                        case Opcode.BitShiftRightReference: Opcode_BitShiftRightReference(proc, frame, ref pc); break;
+                        case Opcode.GetVariable:
+                            {
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var instance = frame.Instance;
+                                DreamValue val = instance != null ? instance.GetVariable(_context.Strings[nameId]) : DreamValue.Null;
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = val;
+                            }
+                            break;
+                        case Opcode.SetVariable:
+                            {
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var val = _stack[--_stackPtr];
+                                frame.Instance?.SetVariable(_context.Strings[nameId], val);
+                            }
+                            break;
+                        case Opcode.PushReferenceValue:
+                            {
+                                var refType = (DMReference.Type)proc.Bytecode[pc++];
+                                switch (refType)
+                                {
+                                    case DMReference.Type.Local:
+                                        {
+                                            var val = _stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]];
+                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                            _stack[_stackPtr++] = val;
+                                        }
+                                        break;
+                                    case DMReference.Type.Argument:
+                                        {
+                                            var val = _stack[frame.StackBase + proc.Bytecode[pc++]];
+                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                            _stack[_stackPtr++] = val;
+                                        }
+                                        break;
+                                    case DMReference.Type.Global:
+                                        {
+                                            var val = _context.GetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc)));
+                                            pc += 4;
+                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                            _stack[_stackPtr++] = val;
+                                        }
+                                        break;
+                                    case DMReference.Type.Src:
+                                        {
+                                            var val = frame.Instance != null ? new DreamValue(frame.Instance) : DreamValue.Null;
+                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                            _stack[_stackPtr++] = val;
+                                        }
+                                        break;
+                                    default:
+                                        {
+                                            pc--;
+                                            var reference = ReadReference(proc, ref pc);
+                                            var val = GetReferenceValue(reference, frame);
+                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                            _stack[_stackPtr++] = val;
+                                        }
+                                        break;
+                                }
+                            }
+                            break;
+                        case Opcode.Assign:
+                            {
+                                var refType = (DMReference.Type)proc.Bytecode[pc++];
+                                var value = _stack[_stackPtr - 1];
+                                switch (refType)
+                                {
+                                    case DMReference.Type.Local:
+                                        _stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]] = value;
+                                        break;
+                                    case DMReference.Type.Argument:
+                                        _stack[frame.StackBase + proc.Bytecode[pc++]] = value;
+                                        break;
+                                    case DMReference.Type.Global:
+                                        _context.SetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc)), value);
+                                        pc += 4;
+                                        break;
+                                    default:
+                                        pc--;
+                                        var reference = ReadReference(proc, ref pc);
+                                        SetReferenceValue(reference, frame, value);
+                                        break;
+                                }
+                            }
+                            break;
+                        case Opcode.PushGlobalVars: Opcode_PushGlobalVars(); break;
+                        case Opcode.IsNull:
+                            {
+                                var val = _stack[--_stackPtr];
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = val.Type == DreamValueType.Null ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
+                        case Opcode.JumpIfNull:
+                            {
+                                var val = _stack[--_stackPtr];
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (val.Type == DreamValueType.Null)
+                                    pc = address;
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.JumpIfNullNoPop:
+                            {
+                                var val = _stack[_stackPtr - 1];
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (val.Type == DreamValueType.Null)
+                                    pc = address;
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.SwitchCase:
+                            {
+                                var caseValue = _stack[--_stackPtr];
+                                var switchValue = _stack[_stackPtr - 1];
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (switchValue == caseValue)
+                                    pc = jumpAddress;
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.SwitchCaseRange:
+                            {
+                                var max = _stack[--_stackPtr];
+                                var min = _stack[--_stackPtr];
+                                var switchValue = _stack[_stackPtr - 1];
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (switchValue >= min && switchValue <= max)
+                                    pc = jumpAddress;
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.BooleanAnd:
+                            {
+                                var val = _stack[--_stackPtr];
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (val.IsFalse())
+                                {
+                                    Push(val);
+                                    pc = jumpAddress;
+                                }
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.BooleanOr:
+                            {
+                                var val = _stack[--_stackPtr];
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                if (!val.IsFalse())
+                                {
+                                    Push(val);
+                                    pc = jumpAddress;
+                                }
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.Increment: Opcode_Increment(proc, frame, ref pc); break;
+                        case Opcode.Decrement: Opcode_Decrement(proc, frame, ref pc); break;
+                        case Opcode.Modulus: Opcode_Modulus(); break;
+                        case Opcode.AssignInto: Opcode_AssignInto(proc, frame, ref pc); break;
+                        case Opcode.ModulusReference: Opcode_ModulusReference(proc, frame, ref pc); break;
+                        case Opcode.ModulusModulus: Opcode_ModulusModulus(); break;
+                        case Opcode.ModulusModulusReference: Opcode_ModulusModulusReference(proc, frame, ref pc); break;
+                        case Opcode.CreateList: Opcode_CreateList(proc, ref pc); break;
+                        case Opcode.CreateAssociativeList: Opcode_CreateAssociativeList(proc, ref pc); break;
+                        case Opcode.CreateStrictAssociativeList: Opcode_CreateStrictAssociativeList(proc, ref pc); break;
+                        case Opcode.IsInList: Opcode_IsInList(); break;
+                        case Opcode.PickUnweighted: Opcode_PickUnweighted(proc, ref pc); break;
+                        case Opcode.PickWeighted: Opcode_PickWeighted(proc, ref pc); break;
+                        case Opcode.DereferenceField: Opcode_DereferenceField(proc, ref pc); break;
+                        case Opcode.DereferenceIndex: Opcode_DereferenceIndex(); break;
+                        case Opcode.DereferenceCall: Opcode_DereferenceCall(proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.Initial: Opcode_Initial(); break;
+                        case Opcode.IsType: Opcode_IsType(); break;
+                        case Opcode.AsType: Opcode_AsType(); break;
+                        case Opcode.CreateListEnumerator: Opcode_CreateListEnumerator(proc, ref pc); break;
+                        case Opcode.Enumerate: Opcode_Enumerate(proc, frame, ref pc); break;
+                        case Opcode.EnumerateAssoc: Opcode_EnumerateAssoc(proc, frame, ref pc); break;
+                        case Opcode.DestroyEnumerator: Opcode_DestroyEnumerator(proc, ref pc); break;
+                        case Opcode.Append: Opcode_Append(proc, frame, ref pc); break;
+                        case Opcode.Remove: Opcode_Remove(proc, frame, ref pc); break;
+                        case Opcode.Prob: Opcode_Prob(); break;
+                        case Opcode.GetStep: Opcode_GetStep(); break;
+                        case Opcode.GetStepTo: Opcode_GetStepTo(); break;
+                        case Opcode.GetDist: Opcode_GetDist(); break;
+                        case Opcode.GetDir: Opcode_GetDir(); break;
+                        case Opcode.MassConcatenation: Opcode_MassConcatenation(proc, ref pc); break;
+                        case Opcode.FormatString: Opcode_FormatString(proc, ref pc); break;
+                        case Opcode.Power: Opcode_Power(); break;
+                        case Opcode.Sqrt: Opcode_Sqrt(); break;
+                        case Opcode.Abs: Opcode_Abs(); break;
+                        case Opcode.MultiplyReference: Opcode_MultiplyReference(proc, frame, ref pc); break;
+                        case Opcode.Sin: Opcode_Sin(); break;
+                        case Opcode.DivideReference: Opcode_DivideReference(proc, frame, ref pc); break;
+                        case Opcode.Cos: Opcode_Cos(); break;
+                        case Opcode.Tan: Opcode_Tan(); break;
+                        case Opcode.ArcSin: Opcode_ArcSin(); break;
+                        case Opcode.ArcCos: Opcode_ArcCos(); break;
+                        case Opcode.ArcTan: Opcode_ArcTan(); break;
+                        case Opcode.ArcTan2: Opcode_ArcTan2(); break;
+                        case Opcode.PushType: Opcode_PushType(proc, ref pc); break;
+                        case Opcode.CreateObject: Opcode_CreateObject(proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.LocateCoord: Opcode_LocateCoord(); break;
+                        case Opcode.Locate: Opcode_Locate(); break;
+                        case Opcode.Length: Opcode_Length(); break;
+                        case Opcode.Throw: Opcode_Throw(); break;
+                        case Opcode.Spawn: Opcode_Spawn(proc, ref pc); break;
+                        case Opcode.Rgb: Opcode_Rgb(proc, ref pc); break;
+                        case Opcode.Gradient: Opcode_Gradient(proc, ref pc); break;
+
+                        // Optimized opcodes
+                        case Opcode.AppendNoPush: Opcode_AppendNoPush(proc, frame, ref pc); break;
+                        case Opcode.AssignNoPush: Opcode_AssignNoPush(proc, frame, ref pc); break;
+                        case Opcode.PushRefAndDereferenceField: Opcode_PushRefAndDereferenceField(proc, frame, ref pc); break;
+                        case Opcode.PushNRefs: Opcode_PushNRefs(proc, frame, ref pc); break;
+                        case Opcode.PushNFloats: Opcode_PushNFloats(proc, ref pc); break;
+                        case Opcode.PushStringFloat: Opcode_PushStringFloat(proc, ref pc); break;
+                        case Opcode.SwitchOnFloat: Opcode_SwitchOnFloat(proc, ref pc); break;
+                        case Opcode.SwitchOnString: Opcode_SwitchOnString(proc, ref pc); break;
+                        case Opcode.JumpIfReferenceFalse: Opcode_JumpIfReferenceFalse(proc, frame, ref pc); break;
+                        case Opcode.ReturnFloat: Opcode_ReturnFloat(proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.NPushFloatAssign: Opcode_NPushFloatAssign(proc, frame, ref pc); break;
+                        case Opcode.IsTypeDirect: Opcode_IsTypeDirect(proc, ref pc); break;
+                        case Opcode.NullRef: Opcode_NullRef(proc, frame, ref pc); break;
+                        case Opcode.IndexRefWithString: Opcode_IndexRefWithString(proc, frame, ref pc); break;
+
+                        default:
+                            State = DreamThreadState.Error;
+                            throw new Exception($"Unknown opcode: {opcode}");
+                    }
+
+                    if (potentiallyChangedStack)
+                    {
+                        if (State == DreamThreadState.Running && CallStack.Count > 0)
+                        {
+                            frame = CallStack.Peek();
+                            proc = frame.Proc;
+                            pc = frame.PC;
+                        }
                     }
                 }
                 catch (Exception e)

@@ -12,108 +12,6 @@ namespace Core.VM.Runtime
     public partial class DreamThread
     {
         #region Opcode Handlers
-        private void Opcode_PushString(DreamProc proc, ref int pc)
-        {
-            var stringId = ReadInt32(proc, ref pc);
-            Push(new DreamValue(_context.Strings[stringId]));
-        }
-
-        private void Opcode_PushFloat(DreamProc proc, ref int pc)
-        {
-            var value = ReadSingle(proc, ref pc);
-            Push(new DreamValue(value));
-        }
-
-        private void Opcode_Add()
-        {
-            var b = _stack[--_stackPtr];
-            var a = _stack[_stackPtr - 1];
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                _stack[_stackPtr - 1] = new DreamValue(a.RawFloat + b.RawFloat);
-            else
-                _stack[_stackPtr - 1] = a + b;
-        }
-        private void Opcode_Subtract()
-        {
-            var b = _stack[--_stackPtr];
-            var a = _stack[_stackPtr - 1];
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                _stack[_stackPtr - 1] = new DreamValue(a.RawFloat - b.RawFloat);
-            else
-                _stack[_stackPtr - 1] = a - b;
-        }
-        private void Opcode_Multiply()
-        {
-            var b = _stack[--_stackPtr];
-            var a = _stack[_stackPtr - 1];
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                _stack[_stackPtr - 1] = new DreamValue(a.RawFloat * b.RawFloat);
-            else
-                _stack[_stackPtr - 1] = a * b;
-        }
-        private void Opcode_Divide()
-        {
-            var b = _stack[--_stackPtr];
-            var a = _stack[_stackPtr - 1];
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-            {
-                var fb = b.RawFloat;
-                _stack[_stackPtr - 1] = new DreamValue(fb != 0 ? a.RawFloat / fb : 0);
-            }
-            else
-                _stack[_stackPtr - 1] = a / b;
-        }
-
-        private void Opcode_CompareEquals()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] == b ? 1 : 0);
-        }
-        private void Opcode_CompareNotEquals()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] != b ? 1 : 0);
-        }
-        private void Opcode_CompareLessThan()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] < b ? 1 : 0);
-        }
-        private void Opcode_CompareGreaterThan()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] > b ? 1 : 0);
-        }
-        private void Opcode_CompareLessThanOrEqual()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] <= b ? 1 : 0);
-        }
-        private void Opcode_CompareGreaterThanOrEqual()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1] >= b ? 1 : 0);
-        }
-
-        private void Opcode_Negate()
-        {
-            _stack[_stackPtr - 1] = -_stack[_stackPtr - 1];
-        }
-
-        private void Opcode_BooleanNot()
-        {
-            _stack[_stackPtr - 1] = !_stack[_stackPtr - 1];
-        }
-
-        private void Opcode_PushNull()
-        {
-            Push(DreamValue.Null);
-        }
-
-        private void Opcode_Pop()
-        {
-            Pop();
-        }
 
         private void Opcode_Call(DreamProc proc, ref int pc)
         {
@@ -236,25 +134,6 @@ namespace Core.VM.Runtime
             PerformCall(newProc, instance, stackDelta, stackDelta);
         }
 
-        private void Opcode_Jump(DreamProc proc, ref int pc)
-        {
-            var address = ReadInt32(proc, ref pc);
-            pc = address;
-        }
-
-        private void Opcode_JumpIfFalse(DreamProc proc, ref int pc)
-        {
-            var value = Pop();
-            var address = ReadInt32(proc, ref pc);
-            if (value.IsFalse())
-                pc = address;
-        }
-
-        private void Opcode_Output()
-        {
-            var value = Pop();
-            Console.WriteLine(value.ToString());
-        }
 
         private void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
         {
@@ -286,83 +165,6 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_GetVariable(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var variableNameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
-            pc += 4;
-            var variableName = _context.Strings[variableNameId];
-
-            var instance = frame.Instance;
-            if (instance != null)
-            {
-                Push(instance.GetVariable(variableName));
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
-
-        private void Opcode_SetVariable(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var variableNameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
-            pc += 4;
-            var variableName = _context.Strings[variableNameId];
-            var value = Pop();
-
-            var instance = frame.Instance;
-            if (instance != null)
-            {
-                instance.SetVariable(variableName, value);
-            }
-        }
-
-        private void Opcode_PushReferenceValue(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var refType = (DMReference.Type)proc.Bytecode[pc++];
-            switch (refType)
-            {
-                case DMReference.Type.Local:
-                    Push(_stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]]);
-                    break;
-                case DMReference.Type.Argument:
-                    Push(_stack[frame.StackBase + proc.Bytecode[pc++]]);
-                    break;
-                case DMReference.Type.Global:
-                    Push(_context.GetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc))));
-                    pc += 4;
-                    break;
-                default:
-                    pc--; // Back up and use full path
-                    var reference = ReadReference(proc, ref pc);
-                    Push(GetReferenceValue(reference, frame));
-                    break;
-            }
-        }
-
-        private void Opcode_Assign(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var refType = (DMReference.Type)proc.Bytecode[pc++];
-            var value = _stack[_stackPtr - 1];
-            switch (refType)
-            {
-                case DMReference.Type.Local:
-                    _stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]] = value;
-                    break;
-                case DMReference.Type.Argument:
-                    _stack[frame.StackBase + proc.Bytecode[pc++]] = value;
-                    break;
-                case DMReference.Type.Global:
-                    _context.SetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc)), value);
-                    pc += 4;
-                    break;
-                default:
-                    pc--; // Back up
-                    var reference = ReadReference(proc, ref pc);
-                    SetReferenceValue(reference, frame, value);
-                    break;
-            }
-        }
 
         private GlobalVarsObject? _globalVars;
         private void Opcode_PushGlobalVars()
@@ -371,73 +173,9 @@ namespace Core.VM.Runtime
             Push(new DreamValue(_globalVars));
         }
 
-        private void Opcode_IsNull()
-        {
-            var value = Pop();
-            Push(new DreamValue(value.Type == DreamValueType.Null ? 1 : 0));
-        }
 
-        private void Opcode_JumpIfNull(DreamProc proc, ref int pc)
-        {
-            var value = Pop();
-            var address = ReadInt32(proc, ref pc);
-            if (value.Type == DreamValueType.Null)
-                pc = address;
-        }
 
-        private void Opcode_JumpIfNullNoPop(DreamProc proc, ref int pc)
-        {
-            var value = _stack[_stackPtr - 1];
-            var address = ReadInt32(proc, ref pc);
-            if (value.Type == DreamValueType.Null)
-                pc = address;
-        }
 
-        private void Opcode_SwitchCase(DreamProc proc, ref int pc)
-        {
-            var caseValue = Pop();
-            var switchValue = Peek();
-            var jumpAddress = ReadInt32(proc, ref pc);
-            if (switchValue == caseValue)
-                pc = jumpAddress;
-        }
-
-        private void Opcode_SwitchCaseRange(DreamProc proc, ref int pc)
-        {
-            var max = Pop();
-            var min = Pop();
-            var switchValue = Peek();
-            var jumpAddress = ReadInt32(proc, ref pc);
-            if (switchValue >= min && switchValue <= max)
-                pc = jumpAddress;
-        }
-
-        private void Opcode_BitAnd()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] &= b;
-        }
-        private void Opcode_BitOr()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] |= b;
-        }
-        private void Opcode_BitXor()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] ^= b;
-        }
-        private void Opcode_BitNot() => _stack[_stackPtr - 1] = ~_stack[_stackPtr - 1];
-        private void Opcode_BitShiftLeft()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] <<= b;
-        }
-        private void Opcode_BitShiftRight()
-        {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] >>= b;
-        }
 
         private void Opcode_BitShiftLeftReference(DreamProc proc, CallFrame frame, ref int pc)
         {
@@ -463,27 +201,6 @@ namespace Core.VM.Runtime
             SetReferenceValue(reference, frame, refValue ^ value);
         }
 
-        private void Opcode_BooleanAnd(DreamProc proc, ref int pc)
-        {
-            var value = Pop();
-            var jumpAddress = ReadInt32(proc, ref pc);
-            if (value.IsFalse())
-            {
-                Push(value);
-                pc = jumpAddress;
-            }
-        }
-
-        private void Opcode_BooleanOr(DreamProc proc, ref int pc)
-        {
-            var value = Pop();
-            var jumpAddress = ReadInt32(proc, ref pc);
-            if (!value.IsFalse())
-            {
-                Push(value);
-                pc = jumpAddress;
-            }
-        }
 
         private void Opcode_Increment(DreamProc proc, CallFrame frame, ref int pc)
         {

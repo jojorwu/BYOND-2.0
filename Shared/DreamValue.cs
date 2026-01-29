@@ -13,6 +13,8 @@ namespace Shared
         private readonly object? _objectValue;
 
         public static readonly DreamValue Null = new DreamValue();
+        public static readonly DreamValue True = new DreamValue(1.0f);
+        public static readonly DreamValue False = new DreamValue(0.0f);
 
         public bool IsNull => Type == DreamValueType.Null;
 
@@ -277,9 +279,11 @@ namespace Shared
 
         public override bool Equals(object? obj)
         {
-            if (obj is not DreamValue other)
-                return false;
+            return obj is DreamValue other && Equals(other);
+        }
 
+        public bool Equals(DreamValue other)
+        {
             if (Type != other.Type)
                 return false;
 
@@ -291,9 +295,12 @@ namespace Shared
                     return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
                 case DreamValueType.String:
                 case DreamValueType.DreamObject:
-                    return _objectValue?.Equals(other._objectValue) ?? other._objectValue == null;
+                case DreamValueType.DreamType:
+                case DreamValueType.DreamResource:
+                case DreamValueType.DreamProc:
+                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
                 default:
-                    throw new InvalidOperationException("Invalid DreamValue type");
+                    return false;
             }
         }
 
@@ -374,16 +381,17 @@ namespace Shared
 
         public bool IsFalse()
         {
-            if (Type == DreamValueType.Null)
-                return true;
-
-            if (Type == DreamValueType.Float && _floatValue == 0)
-                return true;
-
-            if (Type == DreamValueType.String && (string)_objectValue! == "")
-                return true;
-
-            return false;
+            switch (Type)
+            {
+                case DreamValueType.Null:
+                    return true;
+                case DreamValueType.Float:
+                    return _floatValue == 0;
+                case DreamValueType.String:
+                    return ((string)_objectValue!).Length == 0;
+                default:
+                    return false;
+            }
         }
     }
 

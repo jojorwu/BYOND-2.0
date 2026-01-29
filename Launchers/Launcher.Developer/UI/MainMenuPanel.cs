@@ -2,6 +2,7 @@ using ImGuiNET;
 using System.Numerics;
 using System;
 using System.Collections.Generic;
+using Shared;
 
 namespace Launcher.UI
 {
@@ -16,16 +17,20 @@ namespace Launcher.UI
         private bool _showErrorModal = false;
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
+        private readonly IEngineManager _engineManager;
 
         private int _selectedTab = 0;
         private readonly List<string> _tabs = new() { "Home", "Develop", "Settings" };
 
         private bool _checkForUpdates = true;
         private bool _sendAnalytics = false;
+        private string _enginePath;
 
-        public MainMenuPanel(Texture? logoTexture)
+        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager)
         {
             _logoTexture = logoTexture;
+            _engineManager = engineManager;
+            _enginePath = _engineManager.GetBaseEnginePath();
         }
 
         public void ShowError(string message)
@@ -175,6 +180,17 @@ namespace Launcher.UI
         {
             ImGui.Text("Launcher Settings");
             ImGui.Separator();
+
+            ImGui.Text("Engine Installation Path:");
+            if (ImGui.InputText("##enginepath", ref _enginePath, 512))
+            {
+                _engineManager.SetBaseEnginePath(_enginePath);
+            }
+            ImGui.TextDisabled("This folder contains Client.exe, Server.exe, etc.");
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
 
             ImGui.Checkbox("Check for updates on startup", ref _checkForUpdates);
 

@@ -9,17 +9,24 @@ using Launcher.UI;
 using System;
 using System.ComponentModel;
 using System.IO;
+using Shared;
 
 namespace Launcher
 {
     public class Launcher : IDisposable
     {
+        private readonly IEngineManager _engineManager;
         private IWindow? _window;
         private GL? _gl;
         private IInputContext? _inputContext;
         private ImGuiController? _imGuiController;
         private MainMenuPanel? _mainMenuPanel;
         private Texture? _logoTexture;
+
+        public Launcher()
+        {
+            _engineManager = new EngineManager();
+        }
 
         public void Run()
         {
@@ -57,7 +64,7 @@ namespace Launcher
                     _logoTexture = null;
                 }
 
-                _mainMenuPanel = new MainMenuPanel(_logoTexture);
+                _mainMenuPanel = new MainMenuPanel(_logoTexture, _engineManager);
             }
         }
 
@@ -80,33 +87,41 @@ namespace Launcher
             if (_mainMenuPanel.IsEditorRequested)
             {
                 _mainMenuPanel.IsEditorRequested = false; // Reset flag
-                StartProcess("Editor.exe");
+                StartComponent(EngineComponent.Editor);
             }
 
             if (_mainMenuPanel.IsServerBrowserRequested)
             {
                 _mainMenuPanel.IsServerBrowserRequested = false; // Reset flag
-                StartProcess("Editor.exe", "--panel ServerBrowser");
+                StartComponent(EngineComponent.Editor, "--panel ServerBrowser");
             }
 
             if (_mainMenuPanel.IsServerRequested)
             {
                 _mainMenuPanel.IsServerRequested = false; // Reset flag
-                StartProcess("Server.exe");
+                StartComponent(EngineComponent.Server);
             }
 
             if (_mainMenuPanel.IsClientRequested)
             {
                 _mainMenuPanel.IsClientRequested = false; // Reset flag
-                StartProcess("Client.exe");
+                StartComponent(EngineComponent.Client);
             }
 
             _imGuiController.Render();
         }
 
-        private void StartProcess(string fileName, string? arguments = null)
+        private void StartComponent(EngineComponent component, string? arguments = null)
         {
             if (_window == null || _mainMenuPanel == null) return;
+
+            string fileName = _engineManager.GetExecutablePath(component);
+
+            if (!_engineManager.IsComponentInstalled(component))
+            {
+                _mainMenuPanel.ShowError($"{component} is not installed.\n\nPath: {fileName}");
+                return;
+            }
 
             try
             {
@@ -122,11 +137,11 @@ namespace Launcher
                     UseShellExecute = true,
 #endif
                 };
-                var process = Process.Start(startInfo);
+                Process.Start(startInfo);
             }
             catch (Win32Exception e)
             {
-                _mainMenuPanel.ShowError($"Error starting {fileName}:\n{e.Message}\n\nMake sure {fileName} is in the same directory as the launcher.");
+                _mainMenuPanel.ShowError($"Error starting {component}:\n{e.Message}\n\nPath: {fileName}");
             }
             catch (Exception e)
             {

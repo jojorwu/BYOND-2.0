@@ -114,21 +114,6 @@ namespace Server
 
                 if (shouldProcess)
                 {
-                    if (thread.State == DreamThreadState.Sleeping)
-                    {
-                        if (DateTime.Now >= thread.SleepUntil)
-                        {
-                            thread.Run(0); // This should transition it back to Running if it's ready, but wait.
-                            // Actually thread.Run doesn't change state back to Running automatically.
-                            // Let's fix that in DreamThread.
-                        }
-                        else
-                        {
-                            nextThreads.Add(thread);
-                            continue;
-                        }
-                    }
-
                     var state = thread.Run(_settings.Performance.VmInstructionSlice);
                     if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
                     {

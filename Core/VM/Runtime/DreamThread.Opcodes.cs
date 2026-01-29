@@ -750,10 +750,8 @@ namespace Core.VM.Runtime
                 var turf = _context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
                 if (turf != null)
                 {
-                    // For now, we assume we need to wrap Turf in a DreamValue.
-                    // If Turf is not a DreamObject, we might need a wrapper.
-                    // Looking at existing code, Turf seems to be a specialized object.
-                    Push(new DreamValue((DreamObject)(object)turf));
+                    // Turf is ITurf, but the implementation inherits from GameObject which is a DreamObject
+                    Push(new DreamValue((GameObject)turf));
                     return;
                 }
             }
@@ -850,8 +848,30 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argCount = ReadInt32(proc, ref pc);
 
-            // Stub for gradient
-            for (int i = 0; i < argCount; i++) Pop();
+            var values = new DreamValue[argCount];
+            for (int i = argCount - 1; i >= 0; i--)
+            {
+                values[i] = Pop();
+            }
+
+            if (argCount >= 3)
+            {
+                // Simple 2-color interpolation: gradient(color1, color2, index)
+                var color1Str = values[0].ToString();
+                var color2Str = values[1].ToString();
+                var index = values[2].AsFloat();
+
+                var c1 = Robust.Shared.Maths.Color.TryFromHex(color1Str);
+                var c2 = Robust.Shared.Maths.Color.TryFromHex(color2Str);
+
+                if (c1.HasValue && c2.HasValue)
+                {
+                    var interpolated = Robust.Shared.Maths.Color.InterpolateBetween(c1.Value, c2.Value, Math.Clamp(index / 100f, 0, 1));
+                    Push(new DreamValue(interpolated.ToHex()));
+                    return;
+                }
+            }
+
             Push(new DreamValue("#000000"));
         }
 

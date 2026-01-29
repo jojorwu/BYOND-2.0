@@ -39,6 +39,7 @@ internal partial class DMCodeTree {
     }
 
     private class ObjectNode(DMCodeTree codeTree, string name, DreamPath type) : TypeNode(name) {
+        public DreamPath Type => type;
         private bool _defined;
         private ProcsNode? _procs;
 
@@ -48,7 +49,7 @@ internal partial class DMCodeTree {
 
             DMObject? explicitParent = null;
             if (codeTree._parentTypes.TryGetValue(type, out var parentType) &&
-                !compiler.DMObjectTree.TryGetDMObject(parentType, out explicitParent))
+                !compiler.DMObjectTree.TryGetDMObject(parentType.Path, out explicitParent))
                 return false; // Parent type isn't ready yet
 
             _defined = true;
@@ -77,7 +78,7 @@ internal partial class DMCodeTree {
 
     private readonly DMCompiler _compiler;
     private readonly HashSet<INode> _waitingNodes = new();
-    private readonly Dictionary<DreamPath, DreamPath> _parentTypes = new();
+    private readonly Dictionary<DreamPath, (DreamPath Path, Location Location)> _parentTypes = new();
     private readonly Dictionary<DreamPath, ProcNode> _newProcs = new();
     private ObjectNode _root;
     private ObjectNode? _dmStandardRoot;
@@ -126,15 +127,21 @@ internal partial class DMCodeTree {
         Pass(_root);
         Pass(_dmStandardRoot!);
 
-        // If there exists vars that didn't successfully compile, emit their errors
+        // If there exists nodes that didn't successfully compile, emit their errors
         foreach (var node in _waitingNodes) {
-            if (node is not VarNode varNode) // TODO: If a type or proc fails?
-                continue;
-            if (varNode.LastError == null)
-                continue;
-
-            _compiler.Emit(WarningCode.ItemDoesntExist, varNode.LastError.Location,
-                varNode.LastError.Message);
+            if (node is VarNode varNode) {
+                if (varNode.LastError != null)
+                    _compiler.Emit(WarningCode.ItemDoesntExist, varNode.LastError.Location,
+                        varNode.LastError.Message);
+            } else if (node is ObjectNode objectNode) {
+                if (_parentTypes.TryGetValue(objectNode.Type, out var parentType)) {
+                    _compiler.Emit(WarningCode.ItemDoesntExist, parentType.Location,
+                        $"Parent type {parentType.Path} not found for {objectNode.Type}");
+                }
+            } else if (node is ProcNode procNode) {
+                _compiler.Emit(WarningCode.ItemDoesntExist, procNode.Location,
+                    $"Object {procNode.Owner} not found for proc {procNode.ProcName}");
+            }
         }
 
         _compiler.GlobalInitProc.ResolveLabels();

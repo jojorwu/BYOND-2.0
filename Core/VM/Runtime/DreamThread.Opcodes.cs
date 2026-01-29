@@ -407,77 +407,12 @@ namespace Core.VM.Runtime
 
             if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
-                Push(new DreamValue(list.Values.Contains(value) ? 1 : 0));
+                Push(list.Values.Contains(value) ? DreamValue.True : DreamValue.False);
             }
             else
             {
-                Push(new DreamValue(0));
+                Push(DreamValue.False);
             }
-        }
-
-        private void Opcode_DereferenceField(DreamProc proc, ref int pc)
-        {
-            var fieldNameId = ReadInt32(proc, ref pc);
-            var fieldName = _context.Strings[fieldNameId];
-            var objValue = Pop();
-
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null)
-            {
-                Push(obj.GetVariable(fieldName));
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
-
-        private void Opcode_DereferenceIndex()
-        {
-            var indexValue = Pop();
-            var objValue = Pop();
-
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
-            {
-                if (indexValue.Type == DreamValueType.Float && indexValue.TryGetValue(out float indexFloat))
-                {
-                    int index = (int)indexFloat - 1; // DM indices are 1-based
-                    if (index >= 0 && index < list.Values.Count)
-                    {
-                        Push(list.Values[index]);
-                        return;
-                    }
-                }
-                else
-                {
-                    // Associative lookup
-                    Push(list.GetValue(indexValue));
-                    return;
-                }
-            }
-            Push(DreamValue.Null);
-        }
-
-        private void Opcode_DereferenceCall(DreamProc proc, ref int pc)
-        {
-            var procNameId = ReadInt32(proc, ref pc);
-            var procName = _context.Strings[procNameId];
-            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
-            var argStackDelta = ReadInt32(proc, ref pc);
-
-            var objValue = _stack[_stackPtr - argStackDelta];
-            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-            {
-                var targetProc = obj.ObjectType.GetProc(procName);
-                if (targetProc != null)
-                {
-                    PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
-                    return;
-                }
-            }
-
-            // Fallback: pop everything and push null
-            _stackPtr -= argStackDelta;
-            Push(DreamValue.Null);
         }
 
         private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount)

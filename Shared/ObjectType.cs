@@ -15,7 +15,8 @@ namespace Shared
         public List<string> VariableNames { get; } = new();
         public List<object?> FlattenedDefaultValues { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
-        private readonly Dictionary<string, int> _variableIndexCache = new();
+        public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
+        private Dictionary<string, int>? _variableIndices;
 
         public ObjectType(int id, string name)
         {
@@ -31,28 +32,36 @@ namespace Shared
                 return proc;
             }
 
-            return Parent?.GetProc(name);
+            if (FlattenedProcs.TryGetValue(name, out proc))
+            {
+                return proc;
+            }
+
+            return null;
         }
 
         public int GetVariableIndex(string name)
         {
-            if (_variableIndexCache.TryGetValue(name, out int index))
+            if (_variableIndices != null)
             {
-                return index;
+                return _variableIndices.TryGetValue(name, out int index) ? index : -1;
             }
 
-            index = VariableNames.IndexOf(name);
-            if (index != -1)
-            {
-                _variableIndexCache[name] = index;
-            }
+            return VariableNames.IndexOf(name);
+        }
 
-            return index;
+        public void FinalizeVariables()
+        {
+            _variableIndices = new Dictionary<string, int>(VariableNames.Count);
+            for (int i = 0; i < VariableNames.Count; i++)
+            {
+                _variableIndices[VariableNames[i]] = i;
+            }
         }
 
         public void ClearCache()
         {
-            _variableIndexCache.Clear();
+            _variableIndices = null;
         }
 
         public bool IsSubtypeOf(ObjectType other)

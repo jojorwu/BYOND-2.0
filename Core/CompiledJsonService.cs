@@ -124,6 +124,13 @@ namespace Core
                 FlattenType(type, objectTypes, json.Types);
             }
 
+            for (int i = 0; i < json.Types.Length; i++)
+            {
+                var type = objectTypes[i];
+                FlattenProcs(type);
+                type.FinalizeVariables();
+            }
+
             // Load globals
             dreamVM.Globals.Clear();
             if (dreamVM is DreamVM vm3)
@@ -149,6 +156,24 @@ namespace Core
                 foreach (var (id, value) in json.Globals.Globals)
                 {
                     dreamVM.Globals[id] = DreamValue.FromObject(ConvertJsonElement(value));
+                }
+            }
+        }
+
+        private void FlattenProcs(ObjectType type)
+        {
+            if (type.FlattenedProcs.Count > 0 || type.Name == "/") return;
+
+            if (type.Parent != null)
+            {
+                FlattenProcs(type.Parent);
+                foreach (var (name, proc) in type.Parent.FlattenedProcs)
+                {
+                    type.FlattenedProcs[name] = proc;
+                }
+                foreach (var (name, proc) in type.Parent.Procs)
+                {
+                    type.FlattenedProcs[name] = proc;
                 }
             }
         }

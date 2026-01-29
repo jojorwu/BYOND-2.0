@@ -389,7 +389,19 @@ namespace Core.VM.Runtime
                             }
                             break;
                         case Opcode.Pop: _stackPtr--; break;
-                        case Opcode.Call: Opcode_Call(proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.Call:
+                            {
+                                var reference = ReadReference(proc, ref pc);
+                                var argType = (DMCallArgumentsType)proc.Bytecode[pc++];
+                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var unusedStackDelta = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+
+                                PerformCall(reference, argType, argStackDelta);
+                                potentiallyChangedStack = true;
+                            }
+                            break;
                         case Opcode.CallStatement: Opcode_CallStatement(proc, ref pc); break;
                         case Opcode.PushProc: Opcode_PushProc(proc, ref pc); break;
                         case Opcode.Jump:
@@ -625,9 +637,61 @@ namespace Core.VM.Runtime
                         case Opcode.IsInList: Opcode_IsInList(); break;
                         case Opcode.PickUnweighted: Opcode_PickUnweighted(proc, ref pc); break;
                         case Opcode.PickWeighted: Opcode_PickWeighted(proc, ref pc); break;
-                        case Opcode.DereferenceField: Opcode_DereferenceField(proc, ref pc); break;
-                        case Opcode.DereferenceIndex: Opcode_DereferenceIndex(); break;
-                        case Opcode.DereferenceCall: Opcode_DereferenceCall(proc, ref pc); potentiallyChangedStack = true; break;
+                        case Opcode.DereferenceField:
+                            {
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var objValue = _stack[--_stackPtr];
+                                DreamValue val = DreamValue.Null;
+                                if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                    val = obj.GetVariable(_context.Strings[nameId]);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = val;
+                            }
+                            break;
+                        case Opcode.DereferenceIndex:
+                            {
+                                var index = _stack[--_stackPtr];
+                                var objValue = _stack[--_stackPtr];
+                                DreamValue val = DreamValue.Null;
+                                if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+                                {
+                                    if (index.Type == DreamValueType.Float)
+                                    {
+                                        int i = (int)index.RawFloat - 1;
+                                        if (i >= 0 && i < list.Values.Count) val = list.Values[i];
+                                    }
+                                    else val = list.GetValue(index);
+                                }
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = val;
+                            }
+                            break;
+                        case Opcode.DereferenceCall:
+                            {
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+                                var argType = (DMCallArgumentsType)proc.Bytecode[pc++];
+                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc += 4;
+
+                                var objValue = _stack[_stackPtr - argStackDelta];
+                                if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                {
+                                    var targetProc = obj.ObjectType.GetProc(_context.Strings[nameId]);
+                                    if (targetProc != null)
+                                    {
+                                        PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
+                                        potentiallyChangedStack = true;
+                                        break;
+                                    }
+                                }
+
+                                _stackPtr -= argStackDelta;
+                                Push(DreamValue.Null);
+                                potentiallyChangedStack = true;
+                            }
+                            break;
                         case Opcode.Initial: Opcode_Initial(); break;
                         case Opcode.IsType: Opcode_IsType(); break;
                         case Opcode.AsType: Opcode_AsType(); break;

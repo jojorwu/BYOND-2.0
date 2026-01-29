@@ -7,17 +7,22 @@ namespace Shared
     {
         private readonly object _lock = new();
         public ObjectType ObjectType { get; set; }
-        public List<DreamValue> VariableValues { get; } = new();
+        private DreamValue[] _variableValues;
 
         public DreamObject(ObjectType objectType)
         {
             ObjectType = objectType;
             if (objectType != null)
             {
-                foreach (var defaultValue in objectType.FlattenedDefaultValues)
+                _variableValues = new DreamValue[objectType.VariableNames.Count];
+                for (int i = 0; i < objectType.FlattenedDefaultValues.Count; i++)
                 {
-                    VariableValues.Add(DreamValue.FromObject(defaultValue));
+                    _variableValues[i] = DreamValue.FromObject(objectType.FlattenedDefaultValues[i]);
                 }
+            }
+            else
+            {
+                _variableValues = System.Array.Empty<DreamValue>();
             }
         }
 
@@ -29,7 +34,7 @@ namespace Shared
 
             lock (_lock)
             {
-                if (index < VariableValues.Count) return VariableValues[index];
+                if (index < _variableValues.Length) return _variableValues[index];
             }
             return DreamValue.Null;
         }
@@ -42,8 +47,8 @@ namespace Shared
             {
                 lock (_lock)
                 {
-                    while (VariableValues.Count <= index) VariableValues.Add(DreamValue.Null);
-                    VariableValues[index] = value;
+                    EnsureCapacity(index);
+                    _variableValues[index] = value;
                 }
             }
         }
@@ -52,8 +57,8 @@ namespace Shared
         {
             lock (_lock)
             {
-                if (index >= 0 && index < VariableValues.Count)
-                    return VariableValues[index];
+                if (index >= 0 && index < _variableValues.Length)
+                    return _variableValues[index];
             }
             return DreamValue.Null;
         }
@@ -62,8 +67,16 @@ namespace Shared
         {
             lock (_lock)
             {
-                while (VariableValues.Count <= index) VariableValues.Add(DreamValue.Null);
-                VariableValues[index] = value;
+                EnsureCapacity(index);
+                _variableValues[index] = value;
+            }
+        }
+
+        private void EnsureCapacity(int index)
+        {
+            if (index >= _variableValues.Length)
+            {
+                System.Array.Resize(ref _variableValues, index + 1);
             }
         }
     }

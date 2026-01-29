@@ -18,7 +18,7 @@ namespace Editor
             var tileY = mousePosition.Y / EditorConstants.TileSize;
 
             var newObject = new GameObject(context.SelectedObjectType);
-            gameState.Map.GetTurf(tileX, tileY, context.CurrentZLevel)?.Contents.Add(newObject);
+            gameState.Map.GetTurf(tileX, tileY, context.CurrentZLevel)?.AddContent(newObject);
         }
 
         public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition) { }

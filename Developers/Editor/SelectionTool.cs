@@ -1,6 +1,7 @@
 using Shared;
 using Robust.Shared.Maths;
 using Editor;
+using System.Linq;
 
 namespace Editor
 {
@@ -19,9 +20,9 @@ namespace Editor
             var tileY = mousePosition.Y / EditorConstants.TileSize;
 
             var turf = gameState.Map.GetTurf(tileX, tileY, context.CurrentZLevel);
-            if (turf != null && turf.Contents.Count > 0)
+            if (turf != null && turf.Contents.Any())
             {
-                selectionManager.Select(turf.Contents[0]);
+                selectionManager.Select(turf.Contents.First());
             }
             else
             {

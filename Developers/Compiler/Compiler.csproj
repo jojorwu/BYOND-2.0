@@ -15,8 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
-    <ProjectReference Include="..\Shared\Shared.csproj" />
+    <ProjectReference Include="..\..\Engine\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+    <ProjectReference Include="..\..\Engine\Shared\Shared.csproj" />
   </ItemGroup>
 
 </Project>

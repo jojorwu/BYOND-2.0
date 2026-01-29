@@ -22,13 +22,13 @@ if [ "$SMART_MODE" = true ]; then
     RELEVANT_TESTS=""
 
     for FILE in $CHANGES; do
-        if [[ $FILE == Core/VM/* ]] || [[ $FILE == Shared/DreamValue.cs ]] || [[ $FILE == Shared/DMReference.cs ]]; then
+        if [[ $FILE == Engine/Core/VM/* ]] || [[ $FILE == Engine/Shared/DreamValue.cs ]] || [[ $FILE == Engine/Shared/DMReference.cs ]]; then
             RELEVANT_TESTS="$RELEVANT_TESTS DreamVMTests DreamVMVariableTests"
-        elif [[ $FILE == Core/Objects/* ]]; then
+        elif [[ $FILE == Engine/Core/Objects/* ]]; then
             RELEVANT_TESTS="$RELEVANT_TESTS GameObjectTests ObjectTypeTests"
-        elif [[ $FILE == Server/* ]]; then
+        elif [[ $FILE == Servers/Server/* ]]; then
             RELEVANT_TESTS="$RELEVANT_TESTS ServerArchitectureTests PlayerManagerTests"
-        elif [[ $FILE == Core/Maps/* ]]; then
+        elif [[ $FILE == Engine/Core/Maps/* ]]; then
             RELEVANT_TESTS="$RELEVANT_TESTS MapLoaderTests"
         fi
     done

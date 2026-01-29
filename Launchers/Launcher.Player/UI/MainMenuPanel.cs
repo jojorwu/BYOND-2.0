@@ -18,7 +18,7 @@ namespace Launcher.UI
         private readonly Texture? _logoTexture;
 
         private int _selectedTab = 0;
-        private readonly List<string> _tabs = new() { "Home", "Play", "Develop", "Settings" };
+        private readonly List<string> _tabs = new() { "Home", "Play", "Settings" };
 
         private bool _checkForUpdates = true;
         private bool _sendAnalytics = false;
@@ -106,18 +106,18 @@ namespace Launcher.UI
             ImGui.Separator();
             ImGui.Spacing();
 
-            switch (_selectedTab)
+            switch (_tabs[_selectedTab])
             {
-                case 0: // Home
+                case "Home":
                     DrawHomeTab();
                     break;
-                case 1: // Play
+                case "Play":
                     DrawPlayTab();
                     break;
-                case 2: // Develop
+                case "Develop":
                     DrawDevelopTab();
                     break;
-                case 3: // Settings
+                case "Settings":
                     DrawSettingsTab();
                     break;
             }

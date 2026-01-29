@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Core.csproj" />
-    <ProjectReference Include="..\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
-    <ProjectReference Include="..\Shared\Shared.csproj" />
-    <ProjectReference Include="..\Compiler\Compiler.csproj" />
+    <ProjectReference Include="..\..\Engine\Core\Core.csproj" />
+    <ProjectReference Include="..\..\Engine\Robust.Shared.Maths\Robust.Shared.Maths.csproj" />
+    <ProjectReference Include="..\..\Engine\Shared\Shared.csproj" />
+    <ProjectReference Include="..\..\Developers\Compiler\Compiler.csproj" />
   </ItemGroup>
 
   <ItemGroup>

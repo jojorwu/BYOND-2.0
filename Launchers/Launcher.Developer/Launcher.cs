@@ -23,9 +23,9 @@ namespace Launcher
         private MainMenuPanel? _mainMenuPanel;
         private Texture? _logoTexture;
 
-        public Launcher()
+        public Launcher(IEngineManager engineManager)
         {
-            _engineManager = new EngineManager();
+            _engineManager = engineManager;
         }
 
         public void Run()

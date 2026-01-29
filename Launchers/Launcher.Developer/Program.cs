@@ -1,10 +1,20 @@
+using Microsoft.Extensions.DependencyInjection;
+using Shared;
+
 namespace Launcher
 {
     class Program
     {
         static void Main(string[] args)
         {
-            var launcher = new Launcher();
+            var services = new ServiceCollection();
+
+            services.AddSharedEngineServices();
+            services.AddSingleton<Launcher>();
+
+            var serviceProvider = services.BuildServiceProvider();
+
+            var launcher = serviceProvider.GetRequiredService<Launcher>();
             launcher.Run();
         }
     }

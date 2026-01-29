@@ -1,12 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Shared
 {
     [JsonConverter(typeof(DreamValueConverter))]
-    public readonly struct DreamValue
+    public readonly struct DreamValue : IEquatable<DreamValue>
     {
         public readonly DreamValueType Type;
         private readonly float _floatValue;
@@ -67,6 +68,7 @@ namespace Shared
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue(out float value)
         {
             if (Type == DreamValueType.Float)
@@ -79,6 +81,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue([NotNullWhen(true)] out string? value)
         {
             if (Type == DreamValueType.String)
@@ -91,6 +94,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue([NotNullWhen(true)] out DreamObject? value)
         {
             if (Type == DreamValueType.DreamObject)
@@ -103,6 +107,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue([NotNullWhen(true)] out ObjectType? value)
         {
             if (Type == DreamValueType.DreamType)
@@ -115,6 +120,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue([NotNullWhen(true)] out DreamResource? value)
         {
             if (Type == DreamValueType.DreamResource)
@@ -127,6 +133,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue([NotNullWhen(true)] out IDreamProc? value)
         {
             if (Type == DreamValueType.DreamProc)
@@ -160,6 +167,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public float AsFloat()
         {
             if (Type != DreamValueType.Float)
@@ -167,6 +175,7 @@ namespace Shared
             return _floatValue;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int AsInt()
         {
             if (Type != DreamValueType.Float)
@@ -220,30 +229,25 @@ namespace Shared
 
         public override string ToString()
         {
-            if (TryGetValue(out float floatValue))
+            return Type switch
             {
-                return floatValue.ToString(CultureInfo.InvariantCulture);
-            }
-            if (TryGetValue(out string? stringValue))
-            {
-                return stringValue ?? string.Empty;
-            }
-            if (TryGetValue(out DreamObject? dreamObjectValue))
-            {
-                return dreamObjectValue?.ToString() ?? "null";
-            }
-            if (Type == DreamValueType.Null)
-            {
-                return "null";
-            }
-            throw new InvalidOperationException("Invalid DreamValue type");
+                DreamValueType.Float => _floatValue.ToString(CultureInfo.InvariantCulture),
+                DreamValueType.String => (string)_objectValue!,
+                DreamValueType.DreamObject => _objectValue?.ToString() ?? "null",
+                DreamValueType.Null => "null",
+                _ => _objectValue?.ToString() ?? Type.ToString()
+            };
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public float GetValueAsFloat()
         {
-            if (Type == DreamValueType.Float) return _floatValue;
-            if (Type == DreamValueType.Null) return 0;
-            return _floatValue;
+            return Type switch
+            {
+                DreamValueType.Float => _floatValue,
+                DreamValueType.Null => 0,
+                _ => _floatValue
+            };
         }
 
         public static DreamValue operator +(DreamValue a, DreamValue b)
@@ -277,31 +281,22 @@ namespace Shared
             return new DreamValue(a.GetValueAsFloat() / floatB);
         }
 
-        public override bool Equals(object? obj)
-        {
-            return obj is DreamValue other && Equals(other);
-        }
+        public override bool Equals(object? obj) => obj is DreamValue other && Equals(other);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(DreamValue other)
         {
             if (Type != other.Type)
                 return false;
 
-            switch (Type)
+            return Type switch
             {
-                case DreamValueType.Null:
-                    return true;
-                case DreamValueType.Float:
-                    return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
-                case DreamValueType.String:
-                case DreamValueType.DreamObject:
-                case DreamValueType.DreamType:
-                case DreamValueType.DreamResource:
-                case DreamValueType.DreamProc:
-                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
-                default:
-                    return false;
-            }
+                DreamValueType.Null => true,
+                DreamValueType.Float => Math.Abs(_floatValue - other._floatValue) < 0.00001f,
+                DreamValueType.String or DreamValueType.DreamObject or DreamValueType.DreamType or DreamValueType.DreamResource or DreamValueType.DreamProc =>
+                    ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false),
+                _ => false
+            };
         }
 
         public override int GetHashCode()
@@ -379,19 +374,16 @@ namespace Shared
             return new DreamValue(SharedOperations.BitShiftRight((int)a.GetValueAsFloat(), (int)b.GetValueAsFloat()));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsFalse()
         {
-            switch (Type)
+            return Type switch
             {
-                case DreamValueType.Null:
-                    return true;
-                case DreamValueType.Float:
-                    return _floatValue == 0;
-                case DreamValueType.String:
-                    return ((string)_objectValue!).Length == 0;
-                default:
-                    return false;
-            }
+                DreamValueType.Null => true,
+                DreamValueType.Float => _floatValue == 0,
+                DreamValueType.String => ((string)_objectValue!).Length == 0,
+                _ => false
+            };
         }
     }
 

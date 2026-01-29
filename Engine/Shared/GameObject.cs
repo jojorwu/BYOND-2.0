@@ -43,7 +43,8 @@ namespace Shared
             {
                 lock (_contentsLock)
                 {
-                    return new List<IGameObject>(_contents);
+                    if (_contents.Count == 0) return System.Array.Empty<IGameObject>();
+                    return _contents.ToArray();
                 }
             }
         }
@@ -77,13 +78,11 @@ namespace Shared
         {
             get
             {
-                var dict = new Dictionary<string, DreamValue>();
-                if (ObjectType != null)
+                if (ObjectType == null) return new Dictionary<string, DreamValue>();
+                var dict = new Dictionary<string, DreamValue>(ObjectType.VariableNames.Count);
+                for (int i = 0; i < ObjectType.VariableNames.Count; i++)
                 {
-                    for (int i = 0; i < ObjectType.VariableNames.Count; i++)
-                    {
-                        dict[ObjectType.VariableNames[i]] = GetVariable(i);
-                    }
+                    dict[ObjectType.VariableNames[i]] = GetVariable(i);
                 }
                 return dict;
             }

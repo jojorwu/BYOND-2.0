@@ -5,6 +5,8 @@ namespace Shared
     public interface ITurf
     {
         int Id { get; set; }
-        List<IGameObject> Contents { get; }
+        IEnumerable<IGameObject> Contents { get; }
+        void AddContent(IGameObject obj);
+        void RemoveContent(IGameObject obj);
     }
 }

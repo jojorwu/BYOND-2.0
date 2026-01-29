@@ -243,7 +243,7 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Src:
                     return frame.Instance != null ? new DreamValue(frame.Instance) : DreamValue.Null;
                 case DMReference.Type.Global:
-                    return _context.Globals[reference.Index];
+                    return _context.GetGlobal(reference.Index);
                 case DMReference.Type.Argument:
                     return _stack[frame.StackBase + reference.Index];
                 case DMReference.Type.Local:
@@ -265,7 +265,7 @@ namespace Core.VM.Runtime
             switch (reference.RefType)
             {
                 case DMReference.Type.Global:
-                    _context.Globals[reference.Index] = value;
+                    _context.SetGlobal(reference.Index, value);
                     break;
                 case DMReference.Type.Argument:
                     _stack[frame.StackBase + reference.Index] = value;

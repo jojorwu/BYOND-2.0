@@ -55,7 +55,7 @@ namespace Core.Maps
                                 gameObject.SetVariable(prop.Key, DreamValue.FromObject(prop.Value));
                             }
                         }
-                        turf.Contents.Add(gameObject);
+                        turf.AddContent(gameObject);
                     }
                 }
                 map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);

@@ -11,6 +11,6 @@ namespace Shared
         void AddThread(IScriptThread thread);
         List<IScriptThread> GetThreads();
         void UpdateThreads(IEnumerable<IScriptThread> threads);
-        IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false);
+        IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
     }
 }

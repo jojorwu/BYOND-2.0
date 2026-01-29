@@ -5,6 +5,7 @@ namespace Core.VM.Runtime
 {
     public class DreamVMContext
     {
+        private readonly System.Threading.ReaderWriterLockSlim _globalLock = new();
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
@@ -14,5 +15,32 @@ namespace Core.VM.Runtime
         public IObjectTypeManager? ObjectTypeManager { get; set; }
         public IGameState? GameState { get; set; }
         public IScriptHost? ScriptHost { get; set; }
+
+        public DreamValue GetGlobal(int index)
+        {
+            _globalLock.EnterReadLock();
+            try
+            {
+                return index >= 0 && index < Globals.Count ? Globals[index] : DreamValue.Null;
+            }
+            finally
+            {
+                _globalLock.ExitReadLock();
+            }
+        }
+
+        public void SetGlobal(int index, DreamValue value)
+        {
+            _globalLock.EnterWriteLock();
+            try
+            {
+                while (Globals.Count <= index) Globals.Add(DreamValue.Null);
+                Globals[index] = value;
+            }
+            finally
+            {
+                _globalLock.ExitWriteLock();
+            }
+        }
     }
 }

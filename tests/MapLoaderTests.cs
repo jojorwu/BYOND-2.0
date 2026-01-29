@@ -50,7 +50,7 @@ namespace tests
             var turf = new Turf(turfType, 17, 33, 0);
             var gameObject = new GameObject(objectType);
             gameObject.SetVariable("InstanceProp", new DreamValue("instance_value"));
-            turf.Contents.Add(gameObject);
+            turf.AddContent(gameObject);
             map.SetTurf(17, 33, 0, turf); // Coordinates that will fall into a non-zero chunk
 
             // Act
@@ -61,9 +61,9 @@ namespace tests
             Assert.That(loadedMap, Is.Not.Null);
             var loadedTurf = loadedMap.GetTurf(17, 33, 0);
             Assert.That(loadedTurf, Is.Not.Null);
-            Assert.That(loadedTurf.Contents, Has.Count.EqualTo(1));
+            Assert.That(loadedTurf.Contents.Count(), Is.EqualTo(1));
 
-            var loadedGameObject = loadedTurf.Contents[0];
+            var loadedGameObject = loadedTurf.Contents.First();
             Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
             Assert.That(loadedGameObject.GetVariable("SpritePath").ToString(), Is.EqualTo("default.png"));
             Assert.That(loadedGameObject.GetVariable("InstanceProp").ToString(), Is.EqualTo("instance_value"));

@@ -94,9 +94,9 @@ namespace Server
             }
         }
 
-        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
         {
-            var objectIds = new HashSet<int>(objectsToTick.Select(o => o.Id));
+            objectIds ??= new HashSet<int>(objectsToTick.Select(o => o.Id));
             var dreamThreads = threads.OfType<DreamThread>().ToList();
             var nextThreads = new System.Collections.Concurrent.ConcurrentBag<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;

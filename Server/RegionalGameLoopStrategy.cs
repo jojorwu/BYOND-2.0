@@ -31,13 +31,18 @@ namespace Server
 
         public async Task TickAsync(CancellationToken cancellationToken)
         {
-            var globals = _scriptHost.GetThreads().Where(t => t.AssociatedObject == null).ToList();
+            var allThreads = _scriptHost.GetThreads();
+            var globals = allThreads.Where(t => t.AssociatedObject == null).ToList();
             var remainingGlobals = _scriptHost.ExecuteThreads(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
 
             var activeRegions = _regionActivationStrategy.GetActiveRegions();
             var mergedRegions = MergeRegions(activeRegions);
 
-            var regionData = new System.Collections.Concurrent.ConcurrentBag<(MergedRegion, string, IEnumerable<IGameObject>)>();
+            var objectThreads = allThreads.Where(t => t.AssociatedObject != null)
+                .GroupBy(t => t.AssociatedObject!.Id)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var regionData = new System.Collections.Concurrent.ConcurrentBag<(MergedRegion, string, List<IScriptThread>, HashSet<int>, List<IGameObject>)>();
             var options = new ParallelOptions
             {
                 MaxDegreeOfParallelism = _settings.Performance.RegionalProcessing.MaxThreads > 0
@@ -48,15 +53,17 @@ namespace Server
             await Parallel.ForEachAsync(mergedRegions, options, (mergedRegion, token) =>
             {
                 var gameObjects = mergedRegion.GetGameObjects().ToList();
-                regionData.Add((mergedRegion, _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion), gameObjects));
+                var objectIds = new HashSet<int>(gameObjects.Select(o => o.Id));
+                var threadsForRegion = gameObjects.SelectMany(obj => objectThreads.GetValueOrDefault(obj.Id, new List<IScriptThread>())).ToList();
+
+                regionData.Add((mergedRegion, _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion), threadsForRegion, objectIds, gameObjects));
                 return ValueTask.CompletedTask;
             });
 
             var tasks = new List<Task<IEnumerable<IScriptThread>>>();
-            var allThreads = _scriptHost.GetThreads();
-            foreach(var (mergedRegion, snapshot, gameObjects) in regionData)
+            foreach(var (mergedRegion, snapshot, threadsForRegion, objectIds, gameObjects) in regionData)
             {
-                tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(allThreads, gameObjects), cancellationToken));
+                tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(threadsForRegion, gameObjects, objectIds: objectIds), cancellationToken));
                 _ = Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), cancellationToken);
             }
 

@@ -41,19 +41,28 @@ namespace Shared
 
         public void AddGameObject(GameObject gameObject)
         {
-            GameObjects.Add(gameObject.Id, gameObject);
-            SpatialGrid.Add(gameObject);
+            using (WriteLock())
+            {
+                GameObjects.Add(gameObject.Id, gameObject);
+                SpatialGrid.Add(gameObject);
+            }
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
-            GameObjects.Remove(gameObject.Id);
-            SpatialGrid.Remove(gameObject);
+            using (WriteLock())
+            {
+                GameObjects.Remove(gameObject.Id);
+                SpatialGrid.Remove(gameObject);
+            }
         }
 
         public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)
         {
-            SpatialGrid.Update(gameObject, oldX, oldY);
+            using (WriteLock())
+            {
+                SpatialGrid.Update(gameObject, oldX, oldY);
+            }
         }
 
         private sealed class DisposableAction : IDisposable

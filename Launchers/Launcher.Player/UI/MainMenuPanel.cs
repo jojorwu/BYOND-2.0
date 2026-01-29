@@ -142,7 +142,10 @@ namespace Launcher.UI
 
         private void DrawPlayTab()
         {
-            if (ImGui.Button("Server Browser", new Vector2(250, 50)))
+            ImGui.Columns(2, "PlayColumns", false);
+            ImGui.SetColumnWidth(0, 300);
+
+            if (ImGui.Button("Server Browser", new Vector2(-1, 60)))
             {
                 IsServerBrowserRequested = true;
             }
@@ -151,11 +154,38 @@ namespace Launcher.UI
             ImGui.Spacing();
             ImGui.Spacing();
 
-            if (ImGui.Button("Start Client (Direct Connect)", new Vector2(250, 50)))
+            if (ImGui.Button("Direct Connect", new Vector2(-1, 60)))
             {
                 IsClientRequested = true;
             }
             ImGui.TextDisabled("Open the client to manually enter a server address.");
+
+            ImGui.NextColumn();
+
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "System Status");
+            ImGui.Separator();
+            DrawComponentStatus(EngineComponent.Client);
+
+            ImGui.Spacing();
+            ImGui.Text("Connection:");
+            ImGui.TextColored(new Vector4(0.3f, 0.8f, 0.3f, 1.0f), "Online");
+
+            ImGui.Columns(1);
+        }
+
+        private void DrawComponentStatus(EngineComponent component)
+        {
+            bool installed = _engineManager.IsComponentInstalled(component);
+            ImGui.Text($"{component}:");
+            ImGui.SameLine(100);
+            if (installed)
+            {
+                ImGui.TextColored(new Vector4(0.3f, 0.8f, 0.3f, 1.0f), "Ready");
+            }
+            else
+            {
+                ImGui.TextColored(new Vector4(0.8f, 0.3f, 0.3f, 1.0f), "Not Found");
+            }
         }
 
         private void DrawDevelopTab()

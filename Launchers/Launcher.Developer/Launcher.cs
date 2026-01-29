@@ -108,7 +108,21 @@ namespace Launcher
                 StartComponent(EngineComponent.Client);
             }
 
+            if (_mainMenuPanel.IsCompileRequested)
+            {
+                _mainMenuPanel.IsCompileRequested = false; // Reset flag
+                CompileAndRun();
+            }
+
             _imGuiController.Render();
+        }
+
+        private void CompileAndRun()
+        {
+            // For now, this just starts the compiler and then the server
+            // In a real scenario, we would wait for the compiler to finish
+            StartComponent(EngineComponent.Compiler, "Project.dm");
+            StartComponent(EngineComponent.Server);
         }
 
         private void StartComponent(EngineComponent component, string? arguments = null)

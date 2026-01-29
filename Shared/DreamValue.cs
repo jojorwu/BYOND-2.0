@@ -1,4 +1,4 @@
-using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -77,11 +77,11 @@ namespace Shared
             return false;
         }
 
-        public bool TryGetValue(out string? value)
+        public bool TryGetValue([NotNullWhen(true)] out string? value)
         {
             if (Type == DreamValueType.String)
             {
-                value = (string?)_objectValue;
+                value = (string)_objectValue!;
                 return true;
             }
 
@@ -89,11 +89,11 @@ namespace Shared
             return false;
         }
 
-        public bool TryGetValue(out DreamObject? value)
+        public bool TryGetValue([NotNullWhen(true)] out DreamObject? value)
         {
             if (Type == DreamValueType.DreamObject)
             {
-                value = (DreamObject?)_objectValue;
+                value = (DreamObject)_objectValue!;
                 return true;
             }
 
@@ -101,11 +101,11 @@ namespace Shared
             return false;
         }
 
-        public bool TryGetValue(out ObjectType? value)
+        public bool TryGetValue([NotNullWhen(true)] out ObjectType? value)
         {
             if (Type == DreamValueType.DreamType)
             {
-                value = (ObjectType?)_objectValue;
+                value = (ObjectType)_objectValue!;
                 return true;
             }
 
@@ -113,11 +113,11 @@ namespace Shared
             return false;
         }
 
-        public bool TryGetValue(out DreamResource? value)
+        public bool TryGetValue([NotNullWhen(true)] out DreamResource? value)
         {
             if (Type == DreamValueType.DreamResource)
             {
-                value = (DreamResource?)_objectValue;
+                value = (DreamResource)_objectValue!;
                 return true;
             }
 
@@ -125,11 +125,11 @@ namespace Shared
             return false;
         }
 
-        public bool TryGetValue(out IDreamProc? value)
+        public bool TryGetValue([NotNullWhen(true)] out IDreamProc? value)
         {
             if (Type == DreamValueType.DreamProc)
             {
-                value = (IDreamProc?)_objectValue;
+                value = (IDreamProc)_objectValue!;
                 return true;
             }
 
@@ -147,7 +147,7 @@ namespace Shared
             return null;
         }
 
-        public bool TryGetValueAsGameObject(out GameObject? gameObject)
+        public bool TryGetValueAsGameObject([NotNullWhen(true)] out GameObject? gameObject)
         {
             if (Type == DreamValueType.DreamObject && _objectValue is GameObject obj)
             {
@@ -228,7 +228,7 @@ namespace Shared
             throw new InvalidOperationException("Invalid DreamValue type");
         }
 
-        private float GetValueAsFloat()
+        public float GetValueAsFloat()
         {
             if (Type == DreamValueType.Float) return _floatValue;
             if (Type == DreamValueType.Null) return 0;
@@ -355,12 +355,12 @@ namespace Shared
 
         public static DreamValue operator <<(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() << (int)b.GetValueAsFloat());
+            return new DreamValue(SharedOperations.BitShiftLeft((int)a.GetValueAsFloat(), (int)b.GetValueAsFloat()));
         }
 
         public static DreamValue operator >>(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() >> (int)b.GetValueAsFloat());
+            return new DreamValue(SharedOperations.BitShiftRight((int)a.GetValueAsFloat(), (int)b.GetValueAsFloat()));
         }
 
         public bool IsFalse()

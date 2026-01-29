@@ -62,12 +62,10 @@ namespace Core.VM.Runtime
             _dispatchTable[(byte)Opcode.Increment] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Increment(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Decrement] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Decrement(p, f, ref pc);
             _dispatchTable[(byte)Opcode.Modulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_Modulus();
-            _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
             _dispatchTable[(byte)Opcode.AssignInto] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignInto(p, f, ref pc);
             _dispatchTable[(byte)Opcode.ModulusReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusReference(p, f, ref pc);
             _dispatchTable[(byte)Opcode.ModulusModulus] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusModulus();
             _dispatchTable[(byte)Opcode.ModulusModulusReference] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_ModulusModulusReference(p, f, ref pc);
-            _dispatchTable[(byte)Opcode.AssignNoPush] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_AssignNoPush(p, f, ref pc);
             _dispatchTable[(byte)Opcode.CreateList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateList(p, ref pc);
             _dispatchTable[(byte)Opcode.CreateAssociativeList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateAssociativeList(p, ref pc);
             _dispatchTable[(byte)Opcode.CreateStrictAssociativeList] = (DreamThread t, ref DreamProc p, CallFrame f, ref int pc) => t.Opcode_CreateStrictAssociativeList(p, ref pc);
@@ -355,7 +353,6 @@ namespace Core.VM.Runtime
                 return State;
 
             var instructionsExecutedThisTick = 0;
-
             var frame = CallStack.Peek();
             var proc = frame.Proc;
             var pc = frame.PC;
@@ -364,16 +361,14 @@ namespace Core.VM.Runtime
             {
                 if (instructionsExecutedThisTick++ >= instructionBudget)
                 {
-                    SavePC(pc);
-                    return DreamThreadState.Running; // Budget exhausted, will resume next tick
+                    break;
                 }
 
                 if (_totalInstructionsExecuted++ > _maxInstructions)
                 {
                     State = DreamThreadState.Error;
                     Console.WriteLine("Error: Instruction limit exceeded.");
-                    SavePC(pc);
-                    return State;
+                    break;
                 }
 
                 // If we've executed past the end of the bytecode, it's an implicit return.
@@ -381,19 +376,26 @@ namespace Core.VM.Runtime
                 {
                     Push(DreamValue.Null);
                     Opcode_Return(ref proc, ref pc);
-                    if(State == DreamThreadState.Running)
+                    if (State == DreamThreadState.Running && CallStack.Count > 0)
+                    {
                         frame = CallStack.Peek();
+                        proc = frame.Proc;
+                        pc = frame.PC;
+                    }
                     continue;
                 }
 
                 try
                 {
-                    var opcode = (Opcode)ReadByte(proc, ref pc);
+                    var opcode = (Opcode)proc.Bytecode[pc++];
                     var handler = _dispatchTable[(byte)opcode];
                     if (handler != null)
                     {
                         handler(this, ref proc, frame, ref pc);
-                        if (opcode == Opcode.Call || opcode == Opcode.Return || opcode == Opcode.CreateObject || opcode == Opcode.DereferenceCall)
+
+                        // Only refresh if the opcode could have changed the call stack
+                        if (opcode == Opcode.Call || opcode == Opcode.Return || opcode == Opcode.CreateObject ||
+                            opcode == Opcode.DereferenceCall)
                         {
                             if (State == DreamThreadState.Running && CallStack.Count > 0)
                             {
@@ -413,16 +415,15 @@ namespace Core.VM.Runtime
                 {
                     State = DreamThreadState.Error;
                     Console.WriteLine($"Error during script execution: {e.Message}");
-                    SavePC(pc);
-                    return State;
-                }
-
-                if (State != DreamThreadState.Running) // Check state after handler execution
-                {
-                    SavePC(pc);
-                    return State;
+                    break;
                 }
             }
+
+            if (CallStack.Count > 0)
+            {
+                SavePC(pc);
+            }
+
             return State;
         }
     }

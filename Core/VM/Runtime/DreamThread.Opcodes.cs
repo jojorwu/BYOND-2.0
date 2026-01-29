@@ -135,7 +135,7 @@ namespace Core.VM.Runtime
 
             if (srcValue.TryGetValueAsGameObject(out var src) && targetValue.TryGetValueAsGameObject(out var target))
             {
-                var minDist = minDistValue.AsFloat();
+                var minDist = minDistValue.GetValueAsFloat();
                 var dx = target.X - src.X;
                 var dy = target.Y - src.Y;
 
@@ -449,14 +449,16 @@ namespace Core.VM.Runtime
 
         private void Opcode_Modulus()
         {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue((float)Math.IEEERemainder(_stack[_stackPtr - 1].AsFloat(), b.AsFloat()));
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue((float)Math.IEEERemainder(a.GetValueAsFloat(), b.GetValueAsFloat())));
         }
 
         private void Opcode_ModulusModulus()
         {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(_stack[_stackPtr - 1].AsFloat() % b.AsFloat());
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(a.GetValueAsFloat() % b.GetValueAsFloat()));
         }
 
         private void Opcode_ModulusReference(DreamProc proc, CallFrame frame, ref int pc)
@@ -464,7 +466,7 @@ namespace Core.VM.Runtime
             var reference = ReadReference(proc, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, new DreamValue((float)Math.IEEERemainder(refValue.AsFloat(), value.AsFloat())));
+            SetReferenceValue(reference, frame, new DreamValue((float)Math.IEEERemainder(refValue.GetValueAsFloat(), value.GetValueAsFloat())));
         }
 
         private void Opcode_ModulusModulusReference(DreamProc proc, CallFrame frame, ref int pc)
@@ -472,7 +474,7 @@ namespace Core.VM.Runtime
             var reference = ReadReference(proc, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, new DreamValue(refValue.AsFloat() % value.AsFloat()));
+            SetReferenceValue(reference, frame, new DreamValue(refValue.GetValueAsFloat() % value.GetValueAsFloat()));
         }
 
         private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
@@ -497,7 +499,7 @@ namespace Core.VM.Runtime
 
             if (objValue.TryGetValue(out DreamObject? obj) && obj is GameObject gameObject)
             {
-                var dir = (int)dirValue.AsFloat();
+                var dir = (int)dirValue.GetValueAsFloat();
                 int dx = 0, dy = 0;
                 if ((dir & 1) != 0) dy++; // NORTH
                 if ((dir & 2) != 0) dy--; // SOUTH
@@ -568,7 +570,7 @@ namespace Core.VM.Runtime
             float totalWeight = 0;
             for (int i = count - 1; i >= 0; i--)
             {
-                var weight = Pop().AsFloat();
+                var weight = Pop().GetValueAsFloat();
                 var val = Pop();
                 values[i] = (val, weight);
                 totalWeight += weight;
@@ -967,11 +969,20 @@ namespace Core.VM.Runtime
 
         private void Opcode_Power()
         {
-            var b = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(MathF.Pow(_stack[_stackPtr - 1].AsFloat(), b.AsFloat()));
+            var b = Pop();
+            var a = Pop();
+            Push(new DreamValue(MathF.Pow(a.GetValueAsFloat(), b.GetValueAsFloat())));
         }
-        private void Opcode_Sqrt() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Sqrt(_stack[_stackPtr - 1].AsFloat()));
-        private void Opcode_Abs() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Abs(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_Sqrt()
+        {
+            var a = Pop();
+            Push(new DreamValue(SharedOperations.Sqrt(a.GetValueAsFloat())));
+        }
+        private void Opcode_Abs()
+        {
+            var a = Pop();
+            Push(new DreamValue(SharedOperations.Abs(a.GetValueAsFloat())));
+        }
 
         private void Opcode_MultiplyReference(DreamProc proc, CallFrame frame, ref int pc)
         {
@@ -989,16 +1000,17 @@ namespace Core.VM.Runtime
             SetReferenceValue(reference, frame, refValue / value);
         }
 
-        private void Opcode_Sin() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Sin(_stack[_stackPtr - 1].AsFloat()));
-        private void Opcode_Cos() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Cos(_stack[_stackPtr - 1].AsFloat()));
-        private void Opcode_Tan() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.Tan(_stack[_stackPtr - 1].AsFloat()));
-        private void Opcode_ArcSin() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcSin(_stack[_stackPtr - 1].AsFloat()));
-        private void Opcode_ArcCos() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcCos(_stack[_stackPtr - 1].AsFloat()));
-        private void Opcode_ArcTan() => _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcTan(_stack[_stackPtr - 1].AsFloat()));
+        private void Opcode_Sin() => Push(new DreamValue(SharedOperations.Sin(Pop().GetValueAsFloat())));
+        private void Opcode_Cos() => Push(new DreamValue(SharedOperations.Cos(Pop().GetValueAsFloat())));
+        private void Opcode_Tan() => Push(new DreamValue(SharedOperations.Tan(Pop().GetValueAsFloat())));
+        private void Opcode_ArcSin() => Push(new DreamValue(SharedOperations.ArcSin(Pop().GetValueAsFloat())));
+        private void Opcode_ArcCos() => Push(new DreamValue(SharedOperations.ArcCos(Pop().GetValueAsFloat())));
+        private void Opcode_ArcTan() => Push(new DreamValue(SharedOperations.ArcTan(Pop().GetValueAsFloat())));
         private void Opcode_ArcTan2()
         {
-            var y = _stack[--_stackPtr];
-            _stack[_stackPtr - 1] = new DreamValue(SharedOperations.ArcTan(_stack[_stackPtr - 1].AsFloat(), y.AsFloat()));
+            var y = Pop();
+            var x = Pop();
+            Push(new DreamValue(SharedOperations.ArcTan(x.GetValueAsFloat(), y.GetValueAsFloat())));
         }
 
         private void Opcode_PushType(DreamProc proc, ref int pc)
@@ -1178,14 +1190,14 @@ namespace Core.VM.Runtime
                 {
                     var value = Pop();
                     var name = Pop().ToString();
-                    values[i] = (name, value.AsFloat());
+                    values[i] = (name, value.GetValueAsFloat());
                 }
             }
             else
             {
                 for (int i = argCount - 1; i >= 0; i--)
                 {
-                    values[i] = (null, Pop().AsFloat());
+                    values[i] = (null, Pop().GetValueAsFloat());
                 }
             }
 
@@ -1208,7 +1220,7 @@ namespace Core.VM.Runtime
                 // Simple 2-color interpolation: gradient(color1, color2, index)
                 var color1Str = values[0].ToString();
                 var color2Str = values[1].ToString();
-                var index = values[2].AsFloat();
+                var index = values[2].GetValueAsFloat();
 
                 var c1 = Robust.Shared.Maths.Color.TryFromHex(color1Str);
                 var c2 = Robust.Shared.Maths.Color.TryFromHex(color2Str);

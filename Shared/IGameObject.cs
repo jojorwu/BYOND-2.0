@@ -10,6 +10,8 @@ namespace Shared
         int Z { get; set; }
         ObjectType ObjectType { get; }
 
+        IEnumerable<IGameObject> Contents { get; }
+
         // Removed Properties dictionary in favor of DreamObject's variable system
 
         void SetPosition(int x, int y, int z);

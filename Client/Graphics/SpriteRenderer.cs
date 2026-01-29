@@ -31,11 +31,14 @@ namespace Client.Graphics
         public Vector2 Size;
         public Color Color;
         public float Layer;
+        public int Plane;
+        public Box2? Scissor;
+        public float Rotation;
     }
 
     public class SpriteRenderer : IDisposable
     {
-        private const int MaxQuads = 2000;
+        private const int MaxQuads = 10000;
         private const int MaxVertices = MaxQuads * 4;
         private const int MaxIndices = MaxQuads * 6;
 
@@ -48,6 +51,7 @@ namespace Client.Graphics
         private readonly List<Vertex> _vertices = new(MaxVertices);
         private readonly List<SpriteDrawCommand> _commands = new();
         private uint _activeTextureId;
+        private Box2? _activeScissor;
 
         public SpriteRenderer(GL gl)
         {
@@ -116,7 +120,7 @@ namespace Client.Graphics
             _commands.Clear();
         }
 
-        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0)
+        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0, Box2? scissor = null, float rotation = 0)
         {
             _commands.Add(new SpriteDrawCommand
             {
@@ -125,42 +129,71 @@ namespace Client.Graphics
                 Position = position,
                 Size = size,
                 Color = color,
-                Layer = layer
+                Layer = layer,
+                Plane = plane,
+                Scissor = scissor,
+                Rotation = rotation
             });
         }
 
-        public void DrawQuad(Vector2 position, Vector2 size, Color color, float layer = 0)
+        public void DrawQuad(Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0)
         {
-            Draw(0, new Box2(0, 0, 1, 1), position, size, color, layer);
+            Draw(0, new Box2(0, 0, 1, 1), position, size, color, layer, plane);
         }
 
         public void End()
         {
             if (_commands.Count == 0) return;
 
-            // Sort by Layer, then by TextureId to minimize switches
+            // Sort by Plane, then by Layer, then by TextureId to minimize switches
             _commands.Sort((a, b) =>
             {
+                if (a.Plane != b.Plane) return a.Plane.CompareTo(b.Plane);
                 int layerCmp = a.Layer.CompareTo(b.Layer);
                 if (layerCmp != 0) return layerCmp;
                 return a.TextureId.CompareTo(b.TextureId);
             });
 
             _activeTextureId = _commands[0].TextureId;
+            _activeScissor = _commands[0].Scissor;
             _vertices.Clear();
 
             foreach (var cmd in _commands)
             {
-                if (cmd.TextureId != _activeTextureId || _vertices.Count + 4 > MaxVertices)
+                if (cmd.TextureId != _activeTextureId || cmd.Scissor != _activeScissor || _vertices.Count + 4 > MaxVertices)
                 {
                     Flush();
                     _activeTextureId = cmd.TextureId;
+                    _activeScissor = cmd.Scissor;
                 }
 
-                _vertices.Add(new Vertex(cmd.Position, new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
-                _vertices.Add(new Vertex(cmd.Position + new Vector2(cmd.Size.X, 0), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
-                _vertices.Add(new Vertex(cmd.Position + cmd.Size, new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
-                _vertices.Add(new Vertex(cmd.Position + new Vector2(0, cmd.Size.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                if (cmd.Rotation == 0)
+                {
+                    _vertices.Add(new Vertex(cmd.Position, new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(cmd.Position + new Vector2(cmd.Size.X, 0), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(cmd.Position + cmd.Size, new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
+                    _vertices.Add(new Vertex(cmd.Position + new Vector2(0, cmd.Size.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                }
+                else
+                {
+                    var cos = (float)Math.Cos(cmd.Rotation);
+                    var sin = (float)Math.Sin(cmd.Rotation);
+                    var center = cmd.Position + cmd.Size * 0.5f;
+
+                    Vector2 Rotate(Vector2 p)
+                    {
+                        var rel = p - center;
+                        return new Vector2(
+                            rel.X * cos - rel.Y * sin + center.X,
+                            rel.X * sin + rel.Y * cos + center.Y
+                        );
+                    }
+
+                    _vertices.Add(new Vertex(Rotate(cmd.Position), new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(Rotate(cmd.Position + new Vector2(cmd.Size.X, 0)), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
+                    _vertices.Add(new Vertex(Rotate(cmd.Position + cmd.Size), new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
+                    _vertices.Add(new Vertex(Rotate(cmd.Position + new Vector2(0, cmd.Size.Y)), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                }
             }
 
             Flush();
@@ -170,6 +203,17 @@ namespace Client.Graphics
         {
             if (_vertices.Count == 0)
                 return;
+
+            if (_activeScissor.HasValue)
+            {
+                _gl.Enable(EnableCap.ScissorTest);
+                var s = _activeScissor.Value;
+                _gl.Scissor((int)s.Left, (int)s.Bottom, (uint)s.Width, (uint)s.Height);
+            }
+            else
+            {
+                _gl.Disable(EnableCap.ScissorTest);
+            }
 
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, _activeTextureId);

@@ -17,13 +17,17 @@ namespace Client.Graphics
             _shader = new Shader(_gl, File.ReadAllText("Shaders/model.vert"), File.ReadAllText("Shaders/model.frag"));
         }
 
-        public void Render(Mesh mesh, uint textureId, Matrix4x4 model, Matrix4x4 view, Matrix4x4 projection, Vector3 color)
+        public void Render(Mesh mesh, uint textureId, Matrix4x4 model, Matrix4x4 view, Matrix4x4 projection, Vector3 color, Vector3? lightDir = null, Vector3? lightColor = null, Vector3? ambientColor = null)
         {
             _shader.Use();
             _shader.SetUniform("uModel", model);
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
             _shader.SetUniform("uColor", color);
+
+            _shader.SetUniform("uLightDir", lightDir ?? new Vector3(-0.5f, -1.0f, -0.5f));
+            _shader.SetUniform("uLightColor", lightColor ?? new Vector3(1.0f, 1.0f, 1.0f));
+            _shader.SetUniform("uAmbientColor", ambientColor ?? new Vector3(0.2f, 0.2f, 0.2f));
 
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, textureId);

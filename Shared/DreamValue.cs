@@ -14,6 +14,8 @@ namespace Shared
 
         public static readonly DreamValue Null = new DreamValue();
 
+        public bool IsNull => Type == DreamValueType.Null;
+
         public DreamValue()
         {
             Type = DreamValueType.Null;
@@ -143,6 +145,17 @@ namespace Shared
             }
 
             return null;
+        }
+
+        public bool TryGetValueAsGameObject(out GameObject? gameObject)
+        {
+            if (Type == DreamValueType.DreamObject && _objectValue is GameObject obj)
+            {
+                gameObject = obj;
+                return true;
+            }
+            gameObject = null;
+            return false;
         }
 
         public float AsFloat()

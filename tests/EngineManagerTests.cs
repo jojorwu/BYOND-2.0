@@ -1,5 +1,6 @@
 using NUnit.Framework;
-using Shared;
+using Shared.Interfaces;
+using Shared.Services;
 using System.IO;
 
 namespace tests

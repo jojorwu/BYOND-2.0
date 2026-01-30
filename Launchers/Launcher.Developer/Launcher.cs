@@ -9,13 +9,15 @@ using Launcher.UI;
 using System;
 using System.ComponentModel;
 using System.IO;
-using Shared;
+using Shared.Interfaces;
+using Shared.Messaging;
 
 namespace Launcher
 {
     public class Launcher : IDisposable
     {
         private readonly IEngineManager _engineManager;
+        private readonly IEventBus _eventBus;
         private IWindow? _window;
         private GL? _gl;
         private IInputContext? _inputContext;
@@ -23,9 +25,10 @@ namespace Launcher
         private MainMenuPanel? _mainMenuPanel;
         private Texture? _logoTexture;
 
-        public Launcher(IEngineManager engineManager)
+        public Launcher(IEngineManager engineManager, IEventBus eventBus)
         {
             _engineManager = engineManager;
+            _eventBus = eventBus;
         }
 
         public void Run()
@@ -119,8 +122,6 @@ namespace Launcher
 
         private void CompileAndRun()
         {
-            // For now, this just starts the compiler and then the server
-            // In a real scenario, we would wait for the compiler to finish
             StartComponent(EngineComponent.Compiler, "Project.dm");
             StartComponent(EngineComponent.Server);
         }

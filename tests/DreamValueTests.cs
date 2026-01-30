@@ -25,7 +25,7 @@ namespace tests
         [Test]
         public void Equality_FloatEpsilon_Works()
         {
-            // Current implementation uses 0.00001f epsilon
+            // Implementation uses 0.00001f epsilon
             Assert.That(new DreamValue(1.000001f).Equals(new DreamValue(1.000002f)), Is.True);
             Assert.That(new DreamValue(1.0001f).Equals(new DreamValue(1.0002f)), Is.False);
         }

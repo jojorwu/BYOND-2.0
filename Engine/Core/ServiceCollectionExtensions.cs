@@ -32,7 +32,7 @@ namespace Core
             );
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
-            services.AddSingleton<ICompiledJsonService, CompiledJsonService>();
+            services.AddSingleton<ICompiledJsonService>(provider => new CompiledJsonService(provider.GetService<ILogger<CompiledJsonService>>()));
             services.AddSingleton<IDreamMakerLoader, DreamMakerLoader>();
             services.AddSingleton<IScriptManager>(provider =>
                 new ScriptManager(

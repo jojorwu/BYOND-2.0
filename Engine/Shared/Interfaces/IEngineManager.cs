@@ -1,4 +1,4 @@
-namespace Shared
+namespace Shared.Interfaces
 {
     public enum EngineComponent
     {
@@ -12,7 +12,7 @@ namespace Shared
     {
         string GetExecutablePath(EngineComponent component);
         bool IsComponentInstalled(EngineComponent component);
-        void InstallComponent(EngineComponent component); // Foundation for future
+        void InstallComponent(EngineComponent component);
         string GetBaseEnginePath();
         void SetBaseEnginePath(string path);
         void LoadSettings();

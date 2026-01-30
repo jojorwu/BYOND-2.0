@@ -2,16 +2,20 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using Shared.Interfaces;
+using Microsoft.Extensions.Logging;
 
-namespace Shared
+namespace Shared.Services
 {
     public class EngineManager : IEngineManager
     {
         private string _basePath;
         private const string SettingsFileName = "launcher_settings.json";
+        private readonly ILogger<EngineManager>? _logger;
 
-        public EngineManager(string? basePath = null)
+        public EngineManager(ILogger<EngineManager>? logger = null, string? basePath = null)
         {
+            _logger = logger;
             _basePath = basePath ?? AppDomain.CurrentDomain.BaseDirectory;
             LoadSettings();
         }
@@ -21,6 +25,7 @@ namespace Shared
         public void SetBaseEnginePath(string path)
         {
             _basePath = path;
+            _logger?.LogInformation("Engine base path set to: {Path}", path);
             SaveSettings();
         }
 
@@ -40,7 +45,7 @@ namespace Shared
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error loading settings: {e.Message}");
+                _logger?.LogError(e, "Error loading launcher settings");
             }
         }
 
@@ -54,7 +59,7 @@ namespace Shared
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error saving settings: {e.Message}");
+                _logger?.LogError(e, "Error saving launcher settings");
             }
         }
 
@@ -79,15 +84,13 @@ namespace Shared
                 name += ".exe";
             }
 
-            // Check current directory first
             string path = Path.Combine(_basePath, name);
             if (File.Exists(path)) return path;
 
-            // Check bin folder (common in dev environments)
             path = Path.Combine(_basePath, "bin", name);
             if (File.Exists(path)) return path;
 
-            return name; // Fallback to just the name, maybe it's in PATH
+            return name;
         }
 
         public bool IsComponentInstalled(EngineComponent component)
@@ -98,8 +101,7 @@ namespace Shared
 
         public void InstallComponent(EngineComponent component)
         {
-            // Placeholder for actual installation logic (e.g., downloading from a server)
-            Console.WriteLine($"Installing {component}...");
+            _logger?.LogInformation("Requesting installation of component: {Component}", component);
         }
     }
 }

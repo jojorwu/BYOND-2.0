@@ -2,7 +2,7 @@ using ImGuiNET;
 using System.Numerics;
 using System;
 using System.Collections.Generic;
-using Shared;
+using Shared.Interfaces;
 
 namespace Launcher.UI
 {

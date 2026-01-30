@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using Shared;
+using Shared.Services;
 
 namespace Launcher
 {

@@ -18,6 +18,7 @@ namespace Launcher
     {
         private readonly IEngineManager _engineManager;
         private readonly IEventBus _eventBus;
+        private readonly IComputeService _computeService;
         private IWindow? _window;
         private GL? _gl;
         private IInputContext? _inputContext;
@@ -25,14 +26,20 @@ namespace Launcher
         private MainMenuPanel? _mainMenuPanel;
         private Texture? _logoTexture;
 
-        public Launcher(IEngineManager engineManager, IEventBus eventBus)
+        public Launcher(IEngineManager engineManager, IEventBus eventBus, IComputeService computeService)
         {
             _engineManager = engineManager;
             _eventBus = eventBus;
+            _computeService = computeService;
         }
 
         public void Run()
         {
+            if (_computeService is IAsyncInitializable initializable)
+            {
+                _ = initializable.InitializeAsync();
+            }
+
             var options = WindowOptions.Default;
             options.Title = "BYOND 2.0 Developer Launcher";
             options.Size = new Vector2D<int>(640, 480);
@@ -67,7 +74,7 @@ namespace Launcher
                     _logoTexture = null;
                 }
 
-                _mainMenuPanel = new MainMenuPanel(_logoTexture, _engineManager);
+                _mainMenuPanel = new MainMenuPanel(_logoTexture, _engineManager, _computeService);
             }
         }
 

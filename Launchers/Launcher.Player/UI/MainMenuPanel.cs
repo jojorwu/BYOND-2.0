@@ -18,6 +18,7 @@ namespace Launcher.UI
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
         private readonly IEngineManager _engineManager;
+        private readonly IComputeService _computeService;
 
         private int _selectedTab = 0;
         private readonly List<string> _tabs = new() { "Home", "Play", "Settings" };
@@ -26,10 +27,11 @@ namespace Launcher.UI
         private bool _sendAnalytics = false;
         private string _enginePath;
 
-        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager)
+        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager, IComputeService computeService)
         {
             _logoTexture = logoTexture;
             _engineManager = engineManager;
+            _computeService = computeService;
             _enginePath = _engineManager.GetBaseEnginePath();
         }
 
@@ -165,6 +167,12 @@ namespace Launcher.UI
             ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "System Status");
             ImGui.Separator();
             DrawComponentStatus(EngineComponent.Client);
+
+            ImGui.Spacing();
+            ImGui.Text("Compute:");
+            ImGui.SameLine(100);
+            var device = _computeService.BestAvailableDevice;
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), device.ToString());
 
             ImGui.Spacing();
             ImGui.Text("Connection:");

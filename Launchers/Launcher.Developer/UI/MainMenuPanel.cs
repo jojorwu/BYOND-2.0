@@ -19,6 +19,7 @@ namespace Launcher.UI
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
         private readonly IEngineManager _engineManager;
+        private readonly IComputeService _computeService;
 
         private int _selectedTab = 0;
         private readonly List<string> _tabs = new() { "Home", "Develop", "Settings" };
@@ -29,10 +30,11 @@ namespace Launcher.UI
         private bool _sendAnalytics = false;
         private string _enginePath;
 
-        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager)
+        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager, IComputeService computeService)
         {
             _logoTexture = logoTexture;
             _engineManager = engineManager;
+            _computeService = computeService;
             _enginePath = _engineManager.GetBaseEnginePath();
         }
 
@@ -194,6 +196,11 @@ namespace Launcher.UI
             DrawComponentStatus(EngineComponent.Editor);
             DrawComponentStatus(EngineComponent.Client);
 
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Hardware Status");
+            ImGui.Separator();
+            DrawHardwareStatus();
+
             ImGui.NextColumn();
 
             // Right side: Recent Projects
@@ -216,6 +223,28 @@ namespace Launcher.UI
             }
 
             ImGui.Columns(1);
+        }
+
+        private void DrawHardwareStatus()
+        {
+            ImGui.Text("Compute Device:");
+            ImGui.SameLine(130);
+
+            var device = _computeService.BestAvailableDevice;
+            var color = device switch
+            {
+                ComputeDevice.Cuda => new Vector4(0.47f, 0.73f, 0.0f, 1.0f), // Nvidia Green
+                ComputeDevice.Rocm => new Vector4(0.93f, 0.11f, 0.14f, 1.0f), // AMD Red
+                ComputeDevice.Gpu => new Vector4(0.2f, 0.7f, 1.0f, 1.0f),
+                _ => new Vector4(0.7f, 0.7f, 0.7f, 1.0f)
+            };
+
+            ImGui.TextColored(color, device.ToString());
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip($"Using {device} for hardware-accelerated calculations.");
+            }
         }
 
         private void DrawComponentStatus(EngineComponent component)

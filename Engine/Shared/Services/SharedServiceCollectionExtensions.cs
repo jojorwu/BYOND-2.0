@@ -11,6 +11,7 @@ namespace Shared.Services
         {
             services.AddSingleton<IEngineManager, EngineManager>();
             services.AddSingleton<IEventBus, EventBus>();
+            services.AddSingleton<IComputeService, ComputeService>();
             return services;
         }
     }

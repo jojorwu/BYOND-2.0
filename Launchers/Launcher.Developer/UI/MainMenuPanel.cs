@@ -2,6 +2,7 @@ using ImGuiNET;
 using System.Numerics;
 using System;
 using System.Collections.Generic;
+using Shared.Interfaces;
 
 namespace Launcher.UI
 {
@@ -12,20 +13,29 @@ namespace Launcher.UI
         public bool IsServerBrowserRequested { get; set; }
         public bool IsServerRequested { get; set; }
         public bool IsClientRequested { get; set; }
+        public bool IsCompileRequested { get; set; }
 
         private bool _showErrorModal = false;
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
+        private readonly IEngineManager _engineManager;
+        private readonly IComputeService _computeService;
 
         private int _selectedTab = 0;
         private readonly List<string> _tabs = new() { "Home", "Develop", "Settings" };
 
+        private readonly List<string> _recentProjects = new() { "Project A (maps/map.dmm)", "Awesome Game (main.dm)", "Testing Grounds" };
+
         private bool _checkForUpdates = true;
         private bool _sendAnalytics = false;
+        private string _enginePath;
 
-        public MainMenuPanel(Texture? logoTexture)
+        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager, IComputeService computeService)
         {
             _logoTexture = logoTexture;
+            _engineManager = engineManager;
+            _computeService = computeService;
+            _enginePath = _engineManager.GetBaseEnginePath();
         }
 
         public void ShowError(string message)
@@ -155,26 +165,118 @@ namespace Launcher.UI
 
         private void DrawDevelopTab()
         {
-            if (ImGui.Button("Open Project Editor", new Vector2(250, 50)))
+            ImGui.Columns(2, "DevelopColumns", true);
+
+            // Left side: Quick Actions and Status
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Quick Actions");
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            if (ImGui.Button("Compile & Run", new Vector2(-1, 40)))
+            {
+                IsCompileRequested = true;
+            }
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Compiles the current project and starts a local server.");
+
+            if (ImGui.Button("Open Editor", new Vector2(-1, 40)))
             {
                 IsEditorRequested = true;
             }
-            ImGui.TextDisabled("Create and edit your game maps, scripts, and assets.");
 
-            ImGui.Spacing();
-            ImGui.Spacing();
-
-            if (ImGui.Button("Start Local Server", new Vector2(250, 50)))
+            if (ImGui.Button("Launch Server", new Vector2(-1, 40)))
             {
                 IsServerRequested = true;
             }
-            ImGui.TextDisabled("Host a server on your local machine for testing.");
+
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Engine Status");
+            ImGui.Separator();
+            DrawComponentStatus(EngineComponent.Compiler);
+            DrawComponentStatus(EngineComponent.Server);
+            DrawComponentStatus(EngineComponent.Editor);
+            DrawComponentStatus(EngineComponent.Client);
+
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Hardware Status");
+            ImGui.Separator();
+            DrawHardwareStatus();
+
+            ImGui.NextColumn();
+
+            // Right side: Recent Projects
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Recent Projects");
+            ImGui.Separator();
+            ImGui.BeginChild("RecentProjects", new Vector2(0, -ImGui.GetFrameHeightWithSpacing()), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+            foreach (var project in _recentProjects)
+            {
+                if (ImGui.Selectable(project, false, ImGuiSelectableFlags.AllowDoubleClick))
+                {
+                    // Logic to open project
+                }
+                ImGui.Separator();
+            }
+            ImGui.EndChild();
+
+            if (ImGui.Button("Add Project...", new Vector2(-1, 0)))
+            {
+                // Action
+            }
+
+            ImGui.Columns(1);
+        }
+
+        private void DrawHardwareStatus()
+        {
+            ImGui.Text("Compute Device:");
+            ImGui.SameLine(130);
+
+            var device = _computeService.BestAvailableDevice;
+            var color = device switch
+            {
+                ComputeDevice.Cuda => new Vector4(0.47f, 0.73f, 0.0f, 1.0f), // Nvidia Green
+                ComputeDevice.Rocm => new Vector4(0.93f, 0.11f, 0.14f, 1.0f), // AMD Red
+                ComputeDevice.Gpu => new Vector4(0.2f, 0.7f, 1.0f, 1.0f),
+                _ => new Vector4(0.7f, 0.7f, 0.7f, 1.0f)
+            };
+
+            ImGui.TextColored(color, device.ToString());
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip($"Using {device} for hardware-accelerated calculations.");
+            }
+        }
+
+        private void DrawComponentStatus(EngineComponent component)
+        {
+            bool installed = _engineManager.IsComponentInstalled(component);
+            ImGui.Text($"{component}:");
+            ImGui.SameLine(100);
+            if (installed)
+            {
+                ImGui.TextColored(new Vector4(0.3f, 0.8f, 0.3f, 1.0f), "Found");
+            }
+            else
+            {
+                ImGui.TextColored(new Vector4(0.8f, 0.3f, 0.3f, 1.0f), "Missing");
+            }
         }
 
         private void DrawSettingsTab()
         {
             ImGui.Text("Launcher Settings");
             ImGui.Separator();
+
+            ImGui.Text("Engine Installation Path:");
+            if (ImGui.InputText("##enginepath", ref _enginePath, 512))
+            {
+                _engineManager.SetBaseEnginePath(_enginePath);
+            }
+            ImGui.TextDisabled("This folder contains Client.exe, Server.exe, etc.");
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
 
             ImGui.Checkbox("Check for updates on startup", ref _checkForUpdates);
 

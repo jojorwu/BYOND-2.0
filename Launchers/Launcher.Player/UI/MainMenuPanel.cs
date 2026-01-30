@@ -2,6 +2,7 @@ using ImGuiNET;
 using System.Numerics;
 using System;
 using System.Collections.Generic;
+using Shared.Interfaces;
 
 namespace Launcher.UI
 {
@@ -16,16 +17,22 @@ namespace Launcher.UI
         private bool _showErrorModal = false;
         private string _errorMessage = "";
         private readonly Texture? _logoTexture;
+        private readonly IEngineManager _engineManager;
+        private readonly IComputeService _computeService;
 
         private int _selectedTab = 0;
         private readonly List<string> _tabs = new() { "Home", "Play", "Settings" };
 
         private bool _checkForUpdates = true;
         private bool _sendAnalytics = false;
+        private string _enginePath;
 
-        public MainMenuPanel(Texture? logoTexture)
+        public MainMenuPanel(Texture? logoTexture, IEngineManager engineManager, IComputeService computeService)
         {
             _logoTexture = logoTexture;
+            _engineManager = engineManager;
+            _computeService = computeService;
+            _enginePath = _engineManager.GetBaseEnginePath();
         }
 
         public void ShowError(string message)
@@ -137,7 +144,10 @@ namespace Launcher.UI
 
         private void DrawPlayTab()
         {
-            if (ImGui.Button("Server Browser", new Vector2(250, 50)))
+            ImGui.Columns(2, "PlayColumns", false);
+            ImGui.SetColumnWidth(0, 300);
+
+            if (ImGui.Button("Server Browser", new Vector2(-1, 60)))
             {
                 IsServerBrowserRequested = true;
             }
@@ -146,11 +156,44 @@ namespace Launcher.UI
             ImGui.Spacing();
             ImGui.Spacing();
 
-            if (ImGui.Button("Start Client (Direct Connect)", new Vector2(250, 50)))
+            if (ImGui.Button("Direct Connect", new Vector2(-1, 60)))
             {
                 IsClientRequested = true;
             }
             ImGui.TextDisabled("Open the client to manually enter a server address.");
+
+            ImGui.NextColumn();
+
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "System Status");
+            ImGui.Separator();
+            DrawComponentStatus(EngineComponent.Client);
+
+            ImGui.Spacing();
+            ImGui.Text("Compute:");
+            ImGui.SameLine(100);
+            var device = _computeService.BestAvailableDevice;
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), device.ToString());
+
+            ImGui.Spacing();
+            ImGui.Text("Connection:");
+            ImGui.TextColored(new Vector4(0.3f, 0.8f, 0.3f, 1.0f), "Online");
+
+            ImGui.Columns(1);
+        }
+
+        private void DrawComponentStatus(EngineComponent component)
+        {
+            bool installed = _engineManager.IsComponentInstalled(component);
+            ImGui.Text($"{component}:");
+            ImGui.SameLine(100);
+            if (installed)
+            {
+                ImGui.TextColored(new Vector4(0.3f, 0.8f, 0.3f, 1.0f), "Ready");
+            }
+            else
+            {
+                ImGui.TextColored(new Vector4(0.8f, 0.3f, 0.3f, 1.0f), "Not Found");
+            }
         }
 
         private void DrawDevelopTab()
@@ -175,6 +218,17 @@ namespace Launcher.UI
         {
             ImGui.Text("Launcher Settings");
             ImGui.Separator();
+
+            ImGui.Text("Engine Installation Path:");
+            if (ImGui.InputText("##enginepath", ref _enginePath, 512))
+            {
+                _engineManager.SetBaseEnginePath(_enginePath);
+            }
+            ImGui.TextDisabled("This folder contains Client.exe, Server.exe, etc.");
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
 
             ImGui.Checkbox("Check for updates on startup", ref _checkForUpdates);
 

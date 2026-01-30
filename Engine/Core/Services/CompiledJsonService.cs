@@ -7,11 +7,19 @@ using Core.VM.Procs;
 using Core.VM.Runtime;
 using Shared.Compiler;
 using Core.Objects;
+using Microsoft.Extensions.Logging;
 
 namespace Core
 {
     public class CompiledJsonService : ICompiledJsonService
     {
+        private readonly ILogger<CompiledJsonService>? _logger;
+
+        public CompiledJsonService(ILogger<CompiledJsonService>? logger = null)
+        {
+            _logger = logger;
+        }
+
         public void PopulateState(ICompiledJson compiledJson, IDreamVM dreamVM, IObjectTypeManager typeManager)
         {
             if (compiledJson is not CompiledJson json)

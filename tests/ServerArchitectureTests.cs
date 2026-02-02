@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Moq;
 using Server;
 using Shared;
+using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Threading;
 using System.Threading.Tasks;
@@ -59,7 +60,9 @@ namespace tests
         {
             var loggerMock = new Mock<ILogger<ServerApplication>>();
             var scriptHostMock = new Mock<IScriptHost>();
+            scriptHostMock.As<IEngineService>();
             var udpServerMock = new Mock<IUdpServer>();
+            udpServerMock.As<IEngineService>();
 
             var settings = new ServerSettings { HttpServer = { Enabled = false } };
             var projectMock = new Mock<IProject>();
@@ -69,27 +72,29 @@ namespace tests
             var httpServerMock = new Mock<HttpServer>(settings, projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
             var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object);
 
-            var udpServerHostedMock = udpServerMock.As<Microsoft.Extensions.Hosting.IHostedService>();
-            var scriptHostHostedMock = scriptHostMock.As<Microsoft.Extensions.Hosting.IHostedService>();
+            var udpServerEngineMock = udpServerMock.As<IEngineService>();
+            var scriptHostEngineMock = scriptHostMock.As<IEngineService>();
 
             var app = new ServerApplication(
                 loggerMock.Object,
-                perfMonitorMock.Object,
-                scriptHostMock.Object,
-                udpServerMock.Object,
-                httpServerMock.Object,
-                gameLoopMock.Object);
+                new IEngineService[] {
+                    perfMonitorMock.Object,
+                    scriptHostEngineMock.Object,
+                    udpServerEngineMock.Object,
+                    httpServerMock.Object,
+                    gameLoopMock.Object
+                });
 
             var cts = new CancellationTokenSource();
 
             await app.StartAsync(cts.Token);
 
             perfMonitorMock.Verify(m => m.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
-            scriptHostHostedMock.Verify(m => m.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
+            scriptHostEngineMock.Verify(m => m.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
 
             await app.StopAsync(cts.Token);
 
-            scriptHostHostedMock.Verify(m => m.StopAsync(It.IsAny<CancellationToken>()), Times.Once);
+            scriptHostEngineMock.Verify(m => m.StopAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Test]

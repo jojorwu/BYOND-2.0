@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Shared;
+using Shared.Interfaces;
 using System;
 
 namespace Server
@@ -15,6 +16,7 @@ namespace Server
         {
             // Diagnostics
             services.AddSingleton<PerformanceMonitor>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<PerformanceMonitor>());
 
             // Core Server Context
             services.AddSingleton<IServerContext, ServerContext>();
@@ -29,12 +31,14 @@ namespace Server
                 provider.GetRequiredService<IGameState>()
             ));
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
             // Networking
             services.AddSingleton<INetworkService, NetworkService>();
             services.AddSingleton<NetworkEventHandler>();
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<UdpServer>());
 
             // Game Loop strategies
             services.AddSingleton<IGameStateSnapshotter, GameStateSnapshotter>();
@@ -70,7 +74,9 @@ namespace Server
 
             // Services that will be managed by ServerApplication
             services.AddSingleton<GameLoop>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameLoop>());
             services.AddSingleton<HttpServer>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<HttpServer>());
 
             // The main application coordinator
             services.AddSingleton<ServerApplication>();

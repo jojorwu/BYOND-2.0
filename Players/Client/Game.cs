@@ -23,14 +23,17 @@ namespace Client
         InGame
     }
 
-    public class Game
+    public class Game : IClient
     {
         private IWindow _window;
         private GL _gl;
         private LogicThread _logicThread;
         private SpriteRenderer _spriteRenderer;
         private ModelRenderer _modelRenderer;
-        private CSharpShaderManager _csharpShaderManager;
+        private readonly TextureCache _textureCache;
+        private readonly CSharpShaderManager _csharpShaderManager;
+        private readonly DmiCache _dmiCache;
+        private readonly IconCache _iconCache;
         private ICSharpShader? _sampleCSharpShader;
         private Graphics.Shader? _sampleGlShader;
         private Mesh _cubeMesh;
@@ -46,8 +49,13 @@ namespace Client
         private double _accumulator;
         private float _alpha;
 
-        public Game()
+        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache)
         {
+            _textureCache = textureCache;
+            _csharpShaderManager = csharpShaderManager;
+            _dmiCache = dmiCache;
+            _iconCache = iconCache;
+
             var options = WindowOptions.Default;
             options.Title = "BYOND 2.0 Client";
             options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
@@ -81,10 +89,10 @@ namespace Client
 
             UiTheme.Apply();
 
-            TextureCache.Init(_gl);
+            _textureCache.SetGL(_gl);
+            _csharpShaderManager.SetGL(_gl);
             _spriteRenderer = new SpriteRenderer(_gl);
             _modelRenderer = new ModelRenderer(_gl);
-            _csharpShaderManager = new CSharpShaderManager(_gl);
             _cubeMesh = MeshFactory.CreateCube(_gl);
             _camera = new Camera(new Vector2(0, 0), 1.0f);
 
@@ -177,13 +185,13 @@ new MyShader()
                         var icon = GetIcon(currentObj);
                         if (!string.IsNullOrEmpty(icon))
                         {
-                            var (dmiPath, stateName) = IconCache.ParseIconString(icon);
+                            var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
                             if(!string.IsNullOrEmpty(dmiPath))
                             {
                                 try
                                 {
-                                    var texture = TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                                    DmiCache.GetDmi(dmiPath, texture);
+                                    var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                                    _dmiCache.GetDmi(dmiPath, texture);
                                 }
                                 catch (Exception e)
                                 {
@@ -254,13 +262,13 @@ new MyShader()
                         var icon = GetIcon(currentObj);
                         if (!string.IsNullOrEmpty(icon))
                         {
-                            var (dmiPath, stateName) = IconCache.ParseIconString(icon);
+                            var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
                             if(!string.IsNullOrEmpty(dmiPath))
                             {
                                 try
                                 {
-                                    var texture = TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                                    var dmi = DmiCache.GetDmi(dmiPath, texture);
+                                    var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                                    var dmi = _dmiCache.GetDmi(dmiPath, texture);
                                     var state = dmi.Description.GetStateOrDefault(stateName);
                                     if(state != null)
                                     {
@@ -346,7 +354,6 @@ new MyShader()
             _modelRenderer.Dispose();
             _sampleGlShader?.Dispose();
             _cubeMesh.Dispose();
-            TextureCache.Dispose();
             _imGuiController.Dispose();
         }
 

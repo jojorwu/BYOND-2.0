@@ -19,27 +19,15 @@ namespace Server
     public class ServerApplication : IServer, IHostedService
     {
         private readonly ILogger<ServerApplication> _logger;
-        private readonly List<IHostedService> _services;
+        private readonly List<IEngineService> _services;
 
         public ServerApplication(
             ILogger<ServerApplication> logger,
-            PerformanceMonitor performanceMonitor,
-            IScriptHost scriptHost,
-            IUdpServer udpServer,
-            HttpServer httpServer,
-            GameLoop gameLoop)
+            IEnumerable<IEngineService> services)
         {
             _logger = logger;
-
-            // Define the explicit start order of services.
-            _services = new List<IHostedService>
-            {
-                performanceMonitor,
-                (IHostedService)scriptHost,
-                (IHostedService)udpServer,
-                httpServer,
-                gameLoop
-            };
+            _services = services.ToList();
+            _logger.LogInformation("ServerApplication initialized with {Count} services.", _services.Count);
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
@@ -48,19 +36,15 @@ namespace Server
 
             // Sort by priority (higher priority starts first)
             var sortedServices = _services
-                .OrderByDescending(s => (s as IEngineService)?.Priority ?? 0)
+                .OrderByDescending(s => s.Priority)
                 .ToList();
 
             foreach (var service in sortedServices)
             {
                 var serviceName = service.GetType().Name;
-                _logger.LogDebug("Starting service: {ServiceName}", serviceName);
+                _logger.LogDebug("Starting service: {ServiceName} (Priority: {Priority})", serviceName, service.Priority);
 
-                if (service is IAsyncInitializable initializable)
-                {
-                    await initializable.InitializeAsync();
-                }
-
+                await service.InitializeAsync();
                 await service.StartAsync(cancellationToken);
             }
 
@@ -73,7 +57,7 @@ namespace Server
 
             // Stop in reverse order of startup (lower priority stops first)
             var sortedServices = _services
-                .OrderBy(s => (s as IEngineService)?.Priority ?? 0)
+                .OrderBy(s => s.Priority)
                 .ToList();
 
             foreach (var service in sortedServices)

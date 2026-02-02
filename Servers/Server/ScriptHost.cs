@@ -9,11 +9,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System.Linq;
+using Shared.Services;
 
 namespace Server
 {
-    public class ScriptHost : IHostedService, IDisposable, IScriptHost
+    public class ScriptHost : EngineService, IHostedService, IDisposable, IScriptHost
     {
+        public override int Priority => 50; // High priority, start early
         private readonly IScriptWatcher _scriptWatcher;
         private readonly object _scriptLock = new object();
         private readonly ServerSettings _settings;
@@ -34,7 +36,7 @@ namespace Server
             _gameState = gameState;
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Starting script host...");
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -46,7 +48,7 @@ namespace Server
             return Task.CompletedTask;
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public override Task StopAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource?.Cancel();
             _scriptWatcher.Stop();

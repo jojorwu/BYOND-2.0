@@ -8,11 +8,13 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Services;
 
 namespace Server
 {
-    public class HttpServer : IHostedService
+    public class HttpServer : EngineService, IHostedService
     {
+        public override int Priority => -50; // Moderate priority
         private readonly IWebHost? _host;
         private readonly ILogger<HttpServer> _logger;
 
@@ -50,7 +52,7 @@ namespace Server
                 .Build();
         }
 
-        public virtual async Task StartAsync(CancellationToken cancellationToken)
+        public override async Task StartAsync(CancellationToken cancellationToken)
         {
             if (_host != null)
             {
@@ -60,7 +62,7 @@ namespace Server
             }
         }
 
-        public virtual async Task StopAsync(CancellationToken cancellationToken)
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
             if (_host != null)
             {

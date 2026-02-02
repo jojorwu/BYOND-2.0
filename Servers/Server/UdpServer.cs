@@ -3,11 +3,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shared.Services;
 
 namespace Server
 {
-    public class UdpServer : IHostedService, IUdpServer
+    public class UdpServer : EngineService, IHostedService, IUdpServer
     {
+        public override int Priority => 40; // High priority
         private readonly INetworkService _networkService;
         private readonly NetworkEventHandler _networkEventHandler;
         private readonly IServerContext _context;
@@ -19,14 +21,14 @@ namespace Server
             _context = context;
         }
 
-        public Task StartAsync(CancellationToken cancellationToken)
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
             _networkEventHandler.SubscribeToEvents();
             _networkService.Start();
             return Task.CompletedTask;
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public override Task StopAsync(CancellationToken cancellationToken)
         {
             _networkEventHandler.UnsubscribeFromEvents();
             _networkService.Stop();

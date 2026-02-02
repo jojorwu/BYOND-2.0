@@ -74,11 +74,11 @@ namespace tests
 
             var app = new ServerApplication(
                 loggerMock.Object,
+                perfMonitorMock.Object,
                 scriptHostMock.Object,
                 udpServerMock.Object,
-                gameLoopMock.Object,
                 httpServerMock.Object,
-                perfMonitorMock.Object);
+                gameLoopMock.Object);
 
             var cts = new CancellationTokenSource();
 

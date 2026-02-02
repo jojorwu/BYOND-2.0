@@ -1,6 +1,11 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using System.Runtime.CompilerServices;
 
-namespace Shared;
+namespace Shared.Models;
 
 public struct DMReference {
     public static readonly DMReference Src = new() { RefType = Type.Src };

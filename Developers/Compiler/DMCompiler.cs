@@ -1,4 +1,9 @@
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using DMCompiler.Compiler.DM;
 using DMCompiler.Compiler.DMM;
 using DMCompiler.Compiler.DMPreprocessor;

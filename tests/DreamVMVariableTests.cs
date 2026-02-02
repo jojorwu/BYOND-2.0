@@ -1,5 +1,10 @@
 using NUnit.Framework;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using Core.VM;
 using Core.VM.Runtime;
 using Core.VM.Procs;

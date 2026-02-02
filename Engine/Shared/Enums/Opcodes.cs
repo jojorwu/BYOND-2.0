@@ -1,7 +1,12 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using System;
 using System.Collections.Generic;
 
-namespace Shared {
+namespace Shared.Enums {
     public enum Opcode : byte {
         [OpcodeMetadata(-1)]
         BitShiftLeft = 0x1,

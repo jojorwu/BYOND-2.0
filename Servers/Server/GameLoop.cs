@@ -5,6 +5,11 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 
 namespace Server
 {

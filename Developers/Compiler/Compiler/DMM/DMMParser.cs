@@ -1,4 +1,9 @@
 ﻿using DMCompiler.Compiler.DM;
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM.Builders;
 using DMCompiler.Json;

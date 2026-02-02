@@ -1,9 +1,14 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Shared
+namespace Shared.Models
 {
     [JsonConverter(typeof(DreamValueConverter))]
     public readonly struct DreamValue

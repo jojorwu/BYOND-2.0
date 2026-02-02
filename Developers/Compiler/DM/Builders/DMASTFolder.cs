@@ -1,3 +1,8 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using DMCompiler.Compiler.DM.AST;
 
 namespace DMCompiler.DM.Builders;

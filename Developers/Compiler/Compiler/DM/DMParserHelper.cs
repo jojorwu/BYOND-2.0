@@ -2,8 +2,13 @@
 using System.Linq;
 using System.Text;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using DMCompiler.Compiler.DM.AST;
-using FormatSuffix = Shared.StringFormatEncoder.FormatSuffix;
+using FormatSuffix = Shared.Services.StringFormatEncoder.FormatSuffix;
 
 namespace DMCompiler.Compiler.DM;
 

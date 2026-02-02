@@ -3,9 +3,14 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
 using Core.VM.Objects;
+using Shared.Models;
+using Shared.Services;
 using System.Linq;
 
 using Shared;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 
 namespace Core.VM.Runtime
 {

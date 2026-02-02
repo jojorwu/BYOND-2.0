@@ -2,6 +2,11 @@ using ImGuiNET;
 using System.Collections.Generic;
 using System.Numerics;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 
 namespace Client.UI
 {

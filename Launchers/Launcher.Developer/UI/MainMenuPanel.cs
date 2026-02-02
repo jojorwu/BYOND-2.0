@@ -1,3 +1,7 @@
+using Shared.Models;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using ImGuiNET;
 using System.Numerics;
 using System;

@@ -1,8 +1,13 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using Robust.Shared.Maths;
 using System;
 using System.Collections.Generic;
 
-namespace Shared
+namespace Shared.Models
 {
     public class Map : IMap
     {

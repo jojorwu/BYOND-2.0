@@ -1,12 +1,18 @@
 using System.Collections.Generic;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 
-namespace Core.VM.Objects
+namespace Shared.Models
 {
     public class DreamList : DreamObject
     {
         public List<DreamValue> Values { get; } = new();
         public Dictionary<DreamValue, DreamValue> AssociativeValues { get; } = new();
+        private readonly HashSet<DreamValue> _associativeKeys = new();
 
         public DreamList(ObjectType listType) : base(listType)
         {
@@ -23,7 +29,7 @@ namespace Core.VM.Objects
         public void SetValue(DreamValue key, DreamValue value)
         {
             AssociativeValues[key] = value;
-            if (!Values.Contains(key))
+            if (_associativeKeys.Add(key))
             {
                 Values.Add(key);
             }

@@ -1,6 +1,11 @@
 using Core;
 using Editor.UI;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using System;
 using System.IO;
 using System.Linq;

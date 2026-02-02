@@ -1,8 +1,13 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using System.Collections.Generic;
 using System.Threading;
 using System.Text.Json.Serialization;
 
-namespace Shared
+namespace Shared.Models
 {
     /// <summary>
     /// Represents an object in the game world.

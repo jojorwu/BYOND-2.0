@@ -1,3 +1,8 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using DMCompiler.Compiler.DMPreprocessor;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;

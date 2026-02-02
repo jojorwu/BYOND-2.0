@@ -1,4 +1,9 @@
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -40,8 +45,8 @@ class Program
         services.AddSingleton(settings);
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
-        services.AddSingleton<Shared.IJsonService, DMCompiler.Json.JsonService>();
-        services.AddSingleton<Shared.ICompilerService, DMCompiler.CompilerService>();
+        services.AddSingleton<Shared.Interfaces.IJsonService, DMCompiler.Json.JsonService>();
+        services.AddSingleton<Shared.Interfaces.ICompilerService, DMCompiler.CompilerService>();
 
         services.AddCoreServices();
         services.AddServerHostedServices();

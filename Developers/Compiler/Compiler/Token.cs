@@ -1,5 +1,10 @@
 ﻿// ReSharper disable InconsistentNaming
 
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using System.Runtime.CompilerServices;
 
 namespace DMCompiler.Compiler;

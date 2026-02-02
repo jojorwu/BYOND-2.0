@@ -1,3 +1,6 @@
+using Shared.Models;
+using Shared.Enums;
+using Shared.Operations;
 using NUnit.Framework;
 using Shared.Interfaces;
 using Shared.Services;

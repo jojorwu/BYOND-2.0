@@ -1,5 +1,10 @@
 using System.Text.Json;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using Shared.Compiler;
 
 namespace DMCompiler.Json

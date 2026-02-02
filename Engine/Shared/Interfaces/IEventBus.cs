@@ -1,6 +1,11 @@
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using System;
 
-namespace Shared.Messaging
+namespace Shared.Interfaces
 {
     /// <summary>
     /// A simple, thread-safe event bus for decoupled communication.

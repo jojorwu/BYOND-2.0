@@ -1,4 +1,9 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
 using DMCompiler.DM.Expressions;
 
 namespace DMCompiler.DM;

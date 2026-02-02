@@ -1,4 +1,9 @@
-namespace Shared
+using Shared.Models;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
+using Shared.Services;
+namespace Shared.Models
 {
     /// <summary>
     /// Represents a single server entry in the server browser list.

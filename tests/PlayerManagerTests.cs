@@ -1,6 +1,11 @@
 using NUnit.Framework;
 using Moq;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using Server;
 using Core;
 using Core.Players;

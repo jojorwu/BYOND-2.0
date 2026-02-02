@@ -1,4 +1,9 @@
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using Silk.NET.Windowing;
 using Silk.NET.OpenGL;
 using Silk.NET.Maths;

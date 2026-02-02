@@ -7,6 +7,11 @@ using Core.VM.Runtime;
 
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Models;
+using Shared.Services;
+using Shared.Interfaces;
+using Shared.Enums;
+using Shared.Operations;
 using Shared.Compiler;
 
 namespace Core.Scripting.DM

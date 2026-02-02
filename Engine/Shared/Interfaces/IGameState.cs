@@ -11,6 +11,7 @@ namespace Shared
         IDisposable ReadLock();
         IDisposable WriteLock();
         IEnumerable<IGameObject> GetAllGameObjects();
+        void ForEachGameObject(Action<IGameObject> action);
         void AddGameObject(GameObject gameObject);
         void RemoveGameObject(GameObject gameObject);
         void UpdateGameObject(GameObject gameObject, int oldX, int oldY);

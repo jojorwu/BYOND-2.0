@@ -87,8 +87,8 @@ namespace Core.Tests
             File.WriteAllText(Path.Combine(_scriptsPath, "test.cs"), "Console.WriteLine(\"csharp loaded\");");
 
             // Act & Assert
-            Assert.DoesNotThrow(() => {
-                _scriptManager.Initialize();
+            Assert.DoesNotThrowAsync(async () => {
+                await _scriptManager.InitializeAsync();
             });
         }
 
@@ -96,11 +96,11 @@ namespace Core.Tests
         public void ScriptManager_ReloadsScripts()
         {
             // Arrange
-            _scriptManager.Initialize();
+            _scriptManager.InitializeAsync().Wait();
 
             // Act & Assert
-            Assert.DoesNotThrow(() => {
-                _scriptManager.ReloadAll();
+            Assert.DoesNotThrowAsync(async () => {
+                await _scriptManager.ReloadAll();
             });
         }
 
@@ -109,7 +109,7 @@ namespace Core.Tests
         {
              // Arrange
             File.WriteAllText(Path.Combine(_scriptsPath, "test.lua"), "function MyEvent() print('event handled') end");
-            _scriptManager.Initialize();
+            _scriptManager.InitializeAsync().Wait();
 
             // Act & Assert
             Assert.DoesNotThrow(() => {

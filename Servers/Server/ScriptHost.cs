@@ -63,7 +63,14 @@ namespace Server
 
         public void Tick()
         {
-            Tick(_gameState.GetAllGameObjects(), processGlobals: true);
+            ProcessCommandQueue();
+
+            var objectIds = new HashSet<int>();
+            _gameState.ForEachGameObject(o => objectIds.Add(o.Id));
+
+            var threads = GetThreads();
+            var remainingThreads = ExecuteThreads(threads, Array.Empty<IGameObject>(), true, objectIds);
+            UpdateThreads(remainingThreads);
         }
 
         public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
@@ -98,7 +105,15 @@ namespace Server
 
         public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
         {
-            objectIds ??= new HashSet<int>(objectsToTick.Select(o => o.Id));
+            if (objectIds == null)
+            {
+                objectIds = new HashSet<int>();
+                foreach (var obj in objectsToTick)
+                {
+                    objectIds.Add(obj.Id);
+                }
+            }
+
             var dreamThreads = threads.OfType<DreamThread>().ToList();
             var nextThreads = new System.Collections.Concurrent.ConcurrentBag<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;

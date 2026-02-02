@@ -1,10 +1,11 @@
 using Shared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Shared.Services;
 
 namespace Core.Objects
 {
-    public class ObjectTypeManager : IObjectTypeManager
+    public class ObjectTypeManager : EngineService, IObjectTypeManager
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
         private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();

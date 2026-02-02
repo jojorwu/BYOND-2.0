@@ -5,7 +5,7 @@ namespace Shared
 {
     public interface IScriptManager
     {
-        Task Initialize();
+        Task InitializeAsync();
         Task ReloadAll();
         void InvokeGlobalEvent(string eventName);
         string? ExecuteCommand(string command);

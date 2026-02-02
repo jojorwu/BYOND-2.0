@@ -6,10 +6,11 @@ using Core.Scripting.DM;
 using Core.Scripting.LuaSystem;
 using Core.VM.Runtime;
 using System.Linq;
+using Shared.Services;
 
 namespace Core
 {
-    public class ScriptManager : IScriptManager
+    public class ScriptManager : EngineService, IScriptManager
     {
         private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
@@ -20,7 +21,7 @@ namespace Core
             _systems = systems;
         }
 
-        public async Task Initialize()
+        public override async Task InitializeAsync()
         {
             if (!Directory.Exists(_scriptsRoot))
             {

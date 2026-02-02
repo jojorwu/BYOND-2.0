@@ -80,7 +80,7 @@ namespace tests
         [Test]
         public void ExecuteCommand_Lua_ReturnsResult()
         {
-            _scriptManager.Initialize().Wait();
+            _scriptManager.InitializeAsync().Wait();
             var result = _scriptManager.ExecuteCommand("return 10 + 20");
             Assert.That(result, Is.EqualTo("30"));
         }
@@ -88,7 +88,7 @@ namespace tests
         [Test]
         public void ExecuteCommand_Unknown_ReturnsNull()
         {
-            _scriptManager.Initialize().Wait();
+            _scriptManager.InitializeAsync().Wait();
             var result = _scriptManager.ExecuteCommand("invalid command that returns nothing");
             // Since we don't have a system that handles arbitrary text, it might return null or some error message from systems.
             // Lua returns results for "return ..."

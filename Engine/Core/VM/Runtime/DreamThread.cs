@@ -246,6 +246,7 @@ namespace Core.VM.Runtime
             var frame = CallStack.Peek();
             var proc = frame.Proc;
             var pc = frame.PC;
+            var bytecode = proc.Bytecode;
 
             while (State == DreamThreadState.Running)
             {
@@ -262,7 +263,7 @@ namespace Core.VM.Runtime
                 }
 
                 // If we've executed past the end of the bytecode, it's an implicit return.
-                if (pc >= proc.Bytecode.Length)
+                if (pc >= bytecode.Length)
                 {
                     Push(DreamValue.Null);
                     Opcode_Return(ref proc, ref pc);
@@ -271,20 +272,21 @@ namespace Core.VM.Runtime
                         frame = CallStack.Peek();
                         proc = frame.Proc;
                         pc = frame.PC;
+                        bytecode = proc.Bytecode;
                     }
                     continue;
                 }
 
                 try
                 {
-                    var opcode = (Opcode)proc.Bytecode[pc++];
+                    var opcode = (Opcode)bytecode[pc++];
                     bool potentiallyChangedStack = false;
 
                     switch (opcode)
                     {
                         case Opcode.PushString:
                             {
-                                var stringId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var stringId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
                                 var val = new DreamValue(_context.Strings[stringId]);
                                 if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
@@ -293,7 +295,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.PushFloat:
                             {
-                                var val = BinaryPrimitives.ReadSingleLittleEndian(proc.Bytecode.AsSpan(pc));
+                                var val = BinaryPrimitives.ReadSingleLittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
                                 var dv = new DreamValue(val);
                                 if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
@@ -391,27 +393,51 @@ namespace Core.VM.Runtime
                         case Opcode.Call:
                             {
                                 var reference = ReadReference(proc, ref pc);
-                                var argType = (DMCallArgumentsType)proc.Bytecode[pc++];
-                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var argType = (DMCallArgumentsType)bytecode[pc++];
+                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
-                                var unusedStackDelta = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var unusedStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
 
                                 PerformCall(reference, argType, argStackDelta);
                                 potentiallyChangedStack = true;
                             }
                             break;
-                        case Opcode.CallStatement: Opcode_CallStatement(proc, ref pc); break;
-                        case Opcode.PushProc: Opcode_PushProc(proc, ref pc); break;
+                        case Opcode.CallStatement:
+                            {
+                                var argType = (DMCallArgumentsType)bytecode[pc++];
+                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
+                                pc += 4;
+                                _stackPtr -= argStackDelta;
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = DreamValue.Null;
+                            }
+                            break;
+                        case Opcode.PushProc:
+                            {
+                                var procId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
+                                pc += 4;
+                                if (procId >= 0 && procId < _context.AllProcs.Count)
+                                {
+                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                    _stack[_stackPtr++] = new DreamValue((IDreamProc)_context.AllProcs[procId]);
+                                }
+                                else
+                                {
+                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                    _stack[_stackPtr++] = DreamValue.Null;
+                                }
+                            }
+                            break;
                         case Opcode.Jump:
                             {
-                                pc = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                pc = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                             }
                             break;
                         case Opcode.JumpIfFalse:
                             {
                                 var val = _stack[--_stackPtr];
-                                var address = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (val.IsFalse())
                                     pc = address;
                                 else
@@ -460,7 +486,7 @@ namespace Core.VM.Runtime
                         case Opcode.BitShiftRightReference: Opcode_BitShiftRightReference(proc, frame, ref pc); break;
                         case Opcode.GetVariable:
                             {
-                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
                                 var instance = frame.Instance;
                                 DreamValue val = instance != null ? instance.GetVariable(_context.Strings[nameId]) : DreamValue.Null;
@@ -470,7 +496,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.SetVariable:
                             {
-                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
                                 var val = _stack[--_stackPtr];
                                 frame.Instance?.SetVariable(_context.Strings[nameId], val);
@@ -478,26 +504,26 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.PushReferenceValue:
                             {
-                                var refType = (DMReference.Type)proc.Bytecode[pc++];
+                                var refType = (DMReference.Type)bytecode[pc++];
                                 switch (refType)
                                 {
                                     case DMReference.Type.Local:
                                         {
-                                            var val = _stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]];
+                                            var val = _stack[frame.StackBase + frame.Proc.Arguments.Length + bytecode[pc++]];
                                             if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                             _stack[_stackPtr++] = val;
                                         }
                                         break;
                                     case DMReference.Type.Argument:
                                         {
-                                            var val = _stack[frame.StackBase + proc.Bytecode[pc++]];
+                                            var val = _stack[frame.StackBase + bytecode[pc++]];
                                             if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                             _stack[_stackPtr++] = val;
                                         }
                                         break;
                                     case DMReference.Type.Global:
                                         {
-                                            var val = _context.GetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc)));
+                                            var val = _context.GetGlobal(BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc)));
                                             pc += 4;
                                             if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                             _stack[_stackPtr++] = val;
@@ -524,18 +550,18 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Assign:
                             {
-                                var refType = (DMReference.Type)proc.Bytecode[pc++];
+                                var refType = (DMReference.Type)bytecode[pc++];
                                 var value = _stack[_stackPtr - 1];
                                 switch (refType)
                                 {
                                     case DMReference.Type.Local:
-                                        _stack[frame.StackBase + frame.Proc.Arguments.Length + proc.Bytecode[pc++]] = value;
+                                        _stack[frame.StackBase + frame.Proc.Arguments.Length + bytecode[pc++]] = value;
                                         break;
                                     case DMReference.Type.Argument:
-                                        _stack[frame.StackBase + proc.Bytecode[pc++]] = value;
+                                        _stack[frame.StackBase + bytecode[pc++]] = value;
                                         break;
                                     case DMReference.Type.Global:
-                                        _context.SetGlobal(BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc)), value);
+                                        _context.SetGlobal(BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc)), value);
                                         pc += 4;
                                         break;
                                     default:
@@ -549,15 +575,13 @@ namespace Core.VM.Runtime
                         case Opcode.PushGlobalVars: Opcode_PushGlobalVars(); break;
                         case Opcode.IsNull:
                             {
-                                var val = _stack[--_stackPtr];
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = val.Type == DreamValueType.Null ? DreamValue.True : DreamValue.False;
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1].IsNull ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.JumpIfNull:
                             {
                                 var val = _stack[--_stackPtr];
-                                var address = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (val.Type == DreamValueType.Null)
                                     pc = address;
                                 else
@@ -567,7 +591,7 @@ namespace Core.VM.Runtime
                         case Opcode.JumpIfNullNoPop:
                             {
                                 var val = _stack[_stackPtr - 1];
-                                var address = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (val.Type == DreamValueType.Null)
                                     pc = address;
                                 else
@@ -578,7 +602,7 @@ namespace Core.VM.Runtime
                             {
                                 var caseValue = _stack[--_stackPtr];
                                 var switchValue = _stack[_stackPtr - 1];
-                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (switchValue == caseValue)
                                     pc = jumpAddress;
                                 else
@@ -590,7 +614,7 @@ namespace Core.VM.Runtime
                                 var max = _stack[--_stackPtr];
                                 var min = _stack[--_stackPtr];
                                 var switchValue = _stack[_stackPtr - 1];
-                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (switchValue >= min && switchValue <= max)
                                     pc = jumpAddress;
                                 else
@@ -600,7 +624,7 @@ namespace Core.VM.Runtime
                         case Opcode.BooleanAnd:
                             {
                                 var val = _stack[--_stackPtr];
-                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (val.IsFalse())
                                 {
                                     Push(val);
@@ -613,7 +637,7 @@ namespace Core.VM.Runtime
                         case Opcode.BooleanOr:
                             {
                                 var val = _stack[--_stackPtr];
-                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 if (!val.IsFalse())
                                 {
                                     Push(val);
@@ -638,7 +662,7 @@ namespace Core.VM.Runtime
                         case Opcode.PickWeighted: Opcode_PickWeighted(proc, ref pc); break;
                         case Opcode.DereferenceField:
                             {
-                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
                                 var objValue = _stack[--_stackPtr];
                                 DreamValue val = DreamValue.Null;
@@ -668,10 +692,10 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.DereferenceCall:
                             {
-                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
-                                var argType = (DMCallArgumentsType)proc.Bytecode[pc++];
-                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(proc.Bytecode.AsSpan(pc));
+                                var argType = (DMCallArgumentsType)bytecode[pc++];
+                                var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
                                 pc += 4;
 
                                 var objValue = _stack[_stackPtr - argStackDelta];
@@ -691,9 +715,72 @@ namespace Core.VM.Runtime
                                 potentiallyChangedStack = true;
                             }
                             break;
-                        case Opcode.Initial: Opcode_Initial(); break;
-                        case Opcode.IsType: Opcode_IsType(); break;
-                        case Opcode.AsType: Opcode_AsType(); break;
+                        case Opcode.Initial:
+                            {
+                                var key = _stack[--_stackPtr];
+                                var objValue = _stack[--_stackPtr];
+
+                                if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                {
+                                    if (key.TryGetValue(out string? varName) && varName != null)
+                                    {
+                                        int index = obj.ObjectType.GetVariableIndex(varName);
+                                        if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
+                                        {
+                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                            _stack[_stackPtr++] = DreamValue.FromObject(obj.ObjectType.FlattenedDefaultValues[index]);
+                                            break;
+                                        }
+                                    }
+                                }
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = DreamValue.Null;
+                            }
+                            break;
+                        case Opcode.IsType:
+                            {
+                                var typeValue = _stack[--_stackPtr];
+                                var objValue = _stack[--_stackPtr];
+
+                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
+                                    typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+                                {
+                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                    _stack[_stackPtr++] = new DreamValue(obj.ObjectType.IsSubtypeOf(type) ? 1 : 0);
+                                }
+                                else
+                                {
+                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                    _stack[_stackPtr++] = new DreamValue(0);
+                                }
+                            }
+                            break;
+                        case Opcode.AsType:
+                            {
+                                var typeValue = _stack[--_stackPtr];
+                                var objValue = _stack[--_stackPtr];
+
+                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
+                                    typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+                                {
+                                    if (obj.ObjectType.IsSubtypeOf(type))
+                                    {
+                                        if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                        _stack[_stackPtr++] = objValue;
+                                    }
+                                    else
+                                    {
+                                        if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                        _stack[_stackPtr++] = DreamValue.Null;
+                                    }
+                                }
+                                else
+                                {
+                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                    _stack[_stackPtr++] = DreamValue.Null;
+                                }
+                            }
+                            break;
                         case Opcode.CreateListEnumerator: Opcode_CreateListEnumerator(proc, ref pc); break;
                         case Opcode.Enumerate: Opcode_Enumerate(proc, frame, ref pc); break;
                         case Opcode.EnumerateAssoc: Opcode_EnumerateAssoc(proc, frame, ref pc); break;
@@ -719,7 +806,22 @@ namespace Core.VM.Runtime
                         case Opcode.ArcCos: Opcode_ArcCos(); break;
                         case Opcode.ArcTan: Opcode_ArcTan(); break;
                         case Opcode.ArcTan2: Opcode_ArcTan2(); break;
-                        case Opcode.PushType: Opcode_PushType(proc, ref pc); break;
+                        case Opcode.PushType:
+                            {
+                                var typeId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.AsSpan(pc));
+                                pc += 4;
+                                var type = _context.ObjectTypeManager?.GetObjectType(typeId);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                if (type != null)
+                                {
+                                    _stack[_stackPtr++] = new DreamValue(type);
+                                }
+                                else
+                                {
+                                    _stack[_stackPtr++] = DreamValue.Null;
+                                }
+                            }
+                            break;
                         case Opcode.CreateObject: Opcode_CreateObject(proc, ref pc); potentiallyChangedStack = true; break;
                         case Opcode.LocateCoord: Opcode_LocateCoord(); break;
                         case Opcode.Locate: Opcode_Locate(); break;
@@ -757,6 +859,7 @@ namespace Core.VM.Runtime
                             frame = CallStack.Peek();
                             proc = frame.Proc;
                             pc = frame.PC;
+                            bytecode = proc.Bytecode;
                         }
                     }
                 }

@@ -23,27 +23,6 @@ namespace Core.VM.Runtime
             PerformCall(reference, argType, argStackDelta);
         }
 
-        private void Opcode_CallStatement(DreamProc proc, ref int pc)
-        {
-            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
-            var argStackDelta = ReadInt32(proc, ref pc);
-
-            _stackPtr -= argStackDelta;
-            Push(DreamValue.Null);
-        }
-
-        private void Opcode_PushProc(DreamProc proc, ref int pc)
-        {
-            var procId = ReadInt32(proc, ref pc);
-            if (procId >= 0 && procId < _context.AllProcs.Count)
-            {
-                Push(new DreamValue((IDreamProc)_context.AllProcs[procId]));
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
 
         private void Opcode_GetStepTo()
         {
@@ -446,64 +425,6 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_Initial()
-        {
-            var key = Pop();
-            var objValue = Pop();
-
-            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-            {
-                if (key.TryGetValue(out string? varName) && varName != null)
-                {
-                    int index = obj.ObjectType.GetVariableIndex(varName);
-                    if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
-                    {
-                        Push(DreamValue.FromObject(obj.ObjectType.FlattenedDefaultValues[index]));
-                        return;
-                    }
-                }
-            }
-            Push(DreamValue.Null);
-        }
-
-        private void Opcode_IsType()
-        {
-            var typeValue = Pop();
-            var objValue = Pop();
-
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
-                typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
-            {
-                Push(new DreamValue(obj.ObjectType.IsSubtypeOf(type) ? 1 : 0));
-            }
-            else
-            {
-                Push(new DreamValue(0));
-            }
-        }
-
-        private void Opcode_AsType()
-        {
-            var typeValue = Pop();
-            var objValue = Pop();
-
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
-                typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
-            {
-                if (obj.ObjectType.IsSubtypeOf(type))
-                {
-                    Push(objValue);
-                }
-                else
-                {
-                    Push(DreamValue.Null);
-                }
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
 
         private void Opcode_CreateListEnumerator(DreamProc proc, ref int pc)
         {
@@ -721,19 +642,6 @@ namespace Core.VM.Runtime
             Push(new DreamValue(SharedOperations.ArcTan(x.GetValueAsFloat(), y.GetValueAsFloat())));
         }
 
-        private void Opcode_PushType(DreamProc proc, ref int pc)
-        {
-            var typeId = ReadInt32(proc, ref pc);
-            var type = _context.ObjectTypeManager?.GetObjectType(typeId);
-            if (type != null)
-            {
-                Push(new DreamValue(type));
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
 
         private void Opcode_CreateObject(DreamProc proc, ref int pc)
         {

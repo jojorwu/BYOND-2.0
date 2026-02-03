@@ -34,14 +34,21 @@ namespace Server
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
             // Networking
-            services.AddSingleton<INetworkService, NetworkService>();
+            services.AddSingleton<NetDataWriterPool>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetDataWriterPool>());
+            services.AddSingleton<NetworkService>();
+            services.AddSingleton<INetworkService>(p => p.GetRequiredService<NetworkService>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetworkService>());
             services.AddSingleton<NetworkEventHandler>();
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<UdpServer>());
 
             // Game Loop strategies
-            services.AddSingleton<IGameStateSnapshotter, GameStateSnapshotter>();
+            services.AddSingleton<GameStateSnapshotter>();
+            services.AddSingleton<IGameStateSnapshotter>(p => p.GetRequiredService<GameStateSnapshotter>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameStateSnapshotter>());
+
             services.AddSingleton(provider => new GlobalGameLoopStrategy(
                 provider.GetRequiredService<IScriptHost>(),
                 provider.GetRequiredService<IGameState>(),

@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using LiteNetLib.Utils;
+using Shared.Services;
 
 namespace Server
 {
-    public class NetDataWriterPool
+    public class NetDataWriterPool : EngineService
     {
+        public override int Priority => 50;
         private readonly ConcurrentQueue<NetDataWriter> _pool = new();
 
         public NetDataWriter Get()

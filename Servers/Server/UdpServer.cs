@@ -24,14 +24,12 @@ namespace Server
         public override Task StartAsync(CancellationToken cancellationToken)
         {
             _networkEventHandler.SubscribeToEvents();
-            _networkService.Start();
             return Task.CompletedTask;
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
         {
             _networkEventHandler.UnsubscribeFromEvents();
-            _networkService.Stop();
             return Task.CompletedTask;
         }
 

@@ -5,10 +5,11 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Shared.Services;
 
 namespace Core.Maps
 {
-    public class MapLoader : IMapLoader
+    public class MapLoader : EngineService, IMapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
 

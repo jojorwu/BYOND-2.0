@@ -1,9 +1,10 @@
 using System.Text.Json;
 using Shared;
+using Shared.Services;
 
 namespace Core
 {
-    public class GameStateSnapshotter : IGameStateSnapshotter
+    public class GameStateSnapshotter : EngineService, IGameStateSnapshotter
     {
         public string GetSnapshot(IGameState gameState)
         {

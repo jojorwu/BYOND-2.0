@@ -20,7 +20,9 @@ namespace Core
             services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
 
-            services.AddSingleton<IMapLoader, MapLoader>();
+            services.AddSingleton<MapLoader>();
+            services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<MapLoader>());
             services.AddSingleton<IMapApi, MapApi>();
             services.AddSingleton<IObjectApi, ObjectApi>();
             services.AddSingleton<IScriptApi, ScriptApi>();
@@ -36,7 +38,10 @@ namespace Core
             );
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
-            services.AddSingleton<ICompiledJsonService>(provider => new CompiledJsonService(provider.GetService<ILogger<CompiledJsonService>>()));
+
+            services.AddSingleton<CompiledJsonService>();
+            services.AddSingleton<ICompiledJsonService>(p => p.GetRequiredService<CompiledJsonService>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<CompiledJsonService>());
 
             services.AddSingleton<DreamMakerLoader>();
             services.AddSingleton<IDreamMakerLoader>(p => p.GetRequiredService<DreamMakerLoader>());

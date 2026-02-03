@@ -22,16 +22,18 @@ namespace Shared.Services
         public void Unsubscribe<T>(Action<T> handler)
         {
             var type = typeof(T);
-            if (_handlers.TryGetValue(type, out var list))
+            while (_handlers.TryGetValue(type, out var list))
             {
                 var newList = list.Remove(handler);
                 if (newList.IsEmpty)
                 {
-                    _handlers.TryRemove(type, out _);
+                    if (((IDictionary<Type, ImmutableList<Delegate>>)_handlers).Remove(new KeyValuePair<Type, ImmutableList<Delegate>>(type, list)))
+                        break;
                 }
                 else
                 {
-                    _handlers.TryUpdate(type, newList, list);
+                    if (_handlers.TryUpdate(type, newList, list))
+                        break;
                 }
             }
         }

@@ -4,8 +4,8 @@ using System.Collections.Generic;
 using Core.VM.Procs;
 using Core.VM.Objects;
 using System.Linq;
-
 using Shared;
+using Shared.Models;
 
 namespace Core.VM.Runtime
 {
@@ -376,7 +376,7 @@ namespace Core.VM.Runtime
             var list = new DreamList(_context.ListType!, size);
             for (int i = size - 1; i >= 0; i--)
             {
-                list.Values[i] = Pop();
+                list.SetValue(i, Pop());
             }
             Push(new DreamValue(list));
         }
@@ -407,7 +407,7 @@ namespace Core.VM.Runtime
 
             if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
-                Push(list.Values.Contains(value) ? DreamValue.True : DreamValue.False);
+                Push(list.Contains(value) ? DreamValue.True : DreamValue.False);
             }
             else
             {
@@ -595,7 +595,7 @@ namespace Core.VM.Runtime
 
             if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
-                list.Values.Add(value);
+                list.AddValue(value);
             }
         }
 
@@ -607,7 +607,7 @@ namespace Core.VM.Runtime
 
             if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
-                list.Values.Remove(value);
+                list.RemoveValue(value);
             }
         }
 
@@ -952,7 +952,7 @@ namespace Core.VM.Runtime
 
             if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
             {
-                list.Values.Add(value);
+                list.AddValue(value);
             }
         }
 

@@ -2,9 +2,8 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
-using Core.VM.Objects;
-
 using Shared;
+using Shared.Models;
 
 namespace Core.VM.Runtime
 {
@@ -217,9 +216,9 @@ namespace Core.VM.Runtime
                             {
                                 int i = (int)index.RawFloat - 1;
                                 if (i >= 0 && i < list.Values.Count)
-                                    list.Values[i] = value;
+                                    list.SetValue(i, value);
                                 else if (i == list.Values.Count)
-                                    list.Values.Add(value);
+                                    list.AddValue(value);
                             }
                             else
                             {

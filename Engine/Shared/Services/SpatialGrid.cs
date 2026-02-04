@@ -7,6 +7,7 @@ namespace Shared
 {
     public class SpatialGrid : IDisposable
     {
+        private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly Dictionary<(int, int), List<IGameObject>> _grid = new();
         private readonly int _cellSize;
         private readonly ReaderWriterLockSlim _lock = new();
@@ -76,7 +77,9 @@ namespace Shared
         public List<IGameObject> GetObjectsInBox(Box2i box)
         {
             var results = new List<IGameObject>();
-            var seen = new HashSet<int>(); // Use ID to avoid object references in HashSet if possible, but IGameObject works too.
+            var seen = _seenHashSet.Value!;
+            seen.Clear();
+
             var start = GetCellCoords(box.Left, box.Top);
             var end = GetCellCoords(box.Right, box.Bottom);
 

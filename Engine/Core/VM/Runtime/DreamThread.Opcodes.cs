@@ -15,7 +15,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_Call(DreamProc proc, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argStackDelta = ReadInt32(proc, ref pc);
             var unusedStackDelta = ReadInt32(proc, ref pc);
@@ -116,7 +116,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = GetReferenceValue(reference, frame);
             Console.WriteLine(value.ToString());
         }
@@ -158,7 +158,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_BitShiftLeftReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, refValue << value);
@@ -166,7 +166,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_BitShiftRightReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, refValue >> value);
@@ -174,7 +174,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_BitXorReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, refValue ^ value);
@@ -183,7 +183,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_Increment(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = GetReferenceValue(reference, frame);
             var newValue = value + 1;
             SetReferenceValue(reference, frame, newValue);
@@ -192,7 +192,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_Decrement(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = GetReferenceValue(reference, frame);
             var newValue = value - 1;
             SetReferenceValue(reference, frame, newValue);
@@ -215,7 +215,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_ModulusReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, new DreamValue((float)Math.IEEERemainder(refValue.GetValueAsFloat(), value.GetValueAsFloat())));
@@ -223,7 +223,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_ModulusModulusReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, new DreamValue(refValue.GetValueAsFloat() % value.GetValueAsFloat()));
@@ -231,14 +231,14 @@ namespace Core.VM.Runtime
 
         private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             SetReferenceValue(reference, frame, value);
         }
 
         private void Opcode_AssignInto(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             SetReferenceValue(reference, frame, value);
             Push(value);
@@ -410,12 +410,7 @@ namespace Core.VM.Runtime
             }
             else if (newProc is NativeProc nativeProc)
             {
-                var arguments = new DreamValue[argCount];
-                var argBase = _stackPtr - argCount;
-                for (int i = 0; i < argCount; i++)
-                {
-                    arguments[i] = _stack[argBase + i];
-                }
+                ReadOnlySpan<DreamValue> arguments = _stack.AsSpan(_stackPtr - argCount, argCount);
 
                 // Remove everything (args + optional obj) from stack
                 _stackPtr = stackBase;
@@ -445,7 +440,7 @@ namespace Core.VM.Runtime
         private void Opcode_Enumerate(DreamProc proc, CallFrame frame, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var jumpAddress = ReadInt32(proc, ref pc);
 
             if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
@@ -468,8 +463,8 @@ namespace Core.VM.Runtime
         private void Opcode_EnumerateAssoc(DreamProc proc, CallFrame frame, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
-            var assocRef = ReadReference(proc, ref pc);
-            var outputRef = ReadReference(proc, ref pc);
+            var assocRef = ReadReference(proc.Bytecode, ref pc);
+            var outputRef = ReadReference(proc.Bytecode, ref pc);
             var jumpAddress = ReadInt32(proc, ref pc);
 
             if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
@@ -510,7 +505,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_Append(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var listValue = GetReferenceValue(reference, frame);
 
@@ -522,7 +517,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_Remove(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var listValue = GetReferenceValue(reference, frame);
 
@@ -615,7 +610,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_MultiplyReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, refValue * value);
@@ -623,7 +618,7 @@ namespace Core.VM.Runtime
 
         private void Opcode_DivideReference(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
             SetReferenceValue(reference, frame, refValue / value);
@@ -749,50 +744,6 @@ namespace Core.VM.Runtime
             Push(DreamValue.Null);
         }
 
-        private void Opcode_Length()
-        {
-            var value = Pop();
-            if (value.Type == DreamValueType.String && value.TryGetValue(out string? str))
-            {
-                Push(new DreamValue(str?.Length ?? 0));
-            }
-            else if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj is DreamList list)
-            {
-                Push(new DreamValue(list.Values.Count));
-            }
-            else
-            {
-                Push(new DreamValue(0));
-            }
-        }
-
-        private void Opcode_Throw()
-        {
-            var value = Pop();
-            State = DreamThreadState.Error;
-            Console.WriteLine($"Script threw an error: {value}");
-        }
-
-        private void Opcode_IsInRange()
-        {
-            var max = Pop();
-            var min = Pop();
-            var val = Pop();
-            Push(new DreamValue(val >= min && val <= max ? 1 : 0));
-        }
-
-        private void Opcode_Spawn(DreamProc proc, ref int pc)
-        {
-            var address = ReadInt32(proc, ref pc);
-            var delay = Pop();
-
-            var newThread = new DreamThread(this, address);
-            if (delay.TryGetValue(out float seconds))
-            {
-                newThread.Sleep(seconds / 10.0f);
-            }
-            _context.ScriptHost?.AddThread(newThread);
-        }
 
         private void Opcode_Rgb(DreamProc proc, ref int pc)
         {
@@ -852,89 +803,7 @@ namespace Core.VM.Runtime
             Push(new DreamValue("#000000"));
         }
 
-        private void Opcode_AppendNoPush(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc, ref pc);
-            var value = Pop();
-            var listValue = GetReferenceValue(reference, frame);
 
-            if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
-            {
-                list.AddValue(value);
-            }
-        }
-
-        private void Opcode_PushRefAndDereferenceField(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc, ref pc);
-            var fieldNameId = ReadInt32(proc, ref pc);
-            var fieldName = _context.Strings[fieldNameId];
-
-            var objValue = GetReferenceValue(reference, frame);
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null)
-            {
-                Push(obj.GetVariable(fieldName));
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
-
-        private void Opcode_PushNRefs(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var count = ReadInt32(proc, ref pc);
-            for (int i = 0; i < count; i++)
-            {
-                var reference = ReadReference(proc, ref pc);
-                Push(GetReferenceValue(reference, frame));
-            }
-        }
-
-        private void Opcode_PushNFloats(DreamProc proc, ref int pc)
-        {
-            var count = ReadInt32(proc, ref pc);
-            for (int i = 0; i < count; i++)
-            {
-                Push(new DreamValue(ReadSingle(proc, ref pc)));
-            }
-        }
-
-        private void Opcode_PushStringFloat(DreamProc proc, ref int pc)
-        {
-            var stringId = ReadInt32(proc, ref pc);
-            var value = ReadSingle(proc, ref pc);
-            Push(new DreamValue(_context.Strings[stringId]));
-            Push(new DreamValue(value));
-        }
-
-        private void Opcode_SwitchOnFloat(DreamProc proc, ref int pc)
-        {
-            var value = ReadSingle(proc, ref pc);
-            var jumpAddress = ReadInt32(proc, ref pc);
-            var switchValue = Peek();
-            if (switchValue.Type == DreamValueType.Float && switchValue.AsFloat() == value)
-                pc = jumpAddress;
-        }
-
-        private void Opcode_SwitchOnString(DreamProc proc, ref int pc)
-        {
-            var stringId = ReadInt32(proc, ref pc);
-            var jumpAddress = ReadInt32(proc, ref pc);
-            var switchValue = Peek();
-            if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == _context.Strings[stringId])
-                pc = jumpAddress;
-        }
-
-        private void Opcode_JumpIfReferenceFalse(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc, ref pc);
-            var address = ReadInt32(proc, ref pc);
-            if (GetReferenceValue(reference, frame).IsFalse())
-            {
-                pc = address;
-            }
-        }
 
         private void Opcode_ReturnFloat(DreamProc proc, ref int pc)
         {
@@ -949,7 +818,7 @@ namespace Core.VM.Runtime
             for (int i = 0; i < count; i++)
             {
                 var value = ReadSingle(proc, ref pc);
-                var reference = ReadReference(proc, ref pc);
+                var reference = ReadReference(proc.Bytecode, ref pc);
                 var val = new DreamValue(value);
                 SetReferenceValue(reference, frame, val);
                 Push(val);
@@ -974,13 +843,13 @@ namespace Core.VM.Runtime
 
         private void Opcode_NullRef(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             SetReferenceValue(reference, frame, DreamValue.Null);
         }
 
         private void Opcode_IndexRefWithString(DreamProc proc, CallFrame frame, ref int pc)
         {
-            var reference = ReadReference(proc, ref pc);
+            var reference = ReadReference(proc.Bytecode, ref pc);
             var stringId = ReadInt32(proc, ref pc);
             var stringValue = new DreamValue(_context.Strings[stringId]);
 

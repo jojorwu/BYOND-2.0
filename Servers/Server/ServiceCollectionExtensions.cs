@@ -12,16 +12,30 @@ namespace Server
 {
     public static class ServiceCollectionExtensions
     {
+        /// <summary>
+        /// Registers all server-specific hosted services, including networking, game loop, and the main application coordinator.
+        /// </summary>
         public static IServiceCollection AddServerHostedServices(this IServiceCollection services)
         {
-            // Diagnostics
+            return services
+                .AddServerDiagnosticServices()
+                .AddServerCoreServices()
+                .AddServerNetworkingServices()
+                .AddServerGameLoopServices()
+                .AddServerApplicationServices();
+        }
+
+        private static IServiceCollection AddServerDiagnosticServices(this IServiceCollection services)
+        {
             services.AddSingleton<PerformanceMonitor>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<PerformanceMonitor>());
+            return services;
+        }
 
-            // Core Server Context
+        private static IServiceCollection AddServerCoreServices(this IServiceCollection services)
+        {
             services.AddSingleton<IServerContext, ServerContext>();
 
-            // Scripting logic
             services.AddSingleton<IScriptWatcher, ScriptWatcher>();
             services.AddSingleton(provider => new ScriptHost(
                 provider.GetRequiredService<IScriptWatcher>(),
@@ -33,18 +47,29 @@ namespace Server
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
-            // Networking
+            return services;
+        }
+
+        private static IServiceCollection AddServerNetworkingServices(this IServiceCollection services)
+        {
             services.AddSingleton<NetDataWriterPool>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetDataWriterPool>());
+
             services.AddSingleton<NetworkService>();
             services.AddSingleton<INetworkService>(p => p.GetRequiredService<NetworkService>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetworkService>());
+
             services.AddSingleton<NetworkEventHandler>();
+
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<UdpServer>());
 
-            // Game Loop strategies
+            return services;
+        }
+
+        private static IServiceCollection AddServerGameLoopServices(this IServiceCollection services)
+        {
             services.AddSingleton<GameStateSnapshotter>();
             services.AddSingleton<IGameStateSnapshotter>(p => p.GetRequiredService<GameStateSnapshotter>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameStateSnapshotter>());
@@ -55,6 +80,7 @@ namespace Server
                 provider.GetRequiredService<IGameStateSnapshotter>(),
                 provider.GetRequiredService<IUdpServer>()
             ));
+
             services.AddSingleton(provider =>
                 new RegionalGameLoopStrategy(
                     provider.GetRequiredService<IScriptHost>(),
@@ -66,26 +92,26 @@ namespace Server
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
+
             services.AddSingleton<IGameLoopStrategy>(provider =>
             {
                 var settings = provider.GetRequiredService<ServerSettings>();
-                if (settings.Performance.EnableRegionalProcessing)
-                {
-                    return provider.GetRequiredService<RegionalGameLoopStrategy>();
-                }
-                else
-                {
-                    return provider.GetRequiredService<GlobalGameLoopStrategy>();
-                }
+                return settings.Performance.EnableRegionalProcessing
+                    ? provider.GetRequiredService<RegionalGameLoopStrategy>()
+                    : (IGameLoopStrategy)provider.GetRequiredService<GlobalGameLoopStrategy>();
             });
 
-            // Services that will be managed by ServerApplication
             services.AddSingleton<GameLoop>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameLoop>());
+
+            return services;
+        }
+
+        private static IServiceCollection AddServerApplicationServices(this IServiceCollection services)
+        {
             services.AddSingleton<HttpServer>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<HttpServer>());
 
-            // The main application coordinator
             services.AddSingleton<ServerApplication>();
             services.AddHostedService(provider => provider.GetRequiredService<ServerApplication>());
 

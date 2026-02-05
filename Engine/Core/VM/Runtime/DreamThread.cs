@@ -8,6 +8,14 @@ using Shared.Models;
 
 namespace Core.VM.Runtime
 {
+    /// <summary>
+    /// Represents a single thread of execution within the Dream VM.
+    /// Manages its own stack, call frames, and execution state.
+    ///
+    /// The VM uses a stack-based architecture where most opcodes operate on values
+    /// at the top of the stack. High-frequency opcodes are inlined directly into the
+    /// Run() loop to minimize overhead.
+    /// </summary>
     public partial class DreamThread : IScriptThread
     {
         private DreamValue[] _stack = new DreamValue[1024];
@@ -62,25 +70,25 @@ namespace Core.VM.Runtime
 
         public DreamValue Pop()
         {
-            if (_stackPtr <= 0) throw new InvalidOperationException("Stack underflow");
+            if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", CurrentProc, CallStack.Peek().PC, CallStack);
             return _stack[--_stackPtr];
         }
 
         public DreamValue Peek()
         {
-            if (_stackPtr <= 0) throw new InvalidOperationException("Stack is empty");
+            if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Peek", CurrentProc, CallStack.Peek().PC, CallStack);
             return _stack[_stackPtr - 1];
         }
 
         public DreamValue Peek(int offset)
         {
-            if (_stackPtr - offset - 1 < 0) throw new InvalidOperationException("Stack underflow in peek");
+            if (_stackPtr - offset - 1 < 0) throw new ScriptRuntimeException($"Stack underflow during Peek({offset})", CurrentProc, CallStack.Peek().PC, CallStack);
             return _stack[_stackPtr - offset - 1];
         }
 
         public void PopCount(int count)
         {
-            if (_stackPtr < count) throw new InvalidOperationException("Stack underflow in popcount");
+            if (_stackPtr < count) throw new ScriptRuntimeException($"Stack underflow during PopCount({count})", CurrentProc, CallStack.Peek().PC, CallStack);
             _stackPtr -= count;
         }
 
@@ -119,6 +127,9 @@ namespace Core.VM.Runtime
             }
         }
 
+        /// <summary>
+        /// Reads a reference from the bytecode stream.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private DMReference ReadReference(ReadOnlySpan<byte> bytecode, ref int pc)
         {
@@ -144,6 +155,9 @@ namespace Core.VM.Runtime
             }
         }
 
+        /// <summary>
+        /// Resolves a reference to its current value.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private DreamValue GetReferenceValue(DMReference reference, CallFrame frame)
         {
@@ -186,6 +200,9 @@ namespace Core.VM.Runtime
             }
         }
 
+        /// <summary>
+        /// Updates the value pointed to by a reference.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value)
         {
@@ -236,8 +253,15 @@ namespace Core.VM.Runtime
             }
         }
 
+        /// <summary>
+        /// Executes script instructions for this thread until the instruction budget is exhausted
+        /// or the thread state changes (e.g., sleeps, finishes, or errors).
+        /// </summary>
+        /// <param name="instructionBudget">Maximum number of instructions to execute in this call.</param>
+        /// <returns>The current state of the thread after execution.</returns>
         public DreamThreadState Run(int instructionBudget)
         {
+            // Resume from sleep if the time has passed
             if (State == DreamThreadState.Sleeping && DateTime.Now >= SleepUntil)
             {
                 State = DreamThreadState.Running;
@@ -247,6 +271,8 @@ namespace Core.VM.Runtime
                 return State;
 
             var instructionsExecutedThisTick = 0;
+
+            // Local cache of the current execution context for high performance
             var frame = CallStack.Peek();
             var proc = frame.Proc;
             var pc = frame.PC;
@@ -254,6 +280,7 @@ namespace Core.VM.Runtime
 
             while (State == DreamThreadState.Running)
             {
+                // Check if we've exceeded the per-tick or per-thread instruction budget
                 if (instructionsExecutedThisTick++ >= instructionBudget)
                 {
                     break;
@@ -262,7 +289,7 @@ namespace Core.VM.Runtime
                 if (_totalInstructionsExecuted++ > _maxInstructions)
                 {
                     State = DreamThreadState.Error;
-                    Console.WriteLine("Error: Instruction limit exceeded.");
+                    Console.WriteLine("Error: Total instruction limit exceeded for thread.");
                     break;
                 }
 
@@ -306,6 +333,14 @@ namespace Core.VM.Runtime
                                 _stack[_stackPtr++] = dv;
                             }
                             break;
+                        case Opcode.PushNull:
+                            {
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = DreamValue.Null;
+                            }
+                            break;
+                        case Opcode.Pop: _stackPtr--; break;
+
                         case Opcode.Add:
                             {
                                 var b = _stack[--_stackPtr];
@@ -387,13 +422,6 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Negate: _stack[_stackPtr - 1] = -_stack[_stackPtr - 1]; break;
                         case Opcode.BooleanNot: _stack[_stackPtr - 1] = _stack[_stackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False; break;
-                        case Opcode.PushNull:
-                            {
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = DreamValue.Null;
-                            }
-                            break;
-                        case Opcode.Pop: _stackPtr--; break;
                         case Opcode.Call:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
@@ -509,6 +537,7 @@ namespace Core.VM.Runtime
                                 SetReferenceValue(reference, frame, refValue >> value);
                             }
                             break;
+
                         case Opcode.GetVariable:
                             {
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
@@ -711,7 +740,6 @@ namespace Core.VM.Runtime
                                 DreamValue val = DreamValue.Null;
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                     val = obj.GetVariable(_context.Strings[nameId]);
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                 _stack[_stackPtr++] = val;
                             }
                             break;
@@ -729,7 +757,6 @@ namespace Core.VM.Runtime
                                     }
                                     else val = list.GetValue(index);
                                 }
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                 _stack[_stackPtr++] = val;
                             }
                             break;
@@ -1069,8 +1096,8 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.NullRef:
                             {
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = DreamValue.Null;
+                                var reference = ReadReference(bytecode, ref pc);
+                                SetReferenceValue(reference, frame, DreamValue.Null);
                             }
                             break;
                         case Opcode.IndexRefWithString:
@@ -1092,8 +1119,7 @@ namespace Core.VM.Runtime
                             break;
 
                         default:
-                            State = DreamThreadState.Error;
-                            throw new Exception($"Unknown opcode: {opcode}");
+                            throw new ScriptRuntimeException($"Unknown opcode: 0x{(byte)opcode:X2}", proc, pc - 1, CallStack);
                     }
 
                     if (potentiallyChangedStack)
@@ -1107,10 +1133,17 @@ namespace Core.VM.Runtime
                         }
                     }
                 }
-                catch (Exception e)
+                catch (Exception e) when (e is not ScriptRuntimeException)
                 {
                     State = DreamThreadState.Error;
-                    Console.WriteLine($"Error during script execution: {e.Message}");
+                    var runtimeEx = new ScriptRuntimeException("Unexpected internal error", proc, pc, CallStack, e);
+                    Console.WriteLine(runtimeEx.ToString());
+                    break;
+                }
+                catch (ScriptRuntimeException e)
+                {
+                    State = DreamThreadState.Error;
+                    Console.WriteLine(e.ToString());
                     break;
                 }
             }

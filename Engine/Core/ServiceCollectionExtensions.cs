@@ -13,9 +13,23 @@ namespace Core
 {
     public static class ServiceCollectionExtensions
     {
+        /// <summary>
+        /// Registers all core engine services, including state management, VM, scripting, and APIs.
+        /// </summary>
         public static IServiceCollection AddCoreServices(this IServiceCollection services)
         {
+            return services
+                .AddCoreStateServices()
+                .AddCoreApiServices()
+                .AddCoreVmServices()
+                .AddCoreScriptingServices()
+                .AddCoreProjectServices();
+        }
+
+        private static IServiceCollection AddCoreStateServices(this IServiceCollection services)
+        {
             services.AddSingleton<IGameState, GameState>();
+
             services.AddSingleton<ObjectTypeManager>();
             services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
@@ -23,6 +37,28 @@ namespace Core
             services.AddSingleton<MapLoader>();
             services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<MapLoader>());
+
+            services.AddSingleton<IPlayerManager>(provider =>
+                new PlayerManager(
+                    provider.GetRequiredService<IObjectApi>(),
+                    provider.GetRequiredService<IObjectTypeManager>(),
+                    provider.GetRequiredService<ServerSettings>()
+                )
+            );
+
+            services.AddSingleton<IRegionActivationStrategy, PlayerBasedActivationStrategy>();
+            services.AddSingleton<IRegionManager>(provider =>
+                new RegionManager(
+                    provider.GetRequiredService<IMap>(),
+                    provider.GetRequiredService<ServerSettings>()
+                )
+            );
+
+            return services;
+        }
+
+        private static IServiceCollection AddCoreApiServices(this IServiceCollection services)
+        {
             services.AddSingleton<IMapApi, MapApi>();
             services.AddSingleton<IObjectApi, ObjectApi>();
             services.AddSingleton<IScriptApi, ScriptApi>();
@@ -36,6 +72,12 @@ namespace Core
                     provider.GetRequiredService<ServerSettings>()
                 )
             );
+
+            return services;
+        }
+
+        private static IServiceCollection AddCoreVmServices(this IServiceCollection services)
+        {
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
 
@@ -47,6 +89,11 @@ namespace Core
             services.AddSingleton<IDreamMakerLoader>(p => p.GetRequiredService<DreamMakerLoader>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<DreamMakerLoader>());
 
+            return services;
+        }
+
+        private static IServiceCollection AddCoreScriptingServices(this IServiceCollection services)
+        {
             services.AddSingleton(provider =>
                 new ScriptManager(
                     provider.GetRequiredService<IProject>(),
@@ -55,20 +102,7 @@ namespace Core
             );
             services.AddSingleton<IScriptManager>(p => p.GetRequiredService<ScriptManager>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptManager>());
-            services.AddSingleton<IPlayerManager>(provider =>
-                new PlayerManager(
-                    provider.GetRequiredService<IObjectApi>(),
-                    provider.GetRequiredService<IObjectTypeManager>(),
-                    provider.GetRequiredService<ServerSettings>()
-                )
-            );
-            services.AddSingleton<IRegionActivationStrategy, PlayerBasedActivationStrategy>();
-            services.AddSingleton<IRegionManager>(provider =>
-                new RegionManager(
-                    provider.GetRequiredService<IMap>(),
-                    provider.GetRequiredService<ServerSettings>()
-                )
-            );
+
             services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
             services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();
             services.AddSingleton<IScriptSystem>(provider =>
@@ -81,9 +115,13 @@ namespace Core
                 )
             );
 
+            return services;
+        }
+
+        private static IServiceCollection AddCoreProjectServices(this IServiceCollection services)
+        {
             services.AddSingleton<IProjectManager, Core.Projects.ProjectManager>();
             services.AddSingleton<IServerDiscoveryService, Core.Networking.MockServerDiscoveryService>();
-
             return services;
         }
     }

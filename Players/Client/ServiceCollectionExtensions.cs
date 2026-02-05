@@ -9,14 +9,30 @@ namespace Client
 {
     public static class ServiceCollectionExtensions
     {
+        /// <summary>
+        /// Registers all client-specific services, including the game engine, asset caches, and shaders.
+        /// </summary>
         public static IServiceCollection AddClientServices(this IServiceCollection services)
         {
-            services.AddSharedEngineServices();
+            return services
+                .AddSharedEngineServices()
+                .AddClientCoreServices()
+                .AddClientAssetServices();
+        }
 
+        private static IServiceCollection AddClientCoreServices(this IServiceCollection services)
+        {
             services.AddSingleton<Game>();
             services.AddSingleton<IClient>(p => p.GetRequiredService<Game>());
 
-            // Client-side services
+            services.AddSingleton<ClientApplication>();
+            services.AddHostedService(p => p.GetRequiredService<ClientApplication>());
+
+            return services;
+        }
+
+        private static IServiceCollection AddClientAssetServices(this IServiceCollection services)
+        {
             services.AddSingleton<TextureCache>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<TextureCache>());
 
@@ -28,9 +44,6 @@ namespace Client
 
             services.AddSingleton<IconCache>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<IconCache>());
-
-            services.AddSingleton<ClientApplication>();
-            services.AddHostedService(p => p.GetRequiredService<ClientApplication>());
 
             return services;
         }

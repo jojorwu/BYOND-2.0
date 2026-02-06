@@ -37,6 +37,10 @@ namespace Server
             services.AddSingleton<IServerContext, ServerContext>();
 
             services.AddSingleton<IScriptWatcher, ScriptWatcher>();
+            services.AddSingleton<IScriptEnvironmentManager, ScriptEnvironmentManager>();
+            services.AddSingleton<IScriptScheduler, ScriptScheduler>();
+            services.AddSingleton<IScriptCommandProcessor, ScriptCommandProcessor>();
+
             services.AddSingleton<ScriptHost>();
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());

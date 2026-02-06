@@ -1,65 +1,49 @@
 using Shared;
-using Core;
 using System;
 using System.Threading;
-using Core.VM.Runtime;
 using System.Collections.Generic;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System.Linq;
 using Shared.Services;
-using Microsoft.Extensions.Options;
 
 namespace Server
 {
     public class ScriptHost : EngineService, IHostedService, IDisposable, IScriptHost
     {
-        public override int Priority => 50; // High priority, start early
-        private readonly IScriptWatcher _scriptWatcher;
-        private readonly object _scriptLock = new object();
-        private readonly ServerSettings _settings;
-        private readonly System.Collections.Concurrent.ConcurrentQueue<(string, Action<string>)> _commandQueue = new();
-        private readonly IServiceProvider _serviceProvider;
+        public override int Priority => 50;
+
+        private readonly IScriptEnvironmentManager _envManager;
+        private readonly IScriptScheduler _scheduler;
+        private readonly IScriptCommandProcessor _commandProcessor;
         private readonly ILogger<ScriptHost> _logger;
         private readonly IGameState _gameState;
-        private ScriptingEnvironment? _currentEnvironment;
-        private CancellationTokenSource? _cancellationTokenSource;
-        private int _isReloading = 0;
 
-        public ScriptHost(IScriptWatcher scriptWatcher, IOptions<ServerSettings> settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
+        public ScriptHost(
+            IScriptEnvironmentManager envManager,
+            IScriptScheduler scheduler,
+            IScriptCommandProcessor commandProcessor,
+            ILogger<ScriptHost> logger,
+            IGameState gameState)
         {
-            _scriptWatcher = scriptWatcher;
-            _settings = settings.Value;
-            _serviceProvider = serviceProvider;
+            _envManager = envManager;
+            _scheduler = scheduler;
+            _commandProcessor = commandProcessor;
             _logger = logger;
             _gameState = gameState;
         }
 
-        public override Task StartAsync(CancellationToken cancellationToken)
+        public override async Task StartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Starting script host...");
-            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-            _scriptWatcher.OnReloadRequested += OnReloadRequested;
-            _scriptWatcher.Start();
-
-            ReloadScripts(); // Initial script load
-            return Task.CompletedTask;
+            _logger.LogInformation("Starting script host coordinator...");
+            await _envManager.StartAsync(cancellationToken);
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
         {
-            _cancellationTokenSource?.Cancel();
-            _scriptWatcher.Stop();
-            _scriptWatcher.OnReloadRequested -= OnReloadRequested;
+            _envManager.Stop();
             return Task.CompletedTask;
-        }
-
-        private void OnReloadRequested()
-        {
-            ReloadScripts();
         }
 
         public void Tick()
@@ -69,9 +53,9 @@ namespace Server
             var objectIds = new HashSet<int>();
             _gameState.ForEachGameObject(o => objectIds.Add(o.Id));
 
-            var threads = GetThreads();
-            var remainingThreads = ExecuteThreads(threads, Array.Empty<IGameObject>(), true, objectIds);
-            UpdateThreads(remainingThreads);
+            var threads = _envManager.GetActiveThreads();
+            var remainingThreads = _scheduler.ExecuteThreads(threads, Array.Empty<IGameObject>(), true, objectIds);
+            _envManager.UpdateActiveThreads(remainingThreads);
         }
 
         public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
@@ -79,146 +63,47 @@ namespace Server
             if (processGlobals)
                 ProcessCommandQueue();
 
-            var threads = GetThreads();
-            var remainingThreads = ExecuteThreads(threads, objectsToTick, processGlobals);
-            UpdateThreads(remainingThreads);
+            var threads = _envManager.GetActiveThreads();
+            var remainingThreads = _scheduler.ExecuteThreads(threads, objectsToTick, processGlobals);
+            _envManager.UpdateActiveThreads(remainingThreads);
         }
 
         public List<IScriptThread> GetThreads()
         {
-            lock (_scriptLock)
-            {
-                return _currentEnvironment?.Threads.ToList() ?? new List<IScriptThread>();
-            }
+            return _envManager.GetActiveThreads().ToList();
         }
 
         public void UpdateThreads(IEnumerable<IScriptThread> threads)
         {
-            lock (_scriptLock)
-            {
-                if (_currentEnvironment != null)
-                {
-                    _currentEnvironment.Threads.Clear();
-                    _currentEnvironment.Threads.AddRange(threads);
-                }
-            }
+            _envManager.UpdateActiveThreads(threads);
         }
 
         public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
         {
-            if (objectIds == null)
-            {
-                objectIds = new HashSet<int>();
-                foreach (var obj in objectsToTick)
-                {
-                    objectIds.Add(obj.Id);
-                }
-            }
-
-            var dreamThreads = threads.OfType<DreamThread>().ToList();
-            var nextThreads = new System.Collections.Concurrent.ConcurrentBag<IScriptThread>();
-            var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-            foreach (var thread in dreamThreads)
-            {
-                if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
-                {
-                    nextThreads.Add(thread);
-                    continue;
-                }
-
-                bool shouldProcess = (processGlobals && thread.AssociatedObject == null) || (thread.AssociatedObject != null && objectIds.Contains(thread.AssociatedObject.Id));
-
-                if (shouldProcess)
-                {
-                    var state = thread.Run(_settings.Performance.VmInstructionSlice);
-                    if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
-                    {
-                        nextThreads.Add(thread);
-                    }
-                }
-                else
-                {
-                    nextThreads.Add(thread);
-                }
-            }
-
-            foreach (var thread in threads.Where(t => t is not DreamThread))
-            {
-                nextThreads.Add(thread);
-            }
-
-            return nextThreads;
+            return _scheduler.ExecuteThreads(threads, objectsToTick, processGlobals, objectIds);
         }
 
         public void EnqueueCommand(string command, Action<string> onResult)
         {
-            _commandQueue.Enqueue((command, onResult));
+            _commandProcessor.EnqueueCommand(command, onResult);
         }
 
         public void AddThread(IScriptThread thread)
         {
-            lock (_scriptLock)
-            {
-                _currentEnvironment?.Threads.Add(thread);
-            }
+            _envManager.AddThread(thread);
         }
 
         private void ProcessCommandQueue()
         {
-            while (_commandQueue.TryDequeue(out var commandInfo))
+            var scriptManager = _envManager.GetCurrentScriptManager();
+            if (scriptManager != null)
             {
-                var (command, onResult) = commandInfo;
-                string? result;
-                lock (_scriptLock)
-                {
-                    result = _currentEnvironment?.ScriptManager.ExecuteCommand(command);
-                }
-                onResult(result ?? "Command executed with no result.");
+                _commandProcessor.ProcessCommands(scriptManager);
             }
-        }
-
-        private void ReloadScripts()
-        {
-            if (Interlocked.CompareExchange(ref _isReloading, 1, 0) != 0)
-            {
-                _logger.LogDebug("Script reload already in progress. Skipping.");
-                return;
-            }
-
-            _logger.LogInformation("Starting background script reload...");
-            Task.Run(async () =>
-            {
-                try
-                {
-                    if (_cancellationTokenSource?.IsCancellationRequested ?? true)
-                        return;
-
-                    var newEnvironment = new ScriptingEnvironment(_serviceProvider);
-                    await newEnvironment.Initialize();
-
-                    lock (_scriptLock)
-                    {
-                        _currentEnvironment?.Dispose();
-                        _currentEnvironment = newEnvironment;
-                    }
-                    _logger.LogInformation("Script reload complete and activated.");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error during background script reload.");
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref _isReloading, 0);
-                }
-            });
         }
 
         public void Dispose()
         {
-            _cancellationTokenSource?.Dispose();
             GC.SuppressFinalize(this);
         }
     }

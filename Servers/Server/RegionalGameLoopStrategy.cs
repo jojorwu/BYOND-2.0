@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Core.Regions;
 using Robust.Shared.Maths;
 using Shared;
+using Microsoft.Extensions.Options;
 
 namespace Server
 {
@@ -18,7 +19,7 @@ namespace Server
         private readonly IGameStateSnapshotter _gameStateSnapshotter;
         private readonly ServerSettings _settings;
 
-        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, ServerSettings settings)
+        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IOptions<ServerSettings> settings)
         {
             _scriptHost = scriptHost;
             _regionManager = regionManager;
@@ -26,7 +27,7 @@ namespace Server
             _udpServer = udpServer;
             _gameState = gameState;
             _gameStateSnapshotter = gameStateSnapshotter;
-            _settings = settings;
+            _settings = settings.Value;
         }
 
         public async Task TickAsync(CancellationToken cancellationToken)

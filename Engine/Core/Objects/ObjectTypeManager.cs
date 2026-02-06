@@ -2,6 +2,7 @@ using Shared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Core.Objects
 {
@@ -10,13 +11,22 @@ namespace Core.Objects
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
         private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();
         private readonly ConcurrentDictionary<string, List<ObjectType>> _unlinkedChildren = new();
+        private readonly ILogger<ObjectTypeManager> _logger;
+
+        public ObjectTypeManager(ILogger<ObjectTypeManager> logger)
+        {
+            _logger = logger;
+        }
 
         public void RegisterObjectType(ObjectType objectType)
         {
             if (!_objectTypes.TryAdd(objectType.Name, objectType) || !_objectTypesById.TryAdd(objectType.Id, objectType))
             {
+                _logger.LogError("Object type '{ObjectTypeName}' with ID {ObjectTypeId} is already registered.", objectType.Name, objectType.Id);
                 throw new System.InvalidOperationException($"Object type '{objectType.Name}' with ID {objectType.Id} is already registered.");
             }
+
+            _logger.LogTrace("Registered object type: {ObjectTypeName} ({ObjectTypeId})", objectType.Name, objectType.Id);
 
             // Link to parent
             if (!string.IsNullOrEmpty(objectType.ParentName))

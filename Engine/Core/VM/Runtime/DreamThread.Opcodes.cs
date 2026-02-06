@@ -13,17 +13,6 @@ namespace Core.VM.Runtime
     {
         #region Opcode Handlers
 
-        private void Opcode_Call(DreamProc proc, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
-            var argStackDelta = ReadInt32(proc, ref pc);
-            var unusedStackDelta = ReadInt32(proc, ref pc);
-
-            PerformCall(reference, argType, argStackDelta);
-        }
-
-
         private void Opcode_GetStepTo()
         {
             var minDistValue = Pop();
@@ -156,48 +145,6 @@ namespace Core.VM.Runtime
 
 
 
-        private void Opcode_BitShiftLeftReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, refValue << value);
-        }
-
-        private void Opcode_BitShiftRightReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, refValue >> value);
-        }
-
-        private void Opcode_BitXorReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, refValue ^ value);
-        }
-
-
-        private void Opcode_Increment(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = GetReferenceValue(reference, frame);
-            var newValue = value + 1;
-            SetReferenceValue(reference, frame, newValue);
-            Push(newValue);
-        }
-
-        private void Opcode_Decrement(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = GetReferenceValue(reference, frame);
-            var newValue = value - 1;
-            SetReferenceValue(reference, frame, newValue);
-            Push(newValue);
-        }
 
         private void Opcode_Modulus()
         {
@@ -229,12 +176,6 @@ namespace Core.VM.Runtime
             SetReferenceValue(reference, frame, new DreamValue(refValue.GetValueAsFloat() % value.GetValueAsFloat()));
         }
 
-        private void Opcode_AssignNoPush(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            SetReferenceValue(reference, frame, value);
-        }
 
         private void Opcode_AssignInto(DreamProc proc, CallFrame frame, ref int pc)
         {
@@ -805,64 +746,6 @@ namespace Core.VM.Runtime
 
 
 
-        private void Opcode_ReturnFloat(DreamProc proc, ref int pc)
-        {
-            var value = ReadSingle(proc, ref pc);
-            Push(new DreamValue(value));
-            Opcode_Return(ref proc, ref pc);
-        }
-
-        private void Opcode_NPushFloatAssign(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var count = ReadInt32(proc, ref pc);
-            for (int i = 0; i < count; i++)
-            {
-                var value = ReadSingle(proc, ref pc);
-                var reference = ReadReference(proc.Bytecode, ref pc);
-                var val = new DreamValue(value);
-                SetReferenceValue(reference, frame, val);
-                Push(val);
-            }
-        }
-
-        private void Opcode_IsTypeDirect(DreamProc proc, ref int pc)
-        {
-            var typeId = ReadInt32(proc, ref pc);
-            var type = _context.ObjectTypeManager?.GetObjectType(typeId);
-            var objValue = Pop();
-
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null && type != null)
-            {
-                Push(new DreamValue(obj.ObjectType.IsSubtypeOf(type) ? 1 : 0));
-            }
-            else
-            {
-                Push(new DreamValue(0));
-            }
-        }
-
-        private void Opcode_NullRef(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            SetReferenceValue(reference, frame, DreamValue.Null);
-        }
-
-        private void Opcode_IndexRefWithString(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var stringId = ReadInt32(proc, ref pc);
-            var stringValue = new DreamValue(_context.Strings[stringId]);
-
-            var objValue = GetReferenceValue(reference, frame);
-            if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
-            {
-                Push(list.GetValue(stringValue));
-            }
-            else
-            {
-                Push(DreamValue.Null);
-            }
-        }
         #endregion
     }
 }

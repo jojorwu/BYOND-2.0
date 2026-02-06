@@ -6,6 +6,7 @@ using Core.Regions;
 using Core.VM.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Shared;
 using Shared.Interfaces;
 
@@ -38,21 +39,10 @@ namespace Core
             services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<MapLoader>());
 
-            services.AddSingleton<IPlayerManager>(provider =>
-                new PlayerManager(
-                    provider.GetRequiredService<IObjectApi>(),
-                    provider.GetRequiredService<IObjectTypeManager>(),
-                    provider.GetRequiredService<ServerSettings>()
-                )
-            );
+            services.AddSingleton<IPlayerManager, PlayerManager>();
 
             services.AddSingleton<IRegionActivationStrategy, PlayerBasedActivationStrategy>();
-            services.AddSingleton<IRegionManager>(provider =>
-                new RegionManager(
-                    provider.GetRequiredService<IMap>(),
-                    provider.GetRequiredService<ServerSettings>()
-                )
-            );
+            services.AddSingleton<IRegionManager, RegionManager>();
 
             return services;
         }
@@ -65,19 +55,14 @@ namespace Core
             services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
             services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
             services.AddSingleton<IGameApi, GameApi>();
-            services.AddSingleton<IRegionApi>(provider =>
-                new RegionApi(
-                    provider.GetRequiredService<IRegionManager>(),
-                    provider.GetRequiredService<IRegionActivationStrategy>(),
-                    provider.GetRequiredService<ServerSettings>()
-                )
-            );
+            services.AddSingleton<IRegionApi, RegionApi>();
 
             return services;
         }
 
         private static IServiceCollection AddCoreVmServices(this IServiceCollection services)
         {
+            services.AddSingleton<INativeProcProvider, Core.VM.Procs.StandardNativeProcProvider>();
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
 
@@ -94,12 +79,7 @@ namespace Core
 
         private static IServiceCollection AddCoreScriptingServices(this IServiceCollection services)
         {
-            services.AddSingleton(provider =>
-                new ScriptManager(
-                    provider.GetRequiredService<IProject>(),
-                    provider.GetServices<IScriptSystem>()
-                )
-            );
+            services.AddSingleton<ScriptManager>();
             services.AddSingleton<IScriptManager>(p => p.GetRequiredService<ScriptManager>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptManager>());
 

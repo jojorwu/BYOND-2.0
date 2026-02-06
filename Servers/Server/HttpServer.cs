@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Shared;
 using Shared.Services;
 
@@ -18,9 +19,10 @@ namespace Server
         private readonly IWebHost? _host;
         private readonly ILogger<HttpServer> _logger;
 
-        public HttpServer(ServerSettings settings, IProject project, ILogger<HttpServer> logger)
+        public HttpServer(IOptions<ServerSettings> settingsOptions, IProject project, ILogger<HttpServer> logger)
         {
             _logger = logger;
+            var settings = settingsOptions.Value;
             if (!settings.HttpServer.Enabled)
             {
                 return;

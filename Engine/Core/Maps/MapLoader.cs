@@ -6,24 +6,31 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Shared.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Core.Maps
 {
     public class MapLoader : EngineService, IMapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly ILogger<MapLoader> _logger;
 
-        public MapLoader(IObjectTypeManager objectTypeManager)
+        public MapLoader(IObjectTypeManager objectTypeManager, ILogger<MapLoader> logger)
         {
             _objectTypeManager = objectTypeManager;
+            _logger = logger;
         }
 
         public async Task<IMap?> LoadMapAsync(string filePath)
         {
             if (!File.Exists(filePath))
             {
+                _logger.LogWarning("Map file not found: {FilePath}", filePath);
                 return null;
             }
+
+            _logger.LogInformation("Loading map from: {FilePath}...", filePath);
+            var startTime = DateTime.UtcNow;
 
             await using var stream = File.OpenRead(filePath);
             var mapData = await JsonSerializer.DeserializeAsync<MapData>(stream);
@@ -62,6 +69,8 @@ namespace Core.Maps
                 map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
             }
 
+            var duration = DateTime.UtcNow - startTime;
+            _logger.LogInformation("Successfully loaded map from {FilePath} in {Duration}ms", filePath, duration.TotalMilliseconds);
             return map;
         }
 

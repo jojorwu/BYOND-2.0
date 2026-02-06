@@ -420,6 +420,20 @@ namespace Core.VM.Runtime
                                 _stack[_stackPtr - 1] = _stack[_stackPtr - 1] >= b ? DreamValue.True : DreamValue.False;
                             }
                             break;
+                        case Opcode.CompareEquivalent:
+                            {
+                                var b = Pop();
+                                var a = Pop();
+                                Push(a.Equals(b) ? DreamValue.True : DreamValue.False);
+                            }
+                            break;
+                        case Opcode.CompareNotEquivalent:
+                            {
+                                var b = Pop();
+                                var a = Pop();
+                                Push(!a.Equals(b) ? DreamValue.True : DreamValue.False);
+                            }
+                            break;
                         case Opcode.Negate: _stack[_stackPtr - 1] = -_stack[_stackPtr - 1]; break;
                         case Opcode.BooleanNot: _stack[_stackPtr - 1] = _stack[_stackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False; break;
                         case Opcode.Call:
@@ -481,6 +495,7 @@ namespace Core.VM.Runtime
                                 Console.WriteLine(_stack[--_stackPtr].ToString());
                             }
                             break;
+                        case Opcode.OutputReference: Opcode_OutputReference(proc, frame, ref pc); break;
                         case Opcode.Return: Opcode_Return(ref proc, ref pc); potentiallyChangedStack = true; break;
                         case Opcode.BitAnd:
                             {
@@ -857,6 +872,15 @@ namespace Core.VM.Runtime
                         case Opcode.DestroyEnumerator: Opcode_DestroyEnumerator(proc, ref pc); break;
                         case Opcode.Append: Opcode_Append(proc, frame, ref pc); break;
                         case Opcode.Remove: Opcode_Remove(proc, frame, ref pc); break;
+                        case Opcode.DeleteObject:
+                            {
+                                var value = Pop();
+                                if (value.TryGetValueAsGameObject(out var obj))
+                                {
+                                    _context.GameState?.RemoveGameObject(obj);
+                                }
+                            }
+                            break;
                         case Opcode.Prob: Opcode_Prob(); break;
                         case Opcode.GetStep: Opcode_GetStep(); break;
                         case Opcode.GetStepTo: Opcode_GetStepTo(); break;
@@ -876,6 +900,18 @@ namespace Core.VM.Runtime
                         case Opcode.ArcCos: Opcode_ArcCos(); break;
                         case Opcode.ArcTan: Opcode_ArcTan(); break;
                         case Opcode.ArcTan2: Opcode_ArcTan2(); break;
+                        case Opcode.Log:
+                            {
+                                var baseValue = Pop();
+                                var x = Pop();
+                                Push(new DreamValue(MathF.Log(x.GetValueAsFloat(), baseValue.GetValueAsFloat())));
+                            }
+                            break;
+                        case Opcode.LogE:
+                            {
+                                Push(new DreamValue(MathF.Log(Pop().GetValueAsFloat())));
+                            }
+                            break;
                         case Opcode.PushType:
                             {
                                 var typeId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
@@ -1020,6 +1056,13 @@ namespace Core.VM.Runtime
                                 _stack[_stackPtr++] = new DreamValue(value);
                             }
                             break;
+                        case Opcode.PushResource:
+                            {
+                                var pathId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+                                pc += 4;
+                                Push(new DreamValue(new DreamResource("resource", _context.Strings[pathId])));
+                            }
+                            break;
                         case Opcode.SwitchOnFloat:
                             {
                                 var value = BinaryPrimitives.ReadSingleLittleEndian(bytecode.Slice(pc));
@@ -1115,6 +1158,24 @@ namespace Core.VM.Runtime
 
                                 if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                 _stack[_stackPtr++] = result;
+                            }
+                            break;
+                        case Opcode.ReturnReferenceValue:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                Push(GetReferenceValue(reference, frame));
+                                Opcode_Return(ref proc, ref pc);
+                                potentiallyChangedStack = true;
+                            }
+                            break;
+                        case Opcode.PushFloatAssign:
+                            {
+                                var value = BinaryPrimitives.ReadSingleLittleEndian(bytecode.Slice(pc)); pc += 4;
+                                var reference = ReadReference(bytecode, ref pc);
+                                var dv = new DreamValue(value);
+                                SetReferenceValue(reference, frame, dv);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = dv;
                             }
                             break;
 

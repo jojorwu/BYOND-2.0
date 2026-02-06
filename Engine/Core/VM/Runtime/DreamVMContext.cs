@@ -32,5 +32,18 @@ namespace Core.VM.Runtime
                 Globals[index] = value;
             }
         }
+
+        public void Reset()
+        {
+            lock (_globalLock)
+            {
+                Strings.Clear();
+                Procs.Clear();
+                AllProcs.Clear();
+                Globals.Clear();
+                GlobalNames.Clear();
+                ListType = null;
+            }
+        }
     }
 }

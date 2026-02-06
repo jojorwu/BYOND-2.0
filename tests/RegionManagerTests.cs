@@ -3,6 +3,7 @@ using Moq;
 using Shared;
 using Core.Regions;
 using System.Collections.Generic;
+using Microsoft.Extensions.Options;
 using System.Linq;
 using Robust.Shared.Maths;
 
@@ -20,7 +21,7 @@ namespace tests
         {
             _mapMock = new Mock<IMap>();
             _serverSettings = new ServerSettings();
-            _regionManager = new RegionManager(_mapMock.Object, _serverSettings);
+            _regionManager = new RegionManager(_mapMock.Object, Options.Create(_serverSettings));
         }
 
         [Test]

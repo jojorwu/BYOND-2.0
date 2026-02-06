@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Robust.Shared.Maths;
 using Shared;
+using Microsoft.Extensions.Options;
 
 namespace Core.Players
 {
@@ -12,11 +13,11 @@ namespace Core.Players
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly ServerSettings _settings;
 
-        public PlayerManager(IObjectApi objectApi, IObjectTypeManager objectTypeManager, ServerSettings settings)
+        public PlayerManager(IObjectApi objectApi, IObjectTypeManager objectTypeManager, IOptions<ServerSettings> settings)
         {
             _objectApi = objectApi;
             _objectTypeManager = objectTypeManager;
-            _settings = settings;
+            _settings = settings.Value;
         }
 
         public void AddPlayer(INetworkPeer peer)

@@ -7,6 +7,7 @@ using Core.Scripting.LuaSystem;
 using Core.VM.Runtime;
 using System.Linq;
 using Shared.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Core
 {
@@ -14,22 +15,28 @@ namespace Core
     {
         private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
+        private readonly ILogger<ScriptManager> _logger;
 
-        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems)
+        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems, ILogger<ScriptManager> logger)
         {
             _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
             _systems = systems;
+            _logger = logger;
         }
 
         public override async Task InitializeAsync()
         {
+            _logger.LogInformation("Initializing Script Manager...");
+
             if (!Directory.Exists(_scriptsRoot))
             {
+                _logger.LogInformation("Scripts directory not found. Creating at '{ScriptsRoot}'", _scriptsRoot);
                 Directory.CreateDirectory(_scriptsRoot);
             }
 
             foreach (var sys in _systems)
             {
+                _logger.LogInformation("Initializing script system: {SystemName}", sys.GetType().Name);
                 sys.Initialize();
                 await sys.LoadScripts(_scriptsRoot);
             }

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System;
 using LiteNetLib.Utils;
 using Core;
+using Microsoft.Extensions.Options;
 
 namespace tests
 {
@@ -46,7 +47,7 @@ namespace tests
             var rm = new Mock<IRegionManager>().Object;
             var perf = new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object);
 
-            var context = new ServerContext(gs, pm, set, rm, perf);
+            var context = new ServerContext(gs, pm, Options.Create(set), rm, perf);
 
             Assert.That(context.GameState, Is.SameAs(gs));
             Assert.That(context.PlayerManager, Is.SameAs(pm));
@@ -69,7 +70,7 @@ namespace tests
 
             // Mocking classes with complex constructors
             var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
-            var httpServerMock = new Mock<HttpServer>(settings, projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
+            var httpServerMock = new Mock<HttpServer>(Options.Create(settings), projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
             var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object);
 
             var udpServerEngineMock = udpServerMock.As<IEngineService>();
@@ -110,7 +111,7 @@ namespace tests
             var settings = new ServerSettings { Development = { ScriptReloadDebounceMs = 10 } };
             var loggerMock = new Mock<ILogger<ScriptWatcher>>();
 
-            using var watcher = new ScriptWatcher(projectMock.Object, settings, loggerMock.Object);
+            using var watcher = new ScriptWatcher(projectMock.Object, Options.Create(settings), loggerMock.Object);
             bool reloadRequested = false;
             watcher.OnReloadRequested += () => reloadRequested = true;
 

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System.Linq;
 using Shared.Services;
+using Microsoft.Extensions.Options;
 
 namespace Server
 {
@@ -27,10 +28,10 @@ namespace Server
         private CancellationTokenSource? _cancellationTokenSource;
         private int _isReloading = 0;
 
-        public ScriptHost(IScriptWatcher scriptWatcher, ServerSettings settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
+        public ScriptHost(IScriptWatcher scriptWatcher, IOptions<ServerSettings> settings, IServiceProvider serviceProvider, ILogger<ScriptHost> logger, IGameState gameState)
         {
             _scriptWatcher = scriptWatcher;
-            _settings = settings;
+            _settings = settings.Value;
             _serviceProvider = serviceProvider;
             _logger = logger;
             _gameState = gameState;

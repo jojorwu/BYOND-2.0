@@ -5,6 +5,7 @@ using System.IO;
 using Core.Objects;
 using Core.Maps;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace tests
 {
@@ -18,8 +19,8 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
         }
 
         [TearDown]

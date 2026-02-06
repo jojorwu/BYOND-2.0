@@ -11,6 +11,8 @@ using Core.Maps;
 using Core.Api;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Core.Tests
 {
@@ -42,9 +44,9 @@ namespace Core.Tests
 
             _project = new Project(projectPath);
             _gameState = new GameState();
-            _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
-            _dreamVM = new DreamVM(new ServerSettings());
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
+            _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
             var scriptApi = new ScriptApi(_project);
@@ -65,7 +67,7 @@ namespace Core.Tests
                 new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
                 new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
             };
-            _scriptManager = new ScriptManager(_project, systems);
+            _scriptManager = new ScriptManager(_project, systems, NullLogger<ScriptManager>.Instance);
         }
 
         [TearDown]

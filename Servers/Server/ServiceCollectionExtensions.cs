@@ -37,13 +37,7 @@ namespace Server
             services.AddSingleton<IServerContext, ServerContext>();
 
             services.AddSingleton<IScriptWatcher, ScriptWatcher>();
-            services.AddSingleton(provider => new ScriptHost(
-                provider.GetRequiredService<IScriptWatcher>(),
-                provider.GetRequiredService<ServerSettings>(),
-                provider.GetRequiredService<IServiceProvider>(),
-                provider.GetRequiredService<ILogger<ScriptHost>>(),
-                provider.GetRequiredService<IGameState>()
-            ));
+            services.AddSingleton<ScriptHost>();
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
@@ -81,17 +75,7 @@ namespace Server
                 provider.GetRequiredService<IUdpServer>()
             ));
 
-            services.AddSingleton(provider =>
-                new RegionalGameLoopStrategy(
-                    provider.GetRequiredService<IScriptHost>(),
-                    provider.GetRequiredService<IRegionManager>(),
-                    provider.GetRequiredService<Core.Regions.IRegionActivationStrategy>(),
-                    provider.GetRequiredService<IUdpServer>(),
-                    provider.GetRequiredService<IGameState>(),
-                    provider.GetRequiredService<IGameStateSnapshotter>(),
-                    provider.GetRequiredService<ServerSettings>()
-                )
-            );
+            services.AddSingleton<RegionalGameLoopStrategy>();
 
             services.AddSingleton<IGameLoopStrategy>(provider =>
             {

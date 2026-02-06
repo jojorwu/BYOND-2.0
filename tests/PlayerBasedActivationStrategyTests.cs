@@ -8,6 +8,7 @@ using System.Linq;
 using Robust.Shared.Maths;
 using System;
 using Core.Objects;
+using Microsoft.Extensions.Options;
 
 namespace tests
 {
@@ -25,7 +26,7 @@ namespace tests
             _playerManagerMock = new Mock<IPlayerManager>();
             _regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings();
-            _strategy = new PlayerBasedActivationStrategy(_playerManagerMock.Object, _regionManagerMock.Object, _serverSettings);
+            _strategy = new PlayerBasedActivationStrategy(_playerManagerMock.Object, _regionManagerMock.Object, Options.Create(_serverSettings));
         }
 
         [Test]

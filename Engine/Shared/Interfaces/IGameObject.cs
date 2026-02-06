@@ -30,7 +30,7 @@ namespace Shared
         /// <summary>
         /// The base type definition for this object.
         /// </summary>
-        ObjectType ObjectType { get; }
+        ObjectType? ObjectType { get; }
 
         /// <summary>
         /// Collection of objects contained within this object (e.g., inventory).

@@ -102,6 +102,8 @@ namespace Core.Maps
 
                             foreach (var obj in turf.Contents)
                             {
+                                if (obj.ObjectType == null) continue;
+
                                 writer.WriteStartObject();
                                 writer.WriteString("TypeName", obj.ObjectType.Name);
                                 writer.WritePropertyName("Properties");

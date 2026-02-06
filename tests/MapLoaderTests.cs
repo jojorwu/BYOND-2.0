@@ -65,7 +65,7 @@ namespace tests
             Assert.That(loadedTurf.Contents.Count(), Is.EqualTo(1));
 
             var loadedGameObject = loadedTurf.Contents.First();
-            Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
+            Assert.That(loadedGameObject.ObjectType?.Name, Is.EqualTo("test_object"));
             Assert.That(loadedGameObject.GetVariable("SpritePath").ToString(), Is.EqualTo("default.png"));
             Assert.That(loadedGameObject.GetVariable("InstanceProp").ToString(), Is.EqualTo("instance_value"));
         }

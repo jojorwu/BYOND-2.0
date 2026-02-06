@@ -786,7 +786,7 @@ namespace Core.VM.Runtime
                                 var objValue = _stack[_stackPtr - argStackDelta];
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                 {
-                                    var targetProc = obj.ObjectType.GetProc(_context.Strings[nameId]);
+                                    var targetProc = obj.ObjectType?.GetProc(_context.Strings[nameId]);
                                     if (targetProc != null)
                                     {
                                         PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
@@ -805,7 +805,7 @@ namespace Core.VM.Runtime
                                 var key = _stack[--_stackPtr];
                                 var objValue = _stack[--_stackPtr];
 
-                                if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                if (objValue.TryGetValue(out DreamObject? obj) && obj != null && obj.ObjectType != null)
                                 {
                                     if (key.TryGetValue(out string? varName) && varName != null)
                                     {
@@ -827,7 +827,7 @@ namespace Core.VM.Runtime
                                 var typeValue = _stack[--_stackPtr];
                                 var objValue = _stack[--_stackPtr];
 
-                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
+                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null &&
                                     typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
                                 {
                                     if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
@@ -845,7 +845,7 @@ namespace Core.VM.Runtime
                                 var typeValue = _stack[--_stackPtr];
                                 var objValue = _stack[--_stackPtr];
 
-                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null &&
+                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null &&
                                     typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
                                 {
                                     if (obj.ObjectType.IsSubtypeOf(type))
@@ -1128,11 +1128,15 @@ namespace Core.VM.Runtime
                                 int typeId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc)); pc += 4;
                                 var value = _stack[--_stackPtr];
                                 bool result = false;
-                                if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null)
+                                if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj != null)
                                 {
-                                    var targetType = _context.ObjectTypeManager.GetObjectType(typeId);
-                                    if (targetType != null)
-                                        result = obj.ObjectType.IsSubtypeOf(targetType);
+                                    var ot = obj.ObjectType;
+                                    if (ot != null)
+                                    {
+                                        var targetType = _context.ObjectTypeManager.GetObjectType(typeId);
+                                        if (targetType != null)
+                                            result = ot.IsSubtypeOf(targetType!);
+                                    }
                                 }
                                 _stack[_stackPtr++] = result ? DreamValue.True : DreamValue.False;
                             }

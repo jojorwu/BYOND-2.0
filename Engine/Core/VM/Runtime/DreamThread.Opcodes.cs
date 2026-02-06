@@ -81,7 +81,7 @@ namespace Core.VM.Runtime
                     instance = frame.Instance;
                     if (instance != null)
                     {
-                        newProc = instance.ObjectType.GetProc(reference.Name);
+                        newProc = instance.ObjectType?.GetProc(reference.Name);
                         if (newProc == null)
                         {
                             _context.Procs.TryGetValue(reference.Name, out newProc);
@@ -599,7 +599,7 @@ namespace Core.VM.Runtime
 
                 Push(new DreamValue(newObj));
 
-                var newProc = newObj.ObjectType.GetProc("New");
+                var newProc = newObj.ObjectType?.GetProc("New");
                 if (newProc != null)
                 {
                     // Push arguments for New
@@ -648,7 +648,7 @@ namespace Core.VM.Runtime
                     {
                         foreach (var item in list.Values)
                         {
-                            if (item.Type == DreamValueType.DreamObject && item.TryGetValue(out DreamObject? obj) && obj != null && obj.ObjectType.IsSubtypeOf(type))
+                            if (item.Type == DreamValueType.DreamObject && item.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
                             {
                                 Push(item);
                                 return;
@@ -659,7 +659,7 @@ namespace Core.VM.Runtime
                     {
                         foreach (var content in gameObject.Contents)
                         {
-                            if (content.ObjectType.IsSubtypeOf(type) && content is GameObject contentObj)
+                            if (content.ObjectType != null && content.ObjectType.IsSubtypeOf(type) && content is GameObject contentObj)
                             {
                                 Push(new DreamValue(contentObj));
                                 return;
@@ -673,7 +673,7 @@ namespace Core.VM.Runtime
                     {
                         foreach (var obj in _context.GameState.GameObjects.Values)
                         {
-                            if (obj.ObjectType.IsSubtypeOf(type))
+                            if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
                             {
                                 Push(new DreamValue(obj));
                                 return;

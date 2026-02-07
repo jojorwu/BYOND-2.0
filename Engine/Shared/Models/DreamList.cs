@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Shared;
 
-namespace Shared.Models
+namespace Shared
 {
     public class DreamList : DreamObject
     {
@@ -55,6 +54,28 @@ namespace Shared.Models
                     AssociativeValues.Remove(value);
                 }
             }
+        }
+
+        public void RemoveAll(DreamValue value)
+        {
+            while (Contains(value))
+            {
+                RemoveValue(value);
+            }
+        }
+
+        public DreamList Clone()
+        {
+            var clone = new DreamList(ObjectType);
+            foreach (var val in _values)
+            {
+                clone.AddValue(val);
+            }
+            foreach (var kvp in AssociativeValues)
+            {
+                clone.AssociativeValues[kvp.Key] = kvp.Value;
+            }
+            return clone;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

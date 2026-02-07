@@ -278,11 +278,38 @@ namespace Shared
                 return new DreamValue(sA + sB);
             }
 
+            if (a.TryGetValue(out DreamObject? objA) && objA is DreamList listA)
+            {
+                var newList = listA.Clone();
+                if (b.TryGetValue(out DreamObject? objB) && objB is DreamList listB)
+                {
+                    foreach (var val in listB.Values) newList.AddValue(val);
+                }
+                else
+                {
+                    newList.AddValue(b);
+                }
+                return new DreamValue(newList);
+            }
+
             return new DreamValue(a.GetValueAsFloat() + b.GetValueAsFloat());
         }
 
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
+            if (a.TryGetValue(out DreamObject? objA) && objA is DreamList listA)
+            {
+                var newList = listA.Clone();
+                if (b.TryGetValue(out DreamObject? objB) && objB is DreamList listB)
+                {
+                    foreach (var val in listB.Values) newList.RemoveAll(val);
+                }
+                else
+                {
+                    newList.RemoveAll(b);
+                }
+                return new DreamValue(newList);
+            }
             return new DreamValue(a.GetValueAsFloat() - b.GetValueAsFloat());
         }
 

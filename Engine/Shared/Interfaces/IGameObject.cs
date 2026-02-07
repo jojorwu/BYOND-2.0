@@ -28,6 +28,11 @@ namespace Shared
         int Z { get; set; }
 
         /// <summary>
+        /// The location of this object (container or turf).
+        /// </summary>
+        IGameObject? Loc { get; set; }
+
+        /// <summary>
         /// The base type definition for this object.
         /// </summary>
         ObjectType? ObjectType { get; }

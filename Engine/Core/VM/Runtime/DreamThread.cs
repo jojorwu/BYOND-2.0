@@ -1007,10 +1007,12 @@ namespace Core.VM.Runtime
                         case Opcode.Spawn:
                             {
                                 var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
-                                pc += 4;
+                                var bodyPc = pc + 4;
+                                pc = address; // Skip body in main thread
+
                                 var delay = _stack[--_stackPtr];
 
-                                var newThread = new DreamThread(this, address);
+                                var newThread = new DreamThread(this, bodyPc);
                                 if (delay.TryGetValue(out float seconds))
                                 {
                                     newThread.Sleep(seconds / 10.0f);

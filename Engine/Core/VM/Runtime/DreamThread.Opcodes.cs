@@ -89,7 +89,13 @@ namespace Core.VM.Runtime
                     }
                     break;
                 default:
-                    // Handle other reference types (Field, etc.) if they can be called
+                    {
+                        var value = GetReferenceValue(reference, CallStack.Peek());
+                        if (value.TryGetValue(out IDreamProc? proc))
+                        {
+                            newProc = proc;
+                        }
+                    }
                     break;
             }
 
@@ -156,14 +162,14 @@ namespace Core.VM.Runtime
         {
             var b = Pop();
             var a = Pop();
-            Push(new DreamValue((float)Math.IEEERemainder(a.GetValueAsFloat(), b.GetValueAsFloat())));
+            Push(a % b);
         }
 
         private void Opcode_ModulusModulus()
         {
             var b = Pop();
             var a = Pop();
-            Push(new DreamValue(a.GetValueAsFloat() % b.GetValueAsFloat()));
+            Push(new DreamValue(SharedOperations.Modulo(a.GetValueAsFloat(), b.GetValueAsFloat())));
         }
 
         private void Opcode_ModulusReference(DreamProc proc, CallFrame frame, ref int pc)
@@ -171,7 +177,7 @@ namespace Core.VM.Runtime
             var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, new DreamValue((float)Math.IEEERemainder(refValue.GetValueAsFloat(), value.GetValueAsFloat())));
+            SetReferenceValue(reference, frame, refValue % value);
         }
 
         private void Opcode_ModulusModulusReference(DreamProc proc, CallFrame frame, ref int pc)
@@ -179,7 +185,7 @@ namespace Core.VM.Runtime
             var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
             var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, new DreamValue(refValue.GetValueAsFloat() % value.GetValueAsFloat()));
+            SetReferenceValue(reference, frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())));
         }
 
 

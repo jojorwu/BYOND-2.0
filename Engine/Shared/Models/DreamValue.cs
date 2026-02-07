@@ -300,6 +300,15 @@ namespace Shared
             return new DreamValue(a.GetValueAsFloat() / floatB);
         }
 
+        public static DreamValue operator %(DreamValue a, DreamValue b)
+        {
+            var floatB = b.GetValueAsFloat();
+            if (floatB == 0)
+                return new DreamValue(0);
+
+            return new DreamValue(a.GetValueAsFloat() % floatB);
+        }
+
         public override bool Equals(object? obj)
         {
             return obj is DreamValue other && Equals(other);
@@ -307,26 +316,18 @@ namespace Shared
 
         public bool Equals(DreamValue other)
         {
-            if (Type == other.Type)
+            if (Type != other.Type)
+                return false;
+
+            switch (Type)
             {
-                switch (Type)
-                {
-                    case DreamValueType.Null:
-                        return true;
-                    case DreamValueType.Float:
-                        return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
-                    default:
-                        return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
-                }
+                case DreamValueType.Null:
+                    return true;
+                case DreamValueType.Float:
+                    return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
+                default:
+                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
             }
-
-            // Handle Null == 0
-            if (Type == DreamValueType.Null && other.Type == DreamValueType.Float)
-                return other._floatValue == 0;
-            if (other.Type == DreamValueType.Null && Type == DreamValueType.Float)
-                return _floatValue == 0;
-
-            return false;
         }
 
         public override int GetHashCode()
@@ -336,12 +337,21 @@ namespace Shared
 
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            return a.Equals(b);
+            if (a.Type == b.Type)
+                return a.Equals(b);
+
+            // DM Parity: null == 0
+            if (a.Type == DreamValueType.Null && b.Type == DreamValueType.Float)
+                return b.RawFloat == 0;
+            if (b.Type == DreamValueType.Null && a.Type == DreamValueType.Float)
+                return a.RawFloat == 0;
+
+            return false;
         }
 
         public static bool operator !=(DreamValue a, DreamValue b)
         {
-            return !a.Equals(b);
+            return !(a == b);
         }
 
         public static bool operator >(DreamValue a, DreamValue b)

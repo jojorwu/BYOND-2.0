@@ -199,5 +199,75 @@ namespace tests
 
             Assert.That(val.ToString(), Is.EqualTo("/obj/item"));
         }
+
+        [Test]
+        public void Modulo_WorksWithNegativeNumbers()
+        {
+            // Remainder (%) follows sign of dividend
+            Assert.That((new DreamValue(-11f) % new DreamValue(3f)).AsFloat(), Is.EqualTo(-2f));
+            Assert.That((new DreamValue(11f) % new DreamValue(-3f)).AsFloat(), Is.EqualTo(2f));
+
+            // Modulo (%%) follows sign of divisor
+            Assert.That(SharedOperations.Modulo(-11f, 3f), Is.EqualTo(1f));
+            Assert.That(SharedOperations.Modulo(11f, -3f), Is.EqualTo(-1f));
+        }
+
+        [Test]
+        public void Equality_StrictEquals_FuzzyOperator()
+        {
+            var nullVal = DreamValue.Null;
+            var zeroVal = new DreamValue(0f);
+
+            // Strict Equals (used by Dictionary)
+            Assert.That(nullVal.Equals(zeroVal), Is.False);
+
+            // Fuzzy operator (used by VM scripts)
+            Assert.That(nullVal == zeroVal, Is.True);
+
+            var dict = new Dictionary<DreamValue, int>();
+            dict[nullVal] = 1;
+            dict[zeroVal] = 2;
+
+            Assert.That(dict.Count, Is.EqualTo(2));
+            Assert.That(dict[nullVal], Is.EqualTo(1));
+            Assert.That(dict[zeroVal], Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Call_FromVariable_Works()
+        {
+            var parentBytecode = new List<byte> { (byte)Opcode.PushFloat };
+            parentBytecode.AddRange(BitConverter.GetBytes(42f));
+            parentBytecode.Add((byte)Opcode.Return);
+            var proc = new DreamProc("test_proc", parentBytecode.ToArray(), Array.Empty<string>(), 0);
+
+            // test_proc() call where test_proc is in local 0
+            var bytecode = new List<byte> { (byte)Opcode.Call };
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0); // Index 0
+            bytecode.Add((byte)DMCallArgumentsType.None);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // 0 args
+            bytecode.AddRange(BitConverter.GetBytes(0)); // unused
+            bytecode.Add((byte)Opcode.Return);
+
+            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var thread = new DreamThread(mainProc, _vm.Context, 1000);
+
+            // Push the proc to local 0
+            thread.Push(new DreamValue(proc));
+            // Stack: [proc]
+            // Frame expects locals at stack base + args count + index.
+            // main has 0 args, so local 0 is at stack base + 0.
+            // thread constructor pushes a frame with stackBase 0.
+            // So we need to push the local manually or use a proper call sequence.
+
+            // Actually, thread.Push(proc) puts it at index 0.
+            // The frame will look for it at stackBase + 0 + 0 = 0.
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.AsFloat(), Is.EqualTo(42f));
+        }
     }
 }

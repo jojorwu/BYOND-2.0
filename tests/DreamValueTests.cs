@@ -18,10 +18,16 @@ namespace tests
         [Test]
         public void Equality_DifferentTypes_HandleDMParity()
         {
-            Assert.That(new DreamValue(0f).Equals(DreamValue.Null), Is.True);
-            Assert.That(DreamValue.Null.Equals(new DreamValue(0f)), Is.True);
-            Assert.That(new DreamValue(1f).Equals(DreamValue.Null), Is.False);
-            Assert.That(new DreamValue(0f).Equals(new DreamValue("0")), Is.False);
+            // Strict Equals (used by Dictionary keys)
+            Assert.That(new DreamValue(0f).Equals(DreamValue.Null), Is.False);
+            Assert.That(DreamValue.Null.Equals(new DreamValue(0f)), Is.False);
+
+            // Fuzzy operator (used by VM scripts)
+            Assert.That(new DreamValue(0f) == DreamValue.Null, Is.True);
+            Assert.That(DreamValue.Null == new DreamValue(0f), Is.True);
+
+            Assert.That(new DreamValue(1f) == DreamValue.Null, Is.False);
+            Assert.That(new DreamValue(0f) == new DreamValue("0"), Is.False);
         }
 
         [Test]

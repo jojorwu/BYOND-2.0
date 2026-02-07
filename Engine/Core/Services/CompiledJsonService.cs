@@ -30,7 +30,7 @@ namespace Core
 
             dreamVM.ObjectTypeManager = typeManager;
             dreamVM.GameApi = _gameApi;
-            StandardLibrary.Register(dreamVM);
+            dreamVM.Initialize();
 
             // Load strings
             dreamVM.Strings.Clear();

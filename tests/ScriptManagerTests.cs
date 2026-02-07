@@ -51,7 +51,7 @@ namespace Core.Tests
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
             var scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
-            var standardLibraryApi = new StandardLibraryApi(spatialQueryApi);
+            var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
 
             var serviceProviderMock = new Mock<IServiceProvider>();

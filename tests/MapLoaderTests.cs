@@ -5,6 +5,7 @@ using System.IO;
 using Core.Objects;
 using Core.Maps;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace tests
 {
@@ -18,8 +19,8 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
         }
 
         [TearDown]
@@ -64,7 +65,7 @@ namespace tests
             Assert.That(loadedTurf.Contents.Count(), Is.EqualTo(1));
 
             var loadedGameObject = loadedTurf.Contents.First();
-            Assert.That(loadedGameObject.ObjectType.Name, Is.EqualTo("test_object"));
+            Assert.That(loadedGameObject.ObjectType?.Name, Is.EqualTo("test_object"));
             Assert.That(loadedGameObject.GetVariable("SpritePath").ToString(), Is.EqualTo("default.png"));
             Assert.That(loadedGameObject.GetVariable("InstanceProp").ToString(), Is.EqualTo("instance_value"));
         }

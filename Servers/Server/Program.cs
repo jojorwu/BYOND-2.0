@@ -36,8 +36,9 @@ class Program
 
     private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var settings = configuration.GetSection("ServerSettings").Get<ServerSettings>() ?? new ServerSettings();
-        services.AddSingleton(settings);
+        services.Configure<ServerSettings>(configuration.GetSection("ServerSettings"));
+        services.AddSingleton(resolver => resolver.GetRequiredService<Microsoft.Extensions.Options.IOptions<ServerSettings>>().Value);
+
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 
         services.AddSingleton<Shared.IJsonService, DMCompiler.Json.JsonService>();

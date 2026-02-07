@@ -43,7 +43,8 @@ namespace Shared
             {
                 lock (_contentsLock)
                 {
-                    return new List<IGameObject>(_contents);
+                    if (_contents.Count == 0) return System.Array.Empty<IGameObject>();
+                    return _contents.ToArray();
                 }
             }
         }

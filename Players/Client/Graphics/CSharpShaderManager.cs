@@ -3,7 +3,9 @@ using Microsoft.CodeAnalysis.Scripting;
 using Silk.NET.OpenGL;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using Shared.Services;
 
 namespace Client.Graphics
 {
@@ -15,12 +17,12 @@ namespace Client.Graphics
         void Update(Shader shader, float deltaTime);
     }
 
-    public class CSharpShaderManager
+    public class CSharpShaderManager : EngineService
     {
-        private readonly GL _gl;
+        private GL? _gl;
         private readonly Dictionary<string, ICSharpShader> _compiledShaders = new();
 
-        public CSharpShaderManager(GL gl)
+        public void SetGL(GL gl)
         {
             _gl = gl;
         }
@@ -46,6 +48,7 @@ namespace Client.Graphics
 
         public Shader CreateGlShader(ICSharpShader csharpShader)
         {
+            if (_gl == null) throw new InvalidOperationException("CSharpShaderManager not initialized with GL context.");
             return new Shader(_gl, csharpShader.GetVertexSource(), csharpShader.GetFragmentSource());
         }
     }

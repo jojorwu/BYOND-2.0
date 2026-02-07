@@ -1,6 +1,7 @@
 using Shared;
 using System.Linq;
 using Robust.Shared.Maths;
+using Microsoft.Extensions.Options;
 
 namespace Core.Regions
 {
@@ -10,11 +11,11 @@ namespace Core.Regions
         private readonly IRegionActivationStrategy _regionActivationStrategy;
         private readonly ServerSettings _settings;
 
-        public RegionApi(IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, ServerSettings settings)
+        public RegionApi(IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IOptions<ServerSettings> settings)
         {
             _regionManager = regionManager;
             _regionActivationStrategy = regionActivationStrategy;
-            _settings = settings;
+            _settings = settings.Value;
         }
 
         public void SetRegionActive(int x, int y, int z, bool active)

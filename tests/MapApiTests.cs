@@ -36,6 +36,12 @@ namespace tests
             _mapApi = new MapApi(_gameStateMock.Object, _mapLoaderMock.Object, _projectMock.Object, _objectTypeManagerMock.Object);
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            _spatialGrid.Dispose();
+        }
+
         [Test]
         public void GetObjectsInRange_ReturnsCorrectObjects()
         {

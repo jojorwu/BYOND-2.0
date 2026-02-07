@@ -2,22 +2,25 @@ using System;
 using System.Collections.Generic;
 using Client.Graphics;
 using Silk.NET.OpenGL;
+using Shared.Services;
 using Texture = Client.Graphics.Texture;
 
 namespace Client.Assets
 {
-    public static class TextureCache
+    public class TextureCache : EngineService, IDisposable
     {
-        private static readonly Dictionary<string, Texture> Cache = new();
-        private static GL _gl;
+        private readonly Dictionary<string, Texture> Cache = new();
+        private GL? _gl;
 
-        public static void Init(GL gl)
+        public void SetGL(GL gl)
         {
             _gl = gl;
         }
 
-        public static Texture GetTexture(string path)
+        public Texture GetTexture(string path)
         {
+            if (_gl == null) throw new InvalidOperationException("TextureCache not initialized with GL context.");
+
             if (Cache.TryGetValue(path, out var texture))
             {
                 return texture;
@@ -28,7 +31,13 @@ namespace Client.Assets
             return texture;
         }
 
-        public static void Dispose()
+        public override Task StopAsync(CancellationToken cancellationToken)
+        {
+            Dispose();
+            return Task.CompletedTask;
+        }
+
+        public void Dispose()
         {
             foreach (var texture in Cache.Values)
             {

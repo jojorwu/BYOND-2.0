@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Robust.Shared.Maths;
 using Shared;
+using Microsoft.Extensions.Options;
 
 namespace Core.Regions
 {
@@ -13,11 +14,11 @@ namespace Core.Regions
         private readonly Dictionary<Region, float> _scriptActivatedRegions = new();
         private readonly Stopwatch _stopwatch = new();
 
-        public PlayerBasedActivationStrategy(IPlayerManager playerManager, IRegionManager regionManager, ServerSettings settings)
+        public PlayerBasedActivationStrategy(IPlayerManager playerManager, IRegionManager regionManager, IOptions<ServerSettings> settings)
         {
             _playerManager = playerManager;
             _regionManager = regionManager;
-            _settings = settings;
+            _settings = settings.Value;
             _stopwatch.Start();
         }
 

@@ -1,12 +1,13 @@
 using System.Collections.Generic;
+using Shared.Services;
 
 namespace Client.Assets
 {
-    public static class IconCache
+    public class IconCache : EngineService
     {
-        private static readonly Dictionary<string, (string, string)> _cache = new();
+        private readonly Dictionary<string, (string, string)> _cache = new();
 
-        public static (string, string) ParseIconString(string icon)
+        public (string, string) ParseIconString(string icon)
         {
             if (_cache.TryGetValue(icon, out var result))
             {

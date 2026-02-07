@@ -7,17 +7,19 @@ using System.Threading.Tasks;
 using LiteNetLib;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Services;
 
 namespace Server
 {
-    public class NetworkService : INetworkService, IDisposable
+    public class NetworkService : EngineService, INetworkService, IDisposable
     {
+        public override int Priority => 45;
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly IServerContext _context;
         private readonly ILogger<NetworkService> _logger;
         private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();
-        private readonly NetDataWriterPool _writerPool = new();
+        private readonly NetDataWriterPool _writerPool;
         private Task? _networkTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
@@ -25,10 +27,11 @@ namespace Server
         public event Action<INetworkPeer, DisconnectInfo>? PeerDisconnected;
         public event Action<INetworkPeer, string>? CommandReceived;
 
-        public NetworkService(IServerContext context, ILogger<NetworkService> logger)
+        public NetworkService(IServerContext context, ILogger<NetworkService> logger, NetDataWriterPool writerPool)
         {
             _context = context;
             _logger = logger;
+            _writerPool = writerPool;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
@@ -41,19 +44,22 @@ namespace Server
             _listener.PeerDisconnectedEvent += OnPeerDisconnected;
         }
 
-        public void Start()
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
-            _cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             if (_netManager.Start(_context.Settings.Network.UdpPort))
             {
                 _logger.LogInformation($"Network service started on port {_context.Settings.Network.UdpPort}");
-                _networkTask = PollEvents(_cancellationTokenSource.Token);
+                _networkTask = Task.Run(() => PollEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
             }
             else
             {
                 _logger.LogError("Failed to start network service.");
             }
+            return Task.CompletedTask;
         }
+
+        public void Start() => StartAsync(CancellationToken.None);
 
         private async Task PollEvents(CancellationToken token)
         {
@@ -66,12 +72,22 @@ namespace Server
             }
         }
 
-        public void Stop()
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource?.Cancel();
+            if (_networkTask != null)
+            {
+                try
+                {
+                    await _networkTask;
+                }
+                catch (OperationCanceledException) { }
+            }
             _netManager.Stop();
             _logger.LogInformation("Network service stopped.");
         }
+
+        public void Stop() => StopAsync(CancellationToken.None).Wait();
 
         private void OnConnectionRequest(ConnectionRequest request)
         {

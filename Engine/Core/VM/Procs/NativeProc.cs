@@ -6,7 +6,7 @@ namespace Core.VM.Procs
 {
     public class NativeProc : IDreamProc
     {
-        public delegate DreamValue NativeProcDelegate(DreamThread thread, DreamObject? src, DreamValue[] arguments);
+        public delegate DreamValue NativeProcDelegate(DreamThread thread, DreamObject? src, ReadOnlySpan<DreamValue> arguments);
 
         public string Name { get; }
         private readonly NativeProcDelegate _delegate;
@@ -17,7 +17,7 @@ namespace Core.VM.Procs
             _delegate = @delegate;
         }
 
-        public DreamValue Call(DreamThread thread, DreamObject? src, DreamValue[] arguments)
+        public DreamValue Call(DreamThread thread, DreamObject? src, ReadOnlySpan<DreamValue> arguments)
         {
             return _delegate(thread, src, arguments);
         }

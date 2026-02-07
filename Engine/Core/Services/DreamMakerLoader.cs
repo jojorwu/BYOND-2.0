@@ -1,10 +1,11 @@
 using Shared;
 using Shared.Compiler;
+using Shared.Services;
 using System;
 
 namespace Core
 {
-    public class DreamMakerLoader : IDreamMakerLoader
+    public class DreamMakerLoader : EngineService, IDreamMakerLoader
     {
         private readonly IObjectTypeManager _typeManager;
         private readonly IDreamVM? _dreamVM;

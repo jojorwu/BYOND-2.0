@@ -39,6 +39,17 @@ namespace Shared
             }
         }
 
+        public void ForEachGameObject(Action<IGameObject> action)
+        {
+            using (ReadLock())
+            {
+                foreach (var obj in GameObjects.Values)
+                {
+                    action(obj);
+                }
+            }
+        }
+
         public void AddGameObject(GameObject gameObject)
         {
             using (WriteLock())

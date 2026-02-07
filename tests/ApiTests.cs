@@ -4,6 +4,7 @@ using Core;
 using Core.Objects;
 using Core.Maps;
 using Core.Api;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Core.Tests
 {
@@ -28,8 +29,8 @@ namespace Core.Tests
             _project = new Project(_projectPath);
 
             _gameState = new GameState();
-            _objectTypeManager = new ObjectTypeManager();
-            _mapLoader = new MapLoader(_objectTypeManager);
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
             _scriptApi = new ScriptApi(_project);

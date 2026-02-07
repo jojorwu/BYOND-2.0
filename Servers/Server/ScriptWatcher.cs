@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Shared;
 using Core;
 
@@ -17,10 +18,10 @@ namespace Server
 
         public event Action? OnReloadRequested;
 
-        public ScriptWatcher(IProject project, ServerSettings settings, ILogger<ScriptWatcher> logger)
+        public ScriptWatcher(IProject project, IOptions<ServerSettings> settings, ILogger<ScriptWatcher> logger)
         {
             _project = project;
-            _settings = settings;
+            _settings = settings.Value;
             _logger = logger;
         }
 

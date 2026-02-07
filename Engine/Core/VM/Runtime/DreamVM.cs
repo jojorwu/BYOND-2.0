@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.VM.Procs;
 using System;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Core.VM.Runtime
 {
@@ -17,10 +19,39 @@ namespace Core.VM.Runtime
         public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
 
         private readonly ServerSettings _settings;
+        private readonly ILogger<DreamVM> _logger;
+        private readonly IEnumerable<INativeProcProvider> _nativeProcProviders;
 
-        public DreamVM(ServerSettings settings)
+        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders)
         {
-            _settings = settings;
+            _settings = settings.Value;
+            _logger = logger;
+            _nativeProcProviders = nativeProcProviders;
+        }
+
+        public void Initialize()
+        {
+            _logger.LogInformation("Initializing Dream VM...");
+            RegisterNativeProcs();
+        }
+
+        private void RegisterNativeProcs()
+        {
+            foreach (var provider in _nativeProcProviders)
+            {
+                var procs = provider.GetNativeProcs();
+                foreach (var kvp in procs)
+                {
+                    _logger.LogDebug("Registering native proc: {ProcName}", kvp.Key);
+                    Context.Procs[kvp.Key] = kvp.Value;
+                }
+            }
+        }
+
+        public void Reset()
+        {
+            _logger.LogInformation("Resetting Dream VM state...");
+            Context.Reset();
         }
 
         public DreamThread? CreateWorldNewThread()
@@ -29,7 +60,7 @@ namespace Core.VM.Runtime
             {
                 return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions);
             }
-            Console.WriteLine("Error: /world/proc/New not found. Is the script compiled correctly?");
+            _logger.LogError("/world/proc/New not found. Is the script compiled correctly?");
             return null;
         }
 
@@ -40,7 +71,7 @@ namespace Core.VM.Runtime
                 return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, associatedObject);
             }
 
-            Console.WriteLine($"Warning: Could not find proc '{procName}' to create a thread.");
+            _logger.LogWarning("Could not find proc '{ProcName}' to create a thread.", procName);
             return null;
         }
     }

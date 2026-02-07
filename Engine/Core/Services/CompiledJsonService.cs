@@ -8,10 +8,11 @@ using Core.VM.Runtime;
 using Shared.Compiler;
 using Core.Objects;
 using Microsoft.Extensions.Logging;
+using Shared.Services;
 
 namespace Core
 {
-    public class CompiledJsonService : ICompiledJsonService
+    public class CompiledJsonService : EngineService, ICompiledJsonService
     {
         private readonly ILogger<CompiledJsonService>? _logger;
 

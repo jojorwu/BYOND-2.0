@@ -2,6 +2,7 @@ using Shared;
 using NUnit.Framework;
 using Core;
 using Core.Objects;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace tests
 {
@@ -59,7 +60,7 @@ namespace tests
         public void ObjectTypeManager_CanRegisterAndGetObjectType()
         {
             // Arrange
-            var manager = new ObjectTypeManager();
+            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var objectType = new ObjectType(1, "test");
 
             // Act
@@ -74,7 +75,7 @@ namespace tests
         public void RegisterObjectType_WhenCircularDependency_ThrowsException()
         {
             // Arrange
-            var manager = new ObjectTypeManager();
+            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var typeA = new ObjectType(1, "A") { ParentName = "C" };
             var typeB = new ObjectType(2, "B") { ParentName = "A" };
             var typeC = new ObjectType(3, "C") { ParentName = "B" };
@@ -91,7 +92,7 @@ namespace tests
         public void RegisterObjectType_WhenLongLinearHierarchy_DoesNotThrowException()
         {
             // Arrange
-            var manager = new ObjectTypeManager();
+            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var typeA = new ObjectType(1, "A");
             var typeB = new ObjectType(2, "B") { ParentName = "A" };
             var typeC = new ObjectType(3, "C") { ParentName = "B" };

@@ -5,11 +5,13 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Services;
 
 namespace Server
 {
-    public class GameLoop : IHostedService, IDisposable
+    public class GameLoop : EngineService, IHostedService, IDisposable
     {
+        public override int Priority => -100; // Low priority, start last
         private readonly IGameLoopStrategy _strategy;
         private readonly IServerContext _context;
         private readonly ILogger<GameLoop> _logger;
@@ -23,7 +25,7 @@ namespace Server
             _logger = logger;
         }
 
-        public virtual Task StartAsync(CancellationToken cancellationToken)
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _gameLoopTask = Task.Run(() => Loop(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
@@ -69,7 +71,7 @@ namespace Server
             }
         }
 
-        public virtual async Task StopAsync(CancellationToken cancellationToken)
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
             if (_gameLoopTask == null)
                 return;

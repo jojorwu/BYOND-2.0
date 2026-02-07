@@ -4,11 +4,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Shared.Services;
 
 namespace Server
 {
-    public class PerformanceMonitor : IHostedService, IDisposable
+    public class PerformanceMonitor : EngineService, IHostedService, IDisposable
     {
+        public override int Priority => 100; // High priority
+
         private readonly ILogger<PerformanceMonitor> _logger;
         private Timer? _timer;
         private long _tickCount;
@@ -24,7 +27,7 @@ namespace Server
         public void RecordBytesSent(long bytes) => Interlocked.Add(ref _bytesSent, bytes);
         public void RecordBytesReceived(long bytes) => Interlocked.Add(ref _bytesReceived, bytes);
 
-        public virtual Task StartAsync(CancellationToken cancellationToken)
+        public override Task StartAsync(CancellationToken cancellationToken)
         {
             _timer = new Timer(LogStats, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
             return Task.CompletedTask;
@@ -43,7 +46,7 @@ namespace Server
             _logger.LogInformation($"Memory: {workingSet / 1024.0 / 1024.0:F1} MB");
         }
 
-        public virtual Task StopAsync(CancellationToken cancellationToken)
+        public override Task StopAsync(CancellationToken cancellationToken)
         {
             _timer?.Change(Timeout.Infinite, 0);
             return Task.CompletedTask;

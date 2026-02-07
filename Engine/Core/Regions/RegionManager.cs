@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Robust.Shared.Maths;
 using Shared;
+using Microsoft.Extensions.Options;
 
 namespace Core.Regions
 {
@@ -11,10 +12,10 @@ namespace Core.Regions
         private readonly ServerSettings _settings;
         private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ = new();
 
-        public RegionManager(IMap map, ServerSettings settings)
+        public RegionManager(IMap map, IOptions<ServerSettings> settings)
         {
             _map = map;
-            _settings = settings;
+            _settings = settings.Value;
         }
 
         public void Initialize()

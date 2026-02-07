@@ -6,6 +6,7 @@ using Core;
 using Core.Players;
 using LiteNetLib;
 using System.Collections.Generic;
+using Microsoft.Extensions.Options;
 
 namespace tests
 {
@@ -24,7 +25,7 @@ namespace tests
             _objectTypeManagerMock = new Mock<IObjectTypeManager>();
             _networkPeerMock = new Mock<INetworkPeer>();
             var serverSettings = new ServerSettings();
-            _playerManager = new PlayerManager(_objectApiMock.Object, _objectTypeManagerMock.Object, serverSettings);
+            _playerManager = new PlayerManager(_objectApiMock.Object, _objectTypeManagerMock.Object, Options.Create(serverSettings));
         }
 
         [Test]

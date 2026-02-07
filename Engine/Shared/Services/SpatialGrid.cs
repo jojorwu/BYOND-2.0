@@ -1,12 +1,16 @@
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using Robust.Shared.Maths;
 
 namespace Shared
 {
-    public class SpatialGrid
+    public class SpatialGrid : IDisposable
     {
+        private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly Dictionary<(int, int), List<IGameObject>> _grid = new();
         private readonly int _cellSize;
+        private readonly ReaderWriterLockSlim _lock = new();
 
         public SpatialGrid(int cellSize = 16)
         {
@@ -20,21 +24,41 @@ namespace Shared
 
         public void Add(IGameObject obj)
         {
-            var coords = GetCellCoords(obj.X, obj.Y);
-            if (!_grid.TryGetValue(coords, out var cell))
+            _lock.EnterWriteLock();
+            try
             {
-                cell = new List<IGameObject>();
-                _grid[coords] = cell;
+                var coords = GetCellCoords(obj.X, obj.Y);
+                if (!_grid.TryGetValue(coords, out var cell))
+                {
+                    cell = new List<IGameObject>();
+                    _grid[coords] = cell;
+                }
+                cell.Add(obj);
             }
-            cell.Add(obj);
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
 
         public void Remove(IGameObject obj)
         {
-            var coords = GetCellCoords(obj.X, obj.Y);
-            if (_grid.TryGetValue(coords, out var cell))
+            _lock.EnterWriteLock();
+            try
             {
-                cell.Remove(obj);
+                var coords = GetCellCoords(obj.X, obj.Y);
+                if (_grid.TryGetValue(coords, out var cell))
+                {
+                    cell.Remove(obj);
+                    if (cell.Count == 0)
+                    {
+                        _grid.Remove(coords);
+                    }
+                }
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
             }
         }
 
@@ -50,28 +74,45 @@ namespace Shared
             }
         }
 
-        public IEnumerable<IGameObject> GetObjectsInBox(Box2i box)
+        public List<IGameObject> GetObjectsInBox(Box2i box)
         {
-            var seen = new HashSet<IGameObject>();
+            var results = new List<IGameObject>();
+            var seen = _seenHashSet.Value!;
+            seen.Clear();
+
             var start = GetCellCoords(box.Left, box.Top);
             var end = GetCellCoords(box.Right, box.Bottom);
 
-            for (int x = start.Item1; x <= end.Item1; x++)
+            _lock.EnterReadLock();
+            try
             {
-                for (int y = start.Item2; y <= end.Item2; y++)
+                for (int x = start.Item1; x <= end.Item1; x++)
                 {
-                    if (_grid.TryGetValue((x, y), out var cell))
+                    for (int y = start.Item2; y <= end.Item2; y++)
                     {
-                        foreach (var obj in cell)
+                        if (_grid.TryGetValue((x, y), out var cell))
                         {
-                            if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj))
+                            foreach (var obj in cell)
                             {
-                                yield return obj;
+                                if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
+                                {
+                                    results.Add(obj);
+                                }
                             }
                         }
                     }
                 }
             }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+            return results;
+        }
+
+        public void Dispose()
+        {
+            _lock.Dispose();
         }
     }
 }

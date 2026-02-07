@@ -7,6 +7,8 @@ using Core.VM.Runtime;
 using Core.VM.Procs;
 using System;
 using System.Linq;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace tests
 {
@@ -18,7 +20,7 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _vm = new DreamVM(new ServerSettings());
+            _vm = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
         }
 
         private DreamValue RunTest(params object[] ops)

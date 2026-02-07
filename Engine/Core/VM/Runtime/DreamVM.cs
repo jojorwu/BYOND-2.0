@@ -17,6 +17,7 @@ namespace Core.VM.Runtime
         public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
         public IObjectTypeManager? ObjectTypeManager { get => Context.ObjectTypeManager; set => Context.ObjectTypeManager = value; }
         public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
+        public IGameApi? GameApi { get => Context.GameApi; set => Context.GameApi = value; }
 
         private readonly ServerSettings _settings;
         private readonly ILogger<DreamVM> _logger;

@@ -34,7 +34,7 @@ namespace Core.VM.Runtime
                 int stepX = Math.Sign(dx);
                 int stepY = Math.Sign(dy);
 
-                var turf = _context.GameState?.Map?.GetTurf(src.X + stepX, src.Y + stepY, src.Z);
+                var turf = Context.GameState?.Map?.GetTurf(src.X + stepX, src.Y + stepY, src.Z);
                 Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
             }
             else
@@ -73,8 +73,8 @@ namespace Core.VM.Runtime
             switch (reference.RefType)
             {
                 case DMReference.Type.GlobalProc:
-                    if (reference.Index >= 0 && reference.Index < _context.AllProcs.Count)
-                        newProc = _context.AllProcs[reference.Index];
+                    if (reference.Index >= 0 && reference.Index < Context.AllProcs.Count)
+                        newProc = Context.AllProcs[reference.Index];
                     break;
                 case DMReference.Type.SrcProc:
                     var frame = CallStack.Peek();
@@ -84,7 +84,7 @@ namespace Core.VM.Runtime
                         newProc = instance.ObjectType?.GetProc(reference.Name);
                         if (newProc == null)
                         {
-                            _context.Procs.TryGetValue(reference.Name, out newProc);
+                            Context.Procs.TryGetValue(reference.Name, out newProc);
                         }
                     }
                     break;
@@ -153,7 +153,7 @@ namespace Core.VM.Runtime
         private GlobalVarsObject? _globalVars;
         private void Opcode_PushGlobalVars()
         {
-            _globalVars ??= new GlobalVarsObject(_context);
+            _globalVars ??= new GlobalVarsObject(Context);
             Push(new DreamValue(_globalVars));
         }
 
@@ -191,7 +191,7 @@ namespace Core.VM.Runtime
                 if ((dir & 4) != 0) dx++; // EAST
                 if ((dir & 8) != 0) dx--; // WEST
 
-                var turf = _context.GameState?.Map?.GetTurf(gameObject.X + dx, gameObject.Y + dy, gameObject.Z);
+                var turf = Context.GameState?.Map?.GetTurf(gameObject.X + dx, gameObject.Y + dy, gameObject.Z);
                 Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
             }
             else
@@ -285,7 +285,7 @@ namespace Core.VM.Runtime
         private void Opcode_CreateList(DreamProc proc, ref int pc)
         {
             var size = ReadInt32(proc, ref pc);
-            var list = new DreamList(_context.ListType!, size);
+            var list = new DreamList(Context.ListType!, size);
             for (int i = size - 1; i >= 0; i--)
             {
                 list.SetValue(i, Pop());
@@ -296,7 +296,7 @@ namespace Core.VM.Runtime
         private void Opcode_CreateAssociativeList(DreamProc proc, ref int pc)
         {
             var size = ReadInt32(proc, ref pc);
-            var list = new DreamList(_context.ListType!);
+            var list = new DreamList(Context.ListType!);
             for (int i = 0; i < size; i++)
             {
                 var value = Pop();
@@ -492,7 +492,7 @@ namespace Core.VM.Runtime
         {
             var stringId = ReadInt32(proc, ref pc);
             var formatCount = ReadInt32(proc, ref pc);
-            var formatString = _context.Strings[stringId];
+            var formatString = Context.Strings[stringId];
 
             var values = new DreamValue[formatCount];
             for (int i = formatCount - 1; i >= 0; i--)
@@ -575,7 +575,7 @@ namespace Core.VM.Runtime
             if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
             {
                 var newObj = new GameObject(type);
-                _context.GameState?.AddGameObject(newObj);
+                Context.GameState?.AddGameObject(newObj);
 
                 Push(new DreamValue(newObj));
 
@@ -605,7 +605,7 @@ namespace Core.VM.Runtime
 
             if (xValue.TryGetValue(out float x) && yValue.TryGetValue(out float y) && zValue.TryGetValue(out float z))
             {
-                var turf = _context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
+                var turf = Context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
                 if (turf != null)
                 {
                     // Turf is ITurf, but the implementation inherits from GameObject which is a DreamObject
@@ -650,9 +650,9 @@ namespace Core.VM.Runtime
                 }
                 else if (containerValue.IsNull)
                 {
-                    if (_context.GameState != null)
+                    if (Context.GameState != null)
                     {
-                        foreach (var obj in _context.GameState.GameObjects.Values)
+                        foreach (var obj in Context.GameState.GameObjects.Values)
                         {
                             if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
                             {

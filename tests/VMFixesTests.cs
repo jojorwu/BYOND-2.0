@@ -583,5 +583,66 @@ namespace tests
             Assert.That(thread.Pop().AsFloat(), Is.EqualTo(42f));
             Assert.That(thread.StackCount, Is.EqualTo(0));
         }
+
+        [Test]
+        public void TryCatch_Simple_Test()
+        {
+            // try { throw "error" } catch(var/e) { return e }
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.Try);
+            bytecode.AddRange(BitConverter.GetBytes(15)); // Catch address
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0); // catch variable in local 0
+
+            bytecode.Add((byte)Opcode.PushString);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // string 0 ("error")
+            bytecode.Add((byte)Opcode.Throw);
+
+            bytecode.Add((byte)Opcode.EndTry);
+            bytecode.Add((byte)Opcode.Return);
+
+            // Catch block at 15
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0);
+            bytecode.Add((byte)Opcode.Return);
+
+            _vm.Context.Strings.Clear();
+            _vm.Context.Strings.Add("error");
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.ToString(), Is.EqualTo("error"));
+        }
+
+        [Test]
+        public void RangeView_Registration_Test()
+        {
+            var nativeProvider = new StandardNativeProcProvider();
+            var nativeProcs = nativeProvider.GetNativeProcs();
+
+            Assert.That(nativeProcs.ContainsKey("range"), Is.True);
+            Assert.That(nativeProcs.ContainsKey("view"), Is.True);
+        }
+
+        [Test]
+        public void IsSaved_Stub_Test()
+        {
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(123f));
+            bytecode.Add((byte)Opcode.IsSaved);
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+            Assert.That(thread.Pop(), Is.EqualTo(DreamValue.True));
+        }
     }
 }

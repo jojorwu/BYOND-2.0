@@ -15,6 +15,7 @@ namespace Core.VM.Runtime
         public IDreamProc Proc { get; }
         public int PC { get; }
         public IReadOnlyList<CallFrame> CallStack { get; }
+        public DreamValue? ThrownValue { get; set; }
 
         public ScriptRuntimeException(string message, IDreamProc proc, int pc, IEnumerable<CallFrame> callStack)
             : base(FormatMessage(message, proc, pc))

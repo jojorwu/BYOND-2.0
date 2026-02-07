@@ -52,6 +52,81 @@ namespace Core.VM.Procs
                 return DreamValue.Null;
             });
 
+            // Spatial procs
+            procs["range"] = new NativeProc("range", (thread, src, args) =>
+            {
+                if (thread.Context.GameApi == null) return DreamValue.Null;
+
+                int dist = 5;
+                int centerX = 0, centerY = 0, centerZ = 0;
+
+                if (args.Length >= 4)
+                {
+                    dist = (int)args[0].GetValueAsFloat();
+                    centerX = (int)args[1].GetValueAsFloat();
+                    centerY = (int)args[2].GetValueAsFloat();
+                    centerZ = (int)args[3].GetValueAsFloat();
+                }
+                else
+                {
+                    GameObject? center = null;
+                    if (args.Length >= 2)
+                    {
+                        dist = (int)args[0].GetValueAsFloat();
+                        args[1].TryGetValueAsGameObject(out center);
+                    }
+                    else if (args.Length == 1)
+                    {
+                        if (!args[0].TryGetValueAsGameObject(out center))
+                        {
+                            dist = (int)args[0].GetValueAsFloat();
+                        }
+                    }
+
+                    center ??= (thread.Usr ?? src) as GameObject;
+                    if (center != null)
+                    {
+                        centerX = center.X;
+                        centerY = center.Y;
+                        centerZ = center.Z;
+                    }
+                }
+
+                var results = thread.Context.GameApi.StdLib.Range(dist, centerX, centerY, centerZ);
+                var list = new DreamList(thread.Context.ListType);
+                foreach (var obj in results) list.AddValue(new DreamValue(obj));
+                return new DreamValue(list);
+            });
+
+            procs["view"] = new NativeProc("view", (thread, src, args) =>
+            {
+                if (thread.Context.GameApi == null) return DreamValue.Null;
+
+                int dist = 5;
+                GameObject? viewer = null;
+
+                if (args.Length >= 2)
+                {
+                    dist = (int)args[0].GetValueAsFloat();
+                    args[1].TryGetValueAsGameObject(out viewer);
+                }
+                else if (args.Length == 1)
+                {
+                    if (!args[0].TryGetValueAsGameObject(out viewer))
+                    {
+                        dist = (int)args[0].GetValueAsFloat();
+                    }
+                }
+
+                viewer ??= (thread.Usr ?? src) as GameObject;
+                if (viewer == null) return new DreamValue(new DreamList(thread.Context.ListType));
+
+                var results = thread.Context.GameApi.StdLib.View(dist, viewer);
+                var list = new DreamList(thread.Context.ListType);
+                foreach (var obj in results) list.AddValue(new DreamValue(obj));
+                return new DreamValue(list);
+            });
+
             return procs;
         }
     }

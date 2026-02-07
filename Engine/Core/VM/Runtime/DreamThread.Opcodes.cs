@@ -113,10 +113,12 @@ namespace Core.VM.Runtime
         {
             var reference = ReadReference(proc.Bytecode, ref pc);
             var message = Pop();
+            var target = GetReferenceValue(reference, frame, 0);
+            PopCount(GetReferenceStackSize(reference));
 
             if (!message.IsNull)
             {
-                // TODO: Proper output routing based on target (reference)
+                // TODO: Proper output routing based on target
                 Console.WriteLine(message.ToString());
             }
         }
@@ -174,30 +176,6 @@ namespace Core.VM.Runtime
             Push(new DreamValue(SharedOperations.Modulo(a.GetValueAsFloat(), b.GetValueAsFloat())));
         }
 
-        private void Opcode_ModulusReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, refValue % value);
-        }
-
-        private void Opcode_ModulusModulusReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())));
-        }
-
-
-        private void Opcode_AssignInto(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            SetReferenceValue(reference, frame, value);
-            Push(value);
-        }
 
         private void Opcode_GetStep()
         {
@@ -566,21 +544,6 @@ namespace Core.VM.Runtime
             Push(new DreamValue(SharedOperations.Abs(a.GetValueAsFloat())));
         }
 
-        private void Opcode_MultiplyReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, refValue * value);
-        }
-
-        private void Opcode_DivideReference(DreamProc proc, CallFrame frame, ref int pc)
-        {
-            var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = Pop();
-            var refValue = GetReferenceValue(reference, frame);
-            SetReferenceValue(reference, frame, refValue / value);
-        }
 
         private void Opcode_Sin() => Push(new DreamValue(SharedOperations.Sin(Pop().GetValueAsFloat())));
         private void Opcode_Cos() => Push(new DreamValue(SharedOperations.Cos(Pop().GetValueAsFloat())));

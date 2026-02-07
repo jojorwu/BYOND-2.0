@@ -72,7 +72,7 @@ namespace tests
         public void BitNot_PerformsCorrectOperation()
         {
             var result = RunTest(Opcode.PushFloat, 5f, Opcode.BitNot, Opcode.Return);
-            Assert.That(result.AsFloat(), Is.EqualTo(~5));
+            Assert.That(result.AsFloat(), Is.EqualTo((~5) & 0x00FFFFFF));
         }
 
         [Test]

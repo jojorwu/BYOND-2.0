@@ -116,5 +116,23 @@ namespace tests
             Assert.That(sub1!.Values.Count, Is.EqualTo(1));
             Assert.That(sub1.Values[0].AsFloat(), Is.EqualTo(1f));
         }
+
+        [Test]
+        public void BitwiseParity_24Bit_Test()
+        {
+            // BYOND uses 24-bit bitwise operations
+            var largeValue = new DreamValue((float)0xFFFFFFFF); // All bits set
+            var maskedValue = ~largeValue;
+
+            // In 32-bit: ~0xFFFFFFFF = 0
+            // In 24-bit: (~0xFFFFFFFF) & 0xFFFFFF = 0
+            Assert.That(maskedValue.AsInt(), Is.EqualTo(0));
+
+            var val1 = new DreamValue((float)0x123456);
+            var val2 = new DreamValue((float)0xF0F0F0);
+
+            Assert.That((val1 & val2).AsInt(), Is.EqualTo((0x123456 & 0xF0F0F0) & 0x00FFFFFF));
+            Assert.That((val1 | val2).AsInt(), Is.EqualTo((0x123456 | 0xF0F0F0) & 0x00FFFFFF));
+        }
     }
 }

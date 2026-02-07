@@ -99,6 +99,11 @@ namespace Core
                 {
                     dreamVM.ListType = newType;
                 }
+
+                if (newType.Name == "/world" && dreamVM is DreamVM vm6)
+                {
+                    vm6.Context.World = new DreamObject(newType);
+                }
             }
 
             // Resolve parents and flatten variables

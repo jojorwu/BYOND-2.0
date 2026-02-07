@@ -366,5 +366,108 @@ namespace tests
             thread.Run(1000);
             Assert.That(thread.Pop().AsFloat(), Is.EqualTo(0f));
         }
+
+        [Test]
+        public void UsrWorldArgs_References_Test()
+        {
+            var worldType = new ObjectType(1, "/world");
+            var mobType = new ObjectType(2, "/mob");
+
+            var worldObj = new DreamObject(worldType);
+            var usrObj = new DreamObject(mobType);
+
+            _vm.Context.World = worldObj;
+
+            // return list(world, usr, args.len)
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.World);
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Usr);
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Args);
+            bytecode.Add((byte)Opcode.Length); // args.len
+
+            bytecode.Add((byte)Opcode.CreateList);
+            bytecode.AddRange(BitConverter.GetBytes(3));
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), new[] { "arg1" }, 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+            thread.Usr = usrObj;
+            thread.Push(new DreamValue(123f)); // arg1
+
+            thread.Run(1000);
+            var result = thread.Pop().GetValueAsDreamObject() as DreamList;
+
+            Assert.That(result!.Values[0].GetValueAsDreamObject(), Is.EqualTo(worldObj));
+            Assert.That(result.Values[1].GetValueAsDreamObject(), Is.EqualTo(usrObj));
+            Assert.That(result.Values[2].AsFloat(), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void Field_Increment_StackStability_Test()
+        {
+            var type = new ObjectType(1, "/test");
+            type.VariableNames.Add("counter");
+            type.FlattenedDefaultValues.Add(10f);
+
+            var obj = new GameObject(type);
+            _vm.Context.Strings.Clear();
+            _vm.Context.Strings.Add("counter");
+
+            // obj.counter++
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Src);
+            bytecode.Add((byte)Opcode.Increment);
+            bytecode.Add((byte)DMReference.Type.Field);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // stringId 0 ("counter")
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000, obj);
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.AsFloat(), Is.EqualTo(11f));
+            Assert.That(obj.GetVariable("counter").AsFloat(), Is.EqualTo(11f));
+            Assert.That(thread.StackCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void ListIndex_Assign_StackStability_Test()
+        {
+            var list = new DreamList(null);
+            list.AddValue(new DreamValue(10f));
+
+            // list[1] = 20
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0); // list is in local 0
+
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(1f)); // index 1
+
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(20f)); // value 20
+
+            bytecode.Add((byte)Opcode.Assign);
+            bytecode.Add((byte)DMReference.Type.ListIndex);
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+            thread.Push(new DreamValue(list)); // local 0
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.AsFloat(), Is.EqualTo(20f));
+            Assert.That(list.Values[0].AsFloat(), Is.EqualTo(20f));
+            Assert.That(thread.StackCount, Is.EqualTo(0));
+        }
     }
 }

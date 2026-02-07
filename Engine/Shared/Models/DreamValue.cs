@@ -421,22 +421,22 @@ namespace Shared
 
         public static DreamValue operator &(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() & (int)b.GetValueAsFloat());
+            return new DreamValue(((int)a.GetValueAsFloat() & (int)b.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator |(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() | (int)b.GetValueAsFloat());
+            return new DreamValue(((int)a.GetValueAsFloat() | (int)b.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator ^(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() ^ (int)b.GetValueAsFloat());
+            return new DreamValue(((int)a.GetValueAsFloat() ^ (int)b.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator ~(DreamValue a)
         {
-            return new DreamValue(~(int)a.GetValueAsFloat());
+            return new DreamValue((~(int)a.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator <<(DreamValue a, DreamValue b)

@@ -29,6 +29,7 @@ namespace Core.VM.Runtime
         public DreamThreadState State { get; private set; } = DreamThreadState.Running;
         public DateTime SleepUntil { get; private set; }
         public IGameObject? AssociatedObject { get; }
+        public DreamObject? Usr { get; set; }
 
         private readonly DreamVMContext _context;
         private readonly int _maxInstructions;
@@ -155,16 +156,43 @@ namespace Core.VM.Runtime
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int GetReferenceStackSize(DMReference reference)
+        {
+            return reference.RefType switch
+            {
+                DMReference.Type.Field => 1,
+                DMReference.Type.ListIndex => 2,
+                _ => 0
+            };
+        }
+
         /// <summary>
         /// Resolves a reference to its current value.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private DreamValue GetReferenceValue(DMReference reference, CallFrame frame)
+        private DreamValue GetReferenceValue(DMReference reference, CallFrame frame, int stackOffset = 0)
         {
             switch (reference.RefType)
             {
+                case DMReference.Type.NoRef:
+                    return DreamValue.Null;
                 case DMReference.Type.Src:
+                case DMReference.Type.Self:
                     return frame.Instance != null ? new DreamValue(frame.Instance) : DreamValue.Null;
+                case DMReference.Type.Usr:
+                    return Usr != null ? new DreamValue(Usr) : DreamValue.Null;
+                case DMReference.Type.World:
+                    return _context.World != null ? new DreamValue(_context.World) : DreamValue.Null;
+                case DMReference.Type.Args:
+                    {
+                        var list = new DreamList(_context.ListType);
+                        for (int i = 0; i < frame.Proc.Arguments.Length; i++)
+                        {
+                            list.AddValue(_stack[frame.StackBase + i]);
+                        }
+                        return new DreamValue(list);
+                    }
                 case DMReference.Type.Global:
                     return _context.GetGlobal(reference.Index);
                 case DMReference.Type.Argument:
@@ -175,15 +203,15 @@ namespace Core.VM.Runtime
                     return frame.Instance != null ? frame.Instance.GetVariable(reference.Name) : DreamValue.Null;
                 case DMReference.Type.Field:
                     {
-                        var obj = _stack[--_stackPtr];
+                        var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                             return dreamObject.GetVariable(reference.Name);
                         return DreamValue.Null;
                     }
                 case DMReference.Type.ListIndex:
                     {
-                        var index = _stack[--_stackPtr];
-                        var listValue = _stack[--_stackPtr];
+                        var index = _stack[_stackPtr - 1 - stackOffset];
+                        var listValue = _stack[_stackPtr - 2 - stackOffset];
                         if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
                         {
                             if (index.Type == DreamValueType.Float)
@@ -204,7 +232,7 @@ namespace Core.VM.Runtime
         /// Updates the value pointed to by a reference.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value)
+        private void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value, int stackOffset = 0)
         {
             switch (reference.RefType)
             {
@@ -222,15 +250,15 @@ namespace Core.VM.Runtime
                     break;
                 case DMReference.Type.Field:
                     {
-                        var obj = _stack[--_stackPtr];
+                        var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                             dreamObject.SetVariable(reference.Name, value);
                     }
                     break;
                 case DMReference.Type.ListIndex:
                     {
-                        var index = _stack[--_stackPtr];
-                        var listValue = _stack[--_stackPtr];
+                        var index = _stack[_stackPtr - 1 - stackOffset];
+                        var listValue = _stack[_stackPtr - 2 - stackOffset];
                         if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
                         {
                             if (index.Type == DreamValueType.Float)
@@ -559,9 +587,10 @@ namespace Core.VM.Runtime
                         case Opcode.BitXorReference:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                var value = _stack[--_stackPtr];
-                                var refValue = GetReferenceValue(reference, frame);
-                                SetReferenceValue(reference, frame, refValue ^ value);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, refValue ^ value, 0);
+                                PopCount(GetReferenceStackSize(reference));
                             }
                             break;
                         case Opcode.BitNot: _stack[_stackPtr - 1] = ~_stack[_stackPtr - 1]; break;
@@ -574,9 +603,10 @@ namespace Core.VM.Runtime
                         case Opcode.BitShiftLeftReference:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                var value = _stack[--_stackPtr];
-                                var refValue = GetReferenceValue(reference, frame);
-                                SetReferenceValue(reference, frame, refValue << value);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, refValue << value, 0);
+                                PopCount(GetReferenceStackSize(reference));
                             }
                             break;
                         case Opcode.BitShiftRight:
@@ -588,9 +618,10 @@ namespace Core.VM.Runtime
                         case Opcode.BitShiftRightReference:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                var value = _stack[--_stackPtr];
-                                var refValue = GetReferenceValue(reference, frame);
-                                SetReferenceValue(reference, frame, refValue >> value);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, refValue >> value, 0);
+                                PopCount(GetReferenceStackSize(reference));
                             }
                             break;
 
@@ -650,9 +681,9 @@ namespace Core.VM.Runtime
                                         {
                                             pc--;
                                             var reference = ReadReference(bytecode, ref pc);
-                                            var val = GetReferenceValue(reference, frame);
-                                            if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                            _stack[_stackPtr++] = val;
+                                            var val = GetReferenceValue(reference, frame, 0);
+                                            PopCount(GetReferenceStackSize(reference));
+                                            Push(val);
                                         }
                                         break;
                                 }
@@ -677,7 +708,10 @@ namespace Core.VM.Runtime
                                     default:
                                         pc--;
                                         var reference = ReadReference(bytecode, ref pc);
-                                        SetReferenceValue(reference, frame, value);
+                                        SetReferenceValue(reference, frame, value, 1);
+                                        var val = Pop();
+                                        PopCount(GetReferenceStackSize(reference));
+                                        Push(val);
                                         break;
                                 }
                             }
@@ -760,28 +794,52 @@ namespace Core.VM.Runtime
                         case Opcode.Increment:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                var value = GetReferenceValue(reference, frame);
+                                var value = GetReferenceValue(reference, frame, 0);
                                 var newValue = value + 1;
-                                SetReferenceValue(reference, frame, newValue);
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = newValue;
+                                SetReferenceValue(reference, frame, newValue, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                Push(newValue);
                             }
                             break;
                         case Opcode.Decrement:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                var value = GetReferenceValue(reference, frame);
+                                var value = GetReferenceValue(reference, frame, 0);
                                 var newValue = value - 1;
-                                SetReferenceValue(reference, frame, newValue);
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = newValue;
+                                SetReferenceValue(reference, frame, newValue, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                Push(newValue);
                             }
                             break;
                         case Opcode.Modulus: Opcode_Modulus(); break;
-                        case Opcode.AssignInto: Opcode_AssignInto(proc, frame, ref pc); break;
-                        case Opcode.ModulusReference: Opcode_ModulusReference(proc, frame, ref pc); break;
+                        case Opcode.AssignInto:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var value = Pop();
+                                SetReferenceValue(reference, frame, value, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                Push(value);
+                            }
+                            break;
+                        case Opcode.ModulusReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, refValue % value, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                            }
+                            break;
                         case Opcode.ModulusModulus: Opcode_ModulusModulus(); break;
-                        case Opcode.ModulusModulusReference: Opcode_ModulusModulusReference(proc, frame, ref pc); break;
+                        case Opcode.ModulusModulusReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
+                                PopCount(GetReferenceStackSize(reference));
+                            }
+                            break;
                         case Opcode.CreateList: Opcode_CreateList(proc, ref pc); break;
                         case Opcode.CreateAssociativeList: Opcode_CreateAssociativeList(proc, ref pc); break;
                         case Opcode.CreateStrictAssociativeList: Opcode_CreateStrictAssociativeList(proc, ref pc); break;
@@ -943,9 +1001,25 @@ namespace Core.VM.Runtime
                         case Opcode.Power: Opcode_Power(); break;
                         case Opcode.Sqrt: Opcode_Sqrt(); break;
                         case Opcode.Abs: Opcode_Abs(); break;
-                        case Opcode.MultiplyReference: Opcode_MultiplyReference(proc, frame, ref pc); break;
+                        case Opcode.MultiplyReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, refValue * value, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                            }
+                            break;
                         case Opcode.Sin: Opcode_Sin(); break;
-                        case Opcode.DivideReference: Opcode_DivideReference(proc, frame, ref pc); break;
+                        case Opcode.DivideReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var value = Pop();
+                                var refValue = GetReferenceValue(reference, frame, 0);
+                                SetReferenceValue(reference, frame, refValue / value, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                            }
+                            break;
                         case Opcode.Cos: Opcode_Cos(); break;
                         case Opcode.Tan: Opcode_Tan(); break;
                         case Opcode.ArcSin: Opcode_ArcSin(); break;
@@ -1148,7 +1222,9 @@ namespace Core.VM.Runtime
                             {
                                 var reference = ReadReference(bytecode, ref pc);
                                 var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
-                                if (GetReferenceValue(reference, frame).IsFalse())
+                                var val = GetReferenceValue(reference, frame, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                if (val.IsFalse())
                                 {
                                     pc = address;
                                 }
@@ -1176,7 +1252,8 @@ namespace Core.VM.Runtime
                                 for (int i = 0; i < n; i++)
                                 {
                                     var reference = ReadReference(bytecode, ref pc);
-                                    SetReferenceValue(reference, frame, dv);
+                                    SetReferenceValue(reference, frame, dv, 0);
+                                    PopCount(GetReferenceStackSize(reference));
                                 }
                             }
                             break;
@@ -1201,7 +1278,8 @@ namespace Core.VM.Runtime
                         case Opcode.NullRef:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                SetReferenceValue(reference, frame, DreamValue.Null);
+                                SetReferenceValue(reference, frame, DreamValue.Null, 0);
+                                PopCount(GetReferenceStackSize(reference));
                             }
                             break;
                         case Opcode.IndexRefWithString:
@@ -1210,21 +1288,23 @@ namespace Core.VM.Runtime
                                 var stringId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc)); pc += 4;
                                 var stringValue = new DreamValue(_context.Strings[stringId]);
 
-                                var objValue = GetReferenceValue(reference, frame);
+                                var objValue = GetReferenceValue(reference, frame, 0);
+                                PopCount(GetReferenceStackSize(reference));
                                 DreamValue result = DreamValue.Null;
                                 if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
                                 {
                                     result = list.GetValue(stringValue);
                                 }
 
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = result;
+                                Push(result);
                             }
                             break;
                         case Opcode.ReturnReferenceValue:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
-                                Push(GetReferenceValue(reference, frame));
+                                var val = GetReferenceValue(reference, frame, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                Push(val);
                                 Opcode_Return(ref proc, ref pc);
                                 potentiallyChangedStack = true;
                             }
@@ -1234,9 +1314,9 @@ namespace Core.VM.Runtime
                                 var value = BinaryPrimitives.ReadSingleLittleEndian(bytecode.Slice(pc)); pc += 4;
                                 var reference = ReadReference(bytecode, ref pc);
                                 var dv = new DreamValue(value);
-                                SetReferenceValue(reference, frame, dv);
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = dv;
+                                SetReferenceValue(reference, frame, dv, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                Push(dv);
                             }
                             break;
 

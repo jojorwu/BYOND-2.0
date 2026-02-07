@@ -552,6 +552,30 @@ namespace Core.VM.Runtime
                                     pc += 4;
                             }
                             break;
+                        case Opcode.JumpIfTrueReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+                                var val = GetReferenceValue(reference, frame, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                if (!val.IsFalse())
+                                    pc = address;
+                                else
+                                    pc += 4;
+                            }
+                            break;
+                        case Opcode.JumpIfFalseReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+                                var val = GetReferenceValue(reference, frame, 0);
+                                PopCount(GetReferenceStackSize(reference));
+                                if (val.IsFalse())
+                                    pc = address;
+                                else
+                                    pc += 4;
+                            }
+                            break;
                         case Opcode.Output:
                             {
                                 var message = _stack[--_stackPtr];
@@ -874,6 +898,12 @@ namespace Core.VM.Runtime
                                 _stack[_stackPtr++] = val;
                             }
                             break;
+                        case Opcode.PopReference:
+                            {
+                                var reference = ReadReference(bytecode, ref pc);
+                                PopCount(GetReferenceStackSize(reference));
+                            }
+                            break;
                         case Opcode.DereferenceCall:
                             {
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
@@ -899,7 +929,17 @@ namespace Core.VM.Runtime
                                     if (targetProc != null)
                                     {
                                         SavePC(pc);
-                                        PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
+                                        int argCount = argStackDelta - 1;
+                                        int stackBase = _stackPtr - argStackDelta;
+
+                                        // Shift arguments down by 1, overwriting 'obj' on the stack
+                                        for (int i = 0; i < argCount; i++)
+                                        {
+                                            _stack[stackBase + i] = _stack[stackBase + i + 1];
+                                        }
+                                        _stackPtr--; // Effectively removed the object
+
+                                        PerformCall(targetProc, obj, argCount, argCount);
                                         potentiallyChangedStack = true;
                                         break;
                                     }

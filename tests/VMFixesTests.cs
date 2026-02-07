@@ -469,5 +469,119 @@ namespace tests
             Assert.That(list.Values[0].AsFloat(), Is.EqualTo(20f));
             Assert.That(thread.StackCount, Is.EqualTo(0));
         }
+
+        [Test]
+        public void DereferenceCall_WithArguments_Mapping_Test()
+        {
+            var type = new ObjectType(1, "/test");
+            _vm.Context.ObjectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _vm.Context.ObjectTypeManager.RegisterObjectType(type);
+            _vm.Context.Strings.Clear();
+            _vm.Context.Strings.Add("my_proc");
+
+            // my_proc(arg1, arg2) returns arg1 + arg2
+            var procBytecode = new List<byte>();
+            procBytecode.Add((byte)Opcode.PushReferenceValue);
+            procBytecode.Add((byte)DMReference.Type.Argument);
+            procBytecode.Add(0); // arg1
+            procBytecode.Add((byte)Opcode.PushReferenceValue);
+            procBytecode.Add((byte)DMReference.Type.Argument);
+            procBytecode.Add(1); // arg2
+            procBytecode.Add((byte)Opcode.Add);
+            procBytecode.Add((byte)Opcode.Return);
+            var targetProc = new DreamProc("my_proc", procBytecode.ToArray(), new[] { "arg1", "arg2" }, 0);
+            type.Procs["my_proc"] = targetProc;
+
+            var obj = new GameObject(type);
+
+            // obj.my_proc(10, 20)
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Src); // Push obj
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(10f)); // Push arg1
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(20f)); // Push arg2
+            bytecode.Add((byte)Opcode.DereferenceCall);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // stringId 0 ("my_proc")
+            bytecode.Add((byte)DMCallArgumentsType.None);
+            bytecode.AddRange(BitConverter.GetBytes(3)); // 3 stack delta (obj + 2 args)
+            bytecode.Add((byte)Opcode.Return);
+
+            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(mainProc, _vm.Context, 1000, obj);
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.AsFloat(), Is.EqualTo(30f));
+        }
+
+        [Test]
+        public void JumpIfTrueReference_Test()
+        {
+            var type = new ObjectType(1, "/test");
+            type.VariableNames.Add("val");
+            var obj = new GameObject(type);
+            obj.SetVariable("val", 1f);
+
+            _vm.Context.Strings.Clear();
+            _vm.Context.Strings.Add("val");
+
+            // if (obj.val) jump to 12
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Src);
+            bytecode.Add((byte)Opcode.JumpIfTrueReference);
+            bytecode.Add((byte)DMReference.Type.Field);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // counter
+            bytecode.AddRange(BitConverter.GetBytes(18)); // jump address (12 + 1 + 4 + 1)
+
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(0f)); // 12, 13, 14, 15, 16
+            bytecode.Add((byte)Opcode.Return); // 17
+
+            bytecode.Add((byte)Opcode.PushFloat); // 18
+            bytecode.AddRange(BitConverter.GetBytes(1f)); // 19, 20, 21, 22
+            bytecode.Add((byte)Opcode.Return); // 23
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000, obj);
+
+            thread.Run(1000);
+            Assert.That(thread.Pop().AsFloat(), Is.EqualTo(1f));
+            Assert.That(thread.StackCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void PopReference_Test()
+        {
+            var list = new DreamList(null);
+            list.AddValue(new DreamValue(10f));
+
+            // PopReference(list[1])
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0); // list is in local 0
+
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(1f)); // index 1
+
+            bytecode.Add((byte)Opcode.PopReference);
+            bytecode.Add((byte)DMReference.Type.ListIndex);
+
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(42f));
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+            thread.Push(new DreamValue(list)); // local 0
+
+            thread.Run(1000);
+            Assert.That(thread.Pop().AsFloat(), Is.EqualTo(42f));
+            Assert.That(thread.StackCount, Is.EqualTo(0));
+        }
     }
 }

@@ -22,7 +22,6 @@ namespace Client
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly string _serverAddress;
-        private NetPeer? _server;
 
         public LogicThread(string serverAddress)
         {

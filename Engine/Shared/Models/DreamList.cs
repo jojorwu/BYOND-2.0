@@ -31,9 +31,10 @@ namespace Shared.Models
         public void SetValue(DreamValue key, DreamValue value)
         {
             AssociativeValues[key] = value;
-            if (AddCount(key))
+            if (!_valueCounts.ContainsKey(key))
             {
                 _values.Add(key);
+                _valueCounts[key] = 1;
             }
         }
 
@@ -49,7 +50,10 @@ namespace Shared.Models
         {
             if (_values.Remove(value))
             {
-                RemoveCount(value);
+                if (RemoveCount(value))
+                {
+                    AssociativeValues.Remove(value);
+                }
             }
         }
 
@@ -60,7 +64,10 @@ namespace Shared.Models
             {
                 var old = _values[index];
                 _values[index] = value;
-                RemoveCount(old);
+                if (RemoveCount(old))
+                {
+                    AssociativeValues.Remove(old);
+                }
                 AddCount(value);
             }
         }
@@ -93,20 +100,28 @@ namespace Shared.Models
             return true;
         }
 
+        /// <summary>
+        /// Removes a count from the value count cache.
+        /// </summary>
+        /// <param name="value">The value to decrement count for.</param>
+        /// <returns>True if the value was completely removed from the cache (count reached 0).</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void RemoveCount(DreamValue value)
+        private bool RemoveCount(DreamValue value)
         {
             if (_valueCounts.TryGetValue(value, out int count))
             {
                 if (count <= 1)
                 {
                     _valueCounts.Remove(value);
+                    return true;
                 }
                 else
                 {
                     _valueCounts[value] = count - 1;
+                    return false;
                 }
             }
+            return false;
         }
     }
 }

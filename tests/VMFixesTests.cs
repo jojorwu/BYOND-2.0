@@ -269,5 +269,102 @@ namespace tests
 
             Assert.That(result.AsFloat(), Is.EqualTo(42f));
         }
+
+        [Test]
+        public void Output_StackBalance_Test()
+        {
+            // In DM: world << 123
+            // Compiler: Push target, Push message, Output
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushNull); // Target (world)
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(123f)); // Message
+            bytecode.Add((byte)Opcode.Output);
+
+            // Push something else to verify stack balance
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(456f));
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+
+            Assert.That(thread.Pop().AsFloat(), Is.EqualTo(456f));
+            Assert.That(thread.StackCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void DereferenceCall_FromVariable_Test()
+        {
+            var type = new ObjectType(1, "/test");
+            type.VariableNames.Add("my_proc");
+            _vm.Context.ObjectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _vm.Context.ObjectTypeManager.RegisterObjectType(type);
+            _vm.Context.Strings.Clear();
+            _vm.Context.Strings.Add("my_proc");
+
+            var procBytecode = new List<byte> { (byte)Opcode.PushFloat };
+            procBytecode.AddRange(BitConverter.GetBytes(789f));
+            procBytecode.Add((byte)Opcode.Return);
+            var targetProc = new DreamProc("my_proc", procBytecode.ToArray(), Array.Empty<string>(), 0);
+
+            var obj = new GameObject(type);
+            obj.SetVariable("my_proc", new DreamValue(targetProc));
+
+            // obj.my_proc()
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Src);
+            bytecode.Add((byte)Opcode.DereferenceCall);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // stringId 0 ("my_proc")
+            bytecode.Add((byte)DMCallArgumentsType.None);
+            bytecode.AddRange(BitConverter.GetBytes(1)); // 1 stack delta (the object itself)
+            bytecode.Add((byte)Opcode.Return);
+
+            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(mainProc, _vm.Context, 1000, obj);
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.AsFloat(), Is.EqualTo(789f));
+        }
+
+        [Test]
+        public void Spawn_NullDelay_DoesNotCrash()
+        {
+            // spawn(null)
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushNull); // delay
+            bytecode.Add((byte)Opcode.Spawn);
+            bytecode.AddRange(BitConverter.GetBytes(10)); // Jump address
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(42f));
+            bytecode.Add((byte)Opcode.Return);
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            Assert.DoesNotThrow(() => thread.Run(1000));
+        }
+
+        [Test]
+        public void Length_NonContainer_ReturnsZero()
+        {
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(123.456f));
+            bytecode.Add((byte)Opcode.Length);
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+            Assert.That(thread.Pop().AsFloat(), Is.EqualTo(0f));
+        }
     }
 }

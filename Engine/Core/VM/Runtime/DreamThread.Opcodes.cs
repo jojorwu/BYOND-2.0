@@ -112,10 +112,12 @@ namespace Core.VM.Runtime
         private void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc.Bytecode, ref pc);
-            var value = GetReferenceValue(reference, frame);
-            if (!value.IsNull)
+            var message = Pop();
+
+            if (!message.IsNull)
             {
-                Console.WriteLine(value.ToString());
+                // TODO: Proper output routing based on target (reference)
+                Console.WriteLine(message.ToString());
             }
         }
 

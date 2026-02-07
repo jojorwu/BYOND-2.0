@@ -526,10 +526,13 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Output:
                             {
-                                var val = _stack[--_stackPtr];
-                                if (!val.IsNull)
+                                var message = _stack[--_stackPtr];
+                                var target = _stack[--_stackPtr];
+
+                                if (!message.IsNull)
                                 {
-                                    Console.WriteLine(val.ToString());
+                                    // TODO: Proper output routing based on target
+                                    Console.WriteLine(message.ToString());
                                 }
                             }
                             break;
@@ -824,7 +827,17 @@ namespace Core.VM.Runtime
                                 var objValue = _stack[_stackPtr - argStackDelta];
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                 {
-                                    var targetProc = obj.ObjectType?.GetProc(_context.Strings[nameId]);
+                                    var procName = _context.Strings[nameId];
+                                    var targetProc = obj.ObjectType?.GetProc(procName);
+                                    if (targetProc == null)
+                                    {
+                                        var varValue = obj.GetVariable(procName);
+                                        if (varValue.TryGetValue(out IDreamProc? procFromVar))
+                                        {
+                                            targetProc = procFromVar;
+                                        }
+                                    }
+
                                     if (targetProc != null)
                                     {
                                         SavePC(pc);
@@ -973,19 +986,22 @@ namespace Core.VM.Runtime
                         case Opcode.Length:
                             {
                                 var value = _stack[--_stackPtr];
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                DreamValue result;
+
                                 if (value.Type == DreamValueType.String && value.TryGetValue(out string? str))
                                 {
-                                    _stack[_stackPtr++] = new DreamValue(str?.Length ?? 0);
+                                    result = new DreamValue(str?.Length ?? 0);
                                 }
                                 else if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj is DreamList list)
                                 {
-                                    _stack[_stackPtr++] = new DreamValue(list.Values.Count);
+                                    result = new DreamValue(list.Values.Count);
                                 }
                                 else
                                 {
-                                    _stack[_stackPtr++] = new DreamValue(0);
+                                    result = new DreamValue(0);
                                 }
+
+                                Push(result);
                             }
                             break;
                         case Opcode.IsInRange:
@@ -1013,7 +1029,7 @@ namespace Core.VM.Runtime
                                 var delay = _stack[--_stackPtr];
 
                                 var newThread = new DreamThread(this, bodyPc);
-                                if (delay.TryGetValue(out float seconds))
+                                if (delay.TryGetValue(out float seconds) && seconds > 0)
                                 {
                                     newThread.Sleep(seconds / 10.0f);
                                 }

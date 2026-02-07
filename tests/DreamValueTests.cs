@@ -16,9 +16,11 @@ namespace tests
         }
 
         [Test]
-        public void Equality_DifferentTypes_AreNotEqual()
+        public void Equality_DifferentTypes_HandleDMParity()
         {
-            Assert.That(new DreamValue(0f).Equals(DreamValue.Null), Is.False);
+            Assert.That(new DreamValue(0f).Equals(DreamValue.Null), Is.True);
+            Assert.That(DreamValue.Null.Equals(new DreamValue(0f)), Is.True);
+            Assert.That(new DreamValue(1f).Equals(DreamValue.Null), Is.False);
             Assert.That(new DreamValue(0f).Equals(new DreamValue("0")), Is.False);
         }
 
@@ -63,6 +65,22 @@ namespace tests
             Assert.That((a + b).ToString(), Is.EqualTo("Hello World"));
             Assert.That((a + c).ToString(), Is.EqualTo("Hello 123"));
             Assert.That((c + b).ToString(), Is.EqualTo("123World"));
+            Assert.That((a + DreamValue.Null).ToString(), Is.EqualTo("Hello "));
+            Assert.That((DreamValue.Null + b).ToString(), Is.EqualTo("World"));
+        }
+
+        [Test]
+        public void RelationalOperators_StringComparison_Works()
+        {
+            var a = new DreamValue("abc");
+            var b = new DreamValue("def");
+            var c = new DreamValue("abc");
+
+            Assert.That(a < b, Is.True);
+            Assert.That(b > a, Is.True);
+            Assert.That(a <= c, Is.True);
+            Assert.That(a >= c, Is.True);
+            Assert.That(b >= a, Is.True);
         }
     }
 }

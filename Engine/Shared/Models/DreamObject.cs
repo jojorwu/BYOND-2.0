@@ -76,5 +76,10 @@ namespace Shared
                 System.Array.Resize(ref _variableValues, index + 1);
             }
         }
+
+        public override string ToString()
+        {
+            return ObjectType?.Name ?? "object";
+        }
     }
 }

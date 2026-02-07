@@ -107,7 +107,10 @@ namespace Core.VM.Runtime
         {
             var reference = ReadReference(proc.Bytecode, ref pc);
             var value = GetReferenceValue(reference, frame);
-            Console.WriteLine(value.ToString());
+            if (!value.IsNull)
+            {
+                Console.WriteLine(value.ToString());
+            }
         }
 
         private void Opcode_Return(ref DreamProc proc, ref int pc)

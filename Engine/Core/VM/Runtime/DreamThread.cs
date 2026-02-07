@@ -526,7 +526,11 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Output:
                             {
-                                Console.WriteLine(_stack[--_stackPtr].ToString());
+                                var val = _stack[--_stackPtr];
+                                if (!val.IsNull)
+                                {
+                                    Console.WriteLine(val.ToString());
+                                }
                             }
                             break;
                         case Opcode.OutputReference: Opcode_OutputReference(proc, frame, ref pc); break;

@@ -249,11 +249,11 @@ namespace Shared
             }
             if (TryGetValue(out DreamObject? dreamObjectValue))
             {
-                return dreamObjectValue?.ToString() ?? "null";
+                return dreamObjectValue?.ToString() ?? string.Empty;
             }
             if (Type == DreamValueType.Null)
             {
-                return "null";
+                return string.Empty;
             }
             throw new InvalidOperationException("Invalid DreamValue type");
         }
@@ -307,24 +307,26 @@ namespace Shared
 
         public bool Equals(DreamValue other)
         {
-            if (Type != other.Type)
-                return false;
-
-            switch (Type)
+            if (Type == other.Type)
             {
-                case DreamValueType.Null:
-                    return true;
-                case DreamValueType.Float:
-                    return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
-                case DreamValueType.String:
-                case DreamValueType.DreamObject:
-                case DreamValueType.DreamType:
-                case DreamValueType.DreamResource:
-                case DreamValueType.DreamProc:
-                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
-                default:
-                    return false;
+                switch (Type)
+                {
+                    case DreamValueType.Null:
+                        return true;
+                    case DreamValueType.Float:
+                        return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
+                    default:
+                        return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
+                }
             }
+
+            // Handle Null == 0
+            if (Type == DreamValueType.Null && other.Type == DreamValueType.Float)
+                return other._floatValue == 0;
+            if (other.Type == DreamValueType.Null && Type == DreamValueType.Float)
+                return _floatValue == 0;
+
+            return false;
         }
 
         public override int GetHashCode()
@@ -344,21 +346,29 @@ namespace Shared
 
         public static bool operator >(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) > 0;
             return a.GetValueAsFloat() > b.GetValueAsFloat();
         }
 
         public static bool operator <(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) < 0;
             return a.GetValueAsFloat() < b.GetValueAsFloat();
         }
 
         public static bool operator >=(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) >= 0;
             return a.GetValueAsFloat() >= b.GetValueAsFloat();
         }
 
         public static bool operator <=(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) <= 0;
             return a.GetValueAsFloat() <= b.GetValueAsFloat();
         }
 

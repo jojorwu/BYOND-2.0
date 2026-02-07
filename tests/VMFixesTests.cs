@@ -189,5 +189,15 @@ namespace tests
             Assert.That(list.GetValue(key), Is.EqualTo(DreamValue.Null));
             Assert.That(list.Contains(key), Is.False);
         }
+
+        [Test]
+        public void DreamObject_ToString_ReturnsTypeName()
+        {
+            var type = new ObjectType(1, "/obj/item");
+            var obj = new DreamObject(type);
+            var val = new DreamValue(obj);
+
+            Assert.That(val.ToString(), Is.EqualTo("/obj/item"));
+        }
     }
 }

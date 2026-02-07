@@ -143,5 +143,10 @@ namespace Shared
             Y = y;
             Z = z;
         }
+
+        public override string ToString()
+        {
+            return ObjectType?.Name ?? "object";
+        }
     }
 }

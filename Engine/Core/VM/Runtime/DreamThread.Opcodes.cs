@@ -65,7 +65,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int stackDelta)
+        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int stackDelta, bool discardReturnValue = false)
         {
             IDreamProc? newProc = null;
             DreamObject? instance = null;
@@ -99,7 +99,7 @@ namespace Core.VM.Runtime
                 throw new Exception($"Attempted to call non-existent proc: {reference}");
             }
 
-            PerformCall(newProc, instance, stackDelta, stackDelta);
+            PerformCall(newProc, instance, stackDelta, stackDelta, discardReturnValue);
         }
 
 
@@ -119,7 +119,10 @@ namespace Core.VM.Runtime
             {
                 _stackPtr = returnedFrame.StackBase;
 
-                Push(returnValue);
+                if (!returnedFrame.DiscardReturnValue)
+                {
+                    Push(returnValue);
+                }
 
                 var newFrame = CallStack.Peek();
                 proc = newFrame.Proc;
@@ -335,13 +338,13 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount)
+        private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount, bool discardReturnValue = false)
         {
             var stackBase = _stackPtr - stackDelta;
 
             if (newProc is DreamProc dreamProc)
             {
-                var frame = new CallFrame(dreamProc, 0, stackBase, instance);
+                var frame = new CallFrame(dreamProc, 0, stackBase, instance, discardReturnValue);
                 CallStack.Push(frame);
 
                 for (int i = 0; i < dreamProc.LocalVariableCount; i++)
@@ -357,7 +360,10 @@ namespace Core.VM.Runtime
                 _stackPtr = stackBase;
 
                 var result = nativeProc.Call(this, instance, arguments);
-                Push(result);
+                if (!discardReturnValue)
+                {
+                    Push(result);
+                }
             }
         }
 
@@ -607,7 +613,8 @@ namespace Core.VM.Runtime
                     {
                         Push(values[i]);
                     }
-                    PerformCall(newProc, newObj, argCount + 1, argCount);
+                    SavePC(pc);
+                    PerformCall(newProc, newObj, argCount, argCount, discardReturnValue: true);
                 }
             }
             else

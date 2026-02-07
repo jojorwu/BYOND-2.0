@@ -40,7 +40,7 @@ namespace Core.VM.Runtime
             _maxInstructions = maxInstructions;
             AssociatedObject = associatedObject;
 
-            CallStack.Push(new CallFrame(proc, 0, 0, null));
+            CallStack.Push(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
         }
 
         public DreamThread(DreamThread other, int pc)
@@ -445,6 +445,7 @@ namespace Core.VM.Runtime
                                 var unusedStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
 
+                                SavePC(pc);
                                 PerformCall(reference, argType, argStackDelta);
                                 potentiallyChangedStack = true;
                             }
@@ -454,9 +455,42 @@ namespace Core.VM.Runtime
                                 var argType = (DMCallArgumentsType)bytecode[pc++];
                                 var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
-                                _stackPtr -= argStackDelta;
-                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                _stack[_stackPtr++] = DreamValue.Null;
+
+                                var instance = frame.Instance;
+                                IDreamProc? parentProc = null;
+
+                                if (instance != null && instance.ObjectType != null)
+                                {
+                                    ObjectType? definingType = null;
+                                    ObjectType? current = instance.ObjectType;
+                                    while (current != null)
+                                    {
+                                        if (current.Procs.ContainsValue(frame.Proc))
+                                        {
+                                            definingType = current;
+                                            break;
+                                        }
+                                        current = current.Parent;
+                                    }
+
+                                    if (definingType != null)
+                                    {
+                                        parentProc = definingType.Parent?.GetProc(frame.Proc.Name);
+                                    }
+                                }
+
+                                if (parentProc != null)
+                                {
+                                    SavePC(pc);
+                                    PerformCall(parentProc, instance, argStackDelta, argStackDelta);
+                                }
+                                else
+                                {
+                                    _stackPtr -= argStackDelta;
+                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                    _stack[_stackPtr++] = DreamValue.Null;
+                                }
+                                potentiallyChangedStack = true;
                             }
                             break;
                         case Opcode.PushProc:
@@ -789,6 +823,7 @@ namespace Core.VM.Runtime
                                     var targetProc = obj.ObjectType?.GetProc(_context.Strings[nameId]);
                                     if (targetProc != null)
                                     {
+                                        SavePC(pc);
                                         PerformCall(targetProc, obj, argStackDelta, argStackDelta - 1);
                                         potentiallyChangedStack = true;
                                         break;
@@ -1133,9 +1168,9 @@ namespace Core.VM.Runtime
                                     var ot = obj.ObjectType;
                                     if (ot != null)
                                     {
-                                        var targetType = _context.ObjectTypeManager.GetObjectType(typeId);
+                                        var targetType = _context.ObjectTypeManager?.GetObjectType(typeId);
                                         if (targetType != null)
-                                            result = ot.IsSubtypeOf(targetType!);
+                                            result = ot.IsSubtypeOf(targetType);
                                     }
                                 }
                                 _stack[_stackPtr++] = result ? DreamValue.True : DreamValue.False;

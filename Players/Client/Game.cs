@@ -26,25 +26,25 @@ namespace Client
     public class Game : IClient
     {
         private IWindow _window;
-        private GL _gl;
-        private LogicThread _logicThread;
-        private SpriteRenderer _spriteRenderer;
-        private ModelRenderer _modelRenderer;
+        private GL _gl = null!;
+        private LogicThread _logicThread = null!;
+        private SpriteRenderer _spriteRenderer = null!;
+        private ModelRenderer _modelRenderer = null!;
         private readonly TextureCache _textureCache;
         private readonly CSharpShaderManager _csharpShaderManager;
         private readonly DmiCache _dmiCache;
         private readonly IconCache _iconCache;
         private ICSharpShader? _sampleCSharpShader;
         private Graphics.Shader? _sampleGlShader;
-        private Mesh _cubeMesh;
-        private Camera _camera;
-        private ImGuiController _imGuiController;
-        private ConnectionPanel _connectionPanel;
-        private MainHud _mainHud;
+        private Mesh _cubeMesh = null!;
+        private Camera _camera = null!;
+        private ImGuiController _imGuiController = null!;
+        private ConnectionPanel _connectionPanel = null!;
+        private MainHud _mainHud = null!;
 
         private ClientState _clientState = ClientState.Connecting;
-        private GameState _previousState;
-        private GameState _currentState;
+        private GameState _previousState = null!;
+        private GameState _currentState = null!;
         private GameObject? _playerObject;
         private double _accumulator;
         private float _alpha;
@@ -141,8 +141,8 @@ new MyShader()
             try {
                 _sampleCSharpShader = await _csharpShaderManager.CompileShaderAsync(code);
                 _sampleGlShader = _csharpShaderManager.CreateGlShader(_sampleCSharpShader);
-            } catch (Exception e) {
-                Console.WriteLine($"Failed to load C# shader: {e.Message}");
+            } catch (Exception ex) {
+                Console.WriteLine($"Failed to load C# shader: {ex.Message}");
             }
         }
 
@@ -193,7 +193,7 @@ new MyShader()
                                     var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
                                     _dmiCache.GetDmi(dmiPath, texture);
                                 }
-                                catch (Exception e)
+                                catch (Exception)
                                 {
                                     // Ignore errors here, they will be handled in OnRender
                                 }

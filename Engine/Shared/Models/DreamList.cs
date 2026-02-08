@@ -78,10 +78,11 @@ namespace Shared
 
         public DreamList Clone()
         {
-            var clone = new DreamList(ObjectType, _values.Count);
-            for (int i = 0; i < _values.Count; i++)
+            var clone = new DreamList(ObjectType);
+            clone._values.AddRange(_values);
+            foreach (var kvp in _valueCounts)
             {
-                clone.SetValue(i, _values[i]);
+                clone._valueCounts[kvp.Key] = kvp.Value;
             }
             foreach (var kvp in AssociativeValues)
             {

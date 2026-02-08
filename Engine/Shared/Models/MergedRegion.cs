@@ -12,9 +12,19 @@ namespace Shared
             Regions = regions;
         }
 
+        public void GetGameObjects(List<IGameObject> results)
+        {
+            foreach (var region in Regions)
+            {
+                region.GetGameObjects(results);
+            }
+        }
+
         public IEnumerable<IGameObject> GetGameObjects()
         {
-            return Regions.SelectMany(r => r.GetGameObjects());
+            var results = new List<IGameObject>();
+            GetGameObjects(results);
+            return results;
         }
     }
 }

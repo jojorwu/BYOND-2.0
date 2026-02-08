@@ -69,7 +69,8 @@ namespace Server
 
             await Parallel.ForEachAsync(mergedRegions, options, (mergedRegion, token) =>
             {
-                var gameObjects = mergedRegion.GetGameObjects().ToList();
+                var gameObjects = new List<IGameObject>();
+                mergedRegion.GetGameObjects(gameObjects);
                 var objectIds = new HashSet<int>(gameObjects.Count);
                 var threadsForRegion = new List<IScriptThread>();
 

@@ -27,38 +27,39 @@ namespace Server
                 }
             }
 
-            var dreamThreads = threads.OfType<DreamThread>().ToList();
-            var nextThreads = new ConcurrentBag<IScriptThread>();
+            var nextThreads = new List<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            foreach (var thread in dreamThreads)
+            foreach (var thread in threads)
             {
-                if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
+                if (thread is DreamThread dreamThread)
                 {
-                    nextThreads.Add(thread);
-                    continue;
-                }
-
-                bool shouldProcess = (processGlobals && thread.AssociatedObject == null) || (thread.AssociatedObject != null && objectIds.Contains(thread.AssociatedObject.Id));
-
-                if (shouldProcess)
-                {
-                    var state = thread.Run(_settings.Performance.VmInstructionSlice);
-                    if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
+                    if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
                     {
-                        nextThreads.Add(thread);
+                        nextThreads.Add(dreamThread);
+                        continue;
+                    }
+
+                    bool shouldProcess = (processGlobals && dreamThread.AssociatedObject == null) || (dreamThread.AssociatedObject != null && objectIds.Contains(dreamThread.AssociatedObject.Id));
+
+                    if (shouldProcess)
+                    {
+                        var state = dreamThread.Run(_settings.Performance.VmInstructionSlice);
+                        if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
+                        {
+                            nextThreads.Add(dreamThread);
+                        }
+                    }
+                    else
+                    {
+                        nextThreads.Add(dreamThread);
                     }
                 }
                 else
                 {
                     nextThreads.Add(thread);
                 }
-            }
-
-            foreach (var thread in threads.Where(t => t is not DreamThread))
-            {
-                nextThreads.Add(thread);
             }
 
             return nextThreads;

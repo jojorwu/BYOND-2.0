@@ -144,8 +144,9 @@ namespace Shared
                         long key = ((long)x << 32) | (uint)y;
                         if (_grid.TryGetValue(key, out var cell))
                         {
-                            foreach (var obj in cell)
+                            for (int i = 0; i < cell.Count; i++)
                             {
+                                var obj = cell[i];
                                 if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
                                 {
                                     results.Add(obj);

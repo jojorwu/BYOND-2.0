@@ -25,20 +25,25 @@ namespace Shared
             return _chunks;
         }
 
-        public IEnumerable<IGameObject> GetGameObjects()
+        public void GetGameObjects(List<IGameObject> results)
         {
             foreach (var chunk in _chunks)
             {
-                foreach (var turf in chunk.GetTurfs())
+                chunk.ForEachTurf(turf =>
                 {
-                    if (turf == null)
-                        continue;
-                    foreach (var obj in turf.Contents)
+                    if (turf != null)
                     {
-                        yield return obj;
+                        results.AddRange(turf.Contents);
                     }
-                }
+                });
             }
+        }
+
+        public IEnumerable<IGameObject> GetGameObjects()
+        {
+            var results = new List<IGameObject>();
+            GetGameObjects(results);
+            return results;
         }
     }
 }

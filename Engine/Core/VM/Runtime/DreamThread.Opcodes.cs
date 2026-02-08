@@ -337,6 +337,9 @@ namespace Core.VM.Runtime
 
         private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount, bool discardReturnValue = false)
         {
+            if (CallStack.Count >= MaxCallStackDepth)
+                throw new ScriptRuntimeException("Maximum call stack depth exceeded", CurrentProc, CallStack.Peek().PC, CallStack);
+
             var stackBase = _stackPtr - stackDelta;
 
             if (newProc is DreamProc dreamProc)
@@ -488,6 +491,11 @@ namespace Core.VM.Runtime
         private void Opcode_MassConcatenation(DreamProc proc, ref int pc)
         {
             var count = ReadInt32(proc, ref pc);
+            if (count < 0 || count > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid concatenation count: {count}", proc, pc, CallStack);
+            if (count > 1024)
+                throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, CallStack);
+
             var strings = new string[count];
             for (int i = count - 1; i >= 0; i--)
             {
@@ -665,12 +673,15 @@ namespace Core.VM.Runtime
                 {
                     if (Context.GameState != null)
                     {
-                        foreach (var obj in Context.GameState.GameObjects.Values)
+                        using (Context.GameState.ReadLock())
                         {
-                            if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
+                            foreach (var obj in Context.GameState.GameObjects.Values)
                             {
-                                Push(new DreamValue(obj));
-                                return;
+                                if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
+                                {
+                                    Push(new DreamValue(obj));
+                                    return;
+                                }
                             }
                         }
                     }

@@ -26,6 +26,7 @@ namespace Core.VM.Runtime
     /// </summary>
     public partial class DreamThread : IScriptThread
     {
+        private const int MaxCallStackDepth = 512;
         private DreamValue[] _stack = new DreamValue[1024];
         private int _stackPtr = 0;
         public Stack<CallFrame> CallStack { get; } = new();

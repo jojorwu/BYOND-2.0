@@ -12,8 +12,10 @@ namespace Core.VM.Runtime
         public List<DreamValue> Globals { get; } = new();
         public Dictionary<string, int> GlobalNames { get; } = new();
         public ObjectType? ListType { get; set; }
+        public DreamObject? World { get; set; }
         public IObjectTypeManager? ObjectTypeManager { get; set; }
         public IGameState? GameState { get; set; }
+        public IGameApi? GameApi { get; set; }
         public IScriptHost? ScriptHost { get; set; }
 
         public DreamValue GetGlobal(int index)

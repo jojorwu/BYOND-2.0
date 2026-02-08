@@ -63,6 +63,12 @@ public static class SharedOperations {
         return MathF.Abs(a);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float Modulo(float a, float b) {
+        if (b == 0) return 0;
+        return a - b * MathF.Floor(a / b);
+    }
+
     //because BYOND has everything as a 32 bit float with 8 bit mantissa, we need to chop off the
     //top 8 bits when bit shifting for parity
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

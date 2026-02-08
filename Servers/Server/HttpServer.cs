@@ -16,7 +16,7 @@ namespace Server
     public class HttpServer : EngineService, IHostedService
     {
         public override int Priority => -50; // Moderate priority
-        private readonly IWebHost? _host;
+        private readonly IHost? _host;
         private readonly ILogger<HttpServer> _logger;
 
         public HttpServer(IOptions<ServerSettings> settingsOptions, IProject project, ILogger<HttpServer> logger)
@@ -35,21 +35,24 @@ namespace Server
                 Directory.CreateDirectory(assetsPath);
             }
 
-            _host = new WebHostBuilder()
-                .UseKestrel()
-                .UseUrls($"http://*:{settings.HttpServer.Port}")
-                .ConfigureServices(services =>
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    services.AddDirectoryBrowser();
-                })
-                .Configure(app =>
-                {
-                    app.UseFileServer(new FileServerOptions
-                    {
-                        FileProvider = new PhysicalFileProvider(assetsPath),
-                        RequestPath = "",
-                        EnableDirectoryBrowsing = true
-                    });
+                    webBuilder.UseKestrel()
+                        .UseUrls($"http://*:{settings.HttpServer.Port}")
+                        .ConfigureServices(services =>
+                        {
+                            services.AddDirectoryBrowser();
+                        })
+                        .Configure(app =>
+                        {
+                            app.UseFileServer(new FileServerOptions
+                            {
+                                FileProvider = new PhysicalFileProvider(assetsPath),
+                                RequestPath = "",
+                                EnableDirectoryBrowsing = true
+                            });
+                        });
                 })
                 .Build();
         }

@@ -15,9 +15,11 @@ namespace Core
     public class CompiledJsonService : EngineService, ICompiledJsonService
     {
         private readonly ILogger<CompiledJsonService>? _logger;
+        private readonly IGameApi _gameApi;
 
-        public CompiledJsonService(ILogger<CompiledJsonService>? logger = null)
+        public CompiledJsonService(IGameApi gameApi, ILogger<CompiledJsonService>? logger = null)
         {
+            _gameApi = gameApi;
             _logger = logger;
         }
 
@@ -27,7 +29,8 @@ namespace Core
                 throw new ArgumentException("Invalid compiled json object", nameof(compiledJson));
 
             dreamVM.ObjectTypeManager = typeManager;
-            StandardLibrary.Register(dreamVM);
+            dreamVM.GameApi = _gameApi;
+            dreamVM.Initialize();
 
             // Load strings
             dreamVM.Strings.Clear();
@@ -98,6 +101,11 @@ namespace Core
                 if (newType.Name == "/list")
                 {
                     dreamVM.ListType = newType;
+                }
+
+                if (newType.Name == "/world" && dreamVM is DreamVM vm6)
+                {
+                    vm6.Context.World = new DreamObject(newType);
                 }
             }
 

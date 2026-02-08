@@ -10,6 +10,8 @@ namespace Shared
         ObjectType? ListType { get; set; }
         IObjectTypeManager? ObjectTypeManager { get; set; }
         IGameState? GameState { get; set; }
+        IGameApi? GameApi { get; set; }
+        void Initialize();
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
     }
 }

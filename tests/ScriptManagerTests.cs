@@ -51,14 +51,14 @@ namespace Core.Tests
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
             var scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
-            var standardLibraryApi = new StandardLibraryApi(spatialQueryApi);
+            var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
             _gameApi = new GameApi(mapApi, objectApi, scriptApi, standardLibraryApi);
 
             var serviceProviderMock = new Mock<IServiceProvider>();
             var scriptHostMock = new Mock<IScriptHost>();
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
-            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, new CompiledJsonService(), _gameState, _dreamVM);
+            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, new CompiledJsonService(_gameApi), _gameState, _dreamVM);
             var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]

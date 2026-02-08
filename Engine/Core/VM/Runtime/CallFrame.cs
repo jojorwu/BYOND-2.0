@@ -9,13 +9,15 @@ namespace Core.VM.Runtime
         public int PC { get; set; }
         public int StackBase { get; }
         public DreamObject? Instance { get; }
+        public bool DiscardReturnValue { get; }
 
-        public CallFrame(DreamProc proc, int pc, int stackBase, DreamObject? instance)
+        public CallFrame(DreamProc proc, int pc, int stackBase, DreamObject? instance, bool discardReturnValue = false)
         {
             Proc = proc;
             PC = pc;
             StackBase = stackBase;
             Instance = instance;
+            DiscardReturnValue = discardReturnValue;
         }
     }
 }

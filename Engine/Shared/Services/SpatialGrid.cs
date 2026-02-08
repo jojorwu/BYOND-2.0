@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -8,7 +9,7 @@ namespace Shared
     public class SpatialGrid : IDisposable
     {
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
-        private readonly Dictionary<(int, int), List<IGameObject>> _grid = new();
+        private readonly Dictionary<long, List<IGameObject>> _grid = new();
         private readonly int _cellSize;
         private readonly ReaderWriterLockSlim _lock = new();
 
@@ -17,9 +18,10 @@ namespace Shared
             _cellSize = cellSize;
         }
 
-        private (int, int) GetCellCoords(int x, int y)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private long GetCellKey(int x, int y)
         {
-            return (x / _cellSize, y / _cellSize);
+            return ((long)(x / _cellSize) << 32) | (uint)(y / _cellSize);
         }
 
         public void Add(IGameObject obj)
@@ -27,11 +29,11 @@ namespace Shared
             _lock.EnterWriteLock();
             try
             {
-                var coords = GetCellCoords(obj.X, obj.Y);
-                if (!_grid.TryGetValue(coords, out var cell))
+                var key = GetCellKey(obj.X, obj.Y);
+                if (!_grid.TryGetValue(key, out var cell))
                 {
                     cell = new List<IGameObject>();
-                    _grid[coords] = cell;
+                    _grid[key] = cell;
                 }
                 cell.Add(obj);
             }
@@ -46,13 +48,13 @@ namespace Shared
             _lock.EnterWriteLock();
             try
             {
-                var coords = GetCellCoords(obj.X, obj.Y);
-                if (_grid.TryGetValue(coords, out var cell))
+                var key = GetCellKey(obj.X, obj.Y);
+                if (_grid.TryGetValue(key, out var cell))
                 {
                     cell.Remove(obj);
                     if (cell.Count == 0)
                     {
-                        _grid.Remove(coords);
+                        _grid.Remove(key);
                     }
                 }
             }
@@ -64,13 +66,36 @@ namespace Shared
 
         public void Update(IGameObject obj, int oldX, int oldY)
         {
-            var oldCoords = GetCellCoords(oldX, oldY);
-            var newCoords = GetCellCoords(obj.X, obj.Y);
+            int oldGX = oldX / _cellSize;
+            int oldGY = oldY / _cellSize;
+            int newGX = obj.X / _cellSize;
+            int newGY = obj.Y / _cellSize;
 
-            if (oldCoords != newCoords)
+            if (oldGX != newGX || oldGY != newGY)
             {
-                Remove(obj);
-                Add(obj);
+                _lock.EnterWriteLock();
+                try
+                {
+                    // Manual remove from old
+                    long oldKey = ((long)oldGX << 32) | (uint)oldGY;
+                    if (_grid.TryGetValue(oldKey, out var oldCell))
+                    {
+                        oldCell.Remove(obj);
+                        if (oldCell.Count == 0) _grid.Remove(oldKey);
+                    }
+                    // Manual add to new
+                    long newKey = ((long)newGX << 32) | (uint)newGY;
+                    if (!_grid.TryGetValue(newKey, out var newCell))
+                    {
+                        newCell = new List<IGameObject>();
+                        _grid[newKey] = newCell;
+                    }
+                    newCell.Add(obj);
+                }
+                finally
+                {
+                    _lock.ExitWriteLock();
+                }
             }
         }
 
@@ -80,17 +105,20 @@ namespace Shared
             var seen = _seenHashSet.Value!;
             seen.Clear();
 
-            var start = GetCellCoords(box.Left, box.Top);
-            var end = GetCellCoords(box.Right, box.Bottom);
+            int startX = box.Left / _cellSize;
+            int startY = box.Top / _cellSize;
+            int endX = box.Right / _cellSize;
+            int endY = box.Bottom / _cellSize;
 
             _lock.EnterReadLock();
             try
             {
-                for (int x = start.Item1; x <= end.Item1; x++)
+                for (int x = startX; x <= endX; x++)
                 {
-                    for (int y = start.Item2; y <= end.Item2; y++)
+                    for (int y = startY; y <= endY; y++)
                     {
-                        if (_grid.TryGetValue((x, y), out var cell))
+                        long key = ((long)x << 32) | (uint)y;
+                        if (_grid.TryGetValue(key, out var cell))
                         {
                             foreach (var obj in cell)
                             {

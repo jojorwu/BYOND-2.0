@@ -16,20 +16,45 @@ namespace Shared
         /// </summary>
         public int Id { get; set; }
 
+        private int _x;
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
-        public int X { get; set; }
+        public int X { get => _x; set { _x = value; SyncVariable("x", value); } }
 
+        private int _y;
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
-        public int Y { get; set; }
+        public int Y { get => _y; set { _y = value; SyncVariable("y", value); } }
 
+        private int _z;
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
-        public int Z { get; set; }
+        public int Z { get => _z; set { _z = value; SyncVariable("z", value); } }
+
+        private IGameObject? _loc;
+        /// <summary>
+        /// Gets or sets the location of the game object.
+        /// </summary>
+        public IGameObject? Loc
+        {
+            get => _loc;
+            set
+            {
+                if (_loc == value) return;
+
+                var oldLoc = _loc as GameObject;
+                _loc = value;
+                var newLoc = value as GameObject;
+
+                oldLoc?.RemoveContentInternal(this);
+                newLoc?.AddContentInternal(this);
+
+                SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+            }
+        }
 
         protected readonly object _contentsLock = new();
         protected readonly List<IGameObject> _contents = new();
@@ -54,7 +79,13 @@ namespace Shared
             lock (_contentsLock)
             {
                 if (!_contents.Contains(obj))
+                {
                     _contents.Add(obj);
+                    if (obj is GameObject gameObj && gameObj.Loc != this)
+                    {
+                        gameObj.Loc = this;
+                    }
+                }
             }
         }
 
@@ -62,8 +93,71 @@ namespace Shared
         {
             lock (_contentsLock)
             {
+                if (_contents.Remove(obj))
+                {
+                    if (obj is GameObject gameObj && gameObj.Loc == this)
+                    {
+                        gameObj.Loc = null;
+                    }
+                }
+            }
+        }
+
+        internal void AddContentInternal(IGameObject obj)
+        {
+            lock (_contentsLock)
+            {
+                if (!_contents.Contains(obj))
+                    _contents.Add(obj);
+            }
+        }
+
+        internal void RemoveContentInternal(IGameObject obj)
+        {
+            lock (_contentsLock)
+            {
                 _contents.Remove(obj);
             }
+        }
+
+        public override DreamValue GetVariable(string name)
+        {
+            switch (name)
+            {
+                case "x": return new DreamValue((float)X);
+                case "y": return new DreamValue((float)Y);
+                case "z": return new DreamValue((float)Z);
+                case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
+                case "name":
+                    var val = base.GetVariable(name);
+                    return !val.IsNull ? val : new DreamValue(ObjectType?.Name ?? "object");
+                default:
+                    return base.GetVariable(name);
+            }
+        }
+
+        public override void SetVariable(string name, DreamValue value)
+        {
+            switch (name)
+            {
+                case "x": X = (int)value.GetValueAsFloat(); break;
+                case "y": Y = (int)value.GetValueAsFloat(); break;
+                case "z": Z = (int)value.GetValueAsFloat(); break;
+                case "loc":
+                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                        Loc = loc;
+                    else
+                        Loc = null;
+                    break;
+                default:
+                    base.SetVariable(name, value);
+                    break;
+            }
+        }
+
+        private void SyncVariable(string name, DreamValue value)
+        {
+            base.SetVariable(name, value);
         }
 
         /// <summary>
@@ -142,6 +236,11 @@ namespace Shared
             X = x;
             Y = y;
             Z = z;
+        }
+
+        public override string ToString()
+        {
+            return ObjectType?.Name ?? "object";
         }
     }
 }

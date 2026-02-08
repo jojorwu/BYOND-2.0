@@ -52,10 +52,16 @@ namespace Shared
         {
             lock (_lock)
             {
-                var values = _variableValues;
-                if (index >= 0 && index < values.Length)
-                    return values[index];
+                return GetVariableDirect(index);
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public DreamValue GetVariableDirect(int index)
+        {
+            var values = _variableValues;
+            if (index >= 0 && index < values.Length)
+                return values[index];
             return DreamValue.Null;
         }
 
@@ -64,9 +70,15 @@ namespace Shared
         {
             lock (_lock)
             {
-                EnsureCapacity(index);
-                _variableValues[index] = value;
+                SetVariableDirect(index, value);
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetVariableDirect(int index, DreamValue value)
+        {
+            EnsureCapacity(index);
+            _variableValues[index] = value;
         }
 
         private void EnsureCapacity(int index)
@@ -75,6 +87,11 @@ namespace Shared
             {
                 System.Array.Resize(ref _variableValues, index + 1);
             }
+        }
+
+        public override string ToString()
+        {
+            return ObjectType?.Name ?? "object";
         }
     }
 }

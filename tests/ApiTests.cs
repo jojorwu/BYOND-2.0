@@ -35,7 +35,7 @@ namespace Core.Tests
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
             _scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, _mapApi);
-            _standardLibraryApi = new StandardLibraryApi(spatialQueryApi);
+            _standardLibraryApi = new StandardLibraryApi(spatialQueryApi, _mapApi);
             _mapApi.SetMap(new Map());
             var turfType = new ObjectType(1, "/turf");
             _objectTypeManager.RegisterObjectType(turfType);

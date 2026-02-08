@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace Shared
 {
     [JsonConverter(typeof(DreamValueConverter))]
-    public readonly struct DreamValue
+    public readonly struct DreamValue : IEquatable<DreamValue>
     {
         public readonly DreamValueType Type;
         private readonly float _floatValue;
@@ -239,23 +239,15 @@ namespace Shared
 
         public override string ToString()
         {
-            if (TryGetValue(out float floatValue))
+            return Type switch
             {
-                return floatValue.ToString(CultureInfo.InvariantCulture);
-            }
-            if (TryGetValue(out string? stringValue))
-            {
-                return stringValue ?? string.Empty;
-            }
-            if (TryGetValue(out DreamObject? dreamObjectValue))
-            {
-                return dreamObjectValue?.ToString() ?? "null";
-            }
-            if (Type == DreamValueType.Null)
-            {
-                return "null";
-            }
-            throw new InvalidOperationException("Invalid DreamValue type");
+                DreamValueType.Float => _floatValue.ToString(CultureInfo.InvariantCulture),
+                DreamValueType.String => (string)_objectValue! ?? string.Empty,
+                DreamValueType.DreamObject => _objectValue?.ToString() ?? string.Empty,
+                DreamValueType.Null => string.Empty,
+                DreamValueType.DreamType => ((ObjectType)_objectValue!).Name,
+                _ => _objectValue?.ToString() ?? string.Empty
+            };
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -278,11 +270,38 @@ namespace Shared
                 return new DreamValue(sA + sB);
             }
 
+            if (a.TryGetValue(out DreamObject? objA) && objA is DreamList listA)
+            {
+                var newList = listA.Clone();
+                if (b.TryGetValue(out DreamObject? objB) && objB is DreamList listB)
+                {
+                    foreach (var val in listB.Values) newList.AddValue(val);
+                }
+                else
+                {
+                    newList.AddValue(b);
+                }
+                return new DreamValue(newList);
+            }
+
             return new DreamValue(a.GetValueAsFloat() + b.GetValueAsFloat());
         }
 
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
+            if (a.TryGetValue(out DreamObject? objA) && objA is DreamList listA)
+            {
+                var newList = listA.Clone();
+                if (b.TryGetValue(out DreamObject? objB) && objB is DreamList listB)
+                {
+                    foreach (var val in listB.Values) newList.RemoveAll(val);
+                }
+                else
+                {
+                    newList.RemoveAll(b);
+                }
+                return new DreamValue(newList);
+            }
             return new DreamValue(a.GetValueAsFloat() - b.GetValueAsFloat());
         }
 
@@ -300,31 +319,33 @@ namespace Shared
             return new DreamValue(a.GetValueAsFloat() / floatB);
         }
 
+        public static DreamValue operator %(DreamValue a, DreamValue b)
+        {
+            var floatB = b.GetValueAsFloat();
+            if (floatB == 0)
+                return new DreamValue(0);
+
+            return new DreamValue(a.GetValueAsFloat() % floatB);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override bool Equals(object? obj)
         {
             return obj is DreamValue other && Equals(other);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(DreamValue other)
         {
             if (Type != other.Type)
                 return false;
 
-            switch (Type)
+            return Type switch
             {
-                case DreamValueType.Null:
-                    return true;
-                case DreamValueType.Float:
-                    return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
-                case DreamValueType.String:
-                case DreamValueType.DreamObject:
-                case DreamValueType.DreamType:
-                case DreamValueType.DreamResource:
-                case DreamValueType.DreamProc:
-                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
-                default:
-                    return false;
-            }
+                DreamValueType.Null => true,
+                DreamValueType.Float => Math.Abs(_floatValue - other._floatValue) < 0.00001f,
+                _ => ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false)
+            };
         }
 
         public override int GetHashCode()
@@ -332,33 +353,53 @@ namespace Shared
             return HashCode.Combine(Type, _floatValue, _objectValue);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            return a.Equals(b);
+            var aType = a.Type;
+            var bType = b.Type;
+            if (aType == bType)
+                return a.Equals(b);
+
+            // DM Parity: null == 0
+            if (aType == DreamValueType.Null && bType == DreamValueType.Float)
+                return b._floatValue == 0;
+            if (bType == DreamValueType.Null && aType == DreamValueType.Float)
+                return a._floatValue == 0;
+
+            return false;
         }
 
         public static bool operator !=(DreamValue a, DreamValue b)
         {
-            return !a.Equals(b);
+            return !(a == b);
         }
 
         public static bool operator >(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) > 0;
             return a.GetValueAsFloat() > b.GetValueAsFloat();
         }
 
         public static bool operator <(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) < 0;
             return a.GetValueAsFloat() < b.GetValueAsFloat();
         }
 
         public static bool operator >=(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) >= 0;
             return a.GetValueAsFloat() >= b.GetValueAsFloat();
         }
 
         public static bool operator <=(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
+                return string.Compare((string)a._objectValue!, (string)b._objectValue!, StringComparison.Ordinal) <= 0;
             return a.GetValueAsFloat() <= b.GetValueAsFloat();
         }
 
@@ -374,22 +415,22 @@ namespace Shared
 
         public static DreamValue operator &(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() & (int)b.GetValueAsFloat());
+            return new DreamValue(((int)a.GetValueAsFloat() & (int)b.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator |(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() | (int)b.GetValueAsFloat());
+            return new DreamValue(((int)a.GetValueAsFloat() | (int)b.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator ^(DreamValue a, DreamValue b)
         {
-            return new DreamValue((int)a.GetValueAsFloat() ^ (int)b.GetValueAsFloat());
+            return new DreamValue(((int)a.GetValueAsFloat() ^ (int)b.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator ~(DreamValue a)
         {
-            return new DreamValue(~(int)a.GetValueAsFloat());
+            return new DreamValue((~(int)a.GetValueAsFloat()) & 0x00FFFFFF);
         }
 
         public static DreamValue operator <<(DreamValue a, DreamValue b)

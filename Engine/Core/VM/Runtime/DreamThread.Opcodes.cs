@@ -492,6 +492,8 @@ namespace Core.VM.Runtime
         {
             var stringId = ReadInt32(proc, ref pc);
             var formatCount = ReadInt32(proc, ref pc);
+            if (stringId < 0 || stringId >= Context.Strings.Count)
+                throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
             var formatString = Context.Strings[stringId];
 
             var values = new DreamValue[formatCount];

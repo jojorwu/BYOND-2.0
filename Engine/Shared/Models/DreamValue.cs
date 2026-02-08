@@ -268,7 +268,7 @@ namespace Shared
                 var sA = a.ToString();
                 var sB = b.ToString();
 
-                if (sA.Length + sB.Length > 67108864)
+                if ((long)sA.Length + sB.Length > 67108864)
                     throw new System.InvalidOperationException("Maximum string length exceeded during concatenation");
 
                 return new DreamValue(sA + sB);

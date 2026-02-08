@@ -16,6 +16,8 @@ namespace Core.VM.Procs
             {
                 if (args.Length > 0 && args[0].TryGetValue(out float seconds))
                 {
+                    if (float.IsNaN(seconds) || float.IsInfinity(seconds)) seconds = 0;
+                    seconds = Math.Clamp(seconds, 0, 864000); // Max 24 hours (864000 deciseconds)
                     thread.Sleep(seconds / 10.0f); // DM sleep is in deciseconds
                 }
                 return DreamValue.Null;

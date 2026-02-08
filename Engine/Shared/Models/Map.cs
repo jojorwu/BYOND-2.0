@@ -6,6 +6,9 @@ namespace Shared
 {
     public class Map : IMap
     {
+        private const int MaxCoordinate = 100000;
+        private const int MaxChunksPerZ = 10000;
+        private const int MaxZLevels = 100;
         private readonly Dictionary<int, Dictionary<Vector2i, Chunk>> _chunksByZ = new();
 
         public Map()
@@ -35,16 +38,21 @@ namespace Shared
 
         public void SetTurf(int x, int y, int z, ITurf turf)
         {
+            if (Math.Abs(x) > MaxCoordinate || Math.Abs(y) > MaxCoordinate || z < 0 || z >= MaxZLevels)
+                return;
+
             var (chunkCoords, localCoords) = GlobalToChunk(x, y);
 
             if (!_chunksByZ.TryGetValue(z, out var chunks))
             {
+                if (_chunksByZ.Count >= MaxZLevels) return;
                 chunks = new Dictionary<Vector2i, Chunk>();
                 _chunksByZ[z] = chunks;
             }
 
             if (!chunks.TryGetValue(chunkCoords, out var chunk))
             {
+                if (chunks.Count >= MaxChunksPerZ) return;
                 chunk = new Chunk();
                 chunks[chunkCoords] = chunk;
             }
@@ -54,11 +62,19 @@ namespace Shared
 
         public void SetChunk(int z, Vector2i chunkCoords, Chunk chunk)
         {
+            if (z < 0 || z >= MaxZLevels) return;
+            if (Math.Abs(chunkCoords.X) > MaxCoordinate / Chunk.ChunkSize || Math.Abs(chunkCoords.Y) > MaxCoordinate / Chunk.ChunkSize)
+                return;
+
             if (!_chunksByZ.TryGetValue(z, out var chunks))
             {
+                if (_chunksByZ.Count >= MaxZLevels) return;
                 chunks = new Dictionary<Vector2i, Chunk>();
                 _chunksByZ[z] = chunks;
             }
+
+            if (!chunks.ContainsKey(chunkCoords) && chunks.Count >= MaxChunksPerZ)
+                return;
 
             chunks[chunkCoords] = chunk;
         }

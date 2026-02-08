@@ -32,6 +32,22 @@ namespace Shared
             }
         }
 
+        public void Populate(ReadOnlySpan<DreamValue> initialValues)
+        {
+            _values.Clear();
+            _valueCounts.Clear();
+            AssociativeValues.Clear();
+
+            if (initialValues.Length > MaxListSize)
+                throw new System.InvalidOperationException("Maximum list size exceeded");
+
+            foreach (var val in initialValues)
+            {
+                _values.Add(val);
+                AddCount(val);
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetValue(DreamValue key, DreamValue value)
         {

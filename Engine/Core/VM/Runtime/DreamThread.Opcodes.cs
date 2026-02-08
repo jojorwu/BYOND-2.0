@@ -236,11 +236,9 @@ namespace Core.VM.Runtime
                 return;
             }
 
-            var values = new DreamValue[count];
-            for (int i = count - 1; i >= 0; i--)
-                values[i] = Pop();
-
-            var result = values[Random.Shared.Next(0, count)];
+            int index = Random.Shared.Next(0, count);
+            var result = _stack[_stackPtr - count + index];
+            _stackPtr -= count;
             Push(result);
         }
 
@@ -255,19 +253,18 @@ namespace Core.VM.Runtime
                 return;
             }
 
-            var values = new (DreamValue Value, float Weight)[count];
             float totalWeight = 0;
-            for (int i = count - 1; i >= 0; i--)
+            int baseIdx = _stackPtr - count * 2;
+            for (int i = 0; i < count; i++)
             {
-                var weight = Pop().GetValueAsFloat();
-                var val = Pop();
-                values[i] = (val, weight);
-                totalWeight += weight;
+                totalWeight += _stack[baseIdx + i * 2 + 1].GetValueAsFloat();
             }
 
             if (totalWeight <= 0)
             {
-                Push(values[0].Value);
+                var result = _stack[baseIdx];
+                _stackPtr -= count * 2;
+                Push(result);
                 return;
             }
 
@@ -275,15 +272,19 @@ namespace Core.VM.Runtime
             float currentWeight = 0;
             for (int i = 0; i < count; i++)
             {
-                currentWeight += values[i].Weight;
+                currentWeight += _stack[baseIdx + i * 2 + 1].GetValueAsFloat();
                 if (pick <= currentWeight)
                 {
-                    Push(values[i].Value);
+                    var result = _stack[baseIdx + i * 2];
+                    _stackPtr -= count * 2;
+                    Push(result);
                     return;
                 }
             }
 
-            Push(values[count - 1].Value);
+            var finalResult = _stack[baseIdx + (count - 1) * 2];
+            _stackPtr -= count * 2;
+            Push(finalResult);
         }
 
         private void Opcode_CreateList(DreamProc proc, ref int pc)
@@ -291,10 +292,12 @@ namespace Core.VM.Runtime
             var size = ReadInt32(proc, ref pc);
             if (size < 0 || size > _stackPtr)
                 throw new ScriptRuntimeException($"Invalid list size: {size}", proc, pc, CallStack);
-            var list = new DreamList(Context.ListType!, size);
-            for (int i = size - 1; i >= 0; i--)
+
+            var list = new DreamList(Context.ListType!, 0);
+            if (size > 0)
             {
-                list.SetValue(i, Pop());
+                list.Populate(_stack.AsSpan(_stackPtr - size, size));
+                _stackPtr -= size;
             }
             Push(new DreamValue(list));
         }
@@ -305,11 +308,16 @@ namespace Core.VM.Runtime
             if (size < 0 || size * 2 > _stackPtr)
                 throw new ScriptRuntimeException($"Invalid associative list size: {size}", proc, pc, CallStack);
             var list = new DreamList(Context.ListType!);
-            for (int i = 0; i < size; i++)
+            if (size > 0)
             {
-                var value = Pop();
-                var key = Pop();
-                list.SetValue(key, value);
+                int baseIdx = _stackPtr - size * 2;
+                for (int i = 0; i < size; i++)
+                {
+                    var key = _stack[baseIdx + i * 2];
+                    var value = _stack[baseIdx + i * 2 + 1];
+                    list.SetValue(key, value);
+                }
+                _stackPtr -= size * 2;
             }
             Push(new DreamValue(list));
         }
@@ -496,17 +504,25 @@ namespace Core.VM.Runtime
             if (count > 1024)
                 throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, CallStack);
 
+            if (count == 0)
+            {
+                Push(new DreamValue(""));
+                return;
+            }
+
+            int baseIdx = _stackPtr - count;
             var strings = new string[count];
             long totalLength = 0;
-            for (int i = count - 1; i >= 0; i--)
+            for (int i = 0; i < count; i++)
             {
-                strings[i] = Pop().ToString();
+                strings[i] = _stack[baseIdx + i].ToString();
                 totalLength += strings[i].Length;
             }
 
             if (totalLength > 67108864)
                 throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, CallStack);
 
+            _stackPtr -= count;
             Push(new DreamValue(string.Concat(strings)));
         }
 

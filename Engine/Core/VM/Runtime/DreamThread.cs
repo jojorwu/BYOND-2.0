@@ -203,6 +203,8 @@ namespace Core.VM.Runtime
                     {
                         var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                         pc += 4;
+                        if (nameId < 0 || nameId >= Context.Strings.Count)
+                            throw new Exception($"Invalid string ID: {nameId}");
                         return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
                     }
                 default:
@@ -250,8 +252,12 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Global:
                     return Context.GetGlobal(reference.Index);
                 case DMReference.Type.Argument:
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length)
+                        throw new ScriptRuntimeException($"Argument index out of bounds: {reference.Index}", frame.Proc, frame.PC, CallStack);
                     return _stack[frame.StackBase + reference.Index];
                 case DMReference.Type.Local:
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount)
+                        throw new ScriptRuntimeException($"Local index out of bounds: {reference.Index}", frame.Proc, frame.PC, CallStack);
                     return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
                 case DMReference.Type.SrcField:
                     {
@@ -301,9 +307,13 @@ namespace Core.VM.Runtime
                     Context.SetGlobal(reference.Index, value);
                     break;
                 case DMReference.Type.Argument:
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length)
+                        throw new ScriptRuntimeException($"Argument index out of bounds: {reference.Index}", frame.Proc, frame.PC, CallStack);
                     _stack[frame.StackBase + reference.Index] = value;
                     break;
                 case DMReference.Type.Local:
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount)
+                        throw new ScriptRuntimeException($"Local index out of bounds: {reference.Index}", frame.Proc, frame.PC, CallStack);
                     _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
                     break;
                 case DMReference.Type.SrcField:
@@ -417,6 +427,8 @@ namespace Core.VM.Runtime
                             {
                                 var stringId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (stringId < 0 || stringId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
                                 var val = new DreamValue(Context.Strings[stringId]);
                                 if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                 _stack[_stackPtr++] = val;
@@ -541,6 +553,9 @@ namespace Core.VM.Runtime
                                 var unusedStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
 
+                                if (argStackDelta < 0 || argStackDelta > _stackPtr)
+                                    throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, CallStack);
+
                                 SavePC(pc);
                                 PerformCall(reference, argType, argStackDelta);
                                 potentiallyChangedStack = true;
@@ -551,6 +566,9 @@ namespace Core.VM.Runtime
                                 var argType = (DMCallArgumentsType)bytecode[pc++];
                                 var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+
+                                if (argStackDelta < 0 || argStackDelta > _stackPtr)
+                                    throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, CallStack);
 
                                 var instance = frame.Instance;
                                 IDreamProc? parentProc = null;
@@ -721,6 +739,8 @@ namespace Core.VM.Runtime
                             {
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (nameId < 0 || nameId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {nameId}", proc, pc, CallStack);
                                 var instance = frame.Instance;
                                 DreamValue val = DreamValue.Null;
                                 if (instance != null)
@@ -737,6 +757,8 @@ namespace Core.VM.Runtime
                             {
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (nameId < 0 || nameId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {nameId}", proc, pc, CallStack);
                                 var val = _stack[--_stackPtr];
                                 if (frame.Instance != null)
                                 {
@@ -754,14 +776,20 @@ namespace Core.VM.Runtime
                                 {
                                     case DMReference.Type.Local:
                                         {
-                                            var val = _stack[frame.StackBase + frame.Proc.Arguments.Length + bytecode[pc++]];
+                                            var index = bytecode[pc++];
+                                            if (index >= frame.Proc.LocalVariableCount)
+                                                throw new ScriptRuntimeException($"Local index out of bounds: {index}", proc, pc, CallStack);
+                                            var val = _stack[frame.StackBase + frame.Proc.Arguments.Length + index];
                                             if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                             _stack[_stackPtr++] = val;
                                         }
                                         break;
                                     case DMReference.Type.Argument:
                                         {
-                                            var val = _stack[frame.StackBase + bytecode[pc++]];
+                                            var index = bytecode[pc++];
+                                            if (index >= frame.Proc.Arguments.Length)
+                                                throw new ScriptRuntimeException($"Argument index out of bounds: {index}", proc, pc, CallStack);
+                                            var val = _stack[frame.StackBase + index];
                                             if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                             _stack[_stackPtr++] = val;
                                         }
@@ -800,10 +828,20 @@ namespace Core.VM.Runtime
                                 switch (refType)
                                 {
                                     case DMReference.Type.Local:
-                                        _stack[frame.StackBase + frame.Proc.Arguments.Length + bytecode[pc++]] = value;
+                                        {
+                                            var index = bytecode[pc++];
+                                            if (index >= frame.Proc.LocalVariableCount)
+                                                throw new ScriptRuntimeException($"Local index out of bounds: {index}", proc, pc, CallStack);
+                                            _stack[frame.StackBase + frame.Proc.Arguments.Length + index] = value;
+                                        }
                                         break;
                                     case DMReference.Type.Argument:
-                                        _stack[frame.StackBase + bytecode[pc++]] = value;
+                                        {
+                                            var index = bytecode[pc++];
+                                            if (index >= frame.Proc.Arguments.Length)
+                                                throw new ScriptRuntimeException($"Argument index out of bounds: {index}", proc, pc, CallStack);
+                                            _stack[frame.StackBase + index] = value;
+                                        }
                                         break;
                                     case DMReference.Type.Global:
                                         Context.SetGlobal(BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc)), value);
@@ -962,6 +1000,8 @@ namespace Core.VM.Runtime
                             {
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (nameId < 0 || nameId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {nameId}", proc, pc, CallStack);
                                 var objValue = _stack[--_stackPtr];
                                 DreamValue val = DreamValue.Null;
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
@@ -1004,9 +1044,14 @@ namespace Core.VM.Runtime
                                 var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
 
+                                if (argStackDelta < 1 || argStackDelta > _stackPtr)
+                                    throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, CallStack);
+
                                 var objValue = _stack[_stackPtr - argStackDelta];
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                 {
+                                    if (nameId < 0 || nameId >= Context.Strings.Count)
+                                        throw new ScriptRuntimeException($"Invalid string ID: {nameId}", proc, pc, CallStack);
                                     var procName = Context.Strings[nameId];
                                     var targetProc = obj.ObjectType?.GetProc(procName);
                                     if (targetProc == null)
@@ -1295,6 +1340,8 @@ namespace Core.VM.Runtime
                                 var reference = ReadReference(bytecode, ref pc);
                                 var fieldNameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (fieldNameId < 0 || fieldNameId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {fieldNameId}", proc, pc, CallStack);
                                 var fieldName = Context.Strings[fieldNameId];
 
                                 var objValue = GetReferenceValue(reference, frame);
@@ -1339,6 +1386,8 @@ namespace Core.VM.Runtime
                                 pc += 4;
                                 var value = BinaryPrimitives.ReadSingleLittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (stringId < 0 || stringId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
                                 if (_stackPtr + 1 >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                 _stack[_stackPtr++] = new DreamValue(Context.Strings[stringId]);
                                 _stack[_stackPtr++] = new DreamValue(value);
@@ -1348,6 +1397,8 @@ namespace Core.VM.Runtime
                             {
                                 var pathId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (pathId < 0 || pathId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {pathId}", proc, pc, CallStack);
                                 Push(new DreamValue(new DreamResource("resource", Context.Strings[pathId])));
                             }
                             break;
@@ -1367,6 +1418,8 @@ namespace Core.VM.Runtime
                             {
                                 var stringId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
+                                if (stringId < 0 || stringId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
                                 var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 var switchValue = _stack[_stackPtr - 1];
                                 if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == Context.Strings[stringId])
@@ -1443,6 +1496,8 @@ namespace Core.VM.Runtime
                             {
                                 var reference = ReadReference(bytecode, ref pc);
                                 var stringId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc)); pc += 4;
+                                if (stringId < 0 || stringId >= Context.Strings.Count)
+                                    throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
                                 var stringValue = new DreamValue(Context.Strings[stringId]);
 
                                 var objValue = GetReferenceValue(reference, frame, 0);

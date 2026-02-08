@@ -228,6 +228,8 @@ namespace Core.VM.Runtime
         private void Opcode_PickUnweighted(DreamProc proc, ref int pc)
         {
             var count = ReadInt32(proc, ref pc);
+            if (count < 0 || count > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid pick count: {count}", proc, pc, CallStack);
             if (count == 0)
             {
                 Push(DreamValue.Null);
@@ -245,6 +247,8 @@ namespace Core.VM.Runtime
         private void Opcode_PickWeighted(DreamProc proc, ref int pc)
         {
             var count = ReadInt32(proc, ref pc);
+            if (count < 0 || count * 2 > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid weighted pick count: {count}", proc, pc, CallStack);
             if (count == 0)
             {
                 Push(DreamValue.Null);
@@ -285,6 +289,8 @@ namespace Core.VM.Runtime
         private void Opcode_CreateList(DreamProc proc, ref int pc)
         {
             var size = ReadInt32(proc, ref pc);
+            if (size < 0 || size > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid list size: {size}", proc, pc, CallStack);
             var list = new DreamList(Context.ListType!, size);
             for (int i = size - 1; i >= 0; i--)
             {
@@ -296,6 +302,8 @@ namespace Core.VM.Runtime
         private void Opcode_CreateAssociativeList(DreamProc proc, ref int pc)
         {
             var size = ReadInt32(proc, ref pc);
+            if (size < 0 || size * 2 > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid associative list size: {size}", proc, pc, CallStack);
             var list = new DreamList(Context.ListType!);
             for (int i = 0; i < size; i++)
             {
@@ -566,6 +574,9 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argStackDelta = ReadInt32(proc, ref pc);
 
+            if (argStackDelta < 1 || argStackDelta > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, CallStack);
+
             var argCount = argStackDelta - 1;
             var values = new DreamValue[argCount];
             for (int i = argCount - 1; i >= 0; i--)
@@ -674,6 +685,9 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argCount = ReadInt32(proc, ref pc);
 
+            if (argCount < 0 || (argType == DMCallArgumentsType.FromStackKeyed ? argCount * 2 : argCount) > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", proc, pc, CallStack);
+
             var values = new (string? Name, float? Value)[argCount];
             if (argType == DMCallArgumentsType.FromStackKeyed)
             {
@@ -699,6 +713,9 @@ namespace Core.VM.Runtime
         {
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argCount = ReadInt32(proc, ref pc);
+
+            if (argCount < 0 || argCount > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid gradient argument count: {argCount}", proc, pc, CallStack);
 
             var values = new DreamValue[argCount];
             for (int i = argCount - 1; i >= 0; i--)

@@ -62,7 +62,7 @@ namespace Core.VM.Procs
 
                 if (args.Length >= 4)
                 {
-                    dist = (int)args[0].GetValueAsFloat();
+                    dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 100);
                     centerX = (int)args[1].GetValueAsFloat();
                     centerY = (int)args[2].GetValueAsFloat();
                     centerZ = (int)args[3].GetValueAsFloat();
@@ -72,14 +72,14 @@ namespace Core.VM.Procs
                     GameObject? center = null;
                     if (args.Length >= 2)
                     {
-                        dist = (int)args[0].GetValueAsFloat();
+                        dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 100);
                         args[1].TryGetValueAsGameObject(out center);
                     }
                     else if (args.Length == 1)
                     {
                         if (!args[0].TryGetValueAsGameObject(out center))
                         {
-                            dist = (int)args[0].GetValueAsFloat();
+                            dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 100);
                         }
                     }
 
@@ -107,14 +107,14 @@ namespace Core.VM.Procs
 
                 if (args.Length >= 2)
                 {
-                    dist = (int)args[0].GetValueAsFloat();
+                    dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 100);
                     args[1].TryGetValueAsGameObject(out viewer);
                 }
                 else if (args.Length == 1)
                 {
                     if (!args[0].TryGetValueAsGameObject(out viewer))
                     {
-                        dist = (int)args[0].GetValueAsFloat();
+                        dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 100);
                     }
                 }
 

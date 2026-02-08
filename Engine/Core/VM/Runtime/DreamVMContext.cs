@@ -5,6 +5,7 @@ namespace Core.VM.Runtime
 {
     public class DreamVMContext
     {
+        private const int MaxGlobals = 1000000;
         private readonly object _globalLock = new();
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
@@ -20,14 +21,16 @@ namespace Core.VM.Runtime
 
         public DreamValue GetGlobal(int index)
         {
+            if (index < 0) return DreamValue.Null;
             lock (_globalLock)
             {
-                return (index >= 0 && index < Globals.Count) ? Globals[index] : DreamValue.Null;
+                return (index < Globals.Count) ? Globals[index] : DreamValue.Null;
             }
         }
 
         public void SetGlobal(int index, DreamValue value)
         {
+            if (index < 0 || index >= MaxGlobals) return;
             lock (_globalLock)
             {
                 while (Globals.Count <= index) Globals.Add(DreamValue.Null);

@@ -29,6 +29,7 @@ namespace Shared
         public void Dispose()
         {
             _lock.Dispose();
+            SpatialGrid.Dispose();
         }
 
         public IEnumerable<IGameObject> GetAllGameObjects()

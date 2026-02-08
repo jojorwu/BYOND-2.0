@@ -84,6 +84,12 @@ namespace Server
                 catch (OperationCanceledException) { }
             }
             _netManager.Stop();
+
+            _listener.ConnectionRequestEvent -= OnConnectionRequest;
+            _listener.PeerConnectedEvent -= OnPeerConnected;
+            _listener.NetworkReceiveEvent -= OnNetworkReceive;
+            _listener.PeerDisconnectedEvent -= OnPeerDisconnected;
+
             _logger.LogInformation("Network service stopped.");
         }
 

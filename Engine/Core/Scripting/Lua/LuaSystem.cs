@@ -63,13 +63,16 @@ namespace Core.Scripting.LuaSystem
 
         public void Reload()
         {
-            _lua?.Close();
+            _lua?.Dispose();
+            _lua = null;
             Initialize();
         }
 
         public void Dispose()
         {
             _lua?.Dispose();
+            _lua = null;
+            GC.SuppressFinalize(this);
         }
 
         public string? ExecuteString(string command)

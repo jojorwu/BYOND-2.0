@@ -24,7 +24,7 @@ namespace Core.VM.Runtime
     /// at the top of the stack. High-frequency opcodes are inlined directly into the
     /// Run() loop to minimize overhead.
     /// </summary>
-    public partial class DreamThread : IScriptThread
+    public partial class DreamThread : IScriptThread, IDisposable
     {
         private const int MaxCallStackDepth = 512;
         private const int MaxStackSize = 65536;
@@ -1799,6 +1799,17 @@ namespace Core.VM.Runtime
 
             _stackPtr = stackPtr;
             return State;
+        }
+
+        public void Dispose()
+        {
+            foreach (var enumerator in ActiveEnumerators.Values)
+            {
+                enumerator.Dispose();
+            }
+            ActiveEnumerators.Clear();
+            EnumeratorLists.Clear();
+            GC.SuppressFinalize(this);
         }
     }
 }

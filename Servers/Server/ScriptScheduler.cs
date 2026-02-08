@@ -50,6 +50,10 @@ namespace Server
                         {
                             nextThreads.Add(dreamThread);
                         }
+                        else
+                        {
+                            dreamThread.Dispose();
+                        }
                     }
                     else
                     {

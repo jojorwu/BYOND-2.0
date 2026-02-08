@@ -69,13 +69,28 @@ namespace Server
 
         public void Stop()
         {
-            _watcher?.Dispose();
-            _debounceTimer?.Dispose();
+            if (_watcher != null)
+            {
+                _watcher.EnableRaisingEvents = false;
+                _watcher.Changed -= OnFileChanged;
+                _watcher.Created -= OnFileChanged;
+                _watcher.Deleted -= OnFileChanged;
+                _watcher.Renamed -= OnFileChanged;
+                _watcher.Dispose();
+                _watcher = null;
+            }
+
+            if (_debounceTimer != null)
+            {
+                _debounceTimer.Dispose();
+                _debounceTimer = null;
+            }
         }
 
         public void Dispose()
         {
             Stop();
+            GC.SuppressFinalize(this);
         }
     }
 }

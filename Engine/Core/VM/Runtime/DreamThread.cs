@@ -434,25 +434,34 @@ namespace Core.VM.Runtime
                                 pc += 4;
                                 if (stringId < 0 || stringId >= Context.Strings.Count)
                                     throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
-                                Push(new DreamValue(Context.Strings[stringId]));
+                                var val = new DreamValue(Context.Strings[stringId]);
+                                if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Maximum stack size exceeded", proc, pc, CallStack);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = val;
                             }
                             break;
                         case Opcode.PushFloat:
                             {
                                 var val = BinaryPrimitives.ReadSingleLittleEndian(bytecode.Slice(pc));
                                 pc += 4;
-                                Push(new DreamValue(val));
+                                var dv = new DreamValue(val);
+                                if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Maximum stack size exceeded", proc, pc, CallStack);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = dv;
                             }
                             break;
                         case Opcode.PushNull:
                             {
-                                Push(DreamValue.Null);
+                                if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Maximum stack size exceeded", proc, pc, CallStack);
+                                if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
+                                _stack[_stackPtr++] = DreamValue.Null;
                             }
                             break;
                         case Opcode.Pop: _stackPtr--; break;
 
                         case Opcode.Add:
                             {
+                                if (_stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Add", proc, pc, CallStack);
                                 var b = _stack[--_stackPtr];
                                 var a = _stack[_stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -463,6 +472,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Subtract:
                             {
+                                if (_stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Subtract", proc, pc, CallStack);
                                 var b = _stack[--_stackPtr];
                                 var a = _stack[_stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -473,6 +483,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Multiply:
                             {
+                                if (_stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Multiply", proc, pc, CallStack);
                                 var b = _stack[--_stackPtr];
                                 var a = _stack[_stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -483,6 +494,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Divide:
                             {
+                                if (_stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Divide", proc, pc, CallStack);
                                 var b = _stack[--_stackPtr];
                                 var a = _stack[_stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)

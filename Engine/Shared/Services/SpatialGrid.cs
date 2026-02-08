@@ -51,7 +51,13 @@ namespace Shared
                 var key = GetCellKey(obj.X, obj.Y);
                 if (_grid.TryGetValue(key, out var cell))
                 {
-                    cell.Remove(obj);
+                    int index = cell.IndexOf(obj);
+                    if (index != -1)
+                    {
+                        int last = cell.Count - 1;
+                        cell[index] = cell[last];
+                        cell.RemoveAt(last);
+                    }
                     if (cell.Count == 0)
                     {
                         _grid.Remove(key);
@@ -80,7 +86,13 @@ namespace Shared
                     long oldKey = ((long)oldGX << 32) | (uint)oldGY;
                     if (_grid.TryGetValue(oldKey, out var oldCell))
                     {
-                        oldCell.Remove(obj);
+                        int index = oldCell.IndexOf(obj);
+                        if (index != -1)
+                        {
+                            int last = oldCell.Count - 1;
+                            oldCell[index] = oldCell[last];
+                            oldCell.RemoveAt(last);
+                        }
                         if (oldCell.Count == 0) _grid.Remove(oldKey);
                     }
                     // Manual add to new
@@ -102,6 +114,12 @@ namespace Shared
         public List<IGameObject> GetObjectsInBox(Box2i box)
         {
             var results = new List<IGameObject>();
+            GetObjectsInBox(box, results);
+            return results;
+        }
+
+        public void GetObjectsInBox(Box2i box, List<IGameObject> results)
+        {
             var seen = _seenHashSet.Value!;
             seen.Clear();
 
@@ -113,7 +131,7 @@ namespace Shared
             // Prevent DoS via huge search area
             if ((long)(endX - startX + 1) * (endY - startY + 1) > 10000)
             {
-                return results; // Or throw an exception
+                return;
             }
 
             _lock.EnterReadLock();
@@ -141,7 +159,6 @@ namespace Shared
             {
                 _lock.ExitReadLock();
             }
-            return results;
         }
 
         public void Dispose()

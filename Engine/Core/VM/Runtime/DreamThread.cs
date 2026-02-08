@@ -69,6 +69,7 @@ namespace Core.VM.Runtime
             SleepUntil = DateTime.Now.AddSeconds(seconds);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Push(DreamValue value)
         {
             if (_stackPtr >= _stack.Length)
@@ -78,12 +79,14 @@ namespace Core.VM.Runtime
             _stack[_stackPtr++] = value;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue Pop()
         {
             if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", CurrentProc, CallStack.Peek().PC, CallStack);
             return _stack[--_stackPtr];
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue Peek()
         {
             if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Peek", CurrentProc, CallStack.Peek().PC, CallStack);
@@ -179,7 +182,7 @@ namespace Core.VM.Runtime
         /// Reads a reference from the bytecode stream.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private DMReference ReadReference(ReadOnlySpan<byte> bytecode, ref int pc)
+        public DMReference ReadReference(ReadOnlySpan<byte> bytecode, ref int pc)
         {
             var refType = (DMReference.Type)bytecode[pc++];
             switch (refType)
@@ -189,15 +192,19 @@ namespace Core.VM.Runtime
                     return new DMReference { RefType = refType, Index = bytecode[pc++] };
                 case DMReference.Type.Global:
                 case DMReference.Type.GlobalProc:
-                    var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
-                    pc += 4;
-                    return new DMReference { RefType = refType, Index = globalIdx };
+                    {
+                        var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+                        pc += 4;
+                        return new DMReference { RefType = refType, Index = globalIdx };
+                    }
                 case DMReference.Type.Field:
                 case DMReference.Type.SrcProc:
                 case DMReference.Type.SrcField:
-                    var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
-                    pc += 4;
-                    return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
+                    {
+                        var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+                        pc += 4;
+                        return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
+                    }
                 default:
                     return new DMReference { RefType = refType };
             }
@@ -218,7 +225,7 @@ namespace Core.VM.Runtime
         /// Resolves a reference to its current value.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private DreamValue GetReferenceValue(DMReference reference, CallFrame frame, int stackOffset = 0)
+        public DreamValue GetReferenceValue(DMReference reference, CallFrame frame, int stackOffset = 0)
         {
             switch (reference.RefType)
             {
@@ -247,12 +254,19 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Local:
                     return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
                 case DMReference.Type.SrcField:
-                    return frame.Instance != null ? frame.Instance.GetVariable(reference.Name) : DreamValue.Null;
+                    {
+                        if (frame.Instance == null) return DreamValue.Null;
+                        int idx = frame.Instance.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
+                        return idx != -1 ? frame.Instance.GetVariableDirect(idx) : frame.Instance.GetVariable(reference.Name);
+                    }
                 case DMReference.Type.Field:
                     {
                         var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
-                            return dreamObject.GetVariable(reference.Name);
+                        {
+                            int idx = dreamObject.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
+                            return idx != -1 ? dreamObject.GetVariableDirect(idx) : dreamObject.GetVariable(reference.Name);
+                        }
                         return DreamValue.Null;
                     }
                 case DMReference.Type.ListIndex:
@@ -279,7 +293,7 @@ namespace Core.VM.Runtime
         /// Updates the value pointed to by a reference.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value, int stackOffset = 0)
+        public void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value, int stackOffset = 0)
         {
             switch (reference.RefType)
             {
@@ -293,13 +307,22 @@ namespace Core.VM.Runtime
                     _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
                     break;
                 case DMReference.Type.SrcField:
-                    frame.Instance?.SetVariable(reference.Name, value);
+                    if (frame.Instance != null)
+                    {
+                        int idx = frame.Instance.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
+                        if (idx != -1) frame.Instance.SetVariableDirect(idx, value);
+                        else frame.Instance.SetVariable(reference.Name, value);
+                    }
                     break;
                 case DMReference.Type.Field:
                     {
                         var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
-                            dreamObject.SetVariable(reference.Name, value);
+                        {
+                            int idx = dreamObject.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
+                            if (idx != -1) dreamObject.SetVariableDirect(idx, value);
+                            else dreamObject.SetVariable(reference.Name, value);
+                        }
                     }
                     break;
                 case DMReference.Type.ListIndex:
@@ -497,16 +520,14 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.CompareEquivalent:
                             {
-                                var b = Pop();
-                                var a = Pop();
-                                Push(a.Equals(b) ? DreamValue.True : DreamValue.False);
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = _stack[_stackPtr - 1].Equals(b) ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareNotEquivalent:
                             {
-                                var b = Pop();
-                                var a = Pop();
-                                Push(!a.Equals(b) ? DreamValue.True : DreamValue.False);
+                                var b = _stack[--_stackPtr];
+                                _stack[_stackPtr - 1] = !_stack[_stackPtr - 1].Equals(b) ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.Negate: _stack[_stackPtr - 1] = -_stack[_stackPtr - 1]; break;
@@ -701,7 +722,13 @@ namespace Core.VM.Runtime
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
                                 var instance = frame.Instance;
-                                DreamValue val = instance != null ? instance.GetVariable(Context.Strings[nameId]) : DreamValue.Null;
+                                DreamValue val = DreamValue.Null;
+                                if (instance != null)
+                                {
+                                    var name = Context.Strings[nameId];
+                                    int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                                    val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                                }
                                 if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
                                 _stack[_stackPtr++] = val;
                             }
@@ -711,7 +738,13 @@ namespace Core.VM.Runtime
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
                                 var val = _stack[--_stackPtr];
-                                frame.Instance?.SetVariable(Context.Strings[nameId], val);
+                                if (frame.Instance != null)
+                                {
+                                    var name = Context.Strings[nameId];
+                                    int idx = frame.Instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                                    if (idx != -1) frame.Instance.SetVariableDirect(idx, val);
+                                    else frame.Instance.SetVariable(name, val);
+                                }
                             }
                             break;
                         case Opcode.PushReferenceValue:
@@ -932,7 +965,11 @@ namespace Core.VM.Runtime
                                 var objValue = _stack[--_stackPtr];
                                 DreamValue val = DreamValue.Null;
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-                                    val = obj.GetVariable(Context.Strings[nameId]);
+                                {
+                                    var name = Context.Strings[nameId];
+                                    int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                                    val = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+                                }
                                 _stack[_stackPtr++] = val;
                             }
                             break;
@@ -1030,45 +1067,31 @@ namespace Core.VM.Runtime
                         case Opcode.IsType:
                             {
                                 var typeValue = _stack[--_stackPtr];
-                                var objValue = _stack[--_stackPtr];
-
-                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null &&
-                                    typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+                                var objValue = _stack[_stackPtr - 1];
+                                bool result = false;
+                                if (objValue.Type == DreamValueType.DreamObject && typeValue.Type == DreamValueType.DreamType)
                                 {
-                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                    _stack[_stackPtr++] = new DreamValue(obj.ObjectType.IsSubtypeOf(type) ? 1 : 0);
+                                    var obj = objValue.GetValueAsDreamObject();
+                                    typeValue.TryGetValue(out ObjectType? type);
+                                    if (obj?.ObjectType != null && type != null)
+                                        result = obj.ObjectType.IsSubtypeOf(type);
                                 }
-                                else
-                                {
-                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                    _stack[_stackPtr++] = new DreamValue(0);
-                                }
+                                _stack[_stackPtr - 1] = result ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.AsType:
                             {
                                 var typeValue = _stack[--_stackPtr];
-                                var objValue = _stack[--_stackPtr];
-
-                                if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null &&
-                                    typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+                                var objValue = _stack[_stackPtr - 1];
+                                bool matches = false;
+                                if (objValue.Type == DreamValueType.DreamObject && typeValue.Type == DreamValueType.DreamType)
                                 {
-                                    if (obj.ObjectType.IsSubtypeOf(type))
-                                    {
-                                        if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                        _stack[_stackPtr++] = objValue;
-                                    }
-                                    else
-                                    {
-                                        if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                        _stack[_stackPtr++] = DreamValue.Null;
-                                    }
+                                    var obj = objValue.GetValueAsDreamObject();
+                                    typeValue.TryGetValue(out ObjectType? type);
+                                    if (obj?.ObjectType != null && type != null)
+                                        matches = obj.ObjectType.IsSubtypeOf(type);
                                 }
-                                else
-                                {
-                                    if (_stackPtr >= _stack.Length) Array.Resize(ref _stack, _stack.Length * 2);
-                                    _stack[_stackPtr++] = DreamValue.Null;
-                                }
+                                _stack[_stackPtr - 1] = matches ? objValue : DreamValue.Null;
                             }
                             break;
                         case Opcode.CreateListEnumerator: Opcode_CreateListEnumerator(proc, ref pc); break;
@@ -1190,8 +1213,7 @@ namespace Core.VM.Runtime
                         case Opcode.Throw:
                             {
                                 var value = _stack[--_stackPtr];
-                                var e = new ScriptRuntimeException(value.ToString(), proc, pc, CallStack);
-                                e.ThrownValue = value;
+                                var e = new ScriptRuntimeException(value.ToString(), proc, pc, CallStack) { ThrownValue = value };
                                 HandleException(e);
                                 potentiallyChangedStack = true;
                             }

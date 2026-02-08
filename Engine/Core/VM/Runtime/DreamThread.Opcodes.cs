@@ -497,10 +497,16 @@ namespace Core.VM.Runtime
                 throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, CallStack);
 
             var strings = new string[count];
+            long totalLength = 0;
             for (int i = count - 1; i >= 0; i--)
             {
                 strings[i] = Pop().ToString();
+                totalLength += strings[i].Length;
             }
+
+            if (totalLength > 67108864)
+                throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, CallStack);
+
             Push(new DreamValue(string.Concat(strings)));
         }
 
@@ -510,6 +516,8 @@ namespace Core.VM.Runtime
             var formatCount = ReadInt32(proc, ref pc);
             if (stringId < 0 || stringId >= Context.Strings.Count)
                 throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
+            if (formatCount < 0 || formatCount > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, CallStack);
             var formatString = Context.Strings[stringId];
 
             var values = new DreamValue[formatCount];
@@ -532,6 +540,8 @@ namespace Core.VM.Runtime
                         {
                             // Basic interpolation for now
                             result.Append(values[valueIndex++].ToString());
+                            if (result.Length > 67108864)
+                                throw new ScriptRuntimeException("Maximum string length exceeded during formatting", proc, pc, CallStack);
                         }
                     }
                     // Handle other macros if needed (The, the, etc.)

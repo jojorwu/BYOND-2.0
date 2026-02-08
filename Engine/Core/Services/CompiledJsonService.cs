@@ -14,6 +14,7 @@ namespace Core
 {
     public class CompiledJsonService : EngineService, ICompiledJsonService
     {
+        private const int MaxLocalVariables = 1024;
         private readonly ILogger<CompiledJsonService>? _logger;
         private readonly IGameApi _gameApi;
 
@@ -63,11 +64,15 @@ namespace Core
                             arguments[i] = procJson.Arguments[i].Name;
                         }
                     }
+                    var localCount = procJson.Locals?.Count ?? 0;
+                    if (localCount > MaxLocalVariables)
+                        throw new Exception($"Procedure {procJson.Name} has too many local variables: {localCount}");
+
                     var newProc = new DreamProc(
                         procJson.Name,
                         bytecode,
                         arguments,
-                        procJson.Locals?.Count ?? 0
+                        localCount
                     );
 
                     if (dreamVM is DreamVM vm2)
@@ -116,7 +121,10 @@ namespace Core
                 var currentType = objectTypes[i];
                 if (typeJson.Parent.HasValue)
                 {
-                    currentType.Parent = objectTypes[typeJson.Parent.Value];
+                    var parentIdx = typeJson.Parent.Value;
+                    if (parentIdx < 0 || parentIdx >= objectTypes.Length)
+                        throw new Exception($"Invalid parent type index: {parentIdx}");
+                    currentType.Parent = objectTypes[parentIdx];
                 }
             }
 
@@ -157,6 +165,9 @@ namespace Core
 
             if (json.Globals != null)
             {
+                if (json.Globals.GlobalCount > 1000000) // Using hardcoded MaxGlobals from DreamVMContext
+                    throw new Exception($"Too many global variables: {json.Globals.GlobalCount}");
+
                 for (int i = 0; i < json.Globals.GlobalCount; i++)
                 {
                     dreamVM.Globals.Add(DreamValue.Null);

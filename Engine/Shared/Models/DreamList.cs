@@ -5,17 +5,23 @@ namespace Shared
 {
     public class DreamList : DreamObject
     {
-        private readonly List<DreamValue> _values = new();
+        private const int MaxListSize = 1000000;
+        private readonly List<DreamValue> _values;
         public IReadOnlyList<DreamValue> Values => _values;
         public Dictionary<DreamValue, DreamValue> AssociativeValues { get; } = new();
         private readonly Dictionary<DreamValue, int> _valueCounts = new();
 
         public DreamList(ObjectType? listType) : base(listType)
         {
+            _values = new List<DreamValue>();
         }
 
         public DreamList(ObjectType? listType, int size) : base(listType)
         {
+            if (size < 0 || size > MaxListSize)
+                throw new System.ArgumentException($"Invalid list size: {size}", nameof(size));
+
+            _values = new List<DreamValue>(size);
             if (size > 0)
             {
                 for (int i = 0; i < size; i++)
@@ -32,6 +38,9 @@ namespace Shared
             AssociativeValues[key] = value;
             if (!_valueCounts.ContainsKey(key))
             {
+                if (_values.Count >= MaxListSize)
+                    throw new System.InvalidOperationException("Maximum list size exceeded");
+
                 _values.Add(key);
                 _valueCounts[key] = 1;
             }
@@ -40,6 +49,9 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddValue(DreamValue value)
         {
+            if (_values.Count >= MaxListSize)
+                throw new System.InvalidOperationException("Maximum list size exceeded");
+
             _values.Add(value);
             AddCount(value);
         }
@@ -66,10 +78,10 @@ namespace Shared
 
         public DreamList Clone()
         {
-            var clone = new DreamList(ObjectType);
-            foreach (var val in _values)
+            var clone = new DreamList(ObjectType, _values.Count);
+            for (int i = 0; i < _values.Count; i++)
             {
-                clone.AddValue(val);
+                clone.SetValue(i, _values[i]);
             }
             foreach (var kvp in AssociativeValues)
             {

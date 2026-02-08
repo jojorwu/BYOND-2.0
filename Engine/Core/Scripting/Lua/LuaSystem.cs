@@ -19,7 +19,8 @@ namespace Core.Scripting.LuaSystem
         public void Initialize()
         {
             _lua = new Lua();
-            _lua.LoadCLRPackage();
+            // Disabling CLR for security
+            // _lua.LoadCLRPackage();
             _lua["Game"] = new LuaGameApi(_gameApi); // Твоя обертка
         }
 

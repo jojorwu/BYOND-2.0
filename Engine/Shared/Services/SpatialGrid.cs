@@ -110,6 +110,12 @@ namespace Shared
             int endX = box.Right / _cellSize;
             int endY = box.Bottom / _cellSize;
 
+            // Prevent DoS via huge search area
+            if ((long)(endX - startX + 1) * (endY - startY + 1) > 10000)
+            {
+                return results; // Or throw an exception
+            }
+
             _lock.EnterReadLock();
             try
             {

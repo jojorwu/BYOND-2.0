@@ -108,7 +108,10 @@ namespace Server
             _context.PerformanceMonitor.RecordBytesReceived(reader.AvailableBytes);
             if (reader.AvailableBytes > 0)
             {
-                var command = reader.GetString();
+                // Safety limit for command length
+                const int MaxCommandLength = 4096;
+                var command = reader.GetString(MaxCommandLength);
+
                 if(_peers.TryGetValue(peer, out var networkPeer))
                     CommandReceived?.Invoke(networkPeer, command);
             }

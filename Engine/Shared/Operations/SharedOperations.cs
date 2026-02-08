@@ -88,6 +88,9 @@ public static class SharedOperations {
     }
 
     public static string ParseRgb((string? Name, float? Value)[] arguments) {
+        if (arguments.Length == 0)
+            throw new Exception("Expected at least 3 arguments for rgb()");
+
         string result;
         float? color1 = null;
         float? color2 = null;

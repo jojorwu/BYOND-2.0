@@ -19,6 +19,23 @@ namespace Core.Scripting.LuaSystem
         public void Initialize()
         {
             _lua = new Lua();
+
+            // Sandbox the environment by nullifying dangerous globals
+            _lua.DoString(@"
+                os = nil
+                io = nil
+                debug = nil
+                package = nil
+                require = nil
+                collectgarbage = nil
+                luanet = nil
+                import = nil
+                dofile = nil
+                loadfile = nil
+                load = nil
+                loadstring = nil
+            ");
+
             // Disabling CLR for security
             // _lua.LoadCLRPackage();
             _lua["Game"] = new LuaGameApi(_gameApi); // Твоя обертка

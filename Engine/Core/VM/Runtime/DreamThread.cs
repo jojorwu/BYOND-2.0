@@ -273,6 +273,7 @@ namespace Core.VM.Runtime
                     }
                 case DMReference.Type.Field:
                     {
+                        if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference access", frame.Proc, 0, CallStack);
                         var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                         {
@@ -283,6 +284,7 @@ namespace Core.VM.Runtime
                     }
                 case DMReference.Type.ListIndex:
                     {
+                        if (_stackPtr - 2 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during ListIndex reference access", frame.Proc, 0, CallStack);
                         var index = _stack[_stackPtr - 1 - stackOffset];
                         var listValue = _stack[_stackPtr - 2 - stackOffset];
                         if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
@@ -330,6 +332,7 @@ namespace Core.VM.Runtime
                     break;
                 case DMReference.Type.Field:
                     {
+                        if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference assignment", frame.Proc, 0, CallStack);
                         var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                         {
@@ -341,6 +344,7 @@ namespace Core.VM.Runtime
                     break;
                 case DMReference.Type.ListIndex:
                     {
+                        if (_stackPtr - 2 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during ListIndex reference assignment", frame.Proc, 0, CallStack);
                         var index = _stack[_stackPtr - 1 - stackOffset];
                         var listValue = _stack[_stackPtr - 2 - stackOffset];
                         if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
@@ -516,48 +520,65 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.CompareNotEquals:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareNotEquals", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1] != b ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareLessThan:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareLessThan", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1] < b ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareGreaterThan:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareGreaterThan", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1] > b ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareLessThanOrEqual:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareLessThanOrEqual", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1] <= b ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareGreaterThanOrEqual:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareGreaterThanOrEqual", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1] >= b ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareEquivalent:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareEquivalent", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1].Equals(b) ? DreamValue.True : DreamValue.False;
                             }
                             break;
                         case Opcode.CompareNotEquivalent:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareNotEquivalent", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = !stack[stackPtr - 1].Equals(b) ? DreamValue.True : DreamValue.False;
                             }
                             break;
-                        case Opcode.Negate: stack[stackPtr - 1] = -stack[stackPtr - 1]; break;
-                        case Opcode.BooleanNot: stack[stackPtr - 1] = stack[stackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False; break;
+                        case Opcode.Negate:
+                            {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Negate", proc, pc, CallStack);
+                                stack[stackPtr - 1] = -stack[stackPtr - 1];
+                            }
+                            break;
+                        case Opcode.BooleanNot:
+                            {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BooleanNot", proc, pc, CallStack);
+                                stack[stackPtr - 1] = stack[stackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False;
+                            }
+                            break;
                         case Opcode.Call:
                             {
                                 var reference = ReadReference(bytecode, ref pc);
@@ -643,6 +664,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.JumpIfFalse:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfFalse", proc, pc, CallStack);
                                 var val = stack[--stackPtr];
                                 var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 if (val.IsFalse())
@@ -706,18 +728,21 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.BitAnd:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitAnd", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] &= b;
                             }
                             break;
                         case Opcode.BitOr:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitOr", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] |= b;
                             }
                             break;
                         case Opcode.BitXor:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitXor", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] ^= b;
                             }
@@ -733,9 +758,15 @@ namespace Core.VM.Runtime
                                 stackPtr = _stackPtr;
                             }
                             break;
-                        case Opcode.BitNot: stack[stackPtr - 1] = ~stack[stackPtr - 1]; break;
+                        case Opcode.BitNot:
+                            {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BitNot", proc, pc, CallStack);
+                                stack[stackPtr - 1] = ~stack[stackPtr - 1];
+                            }
+                            break;
                         case Opcode.BitShiftLeft:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitShiftLeft", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] <<= b;
                             }
@@ -753,6 +784,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.BitShiftRight:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitShiftRight", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] >>= b;
                             }
@@ -892,6 +924,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.JumpIfNull:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfNull", proc, pc, CallStack);
                                 var val = stack[--stackPtr];
                                 var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 if (val.Type == DreamValueType.Null)
@@ -912,6 +945,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.SwitchCase:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during SwitchCase", proc, pc, CallStack);
                                 var caseValue = stack[--stackPtr];
                                 var switchValue = stack[stackPtr - 1];
                                 var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
@@ -923,6 +957,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.SwitchCaseRange:
                             {
+                                if (stackPtr < 3) throw new ScriptRuntimeException("Stack underflow during SwitchCaseRange", proc, pc, CallStack);
                                 var max = stack[--stackPtr];
                                 var min = stack[--stackPtr];
                                 var switchValue = stack[stackPtr - 1];
@@ -935,6 +970,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.BooleanAnd:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BooleanAnd", proc, pc, CallStack);
                                 var val = stack[--stackPtr];
                                 var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 if (val.IsFalse())
@@ -949,6 +985,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.BooleanOr:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BooleanOr", proc, pc, CallStack);
                                 var val = stack[--stackPtr];
                                 var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 if (!val.IsFalse())
@@ -1076,6 +1113,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.DereferenceField:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during DereferenceField", proc, pc, CallStack);
                                 var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
                                 var objValue = stack[--stackPtr];
@@ -1171,6 +1209,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Initial:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Initial", proc, pc, CallStack);
                                 var key = stack[--stackPtr];
                                 var objValue = stack[--stackPtr];
                                 DreamValue result = DreamValue.Null;
@@ -1497,6 +1536,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Spawn:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Spawn", proc, pc, CallStack);
                                 var address = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 var bodyPc = pc + 4;
                                 pc = address; // Skip body in main thread
@@ -1619,6 +1659,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.SwitchOnFloat:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during SwitchOnFloat", proc, pc, CallStack);
                                 var value = BinaryPrimitives.ReadSingleLittleEndian(bytecode.Slice(pc));
                                 pc += 4;
                                 var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
@@ -1631,6 +1672,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.SwitchOnString:
                             {
+                                if (stackPtr < 1) throw new ScriptRuntimeException("Stack underflow during SwitchOnString", proc, pc, CallStack);
                                 var stringId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
                                 var jumpAddress = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));

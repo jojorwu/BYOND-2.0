@@ -28,8 +28,8 @@ namespace tests
         {
             var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
-            thread.CallStack.Pop();
-            thread.CallStack.Push(new CallFrame(proc, 0, 0, instance));
+            thread.PopCallFrame();
+            thread.PushCallFrame(new CallFrame(proc, 0, 0, instance));
             thread.Run(1000);
             return thread.Peek();
         }

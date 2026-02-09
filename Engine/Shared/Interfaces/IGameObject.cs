@@ -43,6 +43,11 @@ namespace Shared
         IEnumerable<IGameObject> Contents { get; }
 
         /// <summary>
+        /// Gets the current version of the object's state.
+        /// </summary>
+        long Version { get; }
+
+        /// <summary>
         /// Updates the object's 3D position in the world.
         /// </summary>
         void SetPosition(int x, int y, int z);

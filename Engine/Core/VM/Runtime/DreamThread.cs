@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Core.VM.Procs;
 using Shared;
@@ -30,13 +31,17 @@ namespace Core.VM.Runtime
         public const int MaxStackSize = 65536;
         internal DreamValue[] _stack = new DreamValue[1024];
         internal int _stackPtr = 0;
-        public Stack<CallFrame> CallStack { get; } = new();
+        internal CallFrame[] _callStack = new CallFrame[64];
+        internal int _callStackPtr = 0;
         public Stack<TryBlock> TryStack { get; } = new();
         public Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators { get; } = new();
         public Dictionary<int, DreamList> EnumeratorLists { get; } = new();
         public int StackCount => _stackPtr;
+        public int CallStackCount => _callStackPtr;
 
-        public DreamProc CurrentProc => CallStack.Peek().Proc;
+        public IEnumerable<CallFrame> CallStack => _callStack.Take(_callStackPtr).Reverse();
+
+        public DreamProc CurrentProc => _callStack[_callStackPtr - 1].Proc;
         public DreamThreadState State { get; internal set; } = DreamThreadState.Running;
         public DateTime SleepUntil { get; internal set; }
         public IGameObject? AssociatedObject { get; }
@@ -64,7 +69,7 @@ namespace Core.VM.Runtime
             _interpreter = other._interpreter;
             AssociatedObject = other.AssociatedObject;
 
-            var currentFrame = other.CallStack.Peek();
+            var currentFrame = other._callStack[other._callStackPtr - 1];
             PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
         }
 
@@ -77,7 +82,7 @@ namespace Core.VM.Runtime
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Push(DreamValue value)
         {
-            if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, CallStack.Peek().PC, CallStack);
+            if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             if (_stackPtr >= _stack.Length)
             {
                 Array.Resize(ref _stack, _stack.Length * 2);
@@ -88,26 +93,26 @@ namespace Core.VM.Runtime
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue Pop()
         {
-            if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", CurrentProc, CallStack.Peek().PC, CallStack);
+            if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             return _stack[--_stackPtr];
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue Peek()
         {
-            if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Peek", CurrentProc, CallStack.Peek().PC, CallStack);
+            if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Peek", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             return _stack[_stackPtr - 1];
         }
 
         public DreamValue Peek(int offset)
         {
-            if (_stackPtr - offset - 1 < 0) throw new ScriptRuntimeException($"Stack underflow during Peek({offset})", CurrentProc, CallStack.Peek().PC, CallStack);
+            if (_stackPtr - offset - 1 < 0) throw new ScriptRuntimeException($"Stack underflow during Peek({offset})", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             return _stack[_stackPtr - offset - 1];
         }
 
         public void PopCount(int count)
         {
-            if (_stackPtr < count) throw new ScriptRuntimeException($"Stack underflow during PopCount({count})", CurrentProc, CallStack.Peek().PC, CallStack);
+            if (_stackPtr < count) throw new ScriptRuntimeException($"Stack underflow during PopCount({count})", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             // Console.WriteLine($"PopCount: {count}, OldPtr: {_stackPtr}, NewPtr: {_stackPtr - count}");
             _stackPtr -= count;
         }
@@ -139,19 +144,28 @@ namespace Core.VM.Runtime
 
         internal void SavePC(int pc)
         {
-            if (CallStack.Count > 0)
+            if (_callStackPtr > 0)
             {
-                var frame = CallStack.Pop();
-                frame.PC = pc;
-                CallStack.Push(frame);
+                _callStack[_callStackPtr - 1].PC = pc;
             }
         }
 
-        private void PushCallFrame(CallFrame frame)
+        public void PushCallFrame(CallFrame frame)
         {
-            if (CallStack.Count >= MaxCallStackDepth)
-                throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, CallStack);
-            CallStack.Push(frame);
+            if (_callStackPtr >= MaxCallStackDepth)
+                throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, this);
+
+            if (_callStackPtr >= _callStack.Length)
+            {
+                Array.Resize(ref _callStack, _callStack.Length * 2);
+            }
+            _callStack[_callStackPtr++] = frame;
+        }
+
+        public CallFrame PopCallFrame()
+        {
+            if (_callStackPtr <= 0) throw new Exception("Call stack underflow");
+            return _callStack[--_callStackPtr];
         }
 
         internal bool HandleException(ScriptRuntimeException e)
@@ -161,10 +175,7 @@ namespace Core.VM.Runtime
                 var tryBlock = TryStack.Pop();
 
                 // Unwind CallStack
-                while (CallStack.Count > tryBlock.CallStackDepth)
-                {
-                    CallStack.Pop();
-                }
+                _callStackPtr = tryBlock.CallStackDepth;
 
                 // Restore stack pointer
                 _stackPtr = tryBlock.StackPointer;
@@ -173,15 +184,12 @@ namespace Core.VM.Runtime
                 if (tryBlock.CatchReference.HasValue)
                 {
                     var catchValue = e.ThrownValue ?? new DreamValue(e.Message);
-                    SetReferenceValue(tryBlock.CatchReference.Value, CallStack.Peek(), catchValue, 0);
+                    SetReferenceValue(tryBlock.CatchReference.Value, _callStack[_callStackPtr - 1], catchValue, 0);
                     PopCount(GetReferenceStackSize(tryBlock.CatchReference.Value));
                 }
 
                 // Jump to catch address
-                var frame = CallStack.Peek();
-                frame.PC = tryBlock.CatchAddress;
-                CallStack.Pop();
-                PushCallFrame(frame);
+                _callStack[_callStackPtr - 1].PC = tryBlock.CatchAddress;
 
                 State = DreamThreadState.Running;
                 return true;
@@ -264,10 +272,10 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Global:
                     return Context.GetGlobal(reference.Index);
                 case DMReference.Type.Argument:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, CallStack);
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
                     return _stack[frame.StackBase + reference.Index];
                 case DMReference.Type.Local:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, CallStack);
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
                     return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
                 case DMReference.Type.SrcField:
                     {
@@ -277,7 +285,7 @@ namespace Core.VM.Runtime
                     }
                 case DMReference.Type.Field:
                     {
-                        if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference access", frame.Proc, 0, CallStack);
+                        if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference access", frame.Proc, 0, this);
                         var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                         {
@@ -288,7 +296,7 @@ namespace Core.VM.Runtime
                     }
                 case DMReference.Type.ListIndex:
                     {
-                        if (_stackPtr - 2 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during ListIndex reference access", frame.Proc, 0, CallStack);
+                        if (_stackPtr - 2 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during ListIndex reference access", frame.Proc, 0, this);
                         var index = _stack[_stackPtr - 1 - stackOffset];
                         var listValue = _stack[_stackPtr - 2 - stackOffset];
                         if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)
@@ -319,11 +327,11 @@ namespace Core.VM.Runtime
                     Context.SetGlobal(reference.Index, value);
                     break;
                 case DMReference.Type.Argument:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, CallStack);
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
                     _stack[frame.StackBase + reference.Index] = value;
                     break;
                 case DMReference.Type.Local:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, CallStack);
+                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
                     _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
                     break;
                 case DMReference.Type.SrcField:
@@ -336,7 +344,7 @@ namespace Core.VM.Runtime
                     break;
                 case DMReference.Type.Field:
                     {
-                        if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference assignment", frame.Proc, 0, CallStack);
+                        if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference assignment", frame.Proc, 0, this);
                         var obj = _stack[_stackPtr - 1 - stackOffset];
                         if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
                         {
@@ -348,7 +356,7 @@ namespace Core.VM.Runtime
                     break;
                 case DMReference.Type.ListIndex:
                     {
-                        if (_stackPtr - 2 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during ListIndex reference assignment", frame.Proc, 0, CallStack);
+                        if (_stackPtr - 2 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during ListIndex reference assignment", frame.Proc, 0, this);
                         var index = _stack[_stackPtr - 1 - stackOffset];
                         var listValue = _stack[_stackPtr - 2 - stackOffset];
                         if (listValue.TryGetValue(out DreamObject? listObj) && listObj is DreamList list)

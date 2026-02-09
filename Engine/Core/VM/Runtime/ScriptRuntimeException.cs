@@ -17,20 +17,24 @@ namespace Core.VM.Runtime
         public IReadOnlyList<CallFrame> CallStack { get; }
         public DreamValue? ThrownValue { get; set; }
 
-        public ScriptRuntimeException(string message, IDreamProc proc, int pc, IEnumerable<CallFrame> callStack)
+        public ScriptRuntimeException(string message, IDreamProc proc, int pc, DreamThread thread)
             : base(FormatMessage(message, proc, pc))
         {
             Proc = proc;
             PC = pc;
-            CallStack = new List<CallFrame>(callStack).AsReadOnly();
+            var list = new List<CallFrame>(thread._callStackPtr);
+            for (int i = 0; i < thread._callStackPtr; i++) list.Add(thread._callStack[i]);
+            CallStack = list.AsReadOnly();
         }
 
-        public ScriptRuntimeException(string message, IDreamProc proc, int pc, IEnumerable<CallFrame> callStack, Exception innerException)
+        public ScriptRuntimeException(string message, IDreamProc proc, int pc, DreamThread thread, Exception innerException)
             : base(FormatMessage(message, proc, pc), innerException)
         {
             Proc = proc;
             PC = pc;
-            CallStack = new List<CallFrame>(callStack).AsReadOnly();
+            var list = new List<CallFrame>(thread._callStackPtr);
+            for (int i = 0; i < thread._callStackPtr; i++) list.Add(thread._callStack[i]);
+            CallStack = list.AsReadOnly();
         }
 
         private static string FormatMessage(string message, IDreamProc proc, int pc)

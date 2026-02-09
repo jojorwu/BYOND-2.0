@@ -261,8 +261,12 @@ namespace Shared
             };
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator +(DreamValue a, DreamValue b)
         {
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                return new DreamValue(a._floatValue + b._floatValue);
+
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
                 var sA = a.ToString();
@@ -274,10 +278,10 @@ namespace Shared
                 return new DreamValue(sA + sB);
             }
 
-            if (a.TryGetValue(out DreamObject? objA) && objA is DreamList listA)
+            if (a.Type == DreamValueType.DreamObject && a._objectValue is DreamList listA)
             {
                 var newList = listA.Clone();
-                if (b.TryGetValue(out DreamObject? objB) && objB is DreamList listB)
+                if (b.Type == DreamValueType.DreamObject && b._objectValue is DreamList listB)
                 {
                     foreach (var val in listB.Values) newList.AddValue(val);
                 }
@@ -291,12 +295,16 @@ namespace Shared
             return new DreamValue(a.GetValueAsFloat() + b.GetValueAsFloat());
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
-            if (a.TryGetValue(out DreamObject? objA) && objA is DreamList listA)
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                return new DreamValue(a._floatValue - b._floatValue);
+
+            if (a.Type == DreamValueType.DreamObject && a._objectValue is DreamList listA)
             {
                 var newList = listA.Clone();
-                if (b.TryGetValue(out DreamObject? objB) && objB is DreamList listB)
+                if (b.Type == DreamValueType.DreamObject && b._objectValue is DreamList listB)
                 {
                     foreach (var val in listB.Values) newList.RemoveAll(val);
                 }
@@ -350,17 +358,22 @@ namespace Shared
         {
             if (Type != other.Type) return false;
 
-            if (Type == DreamValueType.Float)
-                return Math.Abs(_floatValue - other._floatValue) < 0.00001f;
-
-            if (Type == DreamValueType.Null) return true;
-
-            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
+            switch (Type)
+            {
+                case DreamValueType.Float:
+                    return _floatValue == other._floatValue || Math.Abs(_floatValue - other._floatValue) < 0.00001f;
+                case DreamValueType.Null:
+                    return true;
+                default:
+                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
+            }
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Type, _floatValue, _objectValue);
+            if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
+            if (Type == DreamValueType.Null) return 0;
+            return HashCode.Combine(Type, _objectValue);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -368,11 +381,15 @@ namespace Shared
         {
             if (a.Type == b.Type)
             {
-                if (a.Type == DreamValueType.Float)
-                    return Math.Abs(a._floatValue - b._floatValue) < 0.00001f;
-                if (a.Type == DreamValueType.Null)
-                    return true;
-                return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
+                switch (a.Type)
+                {
+                    case DreamValueType.Float:
+                        return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 0.00001f;
+                    case DreamValueType.Null:
+                        return true;
+                    default:
+                        return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
+                }
             }
 
             // DM Parity: null == 0
@@ -498,6 +515,25 @@ namespace Shared
                 _ => false
             };
         }
+
+        public void WriteTo(Utf8JsonWriter writer, JsonSerializerOptions options)
+        {
+            switch (Type)
+            {
+                case DreamValueType.Float:
+                    writer.WriteNumberValue(_floatValue);
+                    break;
+                case DreamValueType.String:
+                    writer.WriteStringValue((string)_objectValue!);
+                    break;
+                case DreamValueType.Null:
+                    writer.WriteNullValue();
+                    break;
+                default:
+                    writer.WriteStringValue(ToString());
+                    break;
+            }
+        }
     }
 
     public class DreamValueConverter : JsonConverter<DreamValue>
@@ -527,22 +563,7 @@ namespace Shared
 
         public override void Write(Utf8JsonWriter writer, DreamValue value, JsonSerializerOptions options)
         {
-            switch (value.Type)
-            {
-                case DreamValueType.Float:
-                    writer.WriteNumberValue(value.AsFloat());
-                    break;
-                case DreamValueType.String:
-                    value.TryGetValue(out string? s);
-                    writer.WriteStringValue(s);
-                    break;
-                case DreamValueType.Null:
-                    writer.WriteNullValue();
-                    break;
-                default:
-                    writer.WriteStringValue(value.ToString());
-                    break;
-            }
+            value.WriteTo(writer, options);
         }
     }
 }

@@ -9,6 +9,7 @@ namespace Shared
         private readonly object _lock = new();
         public ObjectType? ObjectType { get; set; }
         private DreamValue[] _variableValues;
+        public long Version { get; protected set; }
 
         public DreamObject(ObjectType? objectType)
         {
@@ -78,7 +79,11 @@ namespace Shared
         public virtual void SetVariableDirect(int index, DreamValue value)
         {
             EnsureCapacity(index);
-            _variableValues[index] = value;
+            if (!_variableValues[index].Equals(value))
+            {
+                _variableValues[index] = value;
+                Version++;
+            }
         }
 
         private void EnsureCapacity(int index)

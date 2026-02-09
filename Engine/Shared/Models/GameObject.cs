@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Shared
@@ -7,6 +8,7 @@ namespace Shared
     /// <summary>
     /// Represents an object in the game world.
     /// </summary>
+    [JsonConverter(typeof(GameObjectConverter))]
     public class GameObject : DreamObject, IGameObject
     {
         private static int nextId = 1;
@@ -20,19 +22,19 @@ namespace Shared
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
-        public int X { get => _x; set { _x = value; SyncVariable("x", value); } }
+        public int X { get => _x; set { if (_x != value) { _x = value; SyncVariable("x", value); Version++; } } }
 
         private int _y;
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
-        public int Y { get => _y; set { _y = value; SyncVariable("y", value); } }
+        public int Y { get => _y; set { if (_y != value) { _y = value; SyncVariable("y", value); Version++; } } }
 
         private int _z;
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
-        public int Z { get => _z; set { _z = value; SyncVariable("z", value); } }
+        public int Z { get => _z; set { if (_z != value) { _z = value; SyncVariable("z", value); Version++; } } }
 
         private IGameObject? _loc;
         /// <summary>
@@ -272,6 +274,35 @@ namespace Shared
         public override string ToString()
         {
             return ObjectType?.Name ?? "object";
+        }
+    }
+
+    public class GameObjectConverter : JsonConverter<GameObject>
+    {
+        public override GameObject Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            // Minimal implementation for now, primarily used for sending to client
+            return new GameObject();
+        }
+
+        public override void Write(Utf8JsonWriter writer, GameObject value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Id", value.Id);
+            writer.WriteString("TypeName", value.TypeName);
+            writer.WriteStartObject("Properties");
+            if (value.ObjectType != null)
+            {
+                for (int i = 0; i < value.ObjectType.VariableNames.Count; i++)
+                {
+                    var name = value.ObjectType.VariableNames[i];
+                    var val = value.GetVariable(i);
+                    writer.WritePropertyName(name);
+                    val.WriteTo(writer, options);
+                }
+            }
+            writer.WriteEndObject();
+            writer.WriteEndObject();
         }
     }
 }

@@ -77,7 +77,7 @@ namespace Core.VM.Runtime
                         newProc = Context.AllProcs[reference.Index];
                     break;
                 case DMReference.Type.SrcProc:
-                    var frame = CallStack.Peek();
+                    var frame = _callStack[_callStackPtr - 1];
                     instance = frame.Instance;
                     if (instance != null)
                     {
@@ -90,7 +90,7 @@ namespace Core.VM.Runtime
                     break;
                 default:
                     {
-                        var value = GetReferenceValue(reference, CallStack.Peek());
+                        var value = GetReferenceValue(reference, _callStack[_callStackPtr - 1]);
                         if (value.TryGetValue(out IDreamProc? proc))
                         {
                             newProc = proc;
@@ -127,17 +127,17 @@ namespace Core.VM.Runtime
         {
             var returnValue = Pop();
 
-            var returnedFrame = CallStack.Pop();
+            var returnedFrame = PopCallFrame();
             _stackPtr = returnedFrame.StackBase;
 
-            if (CallStack.Count > 0)
+            if (_callStackPtr > 0)
             {
                 if (!returnedFrame.DiscardReturnValue)
                 {
                     Push(returnValue);
                 }
 
-                var newFrame = CallStack.Peek();
+                var newFrame = _callStack[_callStackPtr - 1];
                 proc = newFrame.Proc;
                 pc = newFrame.PC;
             }
@@ -228,7 +228,7 @@ namespace Core.VM.Runtime
         {
             var count = ReadInt32(proc, ref pc);
             if (count < 0 || count > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid pick count: {count}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid pick count: {count}", proc, pc, this);
             if (count == 0)
             {
                 Push(DreamValue.Null);
@@ -245,7 +245,7 @@ namespace Core.VM.Runtime
         {
             var count = ReadInt32(proc, ref pc);
             if (count < 0 || count * 2 > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid weighted pick count: {count}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid weighted pick count: {count}", proc, pc, this);
             if (count == 0)
             {
                 Push(DreamValue.Null);
@@ -290,7 +290,7 @@ namespace Core.VM.Runtime
         {
             var size = ReadInt32(proc, ref pc);
             if (size < 0 || size > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid list size: {size}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid list size: {size}", proc, pc, this);
 
             var list = new DreamList(Context.ListType!, 0);
             if (size > 0)
@@ -305,7 +305,7 @@ namespace Core.VM.Runtime
         {
             var size = ReadInt32(proc, ref pc);
             if (size < 0 || size * 2 > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid associative list size: {size}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid associative list size: {size}", proc, pc, this);
             var list = new DreamList(Context.ListType!);
             if (size > 0)
             {
@@ -344,15 +344,15 @@ namespace Core.VM.Runtime
 
         internal void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount, bool discardReturnValue = false)
         {
-            if (CallStack.Count >= MaxCallStackDepth)
-                throw new ScriptRuntimeException("Maximum call stack depth exceeded", CurrentProc, CallStack.Peek().PC, CallStack);
+            if (_callStackPtr >= MaxCallStackDepth)
+                throw new ScriptRuntimeException("Maximum call stack depth exceeded", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
 
             var stackBase = _stackPtr - stackDelta;
 
             if (newProc is DreamProc dreamProc)
             {
                 var frame = new CallFrame(dreamProc, 0, stackBase, instance, discardReturnValue);
-                CallStack.Push(frame);
+                PushCallFrame(frame);
 
                 for (int i = 0; i < dreamProc.LocalVariableCount; i++)
                 {
@@ -499,9 +499,9 @@ namespace Core.VM.Runtime
         {
             var count = ReadInt32(proc, ref pc);
             if (count < 0 || count > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid concatenation count: {count}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid concatenation count: {count}", proc, pc, this);
             if (count > 1024)
-                throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, this);
 
             if (count == 0)
             {
@@ -519,7 +519,7 @@ namespace Core.VM.Runtime
             }
 
             if (totalLength > 67108864)
-                throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, CallStack);
+                throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, this);
 
             _stackPtr -= count;
             Push(new DreamValue(string.Concat(strings)));
@@ -530,9 +530,9 @@ namespace Core.VM.Runtime
             var stringId = ReadInt32(proc, ref pc);
             var formatCount = ReadInt32(proc, ref pc);
             if (stringId < 0 || stringId >= Context.Strings.Count)
-                throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, this);
             if (formatCount < 0 || formatCount > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, this);
             var formatString = Context.Strings[stringId];
 
             var values = new DreamValue[formatCount];
@@ -556,7 +556,7 @@ namespace Core.VM.Runtime
                             // Basic interpolation for now
                             result.Append(values[valueIndex++].ToString());
                             if (result.Length > 67108864)
-                                throw new ScriptRuntimeException("Maximum string length exceeded during formatting", proc, pc, CallStack);
+                                throw new ScriptRuntimeException("Maximum string length exceeded during formatting", proc, pc, this);
                         }
                     }
                     // Handle other macros if needed (The, the, etc.)
@@ -608,7 +608,7 @@ namespace Core.VM.Runtime
             var argStackDelta = ReadInt32(proc, ref pc);
 
             if (argStackDelta < 1 || argStackDelta > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, this);
 
             var argCount = argStackDelta - 1;
             var values = new DreamValue[argCount];
@@ -722,7 +722,7 @@ namespace Core.VM.Runtime
             var argCount = ReadInt32(proc, ref pc);
 
             if (argCount < 0 || (argType == DMCallArgumentsType.FromStackKeyed ? argCount * 2 : argCount) > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", proc, pc, this);
 
             var values = new (string? Name, float? Value)[argCount];
             if (argType == DMCallArgumentsType.FromStackKeyed)
@@ -751,7 +751,7 @@ namespace Core.VM.Runtime
             var argCount = ReadInt32(proc, ref pc);
 
             if (argCount < 0 || argCount > _stackPtr)
-                throw new ScriptRuntimeException($"Invalid gradient argument count: {argCount}", proc, pc, CallStack);
+                throw new ScriptRuntimeException($"Invalid gradient argument count: {argCount}", proc, pc, this);
 
             var values = new DreamValue[argCount];
             for (int i = argCount - 1; i >= 0; i--)

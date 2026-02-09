@@ -18,6 +18,7 @@ namespace Server
         private readonly IGameState _gameState;
         private readonly IGameStateSnapshotter _gameStateSnapshotter;
         private readonly ServerSettings _settings;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<long, (long AggregateVersion, string Snapshot)> _snapshotCache = new();
 
         public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IOptions<ServerSettings> settings)
         {
@@ -90,8 +91,24 @@ namespace Server
                 var remainingRegionThreads = _scriptHost.ExecuteThreads(threadsForRegion, gameObjects, objectIds: objectIds);
                 nextThreadsCollection.Add(remainingRegionThreads);
 
-                // Broadcast snapshot
-                var snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
+                // Calculate aggregate version for cache check
+                long aggregateVersion = 0;
+                foreach (var obj in gameObjects) aggregateVersion += obj.Version;
+
+                // Use merged region's first region as a cache key for simplicity (or hash of all region coords)
+                long cacheKey = ((long)mergedRegion.Regions[0].Coords.X << 32) | (uint)mergedRegion.Regions[0].Coords.Y;
+
+                string snapshot;
+                if (_snapshotCache.TryGetValue(cacheKey, out var cached) && cached.AggregateVersion == aggregateVersion)
+                {
+                    snapshot = cached.Snapshot;
+                }
+                else
+                {
+                    snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
+                    _snapshotCache[cacheKey] = (aggregateVersion, snapshot);
+                }
+
                 await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
             });
 

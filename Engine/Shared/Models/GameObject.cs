@@ -41,17 +41,22 @@ namespace Shared
         public IGameObject? Loc
         {
             get => _loc;
-            set
+            set => SetLocInternal(value, true);
+        }
+
+        private void SetLocInternal(IGameObject? value, bool syncVariable)
+        {
+            if (_loc == value) return;
+
+            var oldLoc = _loc as GameObject;
+            _loc = value;
+            var newLoc = value as GameObject;
+
+            oldLoc?.RemoveContentInternal(this);
+            newLoc?.AddContentInternal(this);
+
+            if (syncVariable)
             {
-                if (_loc == value) return;
-
-                var oldLoc = _loc as GameObject;
-                _loc = value;
-                var newLoc = value as GameObject;
-
-                oldLoc?.RemoveContentInternal(this);
-                newLoc?.AddContentInternal(this);
-
                 SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
             }
         }
@@ -152,6 +157,32 @@ namespace Shared
                 default:
                     base.SetVariable(name, value);
                     break;
+            }
+        }
+
+        public override void SetVariableDirect(int index, DreamValue value)
+        {
+            base.SetVariableDirect(index, value);
+
+            if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
+            {
+                var name = ObjectType.VariableNames[index];
+                switch (name)
+                {
+                    case "x": _x = (int)value.GetValueAsFloat(); break;
+                    case "y": _y = (int)value.GetValueAsFloat(); break;
+                    case "z": _z = (int)value.GetValueAsFloat(); break;
+                    case "loc":
+                        if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                        {
+                            SetLocInternal(loc, false);
+                        }
+                        else
+                        {
+                            SetLocInternal(null, false);
+                        }
+                        break;
+                }
             }
         }
 

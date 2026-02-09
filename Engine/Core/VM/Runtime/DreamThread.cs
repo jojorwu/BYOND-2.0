@@ -462,6 +462,7 @@ namespace Core.VM.Runtime
 
                         case Opcode.Add:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Add", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 var a = stack[stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -472,6 +473,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Subtract:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Subtract", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 var a = stack[stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -482,6 +484,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Multiply:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Multiply", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 var a = stack[stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -492,6 +495,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Divide:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Divide", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 var a = stack[stackPtr - 1];
                                 if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -505,6 +509,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.CompareEquals:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareEquals", proc, pc, CallStack);
                                 var b = stack[--stackPtr];
                                 stack[stackPtr - 1] = stack[stackPtr - 1] == b ? DreamValue.True : DreamValue.False;
                             }
@@ -676,6 +681,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.Output:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Output", proc, pc, CallStack);
                                 var message = stack[--stackPtr];
                                 var target = stack[--stackPtr];
 
@@ -1086,6 +1092,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.DereferenceIndex:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during DereferenceIndex", proc, pc, CallStack);
                                 var index = stack[--stackPtr];
                                 var objValue = stack[--stackPtr];
                                 DreamValue val = DreamValue.Null;
@@ -1118,6 +1125,7 @@ namespace Core.VM.Runtime
                                 var argStackDelta = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
                                 pc += 4;
 
+                                if (stackPtr < argStackDelta) throw new ScriptRuntimeException("Stack underflow during DereferenceCall", proc, pc, CallStack);
                                 var objValue = stack[stackPtr - argStackDelta];
                                 if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                 {
@@ -1184,6 +1192,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.IsType:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during IsType", proc, pc, CallStack);
                                 var typeValue = stack[--stackPtr];
                                 var objValue = stack[stackPtr - 1];
                                 bool result = false;
@@ -1199,6 +1208,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.AsType:
                             {
+                                if (stackPtr < 2) throw new ScriptRuntimeException("Stack underflow during AsType", proc, pc, CallStack);
                                 var typeValue = stack[--stackPtr];
                                 var objValue = stack[stackPtr - 1];
                                 bool matches = false;
@@ -1432,6 +1442,7 @@ namespace Core.VM.Runtime
                             break;
                         case Opcode.IsInRange:
                             {
+                                if (stackPtr < 3) throw new ScriptRuntimeException("Stack underflow during IsInRange", proc, pc, CallStack);
                                 var max = stack[--stackPtr];
                                 var min = stack[--stackPtr];
                                 var val = stack[--stackPtr];

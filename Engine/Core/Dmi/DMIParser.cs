@@ -372,7 +372,7 @@ public static class DmiParser {
             int equalsIndex = line.IndexOf('=');
 
             if (equalsIndex != -1) {
-                string key = line.Substring(0, equalsIndex-1).Trim();
+                string key = line.Substring(0, equalsIndex).Trim();
                 string value = line.Substring(equalsIndex + 1).Trim();
 
                 switch (key) {
@@ -422,7 +422,7 @@ public static class DmiParser {
                         currentStateFrameCount = 1;
                         currentStateFrameDelays = null;
                         currentState = new ParsedDMIState(stateName, 1);
-                        description.States.TryAdd(stateName, currentState);
+                        description.States[stateName] = currentState;
                         break;
                     case "dirs":
                         if (currentState == null)

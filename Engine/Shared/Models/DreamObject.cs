@@ -75,7 +75,7 @@ namespace Shared
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetVariableDirect(int index, DreamValue value)
+        public virtual void SetVariableDirect(int index, DreamValue value)
         {
             EnsureCapacity(index);
             _variableValues[index] = value;

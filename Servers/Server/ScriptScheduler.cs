@@ -27,18 +27,18 @@ namespace Server
                 }
             }
 
-            var nextThreads = new List<IScriptThread>();
+            var nextThreads = new ConcurrentBag<IScriptThread>();
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            foreach (var thread in threads)
+            Parallel.ForEach(threads, thread =>
             {
                 if (thread is DreamThread dreamThread)
                 {
                     if (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled)
                     {
                         nextThreads.Add(dreamThread);
-                        continue;
+                        return;
                     }
 
                     bool shouldProcess = (processGlobals && dreamThread.AssociatedObject == null) || (dreamThread.AssociatedObject != null && objectIds.Contains(dreamThread.AssociatedObject.Id));
@@ -64,7 +64,7 @@ namespace Server
                 {
                     nextThreads.Add(thread);
                 }
-            }
+            });
 
             return nextThreads;
         }

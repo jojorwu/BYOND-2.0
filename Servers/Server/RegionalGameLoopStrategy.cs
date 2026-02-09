@@ -59,15 +59,18 @@ namespace Server
             var activeRegions = _regionActivationStrategy.GetActiveRegions();
             var mergedRegions = MergeRegions(activeRegions);
 
-            var regionData = new System.Collections.Concurrent.ConcurrentBag<(MergedRegion, string, List<IScriptThread>, HashSet<int>, List<IGameObject>)>();
+            var nextThreadsCollection = new System.Collections.Concurrent.ConcurrentBag<IEnumerable<IScriptThread>>();
+            nextThreadsCollection.Add(remainingGlobals);
+
             var options = new ParallelOptions
             {
                 MaxDegreeOfParallelism = _settings.Performance.RegionalProcessing.MaxThreads > 0
                     ? _settings.Performance.RegionalProcessing.MaxThreads
-                    : -1
+                    : -1,
+                CancellationToken = cancellationToken
             };
 
-            await Parallel.ForEachAsync(mergedRegions, options, (mergedRegion, token) =>
+            await Parallel.ForEachAsync(mergedRegions, options, async (mergedRegion, token) =>
             {
                 var gameObjects = new List<IGameObject>();
                 mergedRegion.GetGameObjects(gameObjects);
@@ -83,26 +86,17 @@ namespace Server
                     }
                 }
 
-                regionData.Add((mergedRegion, _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion), threadsForRegion, objectIds, gameObjects));
-                return ValueTask.CompletedTask;
+                // Execute threads for this region
+                var remainingRegionThreads = _scriptHost.ExecuteThreads(threadsForRegion, gameObjects, objectIds: objectIds);
+                nextThreadsCollection.Add(remainingRegionThreads);
+
+                // Broadcast snapshot
+                var snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
+                await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
             });
 
-            var tasks = new List<Task<IEnumerable<IScriptThread>>>();
-            foreach(var (mergedRegion, snapshot, threadsForRegion, objectIds, gameObjects) in regionData)
-            {
-                tasks.Add(Task.Run(() => _scriptHost.ExecuteThreads(threadsForRegion, gameObjects, objectIds: objectIds), cancellationToken));
-                _ = Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), cancellationToken);
-            }
-
-            var remainingThreadsSet = new HashSet<IScriptThread>(remainingGlobals);
-            foreach (var task in tasks)
-            {
-                foreach (var thread in await task)
-                {
-                    remainingThreadsSet.Add(thread);
-                }
-            }
-            _scriptHost.UpdateThreads(remainingThreadsSet);
+            var finalThreads = nextThreadsCollection.SelectMany(t => t);
+            _scriptHost.UpdateThreads(finalThreads);
         }
 
         internal List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)

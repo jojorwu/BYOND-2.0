@@ -9,6 +9,7 @@ using Shared.Compiler;
 using Core.Objects;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
+using Core.Utils;
 
 namespace Core
 {
@@ -17,10 +18,12 @@ namespace Core
         private const int MaxLocalVariables = 1024;
         private readonly ILogger<CompiledJsonService>? _logger;
         private readonly IGameApi _gameApi;
+        private readonly ITypeSystemPopulator _typeSystemPopulator;
 
-        public CompiledJsonService(IGameApi gameApi, ILogger<CompiledJsonService>? logger = null)
+        public CompiledJsonService(IGameApi gameApi, ITypeSystemPopulator? typeSystemPopulator = null, ILogger<CompiledJsonService>? logger = null)
         {
             _gameApi = gameApi;
+            _typeSystemPopulator = typeSystemPopulator ?? new TypeSystemPopulator();
             _logger = logger;
         }
 
@@ -80,8 +83,6 @@ namespace Core
                         vm2.Context.AllProcs.Add(newProc);
                     }
 
-                    // Global procs are those where OwningTypeId is the root type (or some specific logic)
-                    // For now, let's just use the name for global lookup if it's unique enough or handled elsewhere
                     dreamVM.Procs[newProc.Name] = newProc;
                 }
             }
@@ -99,7 +100,7 @@ namespace Core
                 {
                     foreach (var (key, value) in typeJson.Variables)
                     {
-                        newType.DefaultProperties[key] = ConvertJsonElement(value);
+                        newType.DefaultProperties[key] = JsonValueConverter.ConvertJsonElement(value);
                     }
                 }
 
@@ -114,7 +115,7 @@ namespace Core
                 }
             }
 
-            // Resolve parents and flatten variables
+            // Resolve parents
             for (int i = 0; i < json.Types.Length; i++)
             {
                 var typeJson = json.Types[i];
@@ -142,19 +143,8 @@ namespace Core
                 }
             }
 
-            for (int i = 0; i < json.Types.Length; i++)
-            {
-                var type = objectTypes[i];
-                type.ClearCache();
-                FlattenType(type, objectTypes, json.Types);
-            }
-
-            for (int i = 0; i < json.Types.Length; i++)
-            {
-                var type = objectTypes[i];
-                FlattenProcs(type);
-                type.FinalizeVariables();
-            }
+            // Use the populator to flatten the type system
+            _typeSystemPopulator.PopulateTypes(json.Types, objectTypes);
 
             // Load globals
             dreamVM.Globals.Clear();
@@ -165,7 +155,7 @@ namespace Core
 
             if (json.Globals != null)
             {
-                if (json.Globals.GlobalCount > 1000000) // Using hardcoded MaxGlobals from DreamVMContext
+                if (json.Globals.GlobalCount > 1000000)
                     throw new Exception($"Too many global variables: {json.Globals.GlobalCount}");
 
                 for (int i = 0; i < json.Globals.GlobalCount; i++)
@@ -183,99 +173,9 @@ namespace Core
 
                 foreach (var (id, value) in json.Globals.Globals)
                 {
-                    dreamVM.Globals[id] = DreamValue.FromObject(ConvertJsonElement(value));
+                    dreamVM.Globals[id] = DreamValue.FromObject(JsonValueConverter.ConvertJsonElement(value));
                 }
             }
-        }
-
-        private void FlattenProcs(ObjectType type)
-        {
-            if (type.FlattenedProcs.Count > 0 || type.Name == "/") return;
-
-            if (type.Parent != null)
-            {
-                FlattenProcs(type.Parent);
-                foreach (var (name, proc) in type.Parent.FlattenedProcs)
-                {
-                    type.FlattenedProcs[name] = proc;
-                }
-                foreach (var (name, proc) in type.Parent.Procs)
-                {
-                    type.FlattenedProcs[name] = proc;
-                }
-            }
-        }
-
-        private void FlattenType(ObjectType type, ObjectType[] allTypes, DreamTypeJson[] jsonTypes)
-        {
-            if (type.VariableNames.Count > 0 || type.Name == "/") return;
-
-            if (type.Parent == null && type.Name != "/")
-            {
-                var typeJson = jsonTypes[type.Id];
-                if (typeJson.Parent.HasValue)
-                {
-                    type.Parent = allTypes[typeJson.Parent.Value];
-                }
-            }
-
-            if (type.Parent != null)
-            {
-                FlattenType(type.Parent, allTypes, jsonTypes);
-                type.VariableNames.AddRange(type.Parent.VariableNames);
-                type.FlattenedDefaultValues.AddRange(type.Parent.FlattenedDefaultValues);
-            }
-
-            foreach (var (name, value) in type.DefaultProperties)
-            {
-                int index = type.VariableNames.IndexOf(name);
-                if (index != -1)
-                {
-                    type.FlattenedDefaultValues[index] = value;
-                }
-                else
-                {
-                    type.VariableNames.Add(name);
-                    type.FlattenedDefaultValues.Add(value);
-                }
-            }
-        }
-
-        private object? ConvertJsonElement(object? element)
-        {
-            if (element is JsonElement jsonElement)
-            {
-                switch (jsonElement.ValueKind)
-                {
-                    case JsonValueKind.String:
-                        return jsonElement.GetString() ?? string.Empty;
-                    case JsonValueKind.Number:
-                        if (jsonElement.TryGetInt32(out int intValue))
-                            return intValue;
-                        if (jsonElement.TryGetSingle(out float floatValue))
-                            return floatValue;
-                        return jsonElement.GetDouble();
-                    case JsonValueKind.True:
-                        return true;
-                    case JsonValueKind.False:
-                        return false;
-                    case JsonValueKind.Null:
-                        return null;
-                    case JsonValueKind.Object:
-                        if (jsonElement.TryGetProperty("type", out var typeElement) &&
-                            typeElement.ValueKind == JsonValueKind.Number &&
-                            (JsonVariableType)typeElement.GetInt32() == JsonVariableType.Resource &&
-                            jsonElement.TryGetProperty("resourcePath", out var pathElement) &&
-                            pathElement.ValueKind == JsonValueKind.String)
-                        {
-                            return new DreamResource("resource", pathElement.GetString()!);
-                        }
-                        return jsonElement.ToString();
-                    default:
-                        return jsonElement.ToString();
-                }
-            }
-            return element;
         }
     }
 }

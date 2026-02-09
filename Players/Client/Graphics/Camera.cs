@@ -21,11 +21,11 @@ namespace Client.Graphics
             return translation * scale;
         }
 
-        public Matrix4x4 GetProjectionMatrix(float aspectRatio)
+        public Matrix4x4 GetProjectionMatrix(float width, float height)
         {
-            var width = 1280 * Zoom;
-            var height = 720 * Zoom;
-            return Matrix4x4.CreateOrthographicOffCenter(-width / 2, width / 2, height / 2, -height / 2, 0.1f, 100.0f);
+            var viewWidth = width * Zoom;
+            var viewHeight = height * Zoom;
+            return Matrix4x4.CreateOrthographicOffCenter(-viewWidth / 2, viewWidth / 2, viewHeight / 2, -viewHeight / 2, 0.1f, 100.0f);
         }
     }
 }

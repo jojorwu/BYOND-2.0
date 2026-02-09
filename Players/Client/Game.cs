@@ -180,13 +180,14 @@ new MyShader()
 
                 if (_currentState?.GameObjects != null)
                 {
-                    foreach (var currentObj in _currentState.GameObjects.Values)
+                    // Parallel pre-fetching of assets to leverage multiple cores
+                    Parallel.ForEach(_currentState.GameObjects.Values, currentObj =>
                     {
                         var icon = GetIcon(currentObj);
                         if (!string.IsNullOrEmpty(icon))
                         {
-                            var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                            if(!string.IsNullOrEmpty(dmiPath))
+                            var (dmiPath, _) = _iconCache.ParseIconString(icon);
+                            if (!string.IsNullOrEmpty(dmiPath))
                             {
                                 try
                                 {
@@ -195,11 +196,11 @@ new MyShader()
                                 }
                                 catch (Exception)
                                 {
-                                    // Ignore errors here, they will be handled in OnRender
+                                    // Assets will be handled in OnRender if they fail here
                                 }
                             }
                         }
-                    }
+                    });
                 }
             }
         }
@@ -221,7 +222,7 @@ new MyShader()
                 // Render 3D test
                 _gl.Enable(EnableCap.DepthTest);
                 var view = _camera.GetViewMatrix();
-                var projection = _camera.GetProjectionMatrix((float)_window.FramebufferSize.X / _window.FramebufferSize.Y);
+                var projection = _camera.GetProjectionMatrix((float)_window.FramebufferSize.X, (float)_window.FramebufferSize.Y);
                 var model = Matrix4x4.CreateRotationY(_time) * Matrix4x4.CreateRotationX(_time * 0.5f) * Matrix4x4.CreateScale(100.0f);
 
                 if (_sampleGlShader != null && _sampleCSharpShader != null)
@@ -244,33 +245,63 @@ new MyShader()
 
                 if (_currentState?.GameObjects != null)
                 {
-                    foreach (var currentObj in _currentState.GameObjects.Values)
-                    {
-                        Vector2 renderPos;
+                    // Calculate view bounds for culling (in world/tile units)
+                    var viewWidthTiles = (_window.FramebufferSize.X / _camera.Zoom) / 32.0f;
+                    var viewHeightTiles = (_window.FramebufferSize.Y / _camera.Zoom) / 32.0f;
+                    var cameraTilePos = _camera.Position / 32.0f;
+                    var cullRect = new Box2(
+                        cameraTilePos.X - viewWidthTiles / 2 - 1,
+                        cameraTilePos.Y - viewHeightTiles / 2 - 1,
+                        cameraTilePos.X + viewWidthTiles / 2 + 1,
+                        cameraTilePos.Y + viewHeightTiles / 2 + 1
+                    );
 
+                    // Prepare data for optimized culling
+                    var gameObjects = new List<GameObject>(_currentState.GameObjects.Values);
+                    var positions = new Vector2[gameObjects.Count];
+                    var visibilityMask = new byte[gameObjects.Count];
+
+                    // Parallel position calculation and interpolation
+                    Parallel.For(0, gameObjects.Count, i =>
+                    {
+                        var currentObj = gameObjects[i];
                         var currentPosition = GetPosition(currentObj);
+
                         if (_previousState?.GameObjects != null && _previousState.GameObjects.TryGetValue(currentObj.Id, out var previousObj))
                         {
-                            var previousPosition = GetPosition(previousObj);
-                            renderPos = Vector2.Lerp(previousPosition, currentPosition, _alpha);
+                            positions[i] = Vector2.Lerp(GetPosition(previousObj), currentPosition, _alpha);
                         }
                         else
                         {
-                            renderPos = currentPosition;
+                            positions[i] = currentPosition;
                         }
+                    });
 
+                    // Optimized visibility culling
+                    VisibilityCuller.CalculateVisibilityOptimized(positions, cullRect, visibilityMask);
+
+                    // Parallel command generation for visible objects
+                    Parallel.For(0, gameObjects.Count, i =>
+                    {
+                        if (visibilityMask[i] == 0) return;
+
+                        var currentObj = gameObjects[i];
+                        var renderPos = positions[i];
+
+                        var layer = GetLayer(currentObj);
                         var icon = GetIcon(currentObj);
+
                         if (!string.IsNullOrEmpty(icon))
                         {
                             var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                            if(!string.IsNullOrEmpty(dmiPath))
+                            if (!string.IsNullOrEmpty(dmiPath))
                             {
                                 try
                                 {
                                     var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
                                     var dmi = _dmiCache.GetDmi(dmiPath, texture);
                                     var state = dmi.Description.GetStateOrDefault(stateName);
-                                    if(state != null)
+                                    if (state != null)
                                     {
                                         var frame = state.GetFrames(AtomDirection.South)[0];
                                         var uv = new Box2(
@@ -280,20 +311,24 @@ new MyShader()
                                             (float)(frame.Y + dmi.Description.Height) / dmi.Height
                                         );
 
-                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, GetLayer(currentObj));
+                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, layer);
                                     }
                                 }
                                 catch (Exception)
                                 {
-                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red, GetLayer(currentObj)); // Draw red square on error
+                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red, layer);
                                 }
-                            } else {
-                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta, GetLayer(currentObj)); // Draw magenta square for missing dmi
                             }
-                        } else {
-                             _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White, GetLayer(currentObj));
+                            else
+                            {
+                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta, layer);
+                            }
                         }
-                    }
+                        else
+                        {
+                            _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White, layer);
+                        }
+                    });
                 }
 
                 _spriteRenderer.End();

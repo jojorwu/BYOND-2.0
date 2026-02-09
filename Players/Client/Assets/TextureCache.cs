@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Client.Graphics;
 using Silk.NET.OpenGL;
 using Shared.Services;
@@ -9,8 +12,9 @@ namespace Client.Assets
 {
     public class TextureCache : EngineService, IDisposable
     {
-        private readonly Dictionary<string, Texture> Cache = new();
+        private readonly ConcurrentDictionary<string, Texture> Cache = new();
         private GL? _gl;
+        private readonly object _glLock = new();
 
         public void SetGL(GL gl)
         {
@@ -21,14 +25,13 @@ namespace Client.Assets
         {
             if (_gl == null) throw new InvalidOperationException("TextureCache not initialized with GL context.");
 
-            if (Cache.TryGetValue(path, out var texture))
+            return Cache.GetOrAdd(path, p =>
             {
-                return texture;
-            }
-
-            texture = new Texture(_gl, "assets/" + path);
-            Cache[path] = texture;
-            return texture;
+                lock (_glLock)
+                {
+                    return new Texture(_gl, "assets/" + p);
+                }
+            });
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)

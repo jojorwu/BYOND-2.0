@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using Client.Graphics;
@@ -8,19 +10,18 @@ namespace Client.Assets
 {
     public class DmiCache : EngineService
     {
-        private readonly Dictionary<string, DmiAsset> Cache = new();
+        private readonly ConcurrentDictionary<string, Lazy<DmiAsset>> Cache = new();
 
         public DmiAsset GetDmi(string path, Texture texture)
         {
-            if (Cache.TryGetValue(path, out var dmi))
+            var lazy = Cache.GetOrAdd(path, p => new Lazy<DmiAsset>(() =>
             {
-                return dmi;
-            }
+                using var stream = File.OpenRead("assets/" + p);
+                var dmiDescription = DmiParser.ParseDMI(stream);
+                return new DmiAsset(texture.Id, texture.Width, texture.Height, dmiDescription);
+            }));
 
-            var dmiDescription = DmiParser.ParseDMI(File.OpenRead("assets/" + path));
-            var dmiAsset = new DmiAsset(texture.Id, texture.Width, texture.Height, dmiDescription);
-            Cache[path] = dmiAsset;
-            return dmiAsset;
+            return lazy.Value;
         }
     }
 }

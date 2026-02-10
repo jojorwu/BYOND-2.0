@@ -27,6 +27,7 @@ namespace Client.Graphics
     public struct SpriteDrawCommand
     {
         public uint TextureId;
+        public uint NormalMapId;
         public Box2 Uv;
         public Vector2 Position;
         public Vector2 Size;
@@ -45,7 +46,8 @@ namespace Client.Graphics
                 // but standard Sort uses this as a signed long comparison anyway.
                 long p = (long)(Plane + 32768) & 0xFFFF;
                 long l = (long)(Layer * 10000) & 0xFFFFFFFF;
-                return (p << 48) | (l << 16) | (TextureId & 0xFFFF);
+                // Include NormalMapId in sort key to minimize switches
+                return (p << 48) | (l << 16) | ((TextureId ^ NormalMapId) & 0xFFFF);
             }
         }
     }
@@ -72,6 +74,7 @@ namespace Client.Graphics
         private int _mergedCommandCount = 0;
 
         private uint _activeTextureId;
+        private uint _activeNormalMapId;
         private Box2? _activeScissor;
 
         public SpriteRenderer(GL gl)
@@ -145,11 +148,12 @@ namespace Client.Graphics
             }
         }
 
-        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0, Box2? scissor = null, float rotation = 0)
+        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0, Box2? scissor = null, float rotation = 0, uint normalMapId = 0)
         {
             _threadLocalCommands.Value!.Add(new SpriteDrawCommand
             {
                 TextureId = textureId,
+                NormalMapId = normalMapId,
                 Uv = uv,
                 Position = position,
                 Size = size,
@@ -190,16 +194,18 @@ namespace Client.Graphics
             commandSpan.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
 
             _activeTextureId = _mergedCommands[0].TextureId;
+            _activeNormalMapId = _mergedCommands[0].NormalMapId;
             _activeScissor = _mergedCommands[0].Scissor;
             _vertexCount = 0;
 
             for (int i = 0; i < _mergedCommandCount; i++)
             {
                 var cmd = _mergedCommands[i];
-                if (cmd.TextureId != _activeTextureId || cmd.Scissor != _activeScissor || _vertexCount + 4 > MaxVertices)
+                if (cmd.TextureId != _activeTextureId || cmd.NormalMapId != _activeNormalMapId || cmd.Scissor != _activeScissor || _vertexCount + 4 > MaxVertices)
                 {
                     Flush();
                     _activeTextureId = cmd.TextureId;
+                    _activeNormalMapId = cmd.NormalMapId;
                     _activeScissor = cmd.Scissor;
                 }
 
@@ -256,6 +262,15 @@ namespace Client.Graphics
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, _activeTextureId);
             _shader.SetUniform("uTexture", 0);
+
+            if (_activeNormalMapId != 0) {
+                _gl.ActiveTexture(TextureUnit.Texture1);
+                _gl.BindTexture(TextureTarget.Texture2D, _activeNormalMapId);
+                _shader.SetUniform("uNormalMap", 1);
+                _shader.SetUniform("uHasNormalMap", 1);
+            } else {
+                _shader.SetUniform("uHasNormalMap", 0);
+            }
 
             _gl.BindVertexArray(_vao);
 

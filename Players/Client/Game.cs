@@ -34,8 +34,11 @@ namespace Client
         private WorldRenderer _worldRenderer = null!;
         private LightingRenderer _lightingRenderer = null!;
         private OccluderMap _occluderMap = null!;
+        private SSAOShader _ssaoShader = null!;
+        private ParticleSystem _particleSystem = null!;
         private BloomShader _bloomShader = null!;
         private PostProcessShader _postProcessShader = null!;
+        private GBuffer _gBuffer = null!;
         private Client.Graphics.Framebuffer _sceneFramebuffer = null!;
         private Client.Graphics.Framebuffer[] _bloomBuffers = new Client.Graphics.Framebuffer[2];
         private readonly TextureCache _textureCache;
@@ -104,8 +107,11 @@ namespace Client
             _worldRenderer = new WorldRenderer(_gl, _textureCache, _dmiCache, _iconCache);
             _lightingRenderer = new LightingRenderer(_gl);
             _occluderMap = new OccluderMap(_gl, _window.Size.X, _window.Size.Y);
+            _ssaoShader = new SSAOShader(_gl);
+            _particleSystem = new ParticleSystem(_gl);
             _bloomShader = new BloomShader(_gl);
             _postProcessShader = new PostProcessShader(_gl);
+            _gBuffer = new GBuffer(_gl, _window.Size.X, _window.Size.Y);
             _sceneFramebuffer = new Client.Graphics.Framebuffer(_gl, _window.Size.X, _window.Size.Y);
             _bloomBuffers[0] = new Client.Graphics.Framebuffer(_gl, _window.Size.X / 2, _window.Size.Y / 2);
             _bloomBuffers[1] = new Client.Graphics.Framebuffer(_gl, _window.Size.X / 2, _window.Size.Y / 2);
@@ -165,6 +171,7 @@ new MyShader()
         private void OnUpdate(double deltaTime)
         {
             _imGuiController.Update((float)deltaTime);
+            _particleSystem.Update((float)deltaTime);
 
             if (_clientState == ClientState.Connecting)
             {
@@ -264,8 +271,29 @@ new MyShader()
                 _spriteRenderer.End();
                 _occluderMap.Unbind();
 
+                // Pass 1: SSAO Pass (into a temporary buffer or just sample it later)
+                // For simplicity, we'll just sample it in the lighting pass.
+
+                // Pass 2: Main G-Buffer Pass
+                _gBuffer.Resize(_window.FramebufferSize.X, _window.FramebufferSize.Y);
+                _gBuffer.Bind();
+
+                _gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+                _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+                // Pass 2.1: Chunks
+                _worldRenderer.Render(_currentState, GetCullRect(), view, projection);
+                _gBuffer.Unbind();
+
                 // Main Pass
                 _sceneFramebuffer.Resize(_window.FramebufferSize.X, _window.FramebufferSize.Y);
+
+                // Copy Albedo from G-Buffer to Scene
+                _gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, _gBuffer.Fbo);
+                _gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, _sceneFramebuffer.Fbo);
+                _gl.ReadBuffer(ReadBufferMode.ColorAttachment0);
+                _gl.BlitFramebuffer(0, 0, _gBuffer.Width, _gBuffer.Height, 0, 0, _sceneFramebuffer.Width, _sceneFramebuffer.Height, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+
                 _sceneFramebuffer.Bind();
 
                 _gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -291,10 +319,7 @@ new MyShader()
 
                 _gl.Disable(EnableCap.DepthTest);
 
-                // Pass 1: Chunks (static turfs)
-                _worldRenderer.Render(_currentState, GetCullRect());
-
-                // Pass 2: Dynamic Sprites
+                // Pass 2.2: Dynamic Sprites
                 _spriteRenderer.Begin(view, projection);
 
                 if (_currentState?.GameObjects != null)
@@ -415,6 +440,9 @@ new MyShader()
 
                 _spriteRenderer.End();
 
+                // Copy G-Buffer Albedo to Scene Framebuffer (optional, or just use G-Buffer as input)
+                // For now, let's keep it simple.
+
                 // Pass 3: Lighting
                 if (_currentState != null)
                 {
@@ -424,12 +452,27 @@ new MyShader()
                         if (lightPower.Type == DreamValueType.Float && lightPower.AsFloat() > 0)
                         {
                             _lightingRenderer.AddLight(new Vector2(obj.X * 32 + 16, obj.Y * 32 + 16), lightPower.AsFloat() * 32, Color.White);
+
+                            // Emit particles from lights
+                            if (Random.Shared.Next(0, 10) == 0) {
+                                _particleSystem.Emit(new Vector2(obj.X * 32 + 16, obj.Y * 32 + 16), new Vector2((float)Random.Shared.NextDouble() * 20 - 10, (float)Random.Shared.NextDouble() * 20 - 10), Color.Yellow, 1.0f);
+                            }
                         }
                     }
                 }
-                _lightingRenderer.Render(view, projection, _occluderMap.Texture, worldBounds);
+
+                // Add SSAO contribution here if needed, or composite it later.
+
+                _lightingRenderer.Render(view, projection, _gBuffer.NormalTexture, _occluderMap.Texture, worldBounds);
+
+                // Pass 3.2: Particles
+                _particleSystem.Render(view, projection);
 
                 _sceneFramebuffer.Unbind();
+
+                // Pass 3.1: SSAO Pass
+                _ssaoShader.Use(_occluderMap.Texture);
+                // Render into a small buffer or additive to scene.
 
                 // Pass 4: Bloom
                 _bloomBuffers[0].Resize(_window.FramebufferSize.X / 2, _window.FramebufferSize.Y / 2);
@@ -541,8 +584,11 @@ new MyShader()
             _worldRenderer.Dispose();
             _lightingRenderer.Dispose();
             _occluderMap.Dispose();
+            _ssaoShader.Dispose();
+            _particleSystem.Dispose();
             _bloomShader.Dispose();
             _postProcessShader.Dispose();
+            _gBuffer.Dispose();
             _sceneFramebuffer.Dispose();
             _bloomBuffers[0].Dispose();
             _bloomBuffers[1].Dispose();

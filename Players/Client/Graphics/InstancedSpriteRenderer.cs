@@ -12,14 +12,14 @@ namespace Client.Graphics
         private readonly GL _gl;
         private readonly Shader _shader;
         private readonly uint _vao;
-        private readonly uint _vbo; // Quad vertices
-        private readonly uint _instanceVbo; // Instance data (Position, UV, Color)
+        private readonly uint _vbo;
+        private readonly uint _instanceVbo;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct InstanceData
         {
-            public Vector4 Rect; // X, Y, Width, Height
-            public Vector4 Uv;   // Left, Top, Right, Bottom
+            public Vector4 Rect;
+            public Vector4 Uv;
             public Color Color;
         }
 
@@ -37,22 +37,29 @@ layout (location = 1) in vec4 iRect;
 layout (location = 2) in vec4 iUv;
 layout (location = 3) in vec4 iColor;
 out vec2 TexCoords;
-out vec4 Color;
+out vec4 vColor;
 uniform mat4 uProjection;
 uniform mat4 uView;
 void main() {
     vec2 worldPos = iRect.xy + aPos * iRect.zw;
     TexCoords = iUv.xy + aPos * (iUv.zw - iUv.xy);
-    Color = iColor;
+    vColor = iColor;
     gl_Position = uProjection * uView * vec4(worldPos, 0.0, 1.0);
 }";
             string frag = @"#version 330 core
-out vec4 FragColor;
+layout (location = 0) out vec4 gAlbedo;
+layout (location = 1) out vec4 gNormal;
 in vec2 TexCoords;
-in vec4 Color;
+in vec4 vColor;
 uniform sampler2D uTexture;
+uniform sampler2D uNormalMap;
+uniform bool uHasNormalMap;
 void main() {
-    FragColor = texture(uTexture, TexCoords) * Color;
+    vec4 texColor = texture(uTexture, TexCoords);
+    if(texColor.a < 0.01) discard;
+    gAlbedo = texColor * vColor;
+    if(uHasNormalMap) gNormal = texture(uNormalMap, TexCoords);
+    else gNormal = vec4(0.5, 0.5, 1.0, 1.0);
 }";
 
             _shader = new Shader(_gl, vert, frag);
@@ -77,17 +84,14 @@ void main() {
             unsafe {
                 _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxInstances * sizeof(InstanceData)), null, BufferUsageARB.DynamicDraw);
 
-                // Location 1: iRect
                 _gl.EnableVertexAttribArray(1);
                 _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)0);
                 _gl.VertexAttribDivisor(1, 1);
 
-                // Location 2: iUv
                 _gl.EnableVertexAttribArray(2);
                 _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)16);
                 _gl.VertexAttribDivisor(2, 1);
 
-                // Location 3: iColor
                 _gl.EnableVertexAttribArray(3);
                 _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)32);
                 _gl.VertexAttribDivisor(3, 1);
@@ -96,9 +100,9 @@ void main() {
             _gl.BindVertexArray(0);
         }
 
-        public void Draw(uint textureId, Vector2 position, Vector2 size, Box2 uv, Color color, Matrix4x4 view, Matrix4x4 projection)
+        public void Draw(uint textureId, Vector2 position, Vector2 size, Box2 uv, Color color, Matrix4x4 view, Matrix4x4 projection, uint normalMapId = 0)
         {
-            if (_instanceCount >= MaxInstances) Flush(textureId, view, projection);
+            if (_instanceCount >= MaxInstances) Flush(textureId, view, projection, normalMapId);
 
             _instanceData[_instanceCount++] = new InstanceData {
                 Rect = new Vector4(position.X, position.Y, size.X, size.Y),
@@ -107,16 +111,26 @@ void main() {
             };
         }
 
-        public unsafe void Flush(uint textureId, Matrix4x4 view, Matrix4x4 projection)
+        public unsafe void Flush(uint textureId, Matrix4x4 view, Matrix4x4 projection, uint normalMapId = 0)
         {
             if (_instanceCount == 0) return;
 
             _shader.Use();
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
+
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, textureId);
             _shader.SetUniform("uTexture", 0);
+
+            if (normalMapId != 0) {
+                _gl.ActiveTexture(TextureUnit.Texture1);
+                _gl.BindTexture(TextureTarget.Texture2D, normalMapId);
+                _shader.SetUniform("uNormalMap", 1);
+                _shader.SetUniform("uHasNormalMap", 1);
+            } else {
+                _shader.SetUniform("uHasNormalMap", 0);
+            }
 
             _gl.BindVertexArray(_vao);
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);

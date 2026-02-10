@@ -59,6 +59,14 @@ namespace Client.Graphics
             }
         }
 
+        public void BlitTo(Framebuffer other)
+        {
+            _gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, Fbo);
+            _gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, other.Fbo);
+            _gl.BlitFramebuffer(0, 0, Width, Height, 0, 0, other.Width, other.Height, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        }
+
         public void Dispose()
         {
             _gl.DeleteFramebuffer(Fbo);

@@ -15,6 +15,7 @@ namespace Client.Graphics
     public class WorldRenderer : IDisposable
     {
         private readonly GL _gl;
+        private readonly Shader _chunkShader;
         private readonly TextureCache _textureCache;
         private readonly DmiCache _dmiCache;
         private readonly IconCache _iconCache;
@@ -27,12 +28,40 @@ namespace Client.Graphics
         public WorldRenderer(GL gl, TextureCache textureCache, DmiCache dmiCache, IconCache iconCache)
         {
             _gl = gl;
+
+            string vert = @"#version 330 core
+layout (location = 0) in vec2 aPos;
+layout (location = 1) in vec2 aTexCoords;
+layout (location = 2) in vec4 aColor;
+out vec2 TexCoord;
+out vec4 vColor;
+uniform mat4 uProjection;
+uniform mat4 uView;
+void main() {
+    TexCoord = aTexCoords;
+    vColor = aColor;
+    gl_Position = uProjection * uView * vec4(aPos, 0.0, 1.0);
+}";
+            string frag = @"#version 330 core
+layout (location = 0) out vec4 gAlbedo;
+layout (location = 1) out vec4 gNormal;
+in vec2 TexCoord;
+in vec4 vColor;
+uniform sampler2D uTexture;
+void main() {
+    vec4 texColor = texture(uTexture, TexCoord);
+    if(texColor.a < 0.01) discard;
+    gAlbedo = texColor * vColor;
+    gNormal = vec4(0.5, 0.5, 1.0, 1.0);
+}";
+            _chunkShader = new Shader(_gl, vert, frag);
+
             _textureCache = textureCache;
             _dmiCache = dmiCache;
             _iconCache = iconCache;
         }
 
-        public void Render(GameState state, Box2 cullRect)
+        public void Render(GameState state, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             ProcessPendingUploads();
             UpdateVisibleChunks(cullRect);
@@ -52,6 +81,13 @@ namespace Client.Graphics
                     var stateClone = state; // GameState is usually immutable or snapshotted
                     Task.Run(() => RebuildChunkTask(chunk, stateClone));
                 }
+
+                _chunkShader.Use();
+                _chunkShader.SetUniform("uView", view);
+                _chunkShader.SetUniform("uProjection", projection);
+                // Note: Each chunk might have multiple textures.
+                // For simplified BYOND turfs, we assume they share an atlas or we bind per chunk.
+                // For now, WorldRenderer assumes a single bind for simplicity or we need to bind in Draw.
 
                 chunk.Draw();
             }
@@ -173,6 +209,7 @@ namespace Client.Graphics
 
         public void Dispose()
         {
+            _chunkShader.Dispose();
             foreach (var chunk in _chunks.Values)
             {
                 chunk.Dispose();

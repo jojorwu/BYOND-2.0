@@ -46,6 +46,7 @@ in vec2 WorldPos;
 uniform vec4 uColor;
 uniform vec2 uLightPos;
 uniform float uRadius;
+uniform sampler2D uNormalBuffer;
 uniform sampler2D uOccluderMap;
 uniform vec4 uScreenBounds; // left, top, right, bottom
 
@@ -55,13 +56,18 @@ void main() {
 
     float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
 
+    // Normal Mapping Shading
+    vec2 screenUV = (WorldPos - uScreenBounds.xy) / (uScreenBounds.zw - uScreenBounds.xy);
+    vec3 normal = texture(uNormalBuffer, screenUV).rgb * 2.0 - 1.0;
+    vec3 lightDir = normalize(vec3(uLightPos - WorldPos, 32.0)); // Assume lights are 32 units 'above' the plane
+    float diff = max(dot(normal, lightDir), 0.0);
+
     // Simple Shadow Raycasting
-    vec2 dir = normalize(uLightPos - WorldPos);
     float dToLight = distance(WorldPos, uLightPos);
     float shadow = 1.0;
 
-    // Only raycast if we are not at the light source
     if (dToLight > 4.0) {
+        vec2 dir = normalize(uLightPos - WorldPos);
         for (float i = 2.0; i < dToLight; i += 4.0) {
             vec2 samplePos = WorldPos + dir * i;
             vec2 uv = (samplePos - uScreenBounds.xy) / (uScreenBounds.zw - uScreenBounds.xy);
@@ -74,7 +80,7 @@ void main() {
         }
     }
 
-    FragColor = vec4(uColor.rgb, uColor.a * alpha * shadow);
+    FragColor = vec4(uColor.rgb, uColor.a * alpha * diff * shadow);
 }";
 
             _lightingShader = new Shader(_gl, vert, frag);
@@ -110,15 +116,20 @@ void main() {
             _lights.Add(new LightSource { Position = position, Radius = radius, Color = color });
         }
 
-        public void Render(Matrix4x4 view, Matrix4x4 projection, uint occluderMap, Box2 screenBounds)
+        public void Render(Matrix4x4 view, Matrix4x4 projection, uint normalBuffer, uint occluderMap, Box2 screenBounds)
         {
+            if (_lights.Count == 0) return;
+
             _lightingShader.Use();
             _lightingShader.SetUniform("uProjection", projection);
             _lightingShader.SetUniform("uView", view);
-            _lightingShader.SetUniform("uOccluderMap", 0);
+            _lightingShader.SetUniform("uNormalBuffer", 0);
+            _lightingShader.SetUniform("uOccluderMap", 1);
             _lightingShader.SetUniform("uScreenBounds", new Vector4(screenBounds.Left, screenBounds.Top, screenBounds.Right, screenBounds.Bottom));
 
             _gl.ActiveTexture(TextureUnit.Texture0);
+            _gl.BindTexture(TextureTarget.Texture2D, normalBuffer);
+            _gl.ActiveTexture(TextureUnit.Texture1);
             _gl.BindTexture(TextureTarget.Texture2D, occluderMap);
 
             _gl.BindVertexArray(_vao);
@@ -127,6 +138,13 @@ void main() {
 
             foreach (var light in _lights)
             {
+                // Frustum Culling for Lights
+                if (light.Position.X + light.Radius < screenBounds.Left || light.Position.X - light.Radius > screenBounds.Right ||
+                    light.Position.Y + light.Radius < screenBounds.Top || light.Position.Y - light.Radius > screenBounds.Bottom)
+                {
+                    continue;
+                }
+
                 var model = Matrix4x4.CreateScale(light.Radius * 2) * Matrix4x4.CreateTranslation(light.Position.X, light.Position.Y, 0);
                 _lightingShader.SetUniform("uModel", model);
                 _lightingShader.SetUniform("uColor", light.Color);

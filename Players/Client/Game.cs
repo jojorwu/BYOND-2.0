@@ -31,6 +31,10 @@ namespace Client
         private LogicThread _logicThread = null!;
         private SpriteRenderer _spriteRenderer = null!;
         private ModelRenderer _modelRenderer = null!;
+        private WorldRenderer _worldRenderer = null!;
+        private LightingRenderer _lightingRenderer = null!;
+        private PostProcessShader _postProcessShader = null!;
+        private Client.Graphics.Framebuffer _sceneFramebuffer = null!;
         private readonly TextureCache _textureCache;
         private readonly CSharpShaderManager _csharpShaderManager;
         private readonly DmiCache _dmiCache;
@@ -94,6 +98,10 @@ namespace Client
             _csharpShaderManager.SetGL(_gl);
             _spriteRenderer = new SpriteRenderer(_gl);
             _modelRenderer = new ModelRenderer(_gl);
+            _worldRenderer = new WorldRenderer(_gl, _textureCache, _dmiCache, _iconCache);
+            _lightingRenderer = new LightingRenderer(_gl);
+            _postProcessShader = new PostProcessShader(_gl);
+            _sceneFramebuffer = new Client.Graphics.Framebuffer(_gl, _window.Size.X, _window.Size.Y);
             _cubeMesh = MeshFactory.CreateCube(_gl);
             _camera = new Camera(new Vector2(0, 0), 1.0f);
 
@@ -210,18 +218,24 @@ new MyShader()
 
         private void OnRender(double deltaTime)
         {
-            _textureCache.ProcessUploads(); // Upload newly loaded textures to GPU
+            _textureCache.ProcessUploads();
 
             _time += (float)deltaTime;
-            _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-            _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             if (_clientState == ClientState.Connecting)
             {
+                _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+                _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
                 _connectionPanel.Draw();
             }
             else if (_clientState == ClientState.InGame)
             {
+                _sceneFramebuffer.Resize(_window.FramebufferSize.X, _window.FramebufferSize.Y);
+                _sceneFramebuffer.Bind();
+
+                _gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+                _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
                 // Render 3D test
                 _gl.Enable(EnableCap.DepthTest);
                 var view = _camera.GetViewMatrix();
@@ -244,6 +258,10 @@ new MyShader()
 
                 _gl.Disable(EnableCap.DepthTest);
 
+                // Pass 1: Chunks (static turfs)
+                _worldRenderer.Render(_currentState, GetCullRect());
+
+                // Pass 2: Dynamic Sprites
                 _spriteRenderer.Begin(view, projection);
 
                 if (_currentState?.GameObjects != null)
@@ -364,10 +382,54 @@ new MyShader()
 
                 _spriteRenderer.End();
 
+                // Pass 3: Lighting
+                if (_currentState != null)
+                {
+                    foreach (var obj in _currentState.GameObjects.Values)
+                    {
+                        var lightPower = obj.GetVariable("light_power");
+                        if (lightPower.Type == DreamValueType.Float && lightPower.AsFloat() > 0)
+                        {
+                            var color = obj.GetVariable("light_color");
+                            _lightingRenderer.AddLight(new Vector2(obj.X * 32 + 16, obj.Y * 32 + 16), lightPower.AsFloat() * 32, Color.White);
+                        }
+                    }
+                }
+                _lightingRenderer.Render(view, projection);
+
+                _sceneFramebuffer.Unbind();
+
+                // Final Pass: Draw scene FBO to screen
+                _gl.Clear(ClearBufferMask.ColorBufferBit);
+                DrawScreenQuad(_sceneFramebuffer.Texture);
+
                 _mainHud.Draw(_playerObject);
             }
 
             _imGuiController.Render();
+        }
+
+        private Box2 GetCullRect()
+        {
+            var viewWidthTiles = (_window.FramebufferSize.X / _camera.Zoom) / 32.0f;
+            var viewHeightTiles = (_window.FramebufferSize.Y / _camera.Zoom) / 32.0f;
+            var cameraTilePos = _camera.Position / 32.0f;
+            return new Box2(
+                cameraTilePos.X - viewWidthTiles / 2 - 1,
+                cameraTilePos.Y - viewHeightTiles / 2 - 1,
+                cameraTilePos.X + viewWidthTiles / 2 + 1,
+                cameraTilePos.Y + viewHeightTiles / 2 + 1
+            );
+        }
+
+        private void DrawScreenQuad(uint textureId)
+        {
+            _postProcessShader.Use(textureId);
+            // Use sprite renderer to draw the full screen quad with post process shader active
+            _spriteRenderer.Begin(Matrix4x4.Identity, Matrix4x4.CreateOrthographicOffCenter(-1, 1, -1, 1, -1, 1));
+            // Passing 0 as textureId because _postProcessShader already bound it to unit 0
+            _spriteRenderer.Draw(0, new Box2(0, 0, 1, 1), new Vector2(-1, -1), new Vector2(2, 2), Color.White);
+            _spriteRenderer.End();
         }
 
         private Vector2 GetPosition(GameObject obj)
@@ -418,6 +480,10 @@ new MyShader()
             _logicThread?.Stop();
             _spriteRenderer.Dispose();
             _modelRenderer.Dispose();
+            _worldRenderer.Dispose();
+            _lightingRenderer.Dispose();
+            _postProcessShader.Dispose();
+            _sceneFramebuffer.Dispose();
             _sampleGlShader?.Dispose();
             _cubeMesh.Dispose();
             _imGuiController.Dispose();

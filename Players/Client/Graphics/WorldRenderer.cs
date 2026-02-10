@@ -5,6 +5,7 @@ using Silk.NET.OpenGL;
 using Robust.Shared.Maths;
 using System.Numerics;
 using Shared;
+using Core.Dmi;
 using Client.Assets;
 
 namespace Client.Graphics
@@ -27,7 +28,7 @@ namespace Client.Graphics
             _iconCache = iconCache;
         }
 
-        public void Render(GameState state, Box2 cullRect, SpriteRenderer spriteRenderer)
+        public void Render(GameState state, Box2 cullRect)
         {
             UpdateVisibleChunks(cullRect);
 
@@ -44,13 +45,7 @@ namespace Client.Graphics
                     RebuildChunk(chunk, state);
                 }
 
-                // Chunks are drawn after static turfs are baked.
-                // Wait, if I use SpriteRenderer for everything, Chunks might not be needed?
-                // No, Chunks are "smart" because they avoid iterating all turfs.
-                // But Chunks need to be drawn in correct layer order.
-
-                // For BYOND, turfs are usually on layer 2.
-                // We can have a "StaticTurf" pass.
+                chunk.Draw();
             }
         }
 
@@ -80,20 +75,65 @@ namespace Client.Graphics
             int endX = startX + RenderChunk.ChunkSize;
             int endY = startY + RenderChunk.ChunkSize;
 
-            // This is simplified. In a real scenario, we'd query the spatial grid for turfs in this range.
             foreach (var obj in state.GameObjects.Values)
             {
+                // Only bake static turfs (layer 2) into chunks
                 if (obj.X >= startX && obj.X < endX && obj.Y >= startY && obj.Y < endY)
                 {
-                    // Bake static objects (turfs) into the chunk
-                    // For now, let's just assume everything at layer 2 is a turf
-                    // and doesn't move.
+                    var layer = GetLayer(obj);
+                    if (layer == 2.0f) // Typical turf layer
+                    {
+                        var icon = GetIcon(obj);
+                        if (!string.IsNullOrEmpty(icon))
+                        {
+                            var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
+                            var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                            var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                            if (dmi != null)
+                            {
+                                var dmiState = dmi.Description.GetStateOrDefault(stateName);
+                                if (dmiState != null)
+                                {
+                                    var frame = dmiState.GetFrames(AtomDirection.South)[0];
+                                    var uv = new Box2(
+                                        (float)frame.X / dmi.Width,
+                                        (float)frame.Y / dmi.Height,
+                                        (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                                        (float)(frame.Y + dmi.Description.Height) / dmi.Height
+                                    );
 
-                    // (Logic to generate vertices for obj)
+                                    AddQuad(vertices, new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), uv, Color.White);
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             chunk.Update(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices));
+        }
+
+        private void AddQuad(List<Vertex> vertices, Vector2 pos, Vector2 size, Box2 uv, Color color)
+        {
+            vertices.Add(new Vertex(pos, new Vector2(uv.Left, uv.Top), color));
+            vertices.Add(new Vertex(pos + new Vector2(size.X, 0), new Vector2(uv.Right, uv.Top), color));
+            vertices.Add(new Vertex(pos + size, new Vector2(uv.Right, uv.Bottom), color));
+
+            vertices.Add(new Vertex(pos + size, new Vector2(uv.Right, uv.Bottom), color));
+            vertices.Add(new Vertex(pos + new Vector2(0, size.Y), new Vector2(uv.Left, uv.Bottom), color));
+            vertices.Add(new Vertex(pos, new Vector2(uv.Left, uv.Top), color));
+        }
+
+        private float GetLayer(GameObject obj)
+        {
+            var layer = obj.GetVariable("layer");
+            return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
+        }
+
+        private string? GetIcon(GameObject obj)
+        {
+            var icon = obj.GetVariable("Icon");
+            return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
         }
 
         public void MarkAreaDirty(Box2i area)

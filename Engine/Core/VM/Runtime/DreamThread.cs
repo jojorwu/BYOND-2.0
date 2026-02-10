@@ -75,6 +75,10 @@ namespace Core.VM.Runtime
 
         public void Sleep(float seconds)
         {
+            if (float.IsNaN(seconds) || seconds <= 0) seconds = 0;
+            // Max 24 hours to prevent DateTime overflow
+            if (seconds > 86400) seconds = 86400;
+
             State = DreamThreadState.Sleeping;
             SleepUntil = DateTime.Now.AddSeconds(seconds);
         }

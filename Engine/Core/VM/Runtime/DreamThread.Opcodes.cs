@@ -347,6 +347,9 @@ namespace Core.VM.Runtime
             if (_callStackPtr >= MaxCallStackDepth)
                 throw new ScriptRuntimeException("Maximum call stack depth exceeded", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
 
+            if (stackDelta < 0 || stackDelta > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid stack delta for procedure call: {stackDelta}", CurrentProc, 0, this);
+
             var stackBase = _stackPtr - stackDelta;
 
             if (newProc is DreamProc dreamProc)

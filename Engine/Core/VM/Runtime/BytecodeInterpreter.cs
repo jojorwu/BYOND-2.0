@@ -502,6 +502,9 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)state.ReadByte();
             var argStackDelta = state.ReadInt32();
 
+            if (argStackDelta < 0 || state.StackPtr < argStackDelta)
+                throw new ScriptRuntimeException($"Invalid argument stack delta for ..() call: {argStackDelta}", state.Proc, state.PC, state.Thread);
+
             var instance = state.Frame.Instance;
             IDreamProc? parentProc = null;
 
@@ -1033,7 +1036,9 @@ namespace Core.VM.Runtime
             var argType = (DMCallArgumentsType)state.ReadByte();
             var argStackDelta = state.ReadInt32();
 
-            if (state.StackPtr < argStackDelta) throw new ScriptRuntimeException("Stack underflow during DereferenceCall", state.Proc, state.PC, state.Thread);
+            if (argStackDelta < 1 || state.StackPtr < argStackDelta)
+                throw new ScriptRuntimeException($"Invalid argument stack delta for dereference call: {argStackDelta}", state.Proc, state.PC, state.Thread);
+
             var objValue = state.Stack[state.StackPtr - argStackDelta];
             if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
             {

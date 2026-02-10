@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Silk.NET.OpenGL;
 using Robust.Shared.Maths;
 using System.Numerics;
@@ -19,6 +21,8 @@ namespace Client.Graphics
 
         private readonly Dictionary<Vector2i, RenderChunk> _chunks = new();
         private readonly HashSet<Vector2i> _visibleChunks = new();
+        private readonly ConcurrentQueue<(RenderChunk Chunk, Vertex[] Vertices)> _pendingUploads = new();
+        private readonly HashSet<Vector2i> _rebuildingChunks = new();
 
         public WorldRenderer(GL gl, TextureCache textureCache, DmiCache dmiCache, IconCache iconCache)
         {
@@ -30,6 +34,7 @@ namespace Client.Graphics
 
         public void Render(GameState state, Box2 cullRect)
         {
+            ProcessPendingUploads();
             UpdateVisibleChunks(cullRect);
 
             foreach (var coords in _visibleChunks)
@@ -40,12 +45,24 @@ namespace Client.Graphics
                     _chunks[coords] = chunk;
                 }
 
-                if (chunk.IsDirty)
+                if (chunk.IsDirty && !_rebuildingChunks.Contains(coords))
                 {
-                    RebuildChunk(chunk, state);
+                    _rebuildingChunks.Add(coords);
+                    // Offload to background task
+                    var stateClone = state; // GameState is usually immutable or snapshotted
+                    Task.Run(() => RebuildChunkTask(chunk, stateClone));
                 }
 
                 chunk.Draw();
+            }
+        }
+
+        private void ProcessPendingUploads()
+        {
+            while (_pendingUploads.TryDequeue(out var upload))
+            {
+                upload.Chunk.Update(upload.Vertices);
+                _rebuildingChunks.Remove(upload.Chunk.Coords);
             }
         }
 
@@ -66,7 +83,7 @@ namespace Client.Graphics
             }
         }
 
-        private void RebuildChunk(RenderChunk chunk, GameState state)
+        private void RebuildChunkTask(RenderChunk chunk, GameState state)
         {
             var vertices = new List<Vertex>();
 
@@ -77,7 +94,6 @@ namespace Client.Graphics
 
             foreach (var obj in state.GameObjects.Values)
             {
-                // Only bake static turfs (layer 2) into chunks
                 if (obj.X >= startX && obj.X < endX && obj.Y >= startY && obj.Y < endY)
                 {
                     var layer = GetLayer(obj);
@@ -110,7 +126,7 @@ namespace Client.Graphics
                 }
             }
 
-            chunk.Update(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(vertices));
+            _pendingUploads.Enqueue((chunk, vertices.ToArray()));
         }
 
         private void AddQuad(List<Vertex> vertices, Vector2 pos, Vector2 size, Box2 uv, Color color)

@@ -29,21 +29,52 @@ namespace Client.Graphics
 layout (location = 0) in vec2 aPos;
 layout (location = 1) in vec2 aTexCoords;
 out vec2 TexCoords;
+out vec2 WorldPos;
 uniform mat4 uProjection;
 uniform mat4 uView;
 uniform mat4 uModel;
 void main() {
     TexCoords = aTexCoords;
-    gl_Position = uProjection * uView * uModel * vec4(aPos, 0.0, 1.0);
+    vec4 worldPos = uModel * vec4(aPos, 0.0, 1.0);
+    WorldPos = worldPos.xy;
+    gl_Position = uProjection * uView * worldPos;
 }";
             string frag = @"#version 330 core
 out vec4 FragColor;
 in vec2 TexCoords;
+in vec2 WorldPos;
 uniform vec4 uColor;
+uniform vec2 uLightPos;
+uniform float uRadius;
+uniform sampler2D uOccluderMap;
+uniform vec4 uScreenBounds; // left, top, right, bottom
+
 void main() {
     float dist = length(TexCoords - vec2(0.5));
+    if (dist > 0.5) discard;
+
     float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-    FragColor = vec4(uColor.rgb, uColor.a * alpha);
+
+    // Simple Shadow Raycasting
+    vec2 dir = normalize(uLightPos - WorldPos);
+    float dToLight = distance(WorldPos, uLightPos);
+    float shadow = 1.0;
+
+    // Only raycast if we are not at the light source
+    if (dToLight > 4.0) {
+        for (float i = 2.0; i < dToLight; i += 4.0) {
+            vec2 samplePos = WorldPos + dir * i;
+            vec2 uv = (samplePos - uScreenBounds.xy) / (uScreenBounds.zw - uScreenBounds.xy);
+            if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+                if (texture(uOccluderMap, uv).r > 0.5) {
+                    shadow = 0.0;
+                    break;
+                }
+            }
+        }
+    }
+
+    FragColor = vec4(uColor.rgb, uColor.a * alpha * shadow);
 }";
 
             _lightingShader = new Shader(_gl, vert, frag);
@@ -79,11 +110,16 @@ void main() {
             _lights.Add(new LightSource { Position = position, Radius = radius, Color = color });
         }
 
-        public void Render(Matrix4x4 view, Matrix4x4 projection)
+        public void Render(Matrix4x4 view, Matrix4x4 projection, uint occluderMap, Box2 screenBounds)
         {
             _lightingShader.Use();
             _lightingShader.SetUniform("uProjection", projection);
             _lightingShader.SetUniform("uView", view);
+            _lightingShader.SetUniform("uOccluderMap", 0);
+            _lightingShader.SetUniform("uScreenBounds", new Vector4(screenBounds.Left, screenBounds.Top, screenBounds.Right, screenBounds.Bottom));
+
+            _gl.ActiveTexture(TextureUnit.Texture0);
+            _gl.BindTexture(TextureTarget.Texture2D, occluderMap);
 
             _gl.BindVertexArray(_vao);
             _gl.Enable(EnableCap.Blend);
@@ -94,6 +130,8 @@ void main() {
                 var model = Matrix4x4.CreateScale(light.Radius * 2) * Matrix4x4.CreateTranslation(light.Position.X, light.Position.Y, 0);
                 _lightingShader.SetUniform("uModel", model);
                 _lightingShader.SetUniform("uColor", light.Color);
+                _lightingShader.SetUniform("uLightPos", light.Position);
+                _lightingShader.SetUniform("uRadius", light.Radius);
                 _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
             }
 

@@ -58,6 +58,12 @@ namespace Client.Graphics
             _gl.UniformMatrix4(location, 1, false, (float*)&value);
         }
 
+        public void SetUniform(string name, Vector2 value)
+        {
+            int location = GetUniformLocation(name);
+            _gl.Uniform2(location, value.X, value.Y);
+        }
+
         public void SetUniform(string name, Vector3 value)
         {
             int location = GetUniformLocation(name);

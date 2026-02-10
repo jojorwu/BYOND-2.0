@@ -237,6 +237,7 @@ namespace Shared
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override string ToString()
         {
             return Type switch
@@ -257,7 +258,7 @@ namespace Shared
             {
                 DreamValueType.Float => _floatValue,
                 DreamValueType.Null => 0f,
-                _ => _floatValue // Default fallback, though ideally only called for Float/Null in math paths
+                _ => 0f // Optimized fallback to 0 for non-math types to avoid checks in operators
             };
         }
 
@@ -328,22 +329,22 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator /(DreamValue a, DreamValue b)
         {
-            var floatB = (b.Type == DreamValueType.Float) ? b._floatValue : b.GetValueAsFloat();
+            float floatB = b.Type == DreamValueType.Float ? b._floatValue : b.GetValueAsFloat();
             if (floatB == 0)
-                return new DreamValue(0); // Avoid division by zero
+                return new DreamValue(0);
 
-            var floatA = (a.Type == DreamValueType.Float) ? a._floatValue : a.GetValueAsFloat();
+            float floatA = a.Type == DreamValueType.Float ? a._floatValue : a.GetValueAsFloat();
             return new DreamValue(floatA / floatB);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator %(DreamValue a, DreamValue b)
         {
-            var floatB = (b.Type == DreamValueType.Float) ? b._floatValue : b.GetValueAsFloat();
+            float floatB = b.Type == DreamValueType.Float ? b._floatValue : b.GetValueAsFloat();
             if (floatB == 0)
                 return new DreamValue(0);
 
-            var floatA = (a.Type == DreamValueType.Float) ? a._floatValue : a.GetValueAsFloat();
+            float floatA = a.Type == DreamValueType.Float ? a._floatValue : a.GetValueAsFloat();
             return new DreamValue(floatA % floatB);
         }
 
@@ -358,15 +359,12 @@ namespace Shared
         {
             if (Type != other.Type) return false;
 
-            switch (Type)
+            return Type switch
             {
-                case DreamValueType.Float:
-                    return _floatValue == other._floatValue || Math.Abs(_floatValue - other._floatValue) < 0.00001f;
-                case DreamValueType.Null:
-                    return true;
-                default:
-                    return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
-            }
+                DreamValueType.Float => _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f,
+                DreamValueType.Null => true,
+                _ => ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false)
+            };
         }
 
         public override int GetHashCode()
@@ -384,7 +382,7 @@ namespace Shared
                 switch (a.Type)
                 {
                     case DreamValueType.Float:
-                        return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 0.00001f;
+                        return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
                     case DreamValueType.Null:
                         return true;
                     default:
@@ -401,6 +399,7 @@ namespace Shared
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator !=(DreamValue a, DreamValue b)
         {
             return !(a == b);
@@ -446,11 +445,13 @@ namespace Shared
             return a.GetValueAsFloat() <= b.GetValueAsFloat();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator -(DreamValue a)
         {
             return new DreamValue(-a.GetValueAsFloat());
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator !(DreamValue a)
         {
             return new DreamValue(a.IsFalse() ? 1 : 0);

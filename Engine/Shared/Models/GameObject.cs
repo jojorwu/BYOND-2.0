@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace Shared
 {
@@ -76,7 +77,8 @@ namespace Shared
                 lock (_contentsLock)
                 {
                     if (_contents.Count == 0) return System.Array.Empty<IGameObject>();
-                    return _contents.ToArray();
+                    // Return a clone to avoid concurrent modification issues during iteration
+                    return _contents.ToList();
                 }
             }
         }
@@ -129,11 +131,16 @@ namespace Shared
 
         public override DreamValue GetVariable(string name)
         {
+            // Fast-path for common variables
+            if (name.Length == 1)
+            {
+                if (name[0] == 'x') return new DreamValue((float)X);
+                if (name[0] == 'y') return new DreamValue((float)Y);
+                if (name[0] == 'z') return new DreamValue((float)Z);
+            }
+
             switch (name)
             {
-                case "x": return new DreamValue((float)X);
-                case "y": return new DreamValue((float)Y);
-                case "z": return new DreamValue((float)Z);
                 case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
                 case "name":
                     var val = base.GetVariable(name);
@@ -145,11 +152,15 @@ namespace Shared
 
         public override void SetVariable(string name, DreamValue value)
         {
+            if (name.Length == 1)
+            {
+                if (name[0] == 'x') { X = (int)value.GetValueAsFloat(); return; }
+                if (name[0] == 'y') { Y = (int)value.GetValueAsFloat(); return; }
+                if (name[0] == 'z') { Z = (int)value.GetValueAsFloat(); return; }
+            }
+
             switch (name)
             {
-                case "x": X = (int)value.GetValueAsFloat(); break;
-                case "y": Y = (int)value.GetValueAsFloat(); break;
-                case "z": Z = (int)value.GetValueAsFloat(); break;
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                         Loc = loc;
@@ -169,21 +180,23 @@ namespace Shared
             if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
             {
                 var name = ObjectType.VariableNames[index];
-                switch (name)
+                if (name.Length == 1)
                 {
-                    case "x": _x = (int)value.GetValueAsFloat(); break;
-                    case "y": _y = (int)value.GetValueAsFloat(); break;
-                    case "z": _z = (int)value.GetValueAsFloat(); break;
-                    case "loc":
-                        if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                        {
-                            SetLocInternal(loc, false);
-                        }
-                        else
-                        {
-                            SetLocInternal(null, false);
-                        }
-                        break;
+                    if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
+                    if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
+                    if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
+                }
+
+                if (name == "loc")
+                {
+                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                    {
+                        SetLocInternal(loc, false);
+                    }
+                    else
+                    {
+                        SetLocInternal(null, false);
+                    }
                 }
             }
         }

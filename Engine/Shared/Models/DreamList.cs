@@ -89,16 +89,27 @@ namespace Shared
             {
                 if (RemoveCount(value))
                 {
-                    AssociativeValues.Remove(value);
+                    if (_associativeValues != null) _associativeValues.Remove(value);
                 }
             }
         }
 
         public void RemoveAll(DreamValue value)
         {
-            while (Contains(value))
+            bool removedAny = false;
+            for (int i = _values.Count - 1; i >= 0; i--)
             {
-                RemoveValue(value);
+                if (_values[i] == value)
+                {
+                    _values.RemoveAt(i);
+                    removedAny = true;
+                }
+            }
+
+            if (removedAny)
+            {
+                if (_valueCounts != null) _valueCounts.Remove(value);
+                if (_associativeValues != null) _associativeValues.Remove(value);
             }
         }
 
@@ -123,10 +134,12 @@ namespace Shared
             if (index >= 0 && index < _values.Count)
             {
                 var old = _values[index];
+                if (old == value) return;
+
                 _values[index] = value;
                 if (RemoveCount(old))
                 {
-                    AssociativeValues.Remove(old);
+                    if (_associativeValues != null) _associativeValues.Remove(old);
                 }
                 AddCount(value);
             }
@@ -139,9 +152,10 @@ namespace Shared
                 return _valueCounts.ContainsKey(value);
 
             // Linear search for small lists
-            for (int i = 0; i < _values.Count; i++)
+            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
+            for (int i = 0; i < span.Length; i++)
             {
-                if (_values[i] == value) return true;
+                if (span[i] == value) return true;
             }
             return false;
         }
@@ -170,7 +184,7 @@ namespace Shared
                         else _valueCounts[v] = 1;
                     }
                 }
-                return true; // Assume new (if we just hit threshold, doesn't matter much)
+                return true;
             }
 
             if (_valueCounts.TryGetValue(value, out int count))
@@ -182,24 +196,17 @@ namespace Shared
             return true;
         }
 
-        /// <summary>
-        /// Removes a count from the value count cache.
-        /// </summary>
-        /// <param name="value">The value to decrement count for.</param>
-        /// <returns>True if the value was completely removed from the cache (count reached 0).</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool RemoveCount(DreamValue value)
         {
             if (_valueCounts == null)
             {
-                // If we don't have a dictionary, we don't need to return True/False for associative mapping cleanup
-                // because AssociativeValues is also lazy and would be null or correctly handled.
-                // Actually, if _associativeValues is NOT null, we might need it.
                 if (_associativeValues != null)
                 {
-                    for (int i = 0; i < _values.Count; i++)
+                    var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
+                    for (int i = 0; i < span.Length; i++)
                     {
-                        if (_values[i] == value) return false;
+                        if (span[i] == value) return false;
                     }
                     return true;
                 }

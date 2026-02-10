@@ -6,9 +6,9 @@ namespace Shared
 {
     public class DreamObject
     {
-        private readonly object _lock = new();
+        protected readonly object _lock = new();
         public ObjectType? ObjectType { get; set; }
-        private DreamValue[] _variableValues;
+        protected DreamValue[] _variableValues;
         public long Version { get; protected set; }
 
         public DreamObject(ObjectType? objectType)
@@ -31,30 +31,36 @@ namespace Shared
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual DreamValue GetVariable(string name)
         {
             if (ObjectType == null) return DreamValue.Null;
             int index = ObjectType.GetVariableIndex(name);
-            return index != -1 ? GetVariable(index) : DreamValue.Null;
+            if (index == -1) return DreamValue.Null;
+
+            var values = _variableValues;
+            if (index < values.Length) return values[index];
+            return DreamValue.Null;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void SetVariable(string name, DreamValue value)
         {
             if (ObjectType == null) return;
             int index = ObjectType.GetVariableIndex(name);
             if (index != -1)
             {
-                SetVariable(index, value);
+                SetVariableDirect(index, value);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            lock (_lock)
-            {
-                return GetVariableDirect(index);
-            }
+            var values = _variableValues;
+            if (index >= 0 && index < values.Length)
+                return values[index];
+            return DreamValue.Null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -69,28 +75,29 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetVariable(int index, DreamValue value)
         {
-            lock (_lock)
-            {
-                SetVariableDirect(index, value);
-            }
+            SetVariableDirect(index, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void SetVariableDirect(int index, DreamValue value)
         {
-            EnsureCapacity(index);
+            if (index < 0) return;
+
+            if (index >= _variableValues.Length)
+            {
+                lock (_lock)
+                {
+                    if (index >= _variableValues.Length)
+                    {
+                        System.Array.Resize(ref _variableValues, index + 1);
+                    }
+                }
+            }
+
             if (!_variableValues[index].Equals(value))
             {
                 _variableValues[index] = value;
                 Version++;
-            }
-        }
-
-        private void EnsureCapacity(int index)
-        {
-            if (index >= _variableValues.Length)
-            {
-                System.Array.Resize(ref _variableValues, index + 1);
             }
         }
 

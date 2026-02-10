@@ -13,6 +13,7 @@ using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Shared;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace Client
@@ -282,12 +283,33 @@ new MyShader()
                     // Optimized visibility culling
                     VisibilityCuller.CalculateVisibilityOptimized(positions, cullRect, visibilityMask);
 
+                    // Build occlusion map for smart culling
+                    var opaqueCoords = new ConcurrentDictionary<Vector2i, float>();
+                    Parallel.For(0, gameObjects.Count, i =>
+                    {
+                        if (visibilityMask[i] == 0) return;
+                        var obj = gameObjects[i];
+                        var opacity = obj.GetVariable("opacity");
+                        if (opacity.Type == DreamValueType.Float && opacity.AsFloat() > 0)
+                        {
+                            var pos = new Vector2i((int)obj.X, (int)obj.Y);
+                            var layer = GetLayer(obj);
+                            opaqueCoords.AddOrUpdate(pos, layer, (_, oldLayer) => Math.Max(oldLayer, layer));
+                        }
+                    });
+
                     // Parallel command generation for visible objects
                     Parallel.For(0, gameObjects.Count, i =>
                     {
                         if (visibilityMask[i] == 0) return;
 
                         var currentObj = gameObjects[i];
+
+                        // Smart Occlusion Culling
+                        if (opaqueCoords.TryGetValue(new Vector2i((int)currentObj.X, (int)currentObj.Y), out var opaqueLayer))
+                        {
+                            if (GetLayer(currentObj) < opaqueLayer) return;
+                        }
                         var renderPos = positions[i];
 
                         var layer = GetLayer(currentObj);

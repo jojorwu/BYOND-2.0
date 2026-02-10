@@ -45,12 +45,14 @@ namespace Client.Graphics
         private const int MaxQuads = 16384;
         private const int MaxVertices = MaxQuads * 4;
         private const int MaxIndices = MaxQuads * 6;
+        private const int BufferCount = 3; // Triple buffering
 
         private readonly GL _gl;
         private readonly Shader _shader;
         private readonly uint _vao;
-        private readonly uint _vbo;
+        private readonly uint[] _vbos = new uint[BufferCount];
         private readonly uint _ebo;
+        private int _currentBufferIndex = 0;
 
         private readonly Vertex[] _vertices = new Vertex[MaxVertices];
         private int _vertexCount = 0;
@@ -68,17 +70,19 @@ namespace Client.Graphics
             _shader = new Shader(_gl, File.ReadAllText("Shaders/sprite.vert"), File.ReadAllText("Shaders/sprite.frag"));
 
             _vao = _gl.GenVertexArray();
-            _vbo = _gl.GenBuffer();
-            _ebo = _gl.GenBuffer();
-
             _gl.BindVertexArray(_vao);
 
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            unsafe
+            for (int i = 0; i < BufferCount; i++)
             {
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVertices * sizeof(Vertex)), null, BufferUsageARB.DynamicDraw);
+                _vbos[i] = _gl.GenBuffer();
+                _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbos[i]);
+                unsafe
+                {
+                    _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVertices * sizeof(Vertex)), null, BufferUsageARB.DynamicDraw);
+                }
             }
 
+            _ebo = _gl.GenBuffer();
             _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
 
             var quadIndices = new uint[MaxIndices];
@@ -115,7 +119,6 @@ namespace Client.Graphics
                 _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("Color"));
             }
 
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
             _gl.BindVertexArray(0);
         }
 
@@ -231,7 +234,10 @@ namespace Client.Graphics
             _shader.SetUniform("uTexture", 0);
 
             _gl.BindVertexArray(_vao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+
+            // Cycle buffers
+            _currentBufferIndex = (_currentBufferIndex + 1) % BufferCount;
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbos[_currentBufferIndex]);
 
             // Buffer orphaning to avoid sync stalls
             _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVertices * sizeof(Vertex)), null, BufferUsageARB.DynamicDraw);
@@ -240,6 +246,12 @@ namespace Client.Graphics
             {
                 _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_vertexCount * sizeof(Vertex)), p);
             }
+
+            // We need to re-bind the pointers since we changed the VBO
+            var size = (uint)sizeof(Vertex);
+            _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, size, (void*)0);
+            _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("TexCoords"));
+            _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("Color"));
 
             _gl.DrawElements(PrimitiveType.Triangles, (uint)(_vertexCount / 4 * 6), DrawElementsType.UnsignedInt, null);
 
@@ -250,7 +262,10 @@ namespace Client.Graphics
         {
             _threadLocalCommands.Dispose();
             _gl.DeleteVertexArray(_vao);
-            _gl.DeleteBuffer(_vbo);
+            for (int i = 0; i < BufferCount; i++)
+            {
+                _gl.DeleteBuffer(_vbos[i]);
+            }
             _gl.DeleteBuffer(_ebo);
             _shader.Dispose();
         }

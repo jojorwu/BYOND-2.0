@@ -13,25 +13,59 @@ namespace Client.Assets
     public class TextureCache : EngineService, IDisposable
     {
         private readonly ConcurrentDictionary<string, Texture> Cache = new();
+        private readonly ConcurrentDictionary<string, Task<RawTextureData>> PendingData = new();
+        private readonly ConcurrentQueue<Action> UploadQueue = new();
+
         private GL? _gl;
-        private readonly object _glLock = new();
 
         public void SetGL(GL gl)
         {
             _gl = gl;
         }
 
-        public Texture GetTexture(string path)
+        public Texture? GetTexture(string path)
         {
             if (_gl == null) throw new InvalidOperationException("TextureCache not initialized with GL context.");
 
-            return Cache.GetOrAdd(path, p =>
+            if (Cache.TryGetValue(path, out var texture))
             {
-                lock (_glLock)
+                return texture;
+            }
+
+            // Start loading data if not already loading
+            if (!PendingData.ContainsKey(path))
+            {
+                var loadTask = Task.Run(() => new RawTextureData("assets/" + path));
+                if (PendingData.TryAdd(path, loadTask))
                 {
-                    return new Texture(_gl, "assets/" + p);
+                    loadTask.ContinueWith(t =>
+                    {
+                        if (t.IsCompletedSuccessfully)
+                        {
+                            UploadQueue.Enqueue(() =>
+                            {
+                                var tex = new Texture(_gl, t.Result);
+                                Cache.TryAdd(path, tex);
+                                PendingData.TryRemove(path, out _);
+                                t.Result.Dispose();
+                            });
+                        }
+                    });
                 }
-            });
+            }
+
+            return null; // Return null if not ready, will be loaded eventually
+        }
+
+        /// <summary>
+        /// Processes the upload queue on the main thread (where GL context is active).
+        /// </summary>
+        public void ProcessUploads()
+        {
+            while (UploadQueue.TryDequeue(out var uploadAction))
+            {
+                uploadAction();
+            }
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -47,6 +81,7 @@ namespace Client.Assets
                 texture.Dispose();
             }
             Cache.Clear();
+            PendingData.Clear();
         }
     }
 }

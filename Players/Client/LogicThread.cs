@@ -99,6 +99,8 @@ namespace Client
             if (messageType == SnapshotMessageType.Full)
             {
                 var json = reader.GetString();
+
+                // Deserialize outside of the lock to avoid blocking the render thread
                 var newGameState = JsonSerializer.Deserialize<GameState>(json);
 
                 if (newGameState != null) {

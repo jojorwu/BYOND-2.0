@@ -209,6 +209,8 @@ new MyShader()
 
         private void OnRender(double deltaTime)
         {
+            _textureCache.ProcessUploads(); // Upload newly loaded textures to GPU
+
             _time += (float)deltaTime;
             _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -300,18 +302,25 @@ new MyShader()
                                 {
                                     var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
                                     var dmi = _dmiCache.GetDmi(dmiPath, texture);
-                                    var state = dmi.Description.GetStateOrDefault(stateName);
-                                    if (state != null)
+                                    if (dmi != null)
                                     {
-                                        var frame = state.GetFrames(AtomDirection.South)[0];
-                                        var uv = new Box2(
-                                            (float)frame.X / dmi.Width,
-                                            (float)frame.Y / dmi.Height,
-                                            (float)(frame.X + dmi.Description.Width) / dmi.Width,
-                                            (float)(frame.Y + dmi.Description.Height) / dmi.Height
-                                        );
+                                        var state = dmi.Description.GetStateOrDefault(stateName);
+                                        if (state != null)
+                                        {
+                                            var frame = state.GetFrames(AtomDirection.South)[0];
+                                            var uv = new Box2(
+                                                (float)frame.X / dmi.Width,
+                                                (float)frame.Y / dmi.Height,
+                                                (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                                                (float)(frame.Y + dmi.Description.Height) / dmi.Height
+                                            );
 
-                                        _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, layer);
+                                            _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, layer);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Gray, layer); // Loading placeholder
                                     }
                                 }
                                 catch (Exception)

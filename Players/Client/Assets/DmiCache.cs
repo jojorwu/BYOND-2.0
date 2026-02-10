@@ -12,8 +12,10 @@ namespace Client.Assets
     {
         private readonly ConcurrentDictionary<string, Lazy<DmiAsset>> Cache = new();
 
-        public DmiAsset GetDmi(string path, Texture texture)
+        public DmiAsset? GetDmi(string path, Texture? texture)
         {
+            if (texture == null) return null;
+
             var lazy = Cache.GetOrAdd(path, p => new Lazy<DmiAsset>(() =>
             {
                 using var stream = File.OpenRead("assets/" + p);

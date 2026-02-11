@@ -125,6 +125,22 @@ namespace Editor.UI
                     var worldMousePos = Camera.ScreenToWorld(localMousePos, projectionMatrix);
                     var worldMousePosInt = new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y);
 
+                    // Panning
+                    if (ImGui.IsMouseDragging(ImGuiMouseButton.Middle))
+                    {
+                        var delta = ImGui.GetIO().MouseDelta;
+                        Camera.Position -= delta / Camera.Zoom;
+                    }
+
+                    // Zooming
+                    float scrollDelta = ImGui.GetIO().MouseWheel;
+                    if (scrollDelta != 0)
+                    {
+                        float zoomFactor = 1.1f;
+                        if (scrollDelta < 0) Camera.Zoom /= zoomFactor;
+                        else Camera.Zoom *= zoomFactor;
+                        Camera.Zoom = Math.Clamp(Camera.Zoom, 0.1f, 10.0f);
+                    }
 
                     _toolManager.OnMouseMove(_editorContext, scene.GameState, _selectionManager, worldMousePosInt);
                     if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))

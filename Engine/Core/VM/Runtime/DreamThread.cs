@@ -47,6 +47,10 @@ namespace Core.VM.Runtime
         public IGameObject? AssociatedObject { get; }
         public DreamObject? Usr { get; set; }
 
+        public ScriptThreadPriority Priority { get; set; } = ScriptThreadPriority.Normal;
+        public TimeSpan ExecutionTime { get; set; } = TimeSpan.Zero;
+        public int WaitTicks { get; set; } = 0;
+
         public DreamVMContext Context { get; }
         internal readonly int _maxInstructions;
         internal int _totalInstructionsExecuted;

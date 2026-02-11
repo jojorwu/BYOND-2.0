@@ -104,7 +104,40 @@ namespace Editor
                 _viewportPanel.Initialize(gl);
 
                 ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+                ApplyModernStyle();
             }
+        }
+
+        private void ApplyModernStyle()
+        {
+            var style = ImGui.GetStyle();
+            style.WindowRounding = 5.0f;
+            style.FrameRounding = 4.0f;
+            style.PopupRounding = 4.0f;
+            style.GrabRounding = 4.0f;
+            style.TabRounding = 4.0f;
+            style.ScrollbarRounding = 9.0f;
+
+            style.WindowPadding = new System.Numerics.Vector2(10, 10);
+            style.FramePadding = new System.Numerics.Vector2(5, 5);
+            style.ItemSpacing = new System.Numerics.Vector2(8, 8);
+
+            var colors = style.Colors;
+            colors[(int)ImGuiCol.WindowBg] = new System.Numerics.Vector4(0.12f, 0.12f, 0.12f, 1.00f);
+            colors[(int)ImGuiCol.Header] = new System.Numerics.Vector4(0.20f, 0.20f, 0.20f, 1.00f);
+            colors[(int)ImGuiCol.HeaderHovered] = new System.Numerics.Vector4(0.25f, 0.25f, 0.25f, 1.00f);
+            colors[(int)ImGuiCol.HeaderActive] = new System.Numerics.Vector4(0.30f, 0.30f, 0.30f, 1.00f);
+            colors[(int)ImGuiCol.Button] = new System.Numerics.Vector4(0.20f, 0.20f, 0.20f, 1.00f);
+            colors[(int)ImGuiCol.ButtonHovered] = new System.Numerics.Vector4(0.28f, 0.28f, 0.28f, 1.00f);
+            colors[(int)ImGuiCol.ButtonActive] = new System.Numerics.Vector4(0.06f, 0.53f, 0.98f, 1.00f);
+            colors[(int)ImGuiCol.FrameBg] = new System.Numerics.Vector4(0.20f, 0.20f, 0.20f, 1.00f);
+            colors[(int)ImGuiCol.FrameBgHovered] = new System.Numerics.Vector4(0.25f, 0.25f, 0.25f, 1.00f);
+            colors[(int)ImGuiCol.FrameBgActive] = new System.Numerics.Vector4(0.30f, 0.30f, 0.30f, 1.00f);
+            colors[(int)ImGuiCol.Tab] = new System.Numerics.Vector4(0.15f, 0.15f, 0.15f, 1.00f);
+            colors[(int)ImGuiCol.TabHovered] = new System.Numerics.Vector4(0.28f, 0.28f, 0.28f, 1.00f);
+            colors[(int)ImGuiCol.TabActive] = new System.Numerics.Vector4(0.20f, 0.20f, 0.20f, 1.00f);
+            colors[(int)ImGuiCol.TitleBg] = new System.Numerics.Vector4(0.10f, 0.10f, 0.10f, 1.00f);
+            colors[(int)ImGuiCol.TitleBgActive] = new System.Numerics.Vector4(0.15f, 0.15f, 0.15f, 1.00f);
         }
 
         private void OnRender(double deltaTime)

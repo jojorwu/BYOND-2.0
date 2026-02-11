@@ -78,6 +78,7 @@ namespace Editor.UI
             ImGui.DockSpace(dockspaceId, Vector2.Zero, ImGuiDockNodeFlags.None);
 
             DrawTabBar();
+            DrawStatusBar();
 
             switch (_uiService.GetActiveTab())
             {
@@ -133,6 +134,28 @@ namespace Editor.UI
                 }
                 ImGui.EndMenuBar();
             }
+        }
+
+        private void DrawStatusBar()
+        {
+            var viewport = ImGui.GetMainViewport();
+            ImGui.SetNextWindowPos(new Vector2(viewport.Pos.X, viewport.Pos.Y + viewport.Size.Y - 25));
+            ImGui.SetNextWindowSize(new Vector2(viewport.Size.X, 25));
+            ImGuiWindowFlags flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoInputs;
+
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0.1f, 0.1f, 0.1f, 1.0f));
+            if (ImGui.Begin("StatusBar", flags))
+            {
+                var scene = _editorContext.GetActiveScene();
+                string sceneInfo = scene != null ? $"Scene: {scene.FilePath}" : "No Scene Active";
+
+                ImGui.Text($"{sceneInfo}");
+                ImGui.SameLine(ImGui.GetWindowWidth() - 150);
+                ImGui.Text($"FPS: {ImGui.GetIO().Framerate:F1}");
+
+                ImGui.End();
+            }
+            ImGui.PopStyleColor();
         }
     }
 }

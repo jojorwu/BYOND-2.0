@@ -13,49 +13,70 @@ namespace Shared.Services
     public class SystemManager : ISystemManager
     {
         private readonly List<ISystem> _systems;
-        private readonly List<List<ISystem>> _priorityGroups;
+        private readonly List<List<ISystem>> _executionLayers;
         private readonly IProfilingService _profilingService;
 
         public SystemManager(IEnumerable<ISystem> systems, IProfilingService profilingService)
         {
-            _systems = systems.ToList();
+            _systems = systems.Where(s => s.Enabled).ToList();
             _profilingService = profilingService;
+            _executionLayers = CalculateExecutionLayers(_systems);
+        }
 
-            // Group systems by priority and sort groups descending (higher priority first)
-            _priorityGroups = _systems
-                .Where(s => s.Enabled)
-                .GroupBy(s => s.Priority)
-                .OrderByDescending(g => g.Key)
-                .Select(g => g.ToList())
-                .ToList();
+        private List<List<ISystem>> CalculateExecutionLayers(List<ISystem> systems)
+        {
+            var layers = new List<List<ISystem>>();
+            var remaining = new HashSet<ISystem>(systems);
+            var completedNames = new HashSet<string>();
+
+            while (remaining.Count > 0)
+            {
+                var currentLayer = remaining
+                    .Where(s => s.Dependencies.All(d => completedNames.Contains(d)))
+                    .ToList();
+
+                if (currentLayer.Count == 0)
+                {
+                    // Fallback for circular dependencies: sort by priority if no layer can be formed
+                    var fallbackLayer = remaining.OrderByDescending(s => s.Priority).ToList();
+                    layers.Add(fallbackLayer);
+                    break;
+                }
+
+                layers.Add(currentLayer);
+                foreach (var system in currentLayer)
+                {
+                    remaining.Remove(system);
+                    completedNames.Add(system.Name);
+                }
+            }
+
+            return layers;
         }
 
         public void Tick()
         {
             using (_profilingService.Measure("SystemManager.Tick"))
             {
-                foreach (var group in _priorityGroups)
+                foreach (var layer in _executionLayers)
                 {
-                    if (group.Count == 1)
+                    if (layer.Count == 1)
                     {
-                        var system = group[0];
-                        using (_profilingService.Measure($"System.{system.GetType().Name}"))
-                        {
-                            system.Tick();
-                        }
+                        ExecuteSystem(layer[0]);
                     }
                     else
                     {
-                        // Execute systems with the same priority in parallel
-                        Parallel.ForEach(group, system =>
-                        {
-                            using (_profilingService.Measure($"System.{system.GetType().Name}"))
-                            {
-                                system.Tick();
-                            }
-                        });
+                        Parallel.ForEach(layer, ExecuteSystem);
                     }
                 }
+            }
+        }
+
+        private void ExecuteSystem(ISystem system)
+        {
+            using (_profilingService.Measure($"System.{system.Name}"))
+            {
+                system.Tick();
             }
         }
     }

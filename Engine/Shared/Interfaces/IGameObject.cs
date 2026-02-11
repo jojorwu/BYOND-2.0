@@ -48,6 +48,18 @@ namespace Shared
         long Version { get; }
 
         /// <summary>
+        /// Committed coordinates for thread-safe reading.
+        /// </summary>
+        int CommittedX { get; }
+        int CommittedY { get; }
+        int CommittedZ { get; }
+
+        /// <summary>
+        /// Commits the current state to the read-only buffer.
+        /// </summary>
+        void CommitState();
+
+        /// <summary>
         /// Updates the object's 3D position in the world.
         /// </summary>
         void SetPosition(int x, int y, int z);

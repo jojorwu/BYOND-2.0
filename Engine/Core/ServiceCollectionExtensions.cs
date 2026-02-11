@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared;
 using Shared.Interfaces;
+using Shared.Services;
 
 namespace Core
 {
@@ -20,6 +21,7 @@ namespace Core
         public static IServiceCollection AddCoreServices(this IServiceCollection services)
         {
             return services
+                .AddSharedEngineServices()
                 .AddCoreStateServices()
                 .AddCoreApiServices()
                 .AddCoreVmServices()

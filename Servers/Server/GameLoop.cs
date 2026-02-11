@@ -54,6 +54,10 @@ namespace Server
                 {
                     await _strategy.TickAsync(token);
                     _systemManager.Tick();
+
+                    // Commit object state for consistent reading by other systems (e.g. networking/rendering)
+                    _context.GameState.ForEachGameObject(obj => obj.CommitState());
+
                     _context.PerformanceMonitor.RecordTick();
                     accumulator -= targetFrameTime;
                 }

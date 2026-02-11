@@ -1,5 +1,7 @@
 using System.Threading.Tasks;
 
+using System.Collections.Generic;
+
 namespace Shared.Interfaces
 {
     /// <summary>
@@ -7,6 +9,11 @@ namespace Shared.Interfaces
     /// </summary>
     public interface ISystem
     {
+        /// <summary>
+        /// Unique name for the system.
+        /// </summary>
+        string Name => GetType().Name;
+
         /// <summary>
         /// Executes the system's logic for one tick.
         /// </summary>
@@ -17,6 +24,11 @@ namespace Shared.Interfaces
         /// Systems with the same priority are executed in parallel.
         /// </summary>
         int Priority => 0;
+
+        /// <summary>
+        /// Systems that must be executed before this system.
+        /// </summary>
+        IEnumerable<string> Dependencies => System.Array.Empty<string>();
 
         /// <summary>
         /// Gets whether the system is enabled.

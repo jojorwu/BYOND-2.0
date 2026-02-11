@@ -53,15 +53,17 @@ namespace Client.Graphics
 
                     // (Pos >= Low) & (Pos <= High)
                     // Resulting Vector<int> has all 1s bits (-1) where true, all 0s where false
-                    Vector<int> res = Vector.GreaterThanOrEqual(vPos, lowBounds) & Vector.LessThanOrEqual(vPos, highBounds);
+                    var geLow = Vector.GreaterThanOrEqual(vPos, lowBounds);
+                    var leHigh = Vector.LessThanOrEqual(vPos, highBounds);
+                    Vector<int> res = Vector.AsVectorInt32(geLow & leHigh);
 
                     for (int j = 0; j < pointsPerVector; j++)
                     {
                         // Each point has two floats (X and Y)
                         // A point is visible if BOTH its floats passed the test
 
-                        int xRes = res[j * 2];
-                        int yRes = res[j * 2 + 1];
+                        int xRes = Vector.GetElement(res, j * 2);
+                        int yRes = Vector.GetElement(res, j * 2 + 1);
 
                         // xRes and yRes will be -1 (all bits 1) if true
                         pMask[i + j] = (xRes != 0 && yRes != 0) ? (byte)1 : (byte)0;

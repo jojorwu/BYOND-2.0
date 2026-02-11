@@ -20,22 +20,50 @@ namespace Shared
         public int Id { get; set; }
 
         private int _x;
+        private int _committedX;
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
         public int X { get => _x; set { if (_x != value) { _x = value; SyncVariable("x", value); Version++; } } }
 
+        /// <summary>
+        /// Gets the committed X-coordinate, used for consistent reads across threads.
+        /// </summary>
+        public int CommittedX => _committedX;
+
         private int _y;
+        private int _committedY;
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
         public int Y { get => _y; set { if (_y != value) { _y = value; SyncVariable("y", value); Version++; } } }
 
+        /// <summary>
+        /// Gets the committed Y-coordinate, used for consistent reads across threads.
+        /// </summary>
+        public int CommittedY => _committedY;
+
         private int _z;
+        private int _committedZ;
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
         public int Z { get => _z; set { if (_z != value) { _z = value; SyncVariable("z", value); Version++; } } }
+
+        /// <summary>
+        /// Gets the committed Z-coordinate, used for consistent reads across threads.
+        /// </summary>
+        public int CommittedZ => _committedZ;
+
+        /// <summary>
+        /// Commits the current state to the read-only buffer.
+        /// </summary>
+        public void CommitState()
+        {
+            _committedX = _x;
+            _committedY = _y;
+            _committedZ = _z;
+        }
 
         private IGameObject? _loc;
         /// <summary>

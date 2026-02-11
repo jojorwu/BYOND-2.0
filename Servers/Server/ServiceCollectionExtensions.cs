@@ -30,9 +30,6 @@ namespace Server
         {
             services.AddSingleton<PerformanceMonitor>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<PerformanceMonitor>());
-
-            services.AddSingleton<IProfilingService, ProfilingService>();
-
             return services;
         }
 
@@ -49,8 +46,6 @@ namespace Server
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
-            services.AddSingleton<IPluginManager, PluginManager>();
-            services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
             services.AddSingleton<ISystemManager, SystemManager>();
 
             return services;

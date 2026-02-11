@@ -14,10 +14,12 @@ namespace Shared.Services
     {
         private readonly List<ISystem> _systems;
         private readonly List<List<ISystem>> _priorityGroups;
+        private readonly IProfilingService _profilingService;
 
-        public SystemManager(IEnumerable<ISystem> systems)
+        public SystemManager(IEnumerable<ISystem> systems, IProfilingService profilingService)
         {
             _systems = systems.ToList();
+            _profilingService = profilingService;
 
             // Group systems by priority and sort groups descending (higher priority first)
             _priorityGroups = _systems
@@ -30,19 +32,29 @@ namespace Shared.Services
 
         public void Tick()
         {
-            foreach (var group in _priorityGroups)
+            using (_profilingService.Measure("SystemManager.Tick"))
             {
-                if (group.Count == 1)
+                foreach (var group in _priorityGroups)
                 {
-                    group[0].Tick();
-                }
-                else
-                {
-                    // Execute systems with the same priority in parallel
-                    Parallel.ForEach(group, system =>
+                    if (group.Count == 1)
                     {
-                        system.Tick();
-                    });
+                        var system = group[0];
+                        using (_profilingService.Measure($"System.{system.GetType().Name}"))
+                        {
+                            system.Tick();
+                        }
+                    }
+                    else
+                    {
+                        // Execute systems with the same priority in parallel
+                        Parallel.ForEach(group, system =>
+                        {
+                            using (_profilingService.Measure($"System.{system.GetType().Name}"))
+                            {
+                                system.Tick();
+                            }
+                        });
+                    }
                 }
             }
         }

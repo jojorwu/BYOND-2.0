@@ -16,13 +16,15 @@ namespace Shared.Services
     {
         private readonly List<IPlugin> _plugins = new();
         private readonly IServiceProvider _serviceProvider;
+        private readonly ISystemRegistry _systemRegistry;
         private readonly ILogger<PluginManager> _logger;
 
         public IReadOnlyList<IPlugin> LoadedPlugins => _plugins;
 
-        public PluginManager(IServiceProvider serviceProvider, ILogger<PluginManager> logger)
+        public PluginManager(IServiceProvider serviceProvider, ISystemRegistry systemRegistry, ILogger<PluginManager> logger)
         {
             _serviceProvider = serviceProvider;
+            _systemRegistry = systemRegistry;
             _logger = logger;
         }
 
@@ -37,6 +39,13 @@ namespace Shared.Services
                 try
                 {
                     await plugin.InitializeAsync(_serviceProvider);
+
+                    // Discover and register systems from the plugin if any
+                    if (plugin is ISystem systemPlugin && systemPlugin is ISystem system)
+                    {
+                        _systemRegistry.Register(system);
+                    }
+
                     _logger.LogInformation("Loaded plugin: {PluginName} v{Version}", plugin.Name, plugin.Version);
                 }
                 catch (Exception ex)

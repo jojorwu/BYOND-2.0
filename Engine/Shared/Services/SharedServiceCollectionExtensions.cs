@@ -12,6 +12,7 @@ namespace Shared.Services
             services.AddSingleton<IEngineManager, EngineManager>();
             services.AddSingleton<IEventBus, EventBus>();
             services.AddSingleton<IComputeService, ComputeService>();
+            services.AddSingleton<ISystemRegistry, SystemRegistry>();
             services.AddSingleton<IPluginManager, PluginManager>();
             services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
             services.AddSingleton<IProfilingService, ProfilingService>();

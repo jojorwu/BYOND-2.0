@@ -12,18 +12,21 @@ namespace Shared.Services
 
     public class SystemManager : ISystemManager
     {
-        private readonly List<ISystem> _systems;
-        private readonly List<List<ISystem>> _executionLayers;
+        private readonly ISystemRegistry _registry;
+        private List<List<ISystem>> _executionLayers;
         private readonly IProfilingService _profilingService;
+        private bool _isDirty = true;
 
-        public SystemManager(IEnumerable<ISystem> systems, IProfilingService profilingService)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService)
         {
-            _systems = systems.Where(s => s.Enabled).ToList();
+            _registry = registry;
             _profilingService = profilingService;
-            _executionLayers = CalculateExecutionLayers(_systems);
+            _executionLayers = new List<List<ISystem>>();
         }
 
-        private List<List<ISystem>> CalculateExecutionLayers(List<ISystem> systems)
+        public void MarkDirty() => _isDirty = true;
+
+        private List<List<ISystem>> CalculateExecutionLayers(IEnumerable<ISystem> systems)
         {
             var layers = new List<List<ISystem>>();
             var remaining = new HashSet<ISystem>(systems);
@@ -56,6 +59,12 @@ namespace Shared.Services
 
         public void Tick()
         {
+            if (_isDirty)
+            {
+                _executionLayers = CalculateExecutionLayers(_registry.GetSystems().Where(s => s.Enabled));
+                _isDirty = false;
+            }
+
             using (_profilingService.Measure("SystemManager.Tick"))
             {
                 foreach (var layer in _executionLayers)

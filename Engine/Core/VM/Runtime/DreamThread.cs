@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,7 +30,7 @@ namespace Core.VM.Runtime
     {
         public const int MaxCallStackDepth = 512;
         public const int MaxStackSize = 65536;
-        internal DreamValue[] _stack = new DreamValue[1024];
+        internal DreamValue[] _stack;
         internal int _stackPtr = 0;
         internal CallFrame[] _callStack = new CallFrame[64];
         internal int _callStackPtr = 0;
@@ -62,6 +63,7 @@ namespace Core.VM.Runtime
             _maxInstructions = maxInstructions;
             _interpreter = interpreter ?? new BytecodeInterpreter();
             AssociatedObject = associatedObject;
+            _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
 
             PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
         }
@@ -72,6 +74,7 @@ namespace Core.VM.Runtime
             _maxInstructions = other._maxInstructions;
             _interpreter = other._interpreter;
             AssociatedObject = other.AssociatedObject;
+            _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
 
             var currentFrame = other._callStack[other._callStackPtr - 1];
             PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
@@ -93,7 +96,10 @@ namespace Core.VM.Runtime
             if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             if (_stackPtr >= _stack.Length)
             {
-                Array.Resize(ref _stack, _stack.Length * 2);
+                var newStack = ArrayPool<DreamValue>.Shared.Rent(_stack.Length * 2);
+                Array.Copy(_stack, newStack, _stack.Length);
+                ArrayPool<DreamValue>.Shared.Return(_stack);
+                _stack = newStack;
             }
             _stack[_stackPtr++] = value;
         }
@@ -402,6 +408,13 @@ namespace Core.VM.Runtime
             }
             ActiveEnumerators.Clear();
             EnumeratorLists.Clear();
+
+            if (_stack != null)
+            {
+                ArrayPool<DreamValue>.Shared.Return(_stack);
+                _stack = null!;
+            }
+
             GC.SuppressFinalize(this);
         }
     }

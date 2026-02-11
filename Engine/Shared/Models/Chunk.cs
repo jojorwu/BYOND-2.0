@@ -28,6 +28,17 @@ namespace Shared
             }
         }
 
+        public void ForEachTurf(System.Action<ITurf?> action)
+        {
+            for (int y = 0; y < ChunkSize; y++)
+            {
+                for (int x = 0; x < ChunkSize; x++)
+                {
+                    action(_turfs[x, y]);
+                }
+            }
+        }
+
         public IEnumerable<ITurf> GetTurfs()
         {
             for (int y = 0; y < ChunkSize; y++)

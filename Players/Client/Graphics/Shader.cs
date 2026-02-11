@@ -58,10 +58,28 @@ namespace Client.Graphics
             _gl.UniformMatrix4(location, 1, false, (float*)&value);
         }
 
+        public void SetUniform(string name, Vector2 value)
+        {
+            int location = GetUniformLocation(name);
+            _gl.Uniform2(location, value.X, value.Y);
+        }
+
         public void SetUniform(string name, Vector3 value)
         {
             int location = GetUniformLocation(name);
             _gl.Uniform3(location, value.X, value.Y, value.Z);
+        }
+
+        public void SetUniform(string name, Vector4 value)
+        {
+            int location = GetUniformLocation(name);
+            _gl.Uniform4(location, value.X, value.Y, value.Z, value.W);
+        }
+
+        public void SetUniform(string name, Robust.Shared.Maths.Color value)
+        {
+            int location = GetUniformLocation(name);
+            _gl.Uniform4(location, value.R, value.G, value.B, value.A);
         }
 
         private int GetUniformLocation(string name)

@@ -54,9 +54,12 @@ namespace Server
 
         public IScriptThread[] GetActiveThreads()
         {
+            var env = _currentEnvironment;
+            if (env == null) return Array.Empty<IScriptThread>();
+
             lock (_scriptLock)
             {
-                return _currentEnvironment?.Threads.ToArray() ?? Array.Empty<IScriptThread>();
+                return env.Threads.ToArray();
             }
         }
 

@@ -84,6 +84,12 @@ namespace Server
                 catch (OperationCanceledException) { }
             }
             _netManager.Stop();
+
+            _listener.ConnectionRequestEvent -= OnConnectionRequest;
+            _listener.PeerConnectedEvent -= OnPeerConnected;
+            _listener.NetworkReceiveEvent -= OnNetworkReceive;
+            _listener.PeerDisconnectedEvent -= OnPeerDisconnected;
+
             _logger.LogInformation("Network service stopped.");
         }
 
@@ -108,7 +114,10 @@ namespace Server
             _context.PerformanceMonitor.RecordBytesReceived(reader.AvailableBytes);
             if (reader.AvailableBytes > 0)
             {
-                var command = reader.GetString();
+                // Safety limit for command length
+                const int MaxCommandLength = 4096;
+                var command = reader.GetString(MaxCommandLength);
+
                 if(_peers.TryGetValue(peer, out var networkPeer))
                     CommandReceived?.Invoke(networkPeer, command);
             }

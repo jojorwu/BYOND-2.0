@@ -16,7 +16,7 @@ namespace Core.Api
 
         public List<string> ListScriptFiles()
         {
-            var rootPath = Path.GetFullPath(Constants.ScriptsRoot);
+            var rootPath = _project.GetFullPath(Constants.ScriptsRoot);
             if (!Directory.Exists(rootPath))
                 return new List<string>();
 

@@ -52,6 +52,12 @@ namespace Server
 
         public void Dispose()
         {
+            foreach (var thread in Threads)
+            {
+                if (thread is IDisposable disposable)
+                    disposable.Dispose();
+            }
+            Threads.Clear();
             _scope.Dispose();
         }
     }

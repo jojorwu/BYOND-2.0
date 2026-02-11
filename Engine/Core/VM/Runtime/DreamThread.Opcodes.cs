@@ -13,7 +13,7 @@ namespace Core.VM.Runtime
     {
         #region Opcode Handlers
 
-        private void Opcode_GetStepTo()
+        internal void Opcode_GetStepTo()
         {
             var minDistValue = Pop();
             var targetValue = Pop();
@@ -43,7 +43,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_GetDist()
+        internal void Opcode_GetDist()
         {
             var b = Pop();
             var a = Pop();
@@ -65,7 +65,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void PerformCall(DMReference reference, DMCallArgumentsType argType, int stackDelta, bool discardReturnValue = false)
+        internal void PerformCall(DMReference reference, DMCallArgumentsType argType, int stackDelta, bool discardReturnValue = false)
         {
             IDreamProc? newProc = null;
             DreamObject? instance = null;
@@ -77,7 +77,7 @@ namespace Core.VM.Runtime
                         newProc = Context.AllProcs[reference.Index];
                     break;
                 case DMReference.Type.SrcProc:
-                    var frame = CallStack.Peek();
+                    var frame = _callStack[_callStackPtr - 1];
                     instance = frame.Instance;
                     if (instance != null)
                     {
@@ -90,7 +90,7 @@ namespace Core.VM.Runtime
                     break;
                 default:
                     {
-                        var value = GetReferenceValue(reference, CallStack.Peek());
+                        var value = GetReferenceValue(reference, _callStack[_callStackPtr - 1]);
                         if (value.TryGetValue(out IDreamProc? proc))
                         {
                             newProc = proc;
@@ -109,7 +109,7 @@ namespace Core.VM.Runtime
         }
 
 
-        private void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
+        internal void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc.Bytecode, ref pc);
             var message = Pop();
@@ -123,27 +123,26 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_Return(ref DreamProc proc, ref int pc)
+        internal void Opcode_Return(ref DreamProc proc, ref int pc)
         {
             var returnValue = Pop();
 
-            var returnedFrame = CallStack.Pop();
-            if (CallStack.Count > 0)
-            {
-                _stackPtr = returnedFrame.StackBase;
+            var returnedFrame = PopCallFrame();
+            _stackPtr = returnedFrame.StackBase;
 
+            if (_callStackPtr > 0)
+            {
                 if (!returnedFrame.DiscardReturnValue)
                 {
                     Push(returnValue);
                 }
 
-                var newFrame = CallStack.Peek();
+                var newFrame = _callStack[_callStackPtr - 1];
                 proc = newFrame.Proc;
                 pc = newFrame.PC;
             }
             else
             {
-                _stackPtr = 0;
                 Push(returnValue);
                 State = DreamThreadState.Finished;
             }
@@ -151,7 +150,7 @@ namespace Core.VM.Runtime
 
 
         private GlobalVarsObject? _globalVars;
-        private void Opcode_PushGlobalVars()
+        internal void Opcode_PushGlobalVars()
         {
             _globalVars ??= new GlobalVarsObject(Context);
             Push(new DreamValue(_globalVars));
@@ -162,14 +161,14 @@ namespace Core.VM.Runtime
 
 
 
-        private void Opcode_Modulus()
+        internal void Opcode_Modulus()
         {
             var b = Pop();
             var a = Pop();
             Push(a % b);
         }
 
-        private void Opcode_ModulusModulus()
+        internal void Opcode_ModulusModulus()
         {
             var b = Pop();
             var a = Pop();
@@ -177,7 +176,7 @@ namespace Core.VM.Runtime
         }
 
 
-        private void Opcode_GetStep()
+        internal void Opcode_GetStep()
         {
             var dirValue = Pop();
             var objValue = Pop();
@@ -200,7 +199,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_GetDir()
+        internal void Opcode_GetDir()
         {
             var targetValue = Pop();
             var sourceValue = Pop();
@@ -225,45 +224,46 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_PickUnweighted(DreamProc proc, ref int pc)
+        internal void Opcode_PickUnweighted(DreamProc proc, ref int pc)
         {
             var count = ReadInt32(proc, ref pc);
+            if (count < 0 || count > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid pick count: {count}", proc, pc, this);
             if (count == 0)
             {
                 Push(DreamValue.Null);
                 return;
             }
 
-            var values = new DreamValue[count];
-            for (int i = count - 1; i >= 0; i--)
-                values[i] = Pop();
-
-            var result = values[Random.Shared.Next(0, count)];
+            int index = Random.Shared.Next(0, count);
+            var result = _stack[_stackPtr - count + index];
+            _stackPtr -= count;
             Push(result);
         }
 
-        private void Opcode_PickWeighted(DreamProc proc, ref int pc)
+        internal void Opcode_PickWeighted(DreamProc proc, ref int pc)
         {
             var count = ReadInt32(proc, ref pc);
+            if (count < 0 || count * 2 > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid weighted pick count: {count}", proc, pc, this);
             if (count == 0)
             {
                 Push(DreamValue.Null);
                 return;
             }
 
-            var values = new (DreamValue Value, float Weight)[count];
             float totalWeight = 0;
-            for (int i = count - 1; i >= 0; i--)
+            int baseIdx = _stackPtr - count * 2;
+            for (int i = 0; i < count; i++)
             {
-                var weight = Pop().GetValueAsFloat();
-                var val = Pop();
-                values[i] = (val, weight);
-                totalWeight += weight;
+                totalWeight += _stack[baseIdx + i * 2 + 1].GetValueAsFloat();
             }
 
             if (totalWeight <= 0)
             {
-                Push(values[0].Value);
+                var result = _stack[baseIdx];
+                _stackPtr -= count * 2;
+                Push(result);
                 return;
             }
 
@@ -271,48 +271,63 @@ namespace Core.VM.Runtime
             float currentWeight = 0;
             for (int i = 0; i < count; i++)
             {
-                currentWeight += values[i].Weight;
+                currentWeight += _stack[baseIdx + i * 2 + 1].GetValueAsFloat();
                 if (pick <= currentWeight)
                 {
-                    Push(values[i].Value);
+                    var result = _stack[baseIdx + i * 2];
+                    _stackPtr -= count * 2;
+                    Push(result);
                     return;
                 }
             }
 
-            Push(values[count - 1].Value);
+            var finalResult = _stack[baseIdx + (count - 1) * 2];
+            _stackPtr -= count * 2;
+            Push(finalResult);
         }
 
-        private void Opcode_CreateList(DreamProc proc, ref int pc)
+        internal void Opcode_CreateList(DreamProc proc, ref int pc)
         {
             var size = ReadInt32(proc, ref pc);
-            var list = new DreamList(Context.ListType!, size);
-            for (int i = size - 1; i >= 0; i--)
+            if (size < 0 || size > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid list size: {size}", proc, pc, this);
+
+            var list = new DreamList(Context.ListType!, 0);
+            if (size > 0)
             {
-                list.SetValue(i, Pop());
+                list.Populate(_stack.AsSpan(_stackPtr - size, size));
+                _stackPtr -= size;
             }
             Push(new DreamValue(list));
         }
 
-        private void Opcode_CreateAssociativeList(DreamProc proc, ref int pc)
+        internal void Opcode_CreateAssociativeList(DreamProc proc, ref int pc)
         {
             var size = ReadInt32(proc, ref pc);
+            if (size < 0 || size * 2 > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid associative list size: {size}", proc, pc, this);
             var list = new DreamList(Context.ListType!);
-            for (int i = 0; i < size; i++)
+            if (size > 0)
             {
-                var value = Pop();
-                var key = Pop();
-                list.SetValue(key, value);
+                int baseIdx = _stackPtr - size * 2;
+                for (int i = 0; i < size; i++)
+                {
+                    var key = _stack[baseIdx + i * 2];
+                    var value = _stack[baseIdx + i * 2 + 1];
+                    list.SetValue(key, value);
+                }
+                _stackPtr -= size * 2;
             }
             Push(new DreamValue(list));
         }
 
-        private void Opcode_CreateStrictAssociativeList(DreamProc proc, ref int pc)
+        internal void Opcode_CreateStrictAssociativeList(DreamProc proc, ref int pc)
         {
             // Same for now
             Opcode_CreateAssociativeList(proc, ref pc);
         }
 
-        private void Opcode_IsInList()
+        internal void Opcode_IsInList()
         {
             var listValue = Pop();
             var value = Pop();
@@ -327,14 +342,20 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount, bool discardReturnValue = false)
+        internal void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount, bool discardReturnValue = false)
         {
+            if (_callStackPtr >= MaxCallStackDepth)
+                throw new ScriptRuntimeException("Maximum call stack depth exceeded", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
+
+            if (stackDelta < 0 || stackDelta > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid stack delta for procedure call: {stackDelta}", CurrentProc, 0, this);
+
             var stackBase = _stackPtr - stackDelta;
 
             if (newProc is DreamProc dreamProc)
             {
                 var frame = new CallFrame(dreamProc, 0, stackBase, instance, discardReturnValue);
-                CallStack.Push(frame);
+                PushCallFrame(frame);
 
                 for (int i = 0; i < dreamProc.LocalVariableCount; i++)
                 {
@@ -357,7 +378,7 @@ namespace Core.VM.Runtime
         }
 
 
-        private void Opcode_CreateListEnumerator(DreamProc proc, ref int pc)
+        internal void Opcode_CreateListEnumerator(DreamProc proc, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
             var listValue = Pop();
@@ -373,7 +394,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_Enumerate(DreamProc proc, CallFrame frame, ref int pc)
+        internal void Opcode_Enumerate(DreamProc proc, CallFrame frame, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
             var reference = ReadReference(proc.Bytecode, ref pc);
@@ -396,7 +417,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_EnumerateAssoc(DreamProc proc, CallFrame frame, ref int pc)
+        internal void Opcode_EnumerateAssoc(DreamProc proc, CallFrame frame, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
             var assocRef = ReadReference(proc.Bytecode, ref pc);
@@ -428,7 +449,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_DestroyEnumerator(DreamProc proc, ref int pc)
+        internal void Opcode_DestroyEnumerator(DreamProc proc, ref int pc)
         {
             var enumeratorId = ReadInt32(proc, ref pc);
             if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
@@ -439,7 +460,7 @@ namespace Core.VM.Runtime
             EnumeratorLists.Remove(enumeratorId);
         }
 
-        private void Opcode_Append(DreamProc proc, CallFrame frame, ref int pc)
+        internal void Opcode_Append(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
@@ -451,7 +472,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_Remove(DreamProc proc, CallFrame frame, ref int pc)
+        internal void Opcode_Remove(DreamProc proc, CallFrame frame, ref int pc)
         {
             var reference = ReadReference(proc.Bytecode, ref pc);
             var value = Pop();
@@ -463,7 +484,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_Prob()
+        internal void Opcode_Prob()
         {
             var chanceValue = Pop();
             if (chanceValue.TryGetValue(out float chance))
@@ -477,21 +498,44 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_MassConcatenation(DreamProc proc, ref int pc)
+        internal void Opcode_MassConcatenation(DreamProc proc, ref int pc)
         {
             var count = ReadInt32(proc, ref pc);
-            var strings = new string[count];
-            for (int i = count - 1; i >= 0; i--)
+            if (count < 0 || count > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid concatenation count: {count}", proc, pc, this);
+            if (count > 1024)
+                throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, this);
+
+            if (count == 0)
             {
-                strings[i] = Pop().ToString();
+                Push(new DreamValue(""));
+                return;
             }
+
+            int baseIdx = _stackPtr - count;
+            var strings = new string[count];
+            long totalLength = 0;
+            for (int i = 0; i < count; i++)
+            {
+                strings[i] = _stack[baseIdx + i].ToString();
+                totalLength += strings[i].Length;
+            }
+
+            if (totalLength > 67108864)
+                throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, this);
+
+            _stackPtr -= count;
             Push(new DreamValue(string.Concat(strings)));
         }
 
-        private void Opcode_FormatString(DreamProc proc, ref int pc)
+        internal void Opcode_FormatString(DreamProc proc, ref int pc)
         {
             var stringId = ReadInt32(proc, ref pc);
             var formatCount = ReadInt32(proc, ref pc);
+            if (stringId < 0 || stringId >= Context.Strings.Count)
+                throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, this);
+            if (formatCount < 0 || formatCount > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, this);
             var formatString = Context.Strings[stringId];
 
             var values = new DreamValue[formatCount];
@@ -514,6 +558,8 @@ namespace Core.VM.Runtime
                         {
                             // Basic interpolation for now
                             result.Append(values[valueIndex++].ToString());
+                            if (result.Length > 67108864)
+                                throw new ScriptRuntimeException("Maximum string length exceeded during formatting", proc, pc, this);
                         }
                     }
                     // Handle other macros if needed (The, the, etc.)
@@ -527,31 +573,31 @@ namespace Core.VM.Runtime
             Push(new DreamValue(result.ToString()));
         }
 
-        private void Opcode_Power()
+        internal void Opcode_Power()
         {
             var b = Pop();
             var a = Pop();
             Push(new DreamValue(MathF.Pow(a.GetValueAsFloat(), b.GetValueAsFloat())));
         }
-        private void Opcode_Sqrt()
+        internal void Opcode_Sqrt()
         {
             var a = Pop();
             Push(new DreamValue(SharedOperations.Sqrt(a.GetValueAsFloat())));
         }
-        private void Opcode_Abs()
+        internal void Opcode_Abs()
         {
             var a = Pop();
             Push(new DreamValue(SharedOperations.Abs(a.GetValueAsFloat())));
         }
 
 
-        private void Opcode_Sin() => Push(new DreamValue(SharedOperations.Sin(Pop().GetValueAsFloat())));
-        private void Opcode_Cos() => Push(new DreamValue(SharedOperations.Cos(Pop().GetValueAsFloat())));
-        private void Opcode_Tan() => Push(new DreamValue(SharedOperations.Tan(Pop().GetValueAsFloat())));
-        private void Opcode_ArcSin() => Push(new DreamValue(SharedOperations.ArcSin(Pop().GetValueAsFloat())));
-        private void Opcode_ArcCos() => Push(new DreamValue(SharedOperations.ArcCos(Pop().GetValueAsFloat())));
-        private void Opcode_ArcTan() => Push(new DreamValue(SharedOperations.ArcTan(Pop().GetValueAsFloat())));
-        private void Opcode_ArcTan2()
+        internal void Opcode_Sin() => Push(new DreamValue(SharedOperations.Sin(Pop().GetValueAsFloat())));
+        internal void Opcode_Cos() => Push(new DreamValue(SharedOperations.Cos(Pop().GetValueAsFloat())));
+        internal void Opcode_Tan() => Push(new DreamValue(SharedOperations.Tan(Pop().GetValueAsFloat())));
+        internal void Opcode_ArcSin() => Push(new DreamValue(SharedOperations.ArcSin(Pop().GetValueAsFloat())));
+        internal void Opcode_ArcCos() => Push(new DreamValue(SharedOperations.ArcCos(Pop().GetValueAsFloat())));
+        internal void Opcode_ArcTan() => Push(new DreamValue(SharedOperations.ArcTan(Pop().GetValueAsFloat())));
+        internal void Opcode_ArcTan2()
         {
             var y = Pop();
             var x = Pop();
@@ -559,10 +605,13 @@ namespace Core.VM.Runtime
         }
 
 
-        private void Opcode_CreateObject(DreamProc proc, ref int pc)
+        internal void Opcode_CreateObject(DreamProc proc, ref int pc)
         {
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argStackDelta = ReadInt32(proc, ref pc);
+
+            if (argStackDelta < 1 || argStackDelta > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, this);
 
             var argCount = argStackDelta - 1;
             var values = new DreamValue[argCount];
@@ -597,7 +646,7 @@ namespace Core.VM.Runtime
             }
         }
 
-        private void Opcode_LocateCoord()
+        internal void Opcode_LocateCoord()
         {
             var zValue = Pop();
             var yValue = Pop();
@@ -616,7 +665,7 @@ namespace Core.VM.Runtime
             Push(DreamValue.Null);
         }
 
-        private void Opcode_Locate()
+        internal void Opcode_Locate()
         {
             var containerValue = Pop();
             var typeValue = Pop();
@@ -652,12 +701,15 @@ namespace Core.VM.Runtime
                 {
                     if (Context.GameState != null)
                     {
-                        foreach (var obj in Context.GameState.GameObjects.Values)
+                        using (Context.GameState.ReadLock())
                         {
-                            if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
+                            foreach (var obj in Context.GameState.GameObjects.Values)
                             {
-                                Push(new DreamValue(obj));
-                                return;
+                                if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
+                                {
+                                    Push(new DreamValue(obj));
+                                    return;
+                                }
                             }
                         }
                     }
@@ -667,10 +719,13 @@ namespace Core.VM.Runtime
         }
 
 
-        private void Opcode_Rgb(DreamProc proc, ref int pc)
+        internal void Opcode_Rgb(DreamProc proc, ref int pc)
         {
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argCount = ReadInt32(proc, ref pc);
+
+            if (argCount < 0 || (argType == DMCallArgumentsType.FromStackKeyed ? argCount * 2 : argCount) > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", proc, pc, this);
 
             var values = new (string? Name, float? Value)[argCount];
             if (argType == DMCallArgumentsType.FromStackKeyed)
@@ -693,10 +748,13 @@ namespace Core.VM.Runtime
             Push(new DreamValue(SharedOperations.ParseRgb(values)));
         }
 
-        private void Opcode_Gradient(DreamProc proc, ref int pc)
+        internal void Opcode_Gradient(DreamProc proc, ref int pc)
         {
             var argType = (DMCallArgumentsType)ReadByte(proc, ref pc);
             var argCount = ReadInt32(proc, ref pc);
+
+            if (argCount < 0 || argCount > _stackPtr)
+                throw new ScriptRuntimeException($"Invalid gradient argument count: {argCount}", proc, pc, this);
 
             var values = new DreamValue[argCount];
             for (int i = argCount - 1; i >= 0; i--)

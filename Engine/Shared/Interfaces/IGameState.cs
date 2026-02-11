@@ -22,7 +22,7 @@ namespace Shared
         /// <summary>
         /// All active game objects indexed by their ID.
         /// </summary>
-        Dictionary<int, GameObject> GameObjects { get; }
+        IDictionary<int, GameObject> GameObjects { get; }
 
         /// <summary>
         /// Acquires a shared read lock.

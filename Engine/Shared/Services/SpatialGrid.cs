@@ -3,15 +3,21 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Robust.Shared.Maths;
+using System.Collections.Concurrent;
 
 namespace Shared
 {
     public class SpatialGrid : IDisposable
     {
+        private class Cell
+        {
+            public readonly List<IGameObject> Objects = new();
+            public readonly object Lock = new();
+        }
+
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
-        private readonly Dictionary<long, List<IGameObject>> _grid = new();
+        private readonly ConcurrentDictionary<long, Cell> _grid = new();
         private readonly int _cellSize;
-        private readonly ReaderWriterLockSlim _lock = new();
 
         public SpatialGrid(int cellSize = 16)
         {
@@ -26,41 +32,29 @@ namespace Shared
 
         public void Add(IGameObject obj)
         {
-            _lock.EnterWriteLock();
-            try
+            var key = GetCellKey(obj.X, obj.Y);
+            var cell = _grid.GetOrAdd(key, _ => new Cell());
+            lock (cell.Lock)
             {
-                var key = GetCellKey(obj.X, obj.Y);
-                if (!_grid.TryGetValue(key, out var cell))
-                {
-                    cell = new List<IGameObject>();
-                    _grid[key] = cell;
-                }
-                cell.Add(obj);
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
+                cell.Objects.Add(obj);
             }
         }
 
         public void Remove(IGameObject obj)
         {
-            _lock.EnterWriteLock();
-            try
+            var key = GetCellKey(obj.X, obj.Y);
+            if (_grid.TryGetValue(key, out var cell))
             {
-                var key = GetCellKey(obj.X, obj.Y);
-                if (_grid.TryGetValue(key, out var cell))
+                lock (cell.Lock)
                 {
-                    cell.Remove(obj);
-                    if (cell.Count == 0)
+                    int index = cell.Objects.IndexOf(obj);
+                    if (index != -1)
                     {
-                        _grid.Remove(key);
+                        int last = cell.Objects.Count - 1;
+                        cell.Objects[index] = cell.Objects[last];
+                        cell.Objects.RemoveAt(last);
                     }
                 }
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
             }
         }
 
@@ -73,28 +67,28 @@ namespace Shared
 
             if (oldGX != newGX || oldGY != newGY)
             {
-                _lock.EnterWriteLock();
-                try
+                // Remove from old
+                long oldKey = ((long)oldGX << 32) | (uint)oldGY;
+                if (_grid.TryGetValue(oldKey, out var oldCell))
                 {
-                    // Manual remove from old
-                    long oldKey = ((long)oldGX << 32) | (uint)oldGY;
-                    if (_grid.TryGetValue(oldKey, out var oldCell))
+                    lock (oldCell.Lock)
                     {
-                        oldCell.Remove(obj);
-                        if (oldCell.Count == 0) _grid.Remove(oldKey);
+                        int index = oldCell.Objects.IndexOf(obj);
+                        if (index != -1)
+                        {
+                            int last = oldCell.Objects.Count - 1;
+                            oldCell.Objects[index] = oldCell.Objects[last];
+                            oldCell.Objects.RemoveAt(last);
+                        }
                     }
-                    // Manual add to new
-                    long newKey = ((long)newGX << 32) | (uint)newGY;
-                    if (!_grid.TryGetValue(newKey, out var newCell))
-                    {
-                        newCell = new List<IGameObject>();
-                        _grid[newKey] = newCell;
-                    }
-                    newCell.Add(obj);
                 }
-                finally
+
+                // Add to new
+                long newKey = ((long)newGX << 32) | (uint)newGY;
+                var newCell = _grid.GetOrAdd(newKey, _ => new Cell());
+                lock (newCell.Lock)
                 {
-                    _lock.ExitWriteLock();
+                    newCell.Objects.Add(obj);
                 }
             }
         }
@@ -102,6 +96,12 @@ namespace Shared
         public List<IGameObject> GetObjectsInBox(Box2i box)
         {
             var results = new List<IGameObject>();
+            GetObjectsInBox(box, results);
+            return results;
+        }
+
+        public void GetObjectsInBox(Box2i box, List<IGameObject> results)
+        {
             var seen = _seenHashSet.Value!;
             seen.Clear();
 
@@ -110,18 +110,24 @@ namespace Shared
             int endX = box.Right / _cellSize;
             int endY = box.Bottom / _cellSize;
 
-            _lock.EnterReadLock();
-            try
+            // Prevent DoS via huge search area
+            if ((long)(endX - startX + 1) * (endY - startY + 1) > 10000)
             {
-                for (int x = startX; x <= endX; x++)
+                return;
+            }
+
+            for (int x = startX; x <= endX; x++)
+            {
+                for (int y = startY; y <= endY; y++)
                 {
-                    for (int y = startY; y <= endY; y++)
+                    long key = ((long)x << 32) | (uint)y;
+                    if (_grid.TryGetValue(key, out var cell))
                     {
-                        long key = ((long)x << 32) | (uint)y;
-                        if (_grid.TryGetValue(key, out var cell))
+                        lock (cell.Lock)
                         {
-                            foreach (var obj in cell)
+                            for (int i = 0; i < cell.Objects.Count; i++)
                             {
+                                var obj = cell.Objects[i];
                                 if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
                                 {
                                     results.Add(obj);
@@ -131,16 +137,10 @@ namespace Shared
                     }
                 }
             }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-            return results;
         }
 
         public void Dispose()
         {
-            _lock.Dispose();
         }
     }
 }

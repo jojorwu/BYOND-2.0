@@ -13,10 +13,10 @@ using Shared.Services;
 
 namespace Server
 {
-    public class HttpServer : EngineService, IHostedService
+    public class HttpServer : EngineService, IHostedService, IDisposable
     {
         public override int Priority => -50; // Moderate priority
-        private readonly IHost? _host;
+        private IHost? _host;
         private readonly ILogger<HttpServer> _logger;
 
         public HttpServer(IOptions<ServerSettings> settingsOptions, IProject project, ILogger<HttpServer> logger)
@@ -75,6 +75,12 @@ namespace Server
                 await _host.StopAsync(cancellationToken);
                 _logger.LogInformation("HTTP server stopped.");
             }
+        }
+
+        public void Dispose()
+        {
+            _host?.Dispose();
+            _host = null;
         }
     }
 }

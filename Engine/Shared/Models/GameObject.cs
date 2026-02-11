@@ -1,12 +1,15 @@
 using System.Collections.Generic;
 using System.Threading;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace Shared
 {
     /// <summary>
     /// Represents an object in the game world.
     /// </summary>
+    [JsonConverter(typeof(GameObjectConverter))]
     public class GameObject : DreamObject, IGameObject
     {
         private static int nextId = 1;
@@ -20,19 +23,19 @@ namespace Shared
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
-        public int X { get => _x; set { _x = value; SyncVariable("x", value); } }
+        public int X { get => _x; set { if (_x != value) { _x = value; SyncVariable("x", value); Version++; } } }
 
         private int _y;
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
-        public int Y { get => _y; set { _y = value; SyncVariable("y", value); } }
+        public int Y { get => _y; set { if (_y != value) { _y = value; SyncVariable("y", value); Version++; } } }
 
         private int _z;
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
-        public int Z { get => _z; set { _z = value; SyncVariable("z", value); } }
+        public int Z { get => _z; set { if (_z != value) { _z = value; SyncVariable("z", value); Version++; } } }
 
         private IGameObject? _loc;
         /// <summary>
@@ -41,17 +44,22 @@ namespace Shared
         public IGameObject? Loc
         {
             get => _loc;
-            set
+            set => SetLocInternal(value, true);
+        }
+
+        private void SetLocInternal(IGameObject? value, bool syncVariable)
+        {
+            if (_loc == value) return;
+
+            var oldLoc = _loc as GameObject;
+            _loc = value;
+            var newLoc = value as GameObject;
+
+            oldLoc?.RemoveContentInternal(this);
+            newLoc?.AddContentInternal(this);
+
+            if (syncVariable)
             {
-                if (_loc == value) return;
-
-                var oldLoc = _loc as GameObject;
-                _loc = value;
-                var newLoc = value as GameObject;
-
-                oldLoc?.RemoveContentInternal(this);
-                newLoc?.AddContentInternal(this);
-
                 SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
             }
         }
@@ -69,7 +77,8 @@ namespace Shared
                 lock (_contentsLock)
                 {
                     if (_contents.Count == 0) return System.Array.Empty<IGameObject>();
-                    return _contents.ToArray();
+                    // Return a clone to avoid concurrent modification issues during iteration
+                    return _contents.ToList();
                 }
             }
         }
@@ -122,11 +131,16 @@ namespace Shared
 
         public override DreamValue GetVariable(string name)
         {
+            // Fast-path for common variables
+            if (name.Length == 1)
+            {
+                if (name[0] == 'x') return new DreamValue((float)X);
+                if (name[0] == 'y') return new DreamValue((float)Y);
+                if (name[0] == 'z') return new DreamValue((float)Z);
+            }
+
             switch (name)
             {
-                case "x": return new DreamValue((float)X);
-                case "y": return new DreamValue((float)Y);
-                case "z": return new DreamValue((float)Z);
                 case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
                 case "name":
                     var val = base.GetVariable(name);
@@ -138,11 +152,15 @@ namespace Shared
 
         public override void SetVariable(string name, DreamValue value)
         {
+            if (name.Length == 1)
+            {
+                if (name[0] == 'x') { X = (int)value.GetValueAsFloat(); return; }
+                if (name[0] == 'y') { Y = (int)value.GetValueAsFloat(); return; }
+                if (name[0] == 'z') { Z = (int)value.GetValueAsFloat(); return; }
+            }
+
             switch (name)
             {
-                case "x": X = (int)value.GetValueAsFloat(); break;
-                case "y": Y = (int)value.GetValueAsFloat(); break;
-                case "z": Z = (int)value.GetValueAsFloat(); break;
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                         Loc = loc;
@@ -152,6 +170,34 @@ namespace Shared
                 default:
                     base.SetVariable(name, value);
                     break;
+            }
+        }
+
+        public override void SetVariableDirect(int index, DreamValue value)
+        {
+            base.SetVariableDirect(index, value);
+
+            if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
+            {
+                var name = ObjectType.VariableNames[index];
+                if (name.Length == 1)
+                {
+                    if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
+                    if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
+                    if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
+                }
+
+                if (name == "loc")
+                {
+                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                    {
+                        SetLocInternal(loc, false);
+                    }
+                    else
+                    {
+                        SetLocInternal(null, false);
+                    }
+                }
             }
         }
 
@@ -241,6 +287,35 @@ namespace Shared
         public override string ToString()
         {
             return ObjectType?.Name ?? "object";
+        }
+    }
+
+    public class GameObjectConverter : JsonConverter<GameObject>
+    {
+        public override GameObject Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        {
+            // Minimal implementation for now, primarily used for sending to client
+            return new GameObject();
+        }
+
+        public override void Write(Utf8JsonWriter writer, GameObject value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteNumber("Id", value.Id);
+            writer.WriteString("TypeName", value.TypeName);
+            writer.WriteStartObject("Properties");
+            if (value.ObjectType != null)
+            {
+                for (int i = 0; i < value.ObjectType.VariableNames.Count; i++)
+                {
+                    var name = value.ObjectType.VariableNames[i];
+                    var val = value.GetVariable(i);
+                    writer.WritePropertyName(name);
+                    val.WriteTo(writer, options);
+                }
+            }
+            writer.WriteEndObject();
+            writer.WriteEndObject();
         }
     }
 }

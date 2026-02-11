@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
+using System.Collections.Concurrent;
 
 namespace Shared
 {
@@ -12,7 +13,9 @@ namespace Shared
 
         public IMap? Map { get; set; }
         public SpatialGrid SpatialGrid { get; } = new SpatialGrid();
-        public Dictionary<int, GameObject> GameObjects { get; } = new Dictionary<int, GameObject>();
+        public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
+
+        IDictionary<int, GameObject> IGameState.GameObjects => GameObjects;
 
         public IDisposable ReadLock()
         {
@@ -29,6 +32,7 @@ namespace Shared
         public void Dispose()
         {
             _lock.Dispose();
+            SpatialGrid.Dispose();
         }
 
         public IEnumerable<IGameObject> GetAllGameObjects()
@@ -41,29 +45,26 @@ namespace Shared
 
         public void ForEachGameObject(Action<IGameObject> action)
         {
-            using (ReadLock())
+            foreach (var obj in GameObjects.Values)
             {
-                foreach (var obj in GameObjects.Values)
-                {
-                    action(obj);
-                }
+                action(obj);
             }
         }
 
         public void AddGameObject(GameObject gameObject)
         {
+            GameObjects.TryAdd(gameObject.Id, gameObject);
             using (WriteLock())
             {
-                GameObjects.Add(gameObject.Id, gameObject);
                 SpatialGrid.Add(gameObject);
             }
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
+            GameObjects.TryRemove(gameObject.Id, out _);
             using (WriteLock())
             {
-                GameObjects.Remove(gameObject.Id);
                 SpatialGrid.Remove(gameObject);
             }
         }

@@ -58,6 +58,34 @@ namespace tests
         }
 
         [Test]
+        public void SetVariableIndex_ShouldUpdateProperties()
+        {
+            var type = new ObjectType(1, "/obj");
+            type.VariableNames.Add("x");
+            type.VariableNames.Add("y");
+            type.VariableNames.Add("z");
+            type.VariableNames.Add("loc");
+            type.FinalizeVariables();
+            type.FlattenedDefaultValues.Add(0f);
+            type.FlattenedDefaultValues.Add(0f);
+            type.FlattenedDefaultValues.Add(0f);
+            type.FlattenedDefaultValues.Add(null);
+
+            var obj = new GameObject(type);
+            obj.SetVariable(0, 100f); // x
+            obj.SetVariable(1, 200f); // y
+            obj.SetVariable(2, 300f); // z
+
+            Assert.That(obj.X, Is.EqualTo(100), "X property should be updated via index-based SetVariable");
+            Assert.That(obj.Y, Is.EqualTo(200), "Y property should be updated via index-based SetVariable");
+            Assert.That(obj.Z, Is.EqualTo(300), "Z property should be updated via index-based SetVariable");
+
+            var loc = new GameObject(type);
+            obj.SetVariable(3, new DreamValue(loc)); // loc
+            Assert.That(obj.Loc, Is.EqualTo(loc), "Loc property should be updated via index-based SetVariable");
+        }
+
+        [Test]
         public void AddContent_ShouldUpdateLoc()
         {
             var type = new ObjectType(1, "/obj");

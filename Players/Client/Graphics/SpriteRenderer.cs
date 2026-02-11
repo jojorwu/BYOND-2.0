@@ -4,12 +4,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Robust.Shared.Maths;
 
 namespace Client.Graphics
 {
     [StructLayout(LayoutKind.Sequential)]
-    struct Vertex
+    public struct Vertex
     {
         public Vector2 Position;
         public Vector2 TexCoords;
@@ -26,6 +27,7 @@ namespace Client.Graphics
     public struct SpriteDrawCommand
     {
         public uint TextureId;
+        public uint NormalMapId;
         public Box2 Uv;
         public Vector2 Position;
         public Vector2 Size;
@@ -34,23 +36,45 @@ namespace Client.Graphics
         public int Plane;
         public Box2? Scissor;
         public float Rotation;
+
+        // Packed key for sorting: Plane (16-bit), Layer (32-bit float converted to int), TextureId (16-bit)
+        public long SortKey
+        {
+            get
+            {
+                // Ensure Plane is in positive range for bitwise sorting if needed,
+                // but standard Sort uses this as a signed long comparison anyway.
+                long p = (long)(Plane + 32768) & 0xFFFF;
+                long l = (long)(Layer * 10000) & 0xFFFFFFFF;
+                // Include NormalMapId in sort key to minimize switches
+                return (p << 48) | (l << 16) | ((TextureId ^ NormalMapId) & 0xFFFF);
+            }
+        }
     }
 
     public class SpriteRenderer : IDisposable
     {
-        private const int MaxQuads = 10000;
+        private const int MaxQuads = 16384;
         private const int MaxVertices = MaxQuads * 4;
         private const int MaxIndices = MaxQuads * 6;
+        private const int BufferCount = 3; // Triple buffering
 
         private readonly GL _gl;
         private readonly Shader _shader;
         private readonly uint _vao;
-        private readonly uint _vbo;
+        private readonly uint[] _vbos = new uint[BufferCount];
         private readonly uint _ebo;
+        private int _currentBufferIndex = 0;
 
-        private readonly List<Vertex> _vertices = new(MaxVertices);
-        private readonly List<SpriteDrawCommand> _commands = new();
+        private readonly Vertex[] _vertices = new Vertex[MaxVertices];
+        private int _vertexCount = 0;
+
+        private readonly ThreadLocal<List<SpriteDrawCommand>> _threadLocalCommands = new(() => new List<SpriteDrawCommand>(), true);
+        private SpriteDrawCommand[] _mergedCommands = new SpriteDrawCommand[MaxQuads];
+        private int _mergedCommandCount = 0;
+
         private uint _activeTextureId;
+        private uint _activeNormalMapId;
         private Box2? _activeScissor;
 
         public SpriteRenderer(GL gl)
@@ -60,17 +84,19 @@ namespace Client.Graphics
             _shader = new Shader(_gl, File.ReadAllText("Shaders/sprite.vert"), File.ReadAllText("Shaders/sprite.frag"));
 
             _vao = _gl.GenVertexArray();
-            _vbo = _gl.GenBuffer();
-            _ebo = _gl.GenBuffer();
-
             _gl.BindVertexArray(_vao);
 
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            unsafe
+            for (int i = 0; i < BufferCount; i++)
             {
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVertices * sizeof(Vertex)), null, BufferUsageARB.DynamicDraw);
+                _vbos[i] = _gl.GenBuffer();
+                _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbos[i]);
+                unsafe
+                {
+                    _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVertices * sizeof(Vertex)), null, BufferUsageARB.DynamicDraw);
+                }
             }
 
+            _ebo = _gl.GenBuffer();
             _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
 
             var quadIndices = new uint[MaxIndices];
@@ -107,7 +133,6 @@ namespace Client.Graphics
                 _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("Color"));
             }
 
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
             _gl.BindVertexArray(0);
         }
 
@@ -117,14 +142,18 @@ namespace Client.Graphics
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
 
-            _commands.Clear();
+            foreach (var list in _threadLocalCommands.Values)
+            {
+                list.Clear();
+            }
         }
 
-        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0, Box2? scissor = null, float rotation = 0)
+        public void Draw(uint textureId, Box2 uv, Vector2 position, Vector2 size, Color color, float layer = 0, int plane = 0, Box2? scissor = null, float rotation = 0, uint normalMapId = 0)
         {
-            _commands.Add(new SpriteDrawCommand
+            _threadLocalCommands.Value!.Add(new SpriteDrawCommand
             {
                 TextureId = textureId,
+                NormalMapId = normalMapId,
                 Uv = uv,
                 Position = position,
                 Size = size,
@@ -143,36 +172,49 @@ namespace Client.Graphics
 
         public void End()
         {
-            if (_commands.Count == 0) return;
-
-            // Sort by Plane, then by Layer, then by TextureId to minimize switches
-            _commands.Sort((a, b) =>
+            _mergedCommandCount = 0;
+            foreach (var list in _threadLocalCommands.Values)
             {
-                if (a.Plane != b.Plane) return a.Plane.CompareTo(b.Plane);
-                int layerCmp = a.Layer.CompareTo(b.Layer);
-                if (layerCmp != 0) return layerCmp;
-                return a.TextureId.CompareTo(b.TextureId);
-            });
+                int count = list.Count;
+                if (_mergedCommandCount + count > _mergedCommands.Length)
+                {
+                    Array.Resize(ref _mergedCommands, Math.Max(_mergedCommandCount + count, _mergedCommands.Length * 2));
+                }
 
-            _activeTextureId = _commands[0].TextureId;
-            _activeScissor = _commands[0].Scissor;
-            _vertices.Clear();
+                for(int i = 0; i < count; i++)
+                {
+                    _mergedCommands[_mergedCommandCount++] = list[i];
+                }
+            }
 
-            foreach (var cmd in _commands)
+            if (_mergedCommandCount == 0) return;
+
+            // Use Span-based sort for efficiency
+            var commandSpan = new Span<SpriteDrawCommand>(_mergedCommands, 0, _mergedCommandCount);
+            commandSpan.Sort((a, b) => a.SortKey.CompareTo(b.SortKey));
+
+            _activeTextureId = _mergedCommands[0].TextureId;
+            _activeNormalMapId = _mergedCommands[0].NormalMapId;
+            _activeScissor = _mergedCommands[0].Scissor;
+            _vertexCount = 0;
+
+            for (int i = 0; i < _mergedCommandCount; i++)
             {
-                if (cmd.TextureId != _activeTextureId || cmd.Scissor != _activeScissor || _vertices.Count + 4 > MaxVertices)
+                var cmd = _mergedCommands[i];
+                if (cmd.TextureId != _activeTextureId || cmd.NormalMapId != _activeNormalMapId || cmd.Scissor != _activeScissor || _vertexCount + 4 > MaxVertices)
                 {
                     Flush();
                     _activeTextureId = cmd.TextureId;
+                    _activeNormalMapId = cmd.NormalMapId;
                     _activeScissor = cmd.Scissor;
                 }
 
                 if (cmd.Rotation == 0)
                 {
-                    _vertices.Add(new Vertex(cmd.Position, new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
-                    _vertices.Add(new Vertex(cmd.Position + new Vector2(cmd.Size.X, 0), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
-                    _vertices.Add(new Vertex(cmd.Position + cmd.Size, new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
-                    _vertices.Add(new Vertex(cmd.Position + new Vector2(0, cmd.Size.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                    _vertices[_vertexCount++] = new Vertex(cmd.Position, new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color);
+                    _vertices[_vertexCount++] = new Vertex(cmd.Position + new Vector2(cmd.Size.X, 0), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color);
+                    _vertices[_vertexCount++] = new Vertex(cmd.Position + cmd.Size, new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color);
+                    _vertices[_vertexCount++] = new Vertex(cmd.Position + new Vector2(0, cmd.Size.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color);
                 }
                 else
                 {
@@ -180,19 +222,21 @@ namespace Client.Graphics
                     var sin = (float)Math.Sin(cmd.Rotation);
                     var center = cmd.Position + cmd.Size * 0.5f;
 
-                    Vector2 Rotate(Vector2 p)
-                    {
-                        var rel = p - center;
-                        return new Vector2(
-                            rel.X * cos - rel.Y * sin + center.X,
-                            rel.X * sin + rel.Y * cos + center.Y
-                        );
-                    }
+                    float rx = cmd.Position.X - center.X;
+                    float ry = cmd.Position.Y - center.Y;
+                    float sx = cmd.Size.X;
+                    float sy = cmd.Size.Y;
 
-                    _vertices.Add(new Vertex(Rotate(cmd.Position), new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color));
-                    _vertices.Add(new Vertex(Rotate(cmd.Position + new Vector2(cmd.Size.X, 0)), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color));
-                    _vertices.Add(new Vertex(Rotate(cmd.Position + cmd.Size), new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color));
-                    _vertices.Add(new Vertex(Rotate(cmd.Position + new Vector2(0, cmd.Size.Y)), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color));
+                    _vertices[_vertexCount++] = new Vertex(new Vector2(rx * cos - ry * sin + center.X, rx * sin + ry * cos + center.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Top), cmd.Color);
+
+                    rx += sx;
+                    _vertices[_vertexCount++] = new Vertex(new Vector2(rx * cos - ry * sin + center.X, rx * sin + ry * cos + center.Y), new Vector2(cmd.Uv.Right, cmd.Uv.Top), cmd.Color);
+
+                    ry += sy;
+                    _vertices[_vertexCount++] = new Vertex(new Vector2(rx * cos - ry * sin + center.X, rx * sin + ry * cos + center.Y), new Vector2(cmd.Uv.Right, cmd.Uv.Bottom), cmd.Color);
+
+                    rx -= sx;
+                    _vertices[_vertexCount++] = new Vertex(new Vector2(rx * cos - ry * sin + center.X, rx * sin + ry * cos + center.Y), new Vector2(cmd.Uv.Left, cmd.Uv.Bottom), cmd.Color);
                 }
             }
 
@@ -201,7 +245,7 @@ namespace Client.Graphics
 
         private unsafe void Flush()
         {
-            if (_vertices.Count == 0)
+            if (_vertexCount == 0)
                 return;
 
             if (_activeScissor.HasValue)
@@ -219,23 +263,48 @@ namespace Client.Graphics
             _gl.BindTexture(TextureTarget.Texture2D, _activeTextureId);
             _shader.SetUniform("uTexture", 0);
 
-            _gl.BindVertexArray(_vao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-
-            fixed (Vertex* p = CollectionsMarshal.AsSpan(_vertices))
-            {
-                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_vertices.Count * sizeof(Vertex)), p);
+            if (_activeNormalMapId != 0) {
+                _gl.ActiveTexture(TextureUnit.Texture1);
+                _gl.BindTexture(TextureTarget.Texture2D, _activeNormalMapId);
+                _shader.SetUniform("uNormalMap", 1);
+                _shader.SetUniform("uHasNormalMap", 1);
+            } else {
+                _shader.SetUniform("uHasNormalMap", 0);
             }
 
-            _gl.DrawElements(PrimitiveType.Triangles, (uint)(_vertices.Count / 4 * 6), DrawElementsType.UnsignedInt, null);
+            _gl.BindVertexArray(_vao);
 
-            _vertices.Clear();
+            // Cycle buffers
+            _currentBufferIndex = (_currentBufferIndex + 1) % BufferCount;
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbos[_currentBufferIndex]);
+
+            // Buffer orphaning to avoid sync stalls
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxVertices * sizeof(Vertex)), null, BufferUsageARB.DynamicDraw);
+
+            fixed (Vertex* p = &_vertices[0])
+            {
+                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_vertexCount * sizeof(Vertex)), p);
+            }
+
+            // We need to re-bind the pointers since we changed the VBO
+            var size = (uint)sizeof(Vertex);
+            _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, size, (void*)0);
+            _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("TexCoords"));
+            _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, size, (void*)Marshal.OffsetOf<Vertex>("Color"));
+
+            _gl.DrawElements(PrimitiveType.Triangles, (uint)(_vertexCount / 4 * 6), DrawElementsType.UnsignedInt, null);
+
+            _vertexCount = 0;
         }
 
         public void Dispose()
         {
+            _threadLocalCommands.Dispose();
             _gl.DeleteVertexArray(_vao);
-            _gl.DeleteBuffer(_vbo);
+            for (int i = 0; i < BufferCount; i++)
+            {
+                _gl.DeleteBuffer(_vbos[i]);
+            }
             _gl.DeleteBuffer(_ebo);
             _shader.Dispose();
         }

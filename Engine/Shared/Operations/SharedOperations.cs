@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.CompilerServices;
 using Robust.Shared.Maths;
 
@@ -8,39 +9,42 @@ namespace Shared;
 /// Helps make sure things like sin() and cos() give the same result on both.
 /// </summary>
 public static class SharedOperations {
+    private const float DegToRad = MathF.PI / 180.0f;
+    private const float RadToDeg = 180.0f / MathF.PI;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float Sin(float x) {
-        return MathF.Sin(x / 180 * MathF.PI);
+        return MathF.Sin(x * DegToRad);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float Cos(float x) {
-        return MathF.Cos(x / 180 * MathF.PI);
+        return MathF.Cos(x * DegToRad);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float Tan(float x) {
-        return MathF.Tan(x / 180 * MathF.PI);
+        return MathF.Tan(x * DegToRad);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float ArcSin(float x) {
-        return MathF.Asin(x) / MathF.PI * 180;
+        return MathF.Asin(x) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float ArcCos(float x) {
-        return MathF.Acos(x) / MathF.PI * 180;
+        return MathF.Acos(x) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float ArcTan(float a) {
-        return MathF.Atan(a) / MathF.PI * 180;
+        return MathF.Atan(a) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float ArcTan(float x, float y) {
-        return MathF.Atan2(y, x) / MathF.PI * 180;
+        return MathF.Atan2(y, x) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -70,15 +74,20 @@ public static class SharedOperations {
     }
 
     //because BYOND has everything as a 32 bit float with 8 bit mantissa, we need to chop off the
-    //top 8 bits when bit shifting for parity
+    //top 8 bits when bit shifting for parity.
+    //We also handle negative shift amounts (by swapping left/right) and large shift amounts (resulting in 0).
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int BitShiftLeft(int left, int right) {
+        if (right <= 0) return (right == 0) ? (left & 0x00FFFFFF) : BitShiftRight(left, -right);
+        if (right >= 24) return 0;
         return (left << right) & 0x00FFFFFF;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int BitShiftRight(int left, int right) {
-        return (left & 0x00FFFFFF) >> (right) ;
+        if (right <= 0) return (right == 0) ? (left & 0x00FFFFFF) : BitShiftLeft(left, -right);
+        if (right >= 24) return 0;
+        return (left & 0x00FFFFFF) >> right;
     }
 
     public enum ColorSpace {
@@ -88,6 +97,9 @@ public static class SharedOperations {
     }
 
     public static string ParseRgb((string? Name, float? Value)[] arguments) {
+        if (arguments.Length == 0)
+            throw new Exception("Expected at least 3 arguments for rgb()");
+
         string result;
         float? color1 = null;
         float? color2 = null;

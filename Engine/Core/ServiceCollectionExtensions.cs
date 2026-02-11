@@ -62,10 +62,14 @@ namespace Core
 
         private static IServiceCollection AddCoreVmServices(this IServiceCollection services)
         {
-            services.AddSingleton<INativeProcProvider, Core.VM.Procs.StandardNativeProcProvider>();
+            services.AddSingleton<IBytecodeInterpreter, BytecodeInterpreter>();
+            services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
+            services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();
+            services.AddSingleton<INativeProcProvider, Core.VM.Procs.SystemNativeProcProvider>();
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
 
+            services.AddSingleton<ITypeSystemPopulator, TypeSystemPopulator>();
             services.AddSingleton<CompiledJsonService>();
             services.AddSingleton<ICompiledJsonService>(p => p.GetRequiredService<CompiledJsonService>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<CompiledJsonService>());

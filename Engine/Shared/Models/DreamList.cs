@@ -5,24 +5,56 @@ namespace Shared
 {
     public class DreamList : DreamObject
     {
-        private readonly List<DreamValue> _values = new();
+        private const int MaxListSize = 1000000;
+        private const int DictionaryThreshold = 8;
+        private readonly List<DreamValue> _values;
         public IReadOnlyList<DreamValue> Values => _values;
-        public Dictionary<DreamValue, DreamValue> AssociativeValues { get; } = new();
-        private readonly Dictionary<DreamValue, int> _valueCounts = new();
+        private Dictionary<DreamValue, DreamValue>? _associativeValues;
+        public Dictionary<DreamValue, DreamValue> AssociativeValues => _associativeValues ??= new();
+        private Dictionary<DreamValue, int>? _valueCounts;
 
         public DreamList(ObjectType? listType) : base(listType)
         {
+            _values = new List<DreamValue>();
         }
 
         public DreamList(ObjectType? listType, int size) : base(listType)
         {
+            if (size < 0 || size > MaxListSize)
+                throw new System.ArgumentException($"Invalid list size: {size}", nameof(size));
+
+            _values = new List<DreamValue>(size);
             if (size > 0)
             {
                 for (int i = 0; i < size; i++)
                 {
                     _values.Add(DreamValue.Null);
                 }
-                _valueCounts[DreamValue.Null] = size;
+                if (size >= DictionaryThreshold)
+                {
+                    _valueCounts = new Dictionary<DreamValue, int> { [DreamValue.Null] = size };
+                }
+            }
+        }
+
+        public void Populate(ReadOnlySpan<DreamValue> initialValues)
+        {
+            _values.Clear();
+            _valueCounts?.Clear();
+            _associativeValues?.Clear();
+
+            if (initialValues.Length > MaxListSize)
+                throw new System.InvalidOperationException("Maximum list size exceeded");
+
+            if (initialValues.Length >= DictionaryThreshold)
+            {
+                _valueCounts ??= new Dictionary<DreamValue, int>(initialValues.Length);
+            }
+
+            foreach (var val in initialValues)
+            {
+                _values.Add(val);
+                AddCount(val);
             }
         }
 
@@ -30,16 +62,22 @@ namespace Shared
         public void SetValue(DreamValue key, DreamValue value)
         {
             AssociativeValues[key] = value;
-            if (!_valueCounts.ContainsKey(key))
+            if (!Contains(key))
             {
+                if (_values.Count >= MaxListSize)
+                    throw new System.InvalidOperationException("Maximum list size exceeded");
+
                 _values.Add(key);
-                _valueCounts[key] = 1;
+                AddCount(key);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddValue(DreamValue value)
         {
+            if (_values.Count >= MaxListSize)
+                throw new System.InvalidOperationException("Maximum list size exceeded");
+
             _values.Add(value);
             AddCount(value);
         }
@@ -51,29 +89,41 @@ namespace Shared
             {
                 if (RemoveCount(value))
                 {
-                    AssociativeValues.Remove(value);
+                    if (_associativeValues != null) _associativeValues.Remove(value);
                 }
             }
         }
 
         public void RemoveAll(DreamValue value)
         {
-            while (Contains(value))
+            bool removedAny = false;
+            for (int i = _values.Count - 1; i >= 0; i--)
             {
-                RemoveValue(value);
+                if (_values[i] == value)
+                {
+                    _values.RemoveAt(i);
+                    removedAny = true;
+                }
+            }
+
+            if (removedAny)
+            {
+                if (_valueCounts != null) _valueCounts.Remove(value);
+                if (_associativeValues != null) _associativeValues.Remove(value);
             }
         }
 
         public DreamList Clone()
         {
             var clone = new DreamList(ObjectType);
-            foreach (var val in _values)
+            clone._values.AddRange(_values);
+            if (_valueCounts != null)
             {
-                clone.AddValue(val);
+                clone._valueCounts = new Dictionary<DreamValue, int>(_valueCounts);
             }
-            foreach (var kvp in AssociativeValues)
+            if (_associativeValues != null)
             {
-                clone.AssociativeValues[kvp.Key] = kvp.Value;
+                clone._associativeValues = new Dictionary<DreamValue, DreamValue>(_associativeValues);
             }
             return clone;
         }
@@ -84,10 +134,12 @@ namespace Shared
             if (index >= 0 && index < _values.Count)
             {
                 var old = _values[index];
+                if (old == value) return;
+
                 _values[index] = value;
                 if (RemoveCount(old))
                 {
-                    AssociativeValues.Remove(old);
+                    if (_associativeValues != null) _associativeValues.Remove(old);
                 }
                 AddCount(value);
             }
@@ -96,13 +148,22 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(DreamValue value)
         {
-            return _valueCounts.ContainsKey(value);
+            if (_valueCounts != null)
+                return _valueCounts.ContainsKey(value);
+
+            // Linear search for small lists
+            var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
+            for (int i = 0; i < span.Length; i++)
+            {
+                if (span[i] == value) return true;
+            }
+            return false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetValue(DreamValue key)
         {
-            if (AssociativeValues.TryGetValue(key, out var value))
+            if (_associativeValues != null && _associativeValues.TryGetValue(key, out var value))
             {
                 return value;
             }
@@ -112,6 +173,20 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool AddCount(DreamValue value)
         {
+            if (_valueCounts == null)
+            {
+                if (_values.Count >= DictionaryThreshold)
+                {
+                    _valueCounts = new Dictionary<DreamValue, int>(_values.Count);
+                    foreach (var v in _values)
+                    {
+                        if (_valueCounts.TryGetValue(v, out int c)) _valueCounts[v] = c + 1;
+                        else _valueCounts[v] = 1;
+                    }
+                }
+                return true;
+            }
+
             if (_valueCounts.TryGetValue(value, out int count))
             {
                 _valueCounts[value] = count + 1;
@@ -121,14 +196,23 @@ namespace Shared
             return true;
         }
 
-        /// <summary>
-        /// Removes a count from the value count cache.
-        /// </summary>
-        /// <param name="value">The value to decrement count for.</param>
-        /// <returns>True if the value was completely removed from the cache (count reached 0).</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool RemoveCount(DreamValue value)
         {
+            if (_valueCounts == null)
+            {
+                if (_associativeValues != null)
+                {
+                    var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
+                    for (int i = 0; i < span.Length; i++)
+                    {
+                        if (span[i] == value) return false;
+                    }
+                    return true;
+                }
+                return true;
+            }
+
             if (_valueCounts.TryGetValue(value, out int count))
             {
                 if (count <= 1)
@@ -142,7 +226,7 @@ namespace Shared
                     return false;
                 }
             }
-            return false;
+            return true;
         }
     }
 }

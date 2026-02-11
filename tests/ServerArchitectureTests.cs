@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System;
 using LiteNetLib.Utils;
 using Core;
+using Shared.Services;
 using Microsoft.Extensions.Options;
 
 namespace tests
@@ -69,7 +70,7 @@ namespace tests
             var projectMock = new Mock<IProject>();
 
             // Mocking classes with complex constructors
-            var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
+            var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, new Mock<ISystemManager>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
             var httpServerMock = new Mock<HttpServer>(Options.Create(settings), projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
             var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object);
 

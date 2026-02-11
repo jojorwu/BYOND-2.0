@@ -13,14 +13,16 @@ namespace Server
     {
         public override int Priority => -100; // Low priority, start last
         private readonly IGameLoopStrategy _strategy;
+        private readonly ISystemManager _systemManager;
         private readonly IServerContext _context;
         private readonly ILogger<GameLoop> _logger;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IGameLoopStrategy strategy, IServerContext context, ILogger<GameLoop> logger)
+        public GameLoop(IGameLoopStrategy strategy, ISystemManager systemManager, IServerContext context, ILogger<GameLoop> logger)
         {
             _strategy = strategy;
+            _systemManager = systemManager;
             _context = context;
             _logger = logger;
         }
@@ -51,6 +53,7 @@ namespace Server
                 while (accumulator >= targetFrameTime)
                 {
                     await _strategy.TickAsync(token);
+                    _systemManager.Tick();
                     _context.PerformanceMonitor.RecordTick();
                     accumulator -= targetFrameTime;
                 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Shared;
 using Shared.Interfaces;
+using Shared.Services;
 using System;
 
 namespace Server
@@ -44,6 +45,8 @@ namespace Server
             services.AddSingleton<ScriptHost>();
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
+
+            services.AddSingleton<ISystemManager, SystemManager>();
 
             return services;
         }

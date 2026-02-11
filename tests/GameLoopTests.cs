@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Services;
 using NUnit.Framework;
 using Moq;
 using Server;
@@ -13,6 +14,7 @@ namespace tests
     public class GameLoopTests
     {
         private Mock<IGameLoopStrategy> _strategyMock = null!;
+        private Mock<ISystemManager> _systemManagerMock = null!;
         private Mock<IRegionManager> _regionManagerMock = null!;
         private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
@@ -23,6 +25,7 @@ namespace tests
         public void SetUp()
         {
             _strategyMock = new Mock<IGameLoopStrategy>();
+            _systemManagerMock = new Mock<ISystemManager>();
             _regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
             _serverContextMock = new Mock<IServerContext>();
@@ -30,7 +33,7 @@ namespace tests
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
             _serverContextMock.Setup(c => c.PerformanceMonitor).Returns(new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object));
 
-            _gameLoop = new GameLoop(_strategyMock.Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
+            _gameLoop = new GameLoop(_strategyMock.Object, _systemManagerMock.Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

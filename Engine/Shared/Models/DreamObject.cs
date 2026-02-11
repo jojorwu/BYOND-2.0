@@ -1,12 +1,14 @@
 using Shared;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Shared
 {
-    public class DreamObject
+    public class DreamObject : IDisposable
     {
-        protected readonly object _lock = new();
+        protected readonly ReaderWriterLockSlim _lock = new();
         public ObjectType? ObjectType { get; set; }
         protected DreamValue[] _variableValues;
         public long Version { get; protected set; }
@@ -38,9 +40,17 @@ namespace Shared
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            var values = _variableValues;
-            if (index < values.Length) return values[index];
-            return DreamValue.Null;
+            _lock.EnterReadLock();
+            try
+            {
+                var values = _variableValues;
+                if (index < values.Length) return values[index];
+                return DreamValue.Null;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,19 +67,35 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            var values = _variableValues;
-            if (index >= 0 && index < values.Length)
-                return values[index];
-            return DreamValue.Null;
+            _lock.EnterReadLock();
+            try
+            {
+                var values = _variableValues;
+                if (index >= 0 && index < values.Length)
+                    return values[index];
+                return DreamValue.Null;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariableDirect(int index)
         {
-            var values = _variableValues;
-            if (index >= 0 && index < values.Length)
-                return values[index];
-            return DreamValue.Null;
+            _lock.EnterReadLock();
+            try
+            {
+                var values = _variableValues;
+                if (index >= 0 && index < values.Length)
+                    return values[index];
+                return DreamValue.Null;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,27 +109,35 @@ namespace Shared
         {
             if (index < 0) return;
 
-            if (index >= _variableValues.Length)
+            _lock.EnterWriteLock();
+            try
             {
-                lock (_lock)
+                if (index >= _variableValues.Length)
                 {
-                    if (index >= _variableValues.Length)
-                    {
-                        System.Array.Resize(ref _variableValues, index + 1);
-                    }
+                    System.Array.Resize(ref _variableValues, index + 1);
+                }
+
+                if (!_variableValues[index].Equals(value))
+                {
+                    _variableValues[index] = value;
+                    Version++;
                 }
             }
-
-            if (!_variableValues[index].Equals(value))
+            finally
             {
-                _variableValues[index] = value;
-                Version++;
+                _lock.ExitWriteLock();
             }
         }
 
         public override string ToString()
         {
             return ObjectType?.Name ?? "object";
+        }
+
+        public virtual void Dispose()
+        {
+            _lock.Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }

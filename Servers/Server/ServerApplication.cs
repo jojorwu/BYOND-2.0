@@ -34,18 +34,31 @@ namespace Server
         {
             _logger.LogInformation("Starting Server Application...");
 
-            // Sort by priority (higher priority starts first)
-            var sortedServices = _services
-                .OrderByDescending(s => s.Priority)
+            // Group by priority and start independent services in parallel
+            var priorityGroups = _services
+                .GroupBy(s => s.Priority)
+                .OrderByDescending(g => g.Key)
+                .Select(g => g.ToList())
                 .ToList();
 
-            foreach (var service in sortedServices)
+            foreach (var group in priorityGroups)
             {
-                var serviceName = service.GetType().Name;
-                _logger.LogDebug("Starting service: {ServiceName} (Priority: {Priority})", serviceName, service.Priority);
-
-                await service.InitializeAsync();
-                await service.StartAsync(cancellationToken);
+                if (group.Count == 1)
+                {
+                    var service = group[0];
+                    _logger.LogDebug("Starting service: {ServiceName} (Priority: {Priority})", service.GetType().Name, service.Priority);
+                    await service.InitializeAsync();
+                    await service.StartAsync(cancellationToken);
+                }
+                else
+                {
+                    _logger.LogDebug("Starting group of {Count} services in parallel (Priority: {Priority})", group.Count, group[0].Priority);
+                    await Task.WhenAll(group.Select(async service =>
+                    {
+                        await service.InitializeAsync();
+                        await service.StartAsync(cancellationToken);
+                    }));
+                }
             }
 
             _logger.LogInformation("Server Application started successfully.");
@@ -55,23 +68,30 @@ namespace Server
         {
             _logger.LogInformation("Stopping Server Application...");
 
-            // Stop in reverse order of startup (lower priority stops first)
-            var sortedServices = _services
-                .OrderBy(s => s.Priority)
+            // Stop in reverse order of startup (lower priority group stops first)
+            var priorityGroups = _services
+                .GroupBy(s => s.Priority)
+                .OrderBy(g => g.Key)
+                .Select(g => g.ToList())
                 .ToList();
 
-            foreach (var service in sortedServices)
+            foreach (var group in priorityGroups)
             {
-                var serviceName = service.GetType().Name;
-                _logger.LogDebug("Stopping service: {ServiceName}", serviceName);
-
-                try
+                if (group.Count == 1)
                 {
-                    await service.StopAsync(cancellationToken);
+                    var service = group[0];
+                    _logger.LogDebug("Stopping service: {ServiceName}", service.GetType().Name);
+                    try { await service.StopAsync(cancellationToken); }
+                    catch (Exception ex) { _logger.LogError(ex, "Error stopping service: {ServiceName}", service.GetType().Name); }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogError(ex, "Error stopping service: {ServiceName}", serviceName);
+                    _logger.LogDebug("Stopping group of {Count} services in parallel", group.Count);
+                    await Task.WhenAll(group.Select(async service =>
+                    {
+                        try { await service.StopAsync(cancellationToken); }
+                        catch (Exception ex) { _logger.LogError(ex, "Error stopping service: {ServiceName}", service.GetType().Name); }
+                    }));
                 }
             }
 

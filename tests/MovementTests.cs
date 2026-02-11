@@ -46,6 +46,7 @@ namespace tests
         [TearDown]
         public void TearDown()
         {
+            _vm.Dispose();
             _gameState.Dispose();
         }
 

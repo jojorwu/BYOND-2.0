@@ -2,9 +2,11 @@ using System.Collections.Generic;
 using System.Threading;
 using Shared;
 
+using System;
+
 namespace Core.VM.Runtime
 {
-    public class DreamVMContext
+    public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 1000000;
         private readonly ReaderWriterLockSlim _globalLock = new();
@@ -65,6 +67,11 @@ namespace Core.VM.Runtime
             {
                 _globalLock.ExitWriteLock();
             }
+        }
+
+        public void Dispose()
+        {
+            _globalLock.Dispose();
         }
     }
 }

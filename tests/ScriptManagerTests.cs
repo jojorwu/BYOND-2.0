@@ -73,6 +73,7 @@ namespace Core.Tests
         [TearDown]
         public void TearDown()
         {
+            _dreamVM.Dispose();
             _gameState.Dispose();
             if (Directory.Exists(_project.RootPath))
             {

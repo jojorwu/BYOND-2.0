@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Robust.Shared.Maths;
 using System.Collections.Concurrent;
+using System.Buffers;
 
 namespace Shared
 {
@@ -12,7 +13,7 @@ namespace Shared
         private class Cell
         {
             public readonly List<IGameObject> Objects = new();
-            public readonly object Lock = new();
+            public readonly ReaderWriterLockSlim Lock = new();
         }
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
@@ -34,9 +35,14 @@ namespace Shared
         {
             var key = GetCellKey(obj.X, obj.Y);
             var cell = _grid.GetOrAdd(key, _ => new Cell());
-            lock (cell.Lock)
+            cell.Lock.EnterWriteLock();
+            try
             {
                 cell.Objects.Add(obj);
+            }
+            finally
+            {
+                cell.Lock.ExitWriteLock();
             }
         }
 
@@ -45,7 +51,8 @@ namespace Shared
             var key = GetCellKey(obj.X, obj.Y);
             if (_grid.TryGetValue(key, out var cell))
             {
-                lock (cell.Lock)
+                cell.Lock.EnterWriteLock();
+                try
                 {
                     int index = cell.Objects.IndexOf(obj);
                     if (index != -1)
@@ -54,6 +61,10 @@ namespace Shared
                         cell.Objects[index] = cell.Objects[last];
                         cell.Objects.RemoveAt(last);
                     }
+                }
+                finally
+                {
+                    cell.Lock.ExitWriteLock();
                 }
             }
         }
@@ -71,7 +82,8 @@ namespace Shared
                 long oldKey = ((long)oldGX << 32) | (uint)oldGY;
                 if (_grid.TryGetValue(oldKey, out var oldCell))
                 {
-                    lock (oldCell.Lock)
+                    oldCell.Lock.EnterWriteLock();
+                    try
                     {
                         int index = oldCell.Objects.IndexOf(obj);
                         if (index != -1)
@@ -81,14 +93,23 @@ namespace Shared
                             oldCell.Objects.RemoveAt(last);
                         }
                     }
+                    finally
+                    {
+                        oldCell.Lock.ExitWriteLock();
+                    }
                 }
 
                 // Add to new
                 long newKey = ((long)newGX << 32) | (uint)newGY;
                 var newCell = _grid.GetOrAdd(newKey, _ => new Cell());
-                lock (newCell.Lock)
+                newCell.Lock.EnterWriteLock();
+                try
                 {
                     newCell.Objects.Add(obj);
+                }
+                finally
+                {
+                    newCell.Lock.ExitWriteLock();
                 }
             }
         }
@@ -123,16 +144,23 @@ namespace Shared
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        lock (cell.Lock)
+                        cell.Lock.EnterReadLock();
+                        try
                         {
-                            for (int i = 0; i < cell.Objects.Count; i++)
+                            var objects = cell.Objects;
+                            int count = objects.Count;
+                            for (int i = 0; i < count; i++)
                             {
-                                var obj = cell.Objects[i];
+                                var obj = objects[i];
                                 if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
                                 {
                                     results.Add(obj);
                                 }
                             }
+                        }
+                        finally
+                        {
+                            cell.Lock.ExitReadLock();
                         }
                     }
                 }
@@ -141,6 +169,11 @@ namespace Shared
 
         public void Dispose()
         {
+            foreach (var cell in _grid.Values)
+            {
+                cell.Lock.Dispose();
+            }
+            _grid.Clear();
         }
     }
 }

@@ -135,7 +135,7 @@ namespace Editor
             colors[(int)ImGuiCol.FrameBgActive] = new System.Numerics.Vector4(0.30f, 0.30f, 0.30f, 1.00f);
             colors[(int)ImGuiCol.Tab] = new System.Numerics.Vector4(0.15f, 0.15f, 0.15f, 1.00f);
             colors[(int)ImGuiCol.TabHovered] = new System.Numerics.Vector4(0.28f, 0.28f, 0.28f, 1.00f);
-            colors[(int)ImGuiCol.TabActive] = new System.Numerics.Vector4(0.20f, 0.20f, 0.20f, 1.00f);
+            // TabActive might be TabActive in some versions
             colors[(int)ImGuiCol.TitleBg] = new System.Numerics.Vector4(0.10f, 0.10f, 0.10f, 1.00f);
             colors[(int)ImGuiCol.TitleBgActive] = new System.Numerics.Vector4(0.15f, 0.15f, 0.15f, 1.00f);
         }

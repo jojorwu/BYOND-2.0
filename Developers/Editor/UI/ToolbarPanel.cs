@@ -38,7 +38,7 @@ namespace Editor.UI
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Build and run the current project.");
 
                 ImGui.SameLine();
-                ImGui.SeparatorEx(ImGuiSeparatorFlags.Vertical);
+                ImGui.TextDisabled("|");
                 ImGui.SameLine();
 
                 foreach (var tool in _toolManager.Tools)

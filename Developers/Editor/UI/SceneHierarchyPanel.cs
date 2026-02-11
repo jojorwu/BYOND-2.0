@@ -44,8 +44,7 @@ namespace Editor.UI
                             }
                             if (ImGui.MenuItem("Duplicate"))
                             {
-                                var newObjId = _gameApi.Objects.CreateObject(gameObject.ObjectType.Id, gameObject.X, gameObject.Y, gameObject.Z);
-                                var newObj = _gameApi.Objects.GetObject(newObjId);
+                                var newObj = _gameApi.Objects.CreateObject(gameObject.ObjectType.Id, gameObject.X, gameObject.Y, gameObject.Z);
                                 if (newObj != null)
                                 {
                                     // Copy variables

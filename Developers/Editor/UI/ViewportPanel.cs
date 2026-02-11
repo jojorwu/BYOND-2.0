@@ -89,12 +89,36 @@ namespace Editor.UI
                     DrawGrid(windowSize, projectionMatrix, settings);
                 }
 
+                _spriteRenderer.Begin(projectionMatrix);
+
+                // Simple frustum culling
+                var topLeftWorld = Camera.ScreenToWorld(Vector2.Zero, projectionMatrix);
+                var bottomRightWorld = Camera.ScreenToWorld(windowSize, projectionMatrix);
+
+                int minTileX = (int)Math.Floor(topLeftWorld.X / EditorConstants.TileSize);
+                int maxTileX = (int)Math.Ceiling(bottomRightWorld.X / EditorConstants.TileSize);
+                int minTileY = (int)Math.Floor(topLeftWorld.Y / EditorConstants.TileSize);
+                int maxTileY = (int)Math.Ceiling(bottomRightWorld.Y / EditorConstants.TileSize);
+
                 foreach (var (chunkCoords, chunk) in currentMap.GetChunks(_editorContext.CurrentZLevel))
                 {
+                    int chunkWorldX = chunkCoords.X * Chunk.ChunkSize;
+                    int chunkWorldY = chunkCoords.Y * Chunk.ChunkSize;
+
+                    if (chunkWorldX + Chunk.ChunkSize < minTileX || chunkWorldX > maxTileX ||
+                        chunkWorldY + Chunk.ChunkSize < minTileY || chunkWorldY > maxTileY)
+                        continue;
+
                     for (int y = 0; y < Chunk.ChunkSize; y++)
                     {
+                        int worldY = chunkWorldY + y;
+                        if (worldY < minTileY || worldY > maxTileY) continue;
+
                         for (int x = 0; x < Chunk.ChunkSize; x++)
                         {
+                            int worldX = chunkWorldX + x;
+                            if (worldX < minTileX || worldX > maxTileX) continue;
+
                             var turf = chunk.GetTurf(x, y);
                             if (turf != null)
                             {
@@ -106,9 +130,10 @@ namespace Editor.UI
                                         uint textureId = _textureManager.GetTexture(spritePath);
                                         if (textureId != 0)
                                         {
-                                            var worldX = chunkCoords.X * Chunk.ChunkSize + x;
-                                            var worldY = chunkCoords.Y * Chunk.ChunkSize + y;
-                                            _spriteRenderer.Draw(textureId, new Vector2i(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize), new Vector2i(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
+                                            _spriteRenderer.Draw(textureId,
+                                                new Vector2(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize),
+                                                new Vector2(EditorConstants.TileSize, EditorConstants.TileSize),
+                                                Vector4.One, new Box2(0, 0, 1, 1));
                                         }
                                     }
                                 }
@@ -116,6 +141,8 @@ namespace Editor.UI
                         }
                     }
                 }
+
+                _spriteRenderer.End();
 
                 if (ImGui.IsWindowHovered())
                 {

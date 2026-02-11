@@ -17,8 +17,9 @@ namespace Editor.UI
         private readonly TextureManager _textureManager;
         private readonly IGameApi _gameApi;
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly IEditorSettingsManager _settingsManager;
 
-        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager, IObjectTypeManager objectTypeManager)
+        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager, IObjectTypeManager objectTypeManager, IEditorSettingsManager settingsManager)
         {
             _toolManager = toolManager;
             _selectionManager = selectionManager;
@@ -27,6 +28,7 @@ namespace Editor.UI
             _textureManager = textureManager;
             _gameApi = gameApi;
             _objectTypeManager = objectTypeManager;
+            _settingsManager = settingsManager;
         }
 
         public void Initialize(GL gl)
@@ -81,6 +83,12 @@ namespace Editor.UI
             var currentMap = scene.GameState.Map;
             if (currentMap != null)
             {
+                var settings = _settingsManager.Settings;
+                if (settings.ShowGrid)
+                {
+                    DrawGrid(windowSize, projectionMatrix, settings);
+                }
+
                 foreach (var (chunkCoords, chunk) in currentMap.GetChunks(_editorContext.CurrentZLevel))
                 {
                     for (int y = 0; y < Chunk.ChunkSize; y++)
@@ -133,6 +141,41 @@ namespace Editor.UI
             }
 
             ImGui.End();
+        }
+
+        private void DrawGrid(Vector2 windowSize, Matrix4x4 projectionMatrix, EditorSettings settings)
+        {
+            var drawList = ImGui.GetWindowDrawList();
+            var windowPos = ImGui.GetWindowPos();
+            var gridSize = settings.GridSize;
+            var color = ImGui.ColorConvertFloat4ToU32(settings.GridColor);
+
+            // Calculate visible world bounds
+            var topLeftWorld = Camera.ScreenToWorld(Vector2.Zero, projectionMatrix);
+            var bottomRightWorld = Camera.ScreenToWorld(windowSize, projectionMatrix);
+
+            int startX = ((int)topLeftWorld.X / gridSize) * gridSize;
+            int startY = ((int)topLeftWorld.Y / gridSize) * gridSize;
+            int endX = (int)bottomRightWorld.X;
+            int endY = (int)bottomRightWorld.Y;
+
+            for (int x = startX; x <= endX; x += gridSize)
+            {
+                var p1i = Camera.WorldToScreen(new Vector2d(x, topLeftWorld.Y), projectionMatrix);
+                var p2i = Camera.WorldToScreen(new Vector2d(x, bottomRightWorld.Y), projectionMatrix);
+                var p1 = new Vector2(p1i.X, p1i.Y);
+                var p2 = new Vector2(p2i.X, p2i.Y);
+                drawList.AddLine(windowPos + p1, windowPos + p2, color);
+            }
+
+            for (int y = startY; y <= endY; y += gridSize)
+            {
+                var p1i = Camera.WorldToScreen(new Vector2d(topLeftWorld.X, y), projectionMatrix);
+                var p2i = Camera.WorldToScreen(new Vector2d(bottomRightWorld.X, y), projectionMatrix);
+                var p1 = new Vector2(p1i.X, p1i.Y);
+                var p2 = new Vector2(p2i.X, p2i.Y);
+                drawList.AddLine(windowPos + p1, windowPos + p2, color);
+            }
         }
 
         public void Dispose()

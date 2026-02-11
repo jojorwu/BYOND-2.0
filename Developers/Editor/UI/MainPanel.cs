@@ -14,12 +14,37 @@ namespace Editor.UI
     {
         private readonly ProjectsPanel _projectsPanel;
         private readonly ServerBrowserPanel _serverBrowserPanel;
+        private readonly ViewportPanel _viewportPanel;
+        private readonly ToolbarPanel _toolbarPanel;
+        private readonly InspectorPanel _inspectorPanel;
+        private readonly ObjectBrowserPanel _objectBrowserPanel;
+        private readonly AssetBrowserPanel _assetBrowserPanel;
+        private readonly SceneHierarchyPanel _sceneHierarchyPanel;
+        private readonly EditorContext _editorContext;
         private readonly IUIService _uiService;
 
-        public MainPanel(ProjectsPanel projectsPanel, ServerBrowserPanel serverBrowserPanel, EditorLaunchOptions launchOptions, IUIService uiService)
+        public MainPanel(
+            ProjectsPanel projectsPanel,
+            ServerBrowserPanel serverBrowserPanel,
+            ViewportPanel viewportPanel,
+            ToolbarPanel toolbarPanel,
+            InspectorPanel inspectorPanel,
+            ObjectBrowserPanel objectBrowserPanel,
+            AssetBrowserPanel assetBrowserPanel,
+            SceneHierarchyPanel sceneHierarchyPanel,
+            EditorContext editorContext,
+            EditorLaunchOptions launchOptions,
+            IUIService uiService)
         {
             _projectsPanel = projectsPanel;
             _serverBrowserPanel = serverBrowserPanel;
+            _viewportPanel = viewportPanel;
+            _toolbarPanel = toolbarPanel;
+            _inspectorPanel = inspectorPanel;
+            _objectBrowserPanel = objectBrowserPanel;
+            _assetBrowserPanel = assetBrowserPanel;
+            _sceneHierarchyPanel = sceneHierarchyPanel;
+            _editorContext = editorContext;
             _uiService = uiService;
 
             if (!string.IsNullOrEmpty(launchOptions.InitialPanel))
@@ -63,7 +88,23 @@ namespace Editor.UI
                     _serverBrowserPanel.Draw();
                     break;
                 case EditorTab.Scene:
-                     // Draw scene related panels
+                    _toolbarPanel.Draw();
+                    _sceneHierarchyPanel.Draw();
+                    _inspectorPanel.Draw();
+                    _objectBrowserPanel.Draw();
+                    _assetBrowserPanel.Draw();
+
+                    var activeScene = _editorContext.GetActiveScene();
+                    if (activeScene != null)
+                    {
+                        _viewportPanel.Draw(activeScene);
+                    }
+                    else
+                    {
+                        ImGui.Begin("Viewport");
+                        ImGui.Text("No active scene.");
+                        ImGui.End();
+                    }
                     break;
             }
 

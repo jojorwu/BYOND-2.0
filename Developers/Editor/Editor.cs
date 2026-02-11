@@ -28,11 +28,14 @@ namespace Editor
         private readonly IProjectService _projectService;
         private readonly SettingsPanel _settingsPanel;
         private readonly IRunService _runService;
+        private readonly IEditorSettingsManager _settingsManager;
+
+        private bool _lastThemeWasDark = true;
 
         public Editor(IServiceProvider serviceProvider,
             MainPanel mainPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
             TextureManager textureManager, IProjectService projectService, SettingsPanel settingsPanel,
-            IRunService runService)
+            IRunService runService, IEditorSettingsManager settingsManager)
         {
             _serviceProvider = serviceProvider;
             _mainPanel = mainPanel;
@@ -42,6 +45,7 @@ namespace Editor
             _projectService = projectService;
             _settingsPanel = settingsPanel;
             _runService = runService;
+            _settingsManager = settingsManager;
         }
 
         public void Run()
@@ -107,9 +111,17 @@ namespace Editor
         {
             if (imGuiController == null || gl == null) return;
 
+            var settings = _settingsManager.Settings;
+            if (settings.UseDarkTheme != _lastThemeWasDark)
+            {
+                if (settings.UseDarkTheme) ImGui.StyleColorsDark();
+                else ImGui.StyleColorsLight();
+                _lastThemeWasDark = settings.UseDarkTheme;
+            }
+
             imGuiController.Update((float)deltaTime);
 
-            gl.ClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+            gl.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
 
             _mainPanel.Draw();

@@ -17,7 +17,8 @@ namespace Editor
                     provider.GetRequiredService<TextureManager>(),
                     provider.GetRequiredService<IProjectService>(),
                     provider.GetRequiredService<SettingsPanel>(),
-                    provider.GetRequiredService<IRunService>()
+                    provider.GetRequiredService<IRunService>(),
+                    provider.GetRequiredService<IEditorSettingsManager>()
                 )
             );
             services.AddSingleton<ProjectHolder>();
@@ -60,6 +61,13 @@ namespace Editor
                 new MainPanel(
                     provider.GetRequiredService<ProjectsPanel>(),
                     provider.GetRequiredService<ServerBrowserPanel>(),
+                    provider.GetRequiredService<ViewportPanel>(),
+                    provider.GetRequiredService<ToolbarPanel>(),
+                    provider.GetRequiredService<InspectorPanel>(),
+                    provider.GetRequiredService<ObjectBrowserPanel>(),
+                    provider.GetRequiredService<AssetBrowserPanel>(),
+                    provider.GetRequiredService<SceneHierarchyPanel>(),
+                    provider.GetRequiredService<EditorContext>(),
                     provider.GetRequiredService<EditorLaunchOptions>(),
                     provider.GetRequiredService<IUIService>()
                 )
@@ -93,7 +101,8 @@ namespace Editor
                     provider.GetRequiredService<IGameApi>(),
                     provider.GetRequiredService<SpriteRenderer>(),
                     provider.GetRequiredService<TextureManager>(),
-                    provider.GetRequiredService<IObjectTypeManager>()
+                    provider.GetRequiredService<IObjectTypeManager>(),
+                    provider.GetRequiredService<IEditorSettingsManager>()
                 )
             );
             services.AddSingleton<AssetBrowserPanel>();

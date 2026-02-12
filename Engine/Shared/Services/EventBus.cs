@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Shared.Messaging;
 
@@ -10,22 +10,33 @@ namespace Shared.Services
 {
     public class EventBus : IEventBus
     {
-        private readonly ConcurrentDictionary<Type, ImmutableList<Delegate>> _handlers = new();
+        private readonly ConcurrentDictionary<Type, Delegate[]> _handlers = new();
+        private readonly object _lock = new();
 
         public void Subscribe<T>(Action<T> handler)
         {
-            var type = typeof(T);
-            _handlers.AddOrUpdate(type,
-                ImmutableList.Create<Delegate>(handler),
-                (t, list) => list.Add(handler));
+            SubscribeInternal(typeof(T), handler);
         }
 
         public void SubscribeAsync<T>(Func<T, Task> handler)
         {
-            var type = typeof(T);
-            _handlers.AddOrUpdate(type,
-                ImmutableList.Create<Delegate>(handler),
-                (t, list) => list.Add(handler));
+            SubscribeInternal(typeof(T), handler);
+        }
+
+        private void SubscribeInternal(Type type, Delegate handler)
+        {
+            lock (_lock)
+            {
+                _handlers.AddOrUpdate(type,
+                    _ => new[] { handler },
+                    (_, existing) =>
+                    {
+                        var updated = new Delegate[existing.Length + 1];
+                        Array.Copy(existing, updated, existing.Length);
+                        updated[existing.Length] = handler;
+                        return updated;
+                    });
+            }
         }
 
         public void Unsubscribe<T>(Action<T> handler)
@@ -40,36 +51,43 @@ namespace Shared.Services
 
         private void UnsubscribeInternal(Type type, Delegate handler)
         {
-            while (_handlers.TryGetValue(type, out var list))
+            lock (_lock)
             {
-                var newList = list.Remove(handler);
-                if (newList.IsEmpty)
+                if (_handlers.TryGetValue(type, out var existing))
                 {
-                    if (((IDictionary<Type, ImmutableList<Delegate>>)_handlers).Remove(new KeyValuePair<Type, ImmutableList<Delegate>>(type, list)))
-                        break;
-                }
-                else
-                {
-                    if (_handlers.TryUpdate(type, newList, list))
-                        break;
+                    var index = Array.IndexOf(existing, handler);
+                    if (index == -1) return;
+
+                    if (existing.Length == 1)
+                    {
+                        _handlers.TryRemove(type, out _);
+                    }
+                    else
+                    {
+                        var updated = new Delegate[existing.Length - 1];
+                        Array.Copy(existing, 0, updated, 0, index);
+                        Array.Copy(existing, index + 1, updated, index, existing.Length - index - 1);
+                        _handlers[type] = updated;
+                    }
                 }
             }
         }
 
         public void Publish<T>(T eventData)
         {
-            var type = typeof(T);
-            if (_handlers.TryGetValue(type, out var list))
+            if (_handlers.TryGetValue(typeof(T), out var handlers))
             {
-                foreach (var handler in list)
+                // Snapshot-style read: the array itself is never modified in-place
+                var span = handlers.AsSpan();
+                for (int i = 0; i < span.Length; i++)
                 {
+                    var handler = span[i];
                     if (handler is Action<T> action)
                     {
                         action(eventData);
                     }
                     else if (handler is Func<T, Task> asyncAction)
                     {
-                        // Fire and forget for sync Publish
                         _ = asyncAction(eventData);
                     }
                 }
@@ -78,23 +96,42 @@ namespace Shared.Services
 
         public async Task PublishAsync<T>(T eventData)
         {
-            var type = typeof(T);
-            if (_handlers.TryGetValue(type, out var list))
+            if (_handlers.TryGetValue(typeof(T), out var handlers))
             {
-                var tasks = new List<Task>();
-                foreach (var handler in list)
+                var span = handlers.AsSpan();
+
+                // Fast path for single handler
+                if (span.Length == 1)
                 {
+                    var handler = span[0];
                     if (handler is Action<T> action)
                     {
                         action(eventData);
                     }
                     else if (handler is Func<T, Task> asyncAction)
                     {
+                        await asyncAction(eventData);
+                    }
+                    return;
+                }
+
+                // Collect tasks for multiple handlers
+                List<Task>? tasks = null;
+                for (int i = 0; i < span.Length; i++)
+                {
+                    var handler = span[i];
+                    if (handler is Action<T> action)
+                    {
+                        action(eventData);
+                    }
+                    else if (handler is Func<T, Task> asyncAction)
+                    {
+                        tasks ??= new List<Task>(span.Length);
                         tasks.Add(asyncAction(eventData));
                     }
                 }
 
-                if (tasks.Count > 0)
+                if (tasks != null)
                 {
                     await Task.WhenAll(tasks);
                 }

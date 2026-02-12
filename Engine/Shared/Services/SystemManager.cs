@@ -15,12 +15,14 @@ namespace Shared.Services
         private readonly ISystemRegistry _registry;
         private List<List<ISystem>> _executionLayers;
         private readonly IProfilingService _profilingService;
+        private readonly IJobSystem _jobSystem;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem)
         {
             _registry = registry;
             _profilingService = profilingService;
+            _jobSystem = jobSystem;
             _executionLayers = new List<List<ISystem>>();
         }
 
@@ -77,6 +79,9 @@ namespace Shared.Services
                     {
                         Parallel.ForEach(layer, ExecuteSystem);
                     }
+
+                    // Await jobs created by this layer before moving to the next
+                    _jobSystem.CompleteAllAsync().GetAwaiter().GetResult();
                 }
             }
         }
@@ -86,6 +91,12 @@ namespace Shared.Services
             using (_profilingService.Measure($"System.{system.Name}"))
             {
                 system.Tick();
+
+                var jobs = system.CreateJobs();
+                foreach (var job in jobs)
+                {
+                    _jobSystem.Schedule(job);
+                }
             }
         }
     }

@@ -20,6 +20,11 @@ namespace Shared.Interfaces
         void Tick();
 
         /// <summary>
+        /// Creates jobs for parallel execution during the current tick.
+        /// </summary>
+        IEnumerable<IJob> CreateJobs() => System.Array.Empty<IJob>();
+
+        /// <summary>
         /// Gets the execution priority of the system.
         /// Systems with the same priority are executed in parallel.
         /// </summary>

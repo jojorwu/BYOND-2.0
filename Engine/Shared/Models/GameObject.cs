@@ -3,6 +3,7 @@ using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
+using Shared.Interfaces;
 
 namespace Shared
 {
@@ -10,7 +11,7 @@ namespace Shared
     /// Represents an object in the game world.
     /// </summary>
     [JsonConverter(typeof(GameObjectConverter))]
-    public class GameObject : DreamObject, IGameObject
+    public class GameObject : DreamObject, IGameObject, IPoolable
     {
         private static int nextId = 1;
 
@@ -277,6 +278,15 @@ namespace Shared
             Id = Interlocked.Increment(ref nextId);
         }
 
+        public void Initialize(ObjectType objectType, int x, int y, int z)
+        {
+            base.Initialize(objectType);
+            _x = x;
+            _y = y;
+            _z = z;
+            Id = Interlocked.Increment(ref nextId);
+        }
+
         /// <summary>
         /// Parameterless constructor for deserialization.
         /// </summary>
@@ -315,6 +325,26 @@ namespace Shared
         public override string ToString()
         {
             return ObjectType?.Name ?? "object";
+        }
+
+        public virtual void Reset()
+        {
+            _x = 0;
+            _y = 0;
+            _z = 0;
+            _committedX = 0;
+            _committedY = 0;
+            _committedZ = 0;
+            _loc = null;
+            Version = 0;
+
+            lock (_contentsLock)
+            {
+                _contents.Clear();
+            }
+
+            // We don't reset Id as it should be unique for the lifetime of its registration
+            // but we could if we manage IDs in the pool.
         }
     }
 

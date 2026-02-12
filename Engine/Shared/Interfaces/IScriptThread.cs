@@ -26,5 +26,10 @@ namespace Shared
         /// Number of ticks this thread has been waiting to be executed.
         /// </summary>
         int WaitTicks { get; set; }
+
+        /// <summary>
+        /// Wakes up the thread if it was sleeping.
+        /// </summary>
+        void WakeUp();
     }
 }

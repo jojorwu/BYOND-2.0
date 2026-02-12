@@ -15,9 +15,19 @@ namespace Shared.Interfaces
         string Name => GetType().Name;
 
         /// <summary>
+        /// Executed before the main tick phase.
+        /// </summary>
+        void PreTick() { }
+
+        /// <summary>
         /// Executes the system's logic for one tick.
         /// </summary>
         void Tick();
+
+        /// <summary>
+        /// Executed after the main tick phase.
+        /// </summary>
+        void PostTick() { }
 
         /// <summary>
         /// Creates jobs for parallel execution during the current tick.

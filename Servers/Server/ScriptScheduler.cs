@@ -4,6 +4,7 @@ using System.Threading;
 using System.Linq;
 using Microsoft.Extensions.Options;
 using Shared;
+using Shared.Interfaces;
 using Core.VM.Runtime;
 
 namespace Server
@@ -11,10 +12,12 @@ namespace Server
     public class ScriptScheduler : IScriptScheduler
     {
         private readonly ServerSettings _settings;
+        private readonly ITimerService _timerService;
 
-        public ScriptScheduler(IOptions<ServerSettings> settings)
+        public ScriptScheduler(IOptions<ServerSettings> settings, ITimerService timerService)
         {
             _settings = settings.Value;
+            _timerService = timerService;
         }
 
         public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
@@ -51,6 +54,13 @@ namespace Server
 
                 if (thread is DreamThread dreamThread)
                 {
+                    // Skip sleeping threads in the main loop; TimerService will wake them up
+                    if (dreamThread.State == DreamThreadState.Sleeping)
+                    {
+                        nextThreads.Add(dreamThread);
+                        return;
+                    }
+
                     bool shouldProcess = (processGlobals && dreamThread.AssociatedObject == null) || (dreamThread.AssociatedObject != null && objectIds.Contains(dreamThread.AssociatedObject.Id));
 
                     if (shouldProcess)
@@ -60,8 +70,14 @@ namespace Server
                         dreamThread.ExecutionTime = threadStopwatch.Elapsed;
                         dreamThread.WaitTicks = 0;
 
-                        if (state == DreamThreadState.Running || state == DreamThreadState.Sleeping)
+                        if (state == DreamThreadState.Running)
                         {
+                            nextThreads.Add(dreamThread);
+                        }
+                        else if (state == DreamThreadState.Sleeping)
+                        {
+                            // Register wakeup timer
+                            _timerService.AddTimer(dreamThread.SleepUntil, dreamThread.WakeUp);
                             nextThreads.Add(dreamThread);
                         }
                         else

@@ -8,18 +8,30 @@ namespace Shared
 {
     public class DreamObject : IDisposable
     {
-        protected readonly ReaderWriterLockSlim _lock = new();
+        protected ReaderWriterLockSlim _lock = new();
         public ObjectType? ObjectType { get; set; }
         protected DreamValue[] _variableValues;
         public long Version { get; protected set; }
 
         public DreamObject(ObjectType? objectType)
         {
+            Initialize(objectType);
+        }
+
+        protected void Initialize(ObjectType? objectType)
+        {
             ObjectType = objectType;
             if (objectType != null)
             {
                 int count = objectType.VariableNames.Count;
-                _variableValues = count > 0 ? new DreamValue[count] : System.Array.Empty<DreamValue>();
+                if (_variableValues == null || _variableValues.Length < count)
+                {
+                    _variableValues = count > 0 ? new DreamValue[count] : System.Array.Empty<DreamValue>();
+                }
+                else
+                {
+                    Array.Clear(_variableValues, 0, _variableValues.Length);
+                }
 
                 int defaultCount = objectType.FlattenedDefaultValues.Count;
                 for (int i = 0; i < defaultCount && i < _variableValues.Length; i++)
@@ -136,8 +148,14 @@ namespace Shared
 
         public virtual void Dispose()
         {
-            _lock.Dispose();
+            _lock?.Dispose();
+            _lock = null!;
             GC.SuppressFinalize(this);
+        }
+
+        ~DreamObject()
+        {
+            _lock?.Dispose();
         }
     }
 }

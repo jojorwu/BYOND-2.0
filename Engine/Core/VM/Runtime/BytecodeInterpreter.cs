@@ -79,11 +79,6 @@ namespace Core.VM.Runtime
 
         public DreamThreadState Run(DreamThread thread, int instructionBudget)
         {
-            if (thread.State == DreamThreadState.Sleeping && DateTime.Now >= thread.SleepUntil)
-            {
-                thread.State = DreamThreadState.Running;
-            }
-
             if (thread.State != DreamThreadState.Running)
                 return thread.State;
 

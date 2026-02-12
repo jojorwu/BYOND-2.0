@@ -13,6 +13,8 @@ namespace Shared.Services
             services.AddSingleton<IEventBus, EventBus>();
             services.AddSingleton<IComputeService, ComputeService>();
             services.AddSingleton<IJobSystem, JobSystem>();
+            services.AddSingleton<ITimerService, TimerService>();
+            services.AddSingleton<IObjectPool<GameObject>>(sp => new ObjectPool<GameObject>(() => new GameObject()));
             services.AddSingleton<ISystemRegistry, SystemRegistry>();
             services.AddSingleton<IPluginManager, PluginManager>();
             services.AddSingleton<ICommandDispatcher, CommandDispatcher>();

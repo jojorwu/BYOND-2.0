@@ -33,7 +33,7 @@ namespace tests
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
             _serverContextMock.Setup(c => c.PerformanceMonitor).Returns(new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object));
 
-            _gameLoop = new GameLoop(_strategyMock.Object, _systemManagerMock.Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
+            _gameLoop = new GameLoop(_strategyMock.Object, _systemManagerMock.Object, new Mock<Shared.Interfaces.ITimerService>().Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

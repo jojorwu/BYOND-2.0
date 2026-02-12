@@ -1,17 +1,21 @@
 using Shared;
 namespace Core.Objects
 {
+    using Shared.Interfaces;
+
     public class ObjectApi : IObjectApi
     {
         private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
+        private readonly IObjectPool<GameObject> _gameObjectPool;
 
-        public ObjectApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi)
+        public ObjectApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi, IObjectPool<GameObject> gameObjectPool)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
             _mapApi = mapApi;
+            _gameObjectPool = gameObjectPool;
         }
 
         public GameObject? CreateObject(int typeId, int x, int y, int z)
@@ -24,7 +28,8 @@ namespace Core.Objects
 
             using (_gameState.WriteLock())
             {
-                var gameObject = new GameObject(objectType, x, y, z);
+                var gameObject = _gameObjectPool.Rent();
+                gameObject.Initialize(objectType, x, y, z);
                 _gameState.AddGameObject(gameObject);
                 _gameState.Map?.AddObjectToTurf(gameObject);
                 return gameObject;
@@ -48,6 +53,7 @@ namespace Core.Objects
                 {
                     _gameState.Map?.RemoveObjectFromTurf(gameObject);
                     _gameState.RemoveGameObject(gameObject);
+                    _gameObjectPool.Return(gameObject);
                 }
             }
         }

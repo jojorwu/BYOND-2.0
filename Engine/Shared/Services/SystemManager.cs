@@ -7,7 +7,7 @@ namespace Shared.Services
 {
     public interface ISystemManager
     {
-        void Tick();
+        Task TickAsync();
     }
 
     public class SystemManager : ISystemManager
@@ -59,7 +59,7 @@ namespace Shared.Services
             return layers;
         }
 
-        public void Tick()
+        public async Task TickAsync()
         {
             if (_isDirty)
             {
@@ -67,8 +67,17 @@ namespace Shared.Services
                 _isDirty = false;
             }
 
+            var enabledSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
+
             using (_profilingService.Measure("SystemManager.Tick"))
             {
+                // Pre-Tick Phase
+                using (_profilingService.Measure("SystemManager.PreTick"))
+                {
+                    await _jobSystem.ForEachAsync(enabledSystems, s => s.PreTick());
+                }
+
+                // Main Tick Phase (Layered)
                 foreach (var layer in _executionLayers)
                 {
                     if (layer.Count == 1)
@@ -77,11 +86,17 @@ namespace Shared.Services
                     }
                     else
                     {
-                        Parallel.ForEach(layer, ExecuteSystem);
+                        await _jobSystem.ForEachAsync(layer, ExecuteSystem);
                     }
 
                     // Await jobs created by this layer before moving to the next
-                    _jobSystem.CompleteAllAsync().GetAwaiter().GetResult();
+                    await _jobSystem.CompleteAllAsync();
+                }
+
+                // Post-Tick Phase
+                using (_profilingService.Measure("SystemManager.PostTick"))
+                {
+                    await _jobSystem.ForEachAsync(enabledSystems, s => s.PostTick());
                 }
             }
         }

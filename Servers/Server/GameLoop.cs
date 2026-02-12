@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared;
+using Shared.Interfaces;
 using Shared.Services;
 
 namespace Server
@@ -14,15 +15,17 @@ namespace Server
         public override int Priority => -100; // Low priority, start last
         private readonly IGameLoopStrategy _strategy;
         private readonly ISystemManager _systemManager;
+        private readonly ITimerService _timerService;
         private readonly IServerContext _context;
         private readonly ILogger<GameLoop> _logger;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IGameLoopStrategy strategy, ISystemManager systemManager, IServerContext context, ILogger<GameLoop> logger)
+        public GameLoop(IGameLoopStrategy strategy, ISystemManager systemManager, ITimerService timerService, IServerContext context, ILogger<GameLoop> logger)
         {
             _strategy = strategy;
             _systemManager = systemManager;
+            _timerService = timerService;
             _context = context;
             _logger = logger;
         }
@@ -52,8 +55,9 @@ namespace Server
 
                 while (accumulator >= targetFrameTime)
                 {
+                    _timerService.Tick();
                     await _strategy.TickAsync(token);
-                    _systemManager.Tick();
+                    await _systemManager.TickAsync();
 
                     // Commit object state for consistent reading by other systems (e.g. networking/rendering)
                     _context.GameState.ForEachGameObject(obj => obj.CommitState());

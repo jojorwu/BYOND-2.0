@@ -32,7 +32,8 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi);
+            var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
+            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool);
             _scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, _mapApi);
             _standardLibraryApi = new StandardLibraryApi(spatialQueryApi, _mapApi);

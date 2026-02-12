@@ -48,7 +48,8 @@ namespace tests
             _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
+            var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool);
             var scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);

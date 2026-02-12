@@ -74,7 +74,11 @@ namespace Core.VM.Runtime
             _maxInstructions = other._maxInstructions;
             _interpreter = other._interpreter;
             AssociatedObject = other.AssociatedObject;
-            _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
+
+            // Rent and copy stack
+            _stack = ArrayPool<DreamValue>.Shared.Rent(other._stack.Length);
+            Array.Copy(other._stack, _stack, other._stackPtr);
+            _stackPtr = other._stackPtr;
 
             var currentFrame = other._callStack[other._callStackPtr - 1];
             PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
@@ -88,6 +92,14 @@ namespace Core.VM.Runtime
 
             State = DreamThreadState.Sleeping;
             SleepUntil = DateTime.Now.AddSeconds(seconds);
+        }
+
+        public void WakeUp()
+        {
+            if (State == DreamThreadState.Sleeping)
+            {
+                State = DreamThreadState.Running;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

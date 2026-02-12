@@ -13,11 +13,13 @@ namespace Server
     {
         private readonly ServerSettings _settings;
         private readonly ITimerService _timerService;
+        private readonly IJobSystem _jobSystem;
 
-        public ScriptScheduler(IOptions<ServerSettings> settings, ITimerService timerService)
+        public ScriptScheduler(IOptions<ServerSettings> settings, ITimerService timerService, IJobSystem jobSystem)
         {
             _settings = settings.Value;
             _timerService = timerService;
+            _jobSystem = jobSystem;
         }
 
         public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
@@ -42,17 +44,30 @@ namespace Server
 
             var budgetExceeded = 0; // 0 = false, 1 = true
 
-            Parallel.ForEach(sortedThreads, thread =>
+            foreach (var thread in sortedThreads)
             {
-                if (Interlocked.CompareExchange(ref budgetExceeded, 0, 0) == 1 || (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled))
+                _jobSystem.Schedule(() =>
                 {
-                    Interlocked.Exchange(ref budgetExceeded, 1);
-                    thread.WaitTicks++;
-                    nextThreads.Add(thread);
-                    return;
-                }
+                    if (Interlocked.CompareExchange(ref budgetExceeded, 0, 0) == 1 || (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled))
+                    {
+                        Interlocked.Exchange(ref budgetExceeded, 1);
+                        thread.WaitTicks++;
+                        nextThreads.Add(thread);
+                        return;
+                    }
 
-                if (thread is DreamThread dreamThread)
+                    ProcessThread(thread, processGlobals, objectIds, nextThreads);
+                });
+            }
+
+            _jobSystem.CompleteAllAsync().GetAwaiter().GetResult();
+
+            return nextThreads;
+        }
+
+        private void ProcessThread(IScriptThread thread, bool processGlobals, HashSet<int>? objectIds, ConcurrentBag<IScriptThread> nextThreads)
+        {
+            if (thread is DreamThread dreamThread)
                 {
                     // Skip sleeping threads in the main loop; TimerService will wake them up
                     if (dreamThread.State == DreamThreadState.Sleeping)
@@ -61,42 +76,39 @@ namespace Server
                         return;
                     }
 
-                    bool shouldProcess = (processGlobals && dreamThread.AssociatedObject == null) || (dreamThread.AssociatedObject != null && objectIds.Contains(dreamThread.AssociatedObject.Id));
+                    bool shouldProcess = (processGlobals && dreamThread.AssociatedObject == null) || (dreamThread.AssociatedObject != null && objectIds!.Contains(dreamThread.AssociatedObject.Id));
 
-                    if (shouldProcess)
+                if (shouldProcess)
+                {
+                    var threadStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    var state = dreamThread.Run(_settings.Performance.VmInstructionSlice);
+                    dreamThread.ExecutionTime = threadStopwatch.Elapsed;
+                    dreamThread.WaitTicks = 0;
+
+                    if (state == DreamThreadState.Running)
                     {
-                        var threadStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                        var state = dreamThread.Run(_settings.Performance.VmInstructionSlice);
-                        dreamThread.ExecutionTime = threadStopwatch.Elapsed;
-                        dreamThread.WaitTicks = 0;
-
-                        if (state == DreamThreadState.Running)
-                        {
-                            nextThreads.Add(dreamThread);
-                        }
-                        else if (state == DreamThreadState.Sleeping)
-                        {
-                            // Register wakeup timer
-                            _timerService.AddTimer(dreamThread.SleepUntil, dreamThread.WakeUp);
-                            nextThreads.Add(dreamThread);
-                        }
-                        else
-                        {
-                            dreamThread.Dispose();
-                        }
+                        nextThreads.Add(dreamThread);
+                    }
+                    else if (state == DreamThreadState.Sleeping)
+                    {
+                        // Register wakeup timer
+                        _timerService.AddTimer(dreamThread.SleepUntil, dreamThread.WakeUp);
+                        nextThreads.Add(dreamThread);
                     }
                     else
                     {
-                        nextThreads.Add(dreamThread);
+                        dreamThread.Dispose();
                     }
                 }
                 else
                 {
-                    nextThreads.Add(thread);
+                    nextThreads.Add(dreamThread);
                 }
-            });
-
-            return nextThreads;
+            }
+            else
+            {
+                nextThreads.Add(thread);
+            }
         }
     }
 }

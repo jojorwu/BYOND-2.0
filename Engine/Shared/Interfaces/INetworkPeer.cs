@@ -1,7 +1,9 @@
+using System.Threading.Tasks;
+
 namespace Shared
 {
     public interface INetworkPeer
     {
-        void Send(string data);
+        ValueTask SendAsync(string data);
     }
 }

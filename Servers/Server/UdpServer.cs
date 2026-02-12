@@ -40,7 +40,7 @@ namespace Server
         public void BroadcastSnapshot(MergedRegion region, string snapshot)
         {
             foreach(var r in region.Regions)
-                _context.PlayerManager.ForEachPlayerInRegion(r, peer => peer.Send(snapshot));
+                _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(snapshot));
         }
     }
 }

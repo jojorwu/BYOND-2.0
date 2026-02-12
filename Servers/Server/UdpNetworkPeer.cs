@@ -1,6 +1,7 @@
 using Shared;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using System.Threading.Tasks;
 
 namespace Server
 {
@@ -15,7 +16,7 @@ namespace Server
             _writerPool = writerPool;
         }
 
-        public void Send(string data)
+        public ValueTask SendAsync(string data)
         {
             var writer = _writerPool.Get();
             try
@@ -27,6 +28,7 @@ namespace Server
             {
                 _writerPool.Return(writer);
             }
+            return ValueTask.CompletedTask;
         }
     }
 }

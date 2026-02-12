@@ -42,7 +42,7 @@ namespace tests
 
             // Assert
             _playerManagerMock.Verify(pm => pm.AddPlayer(peerMock.Object), Times.Once);
-            peerMock.Verify(p => p.Send(It.IsAny<string>()), Times.Once);
+            peerMock.Verify(p => p.SendAsync(It.IsAny<string>()), Times.Once);
         }
 
         [Test]

@@ -30,7 +30,8 @@ namespace Core.Tests
 
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
+            var jobSystem = new Shared.Services.JobSystem();
+            _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool);

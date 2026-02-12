@@ -6,26 +6,46 @@ using Shared.Interfaces;
 
 namespace Shared.Services
 {
-    public class JobSystem : IJobSystem
+    public class JobSystem : IJobSystem, IDisposable
     {
-        private readonly ConcurrentBag<Task> _pendingTasks = new();
+        private readonly WorkerThread[] _workers;
+        private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
+        private int _nextWorker;
+
+        public JobSystem()
+        {
+            int workerCount = Math.Max(1, Environment.ProcessorCount);
+            _workers = new WorkerThread[workerCount];
+            for (int i = 0; i < workerCount; i++)
+            {
+                _workers[i] = new WorkerThread($"Engine-Worker-{i}");
+            }
+        }
 
         public void Schedule(IJob job)
         {
-            _pendingTasks.Add(Task.Run(() => job.ExecuteAsync()));
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pendingJobTrackers.Add(tcs);
+
+            var wrappedJob = new TrackingJob(job, tcs);
+
+            // Round-robin distribution
+            int index = Interlocked.Increment(ref _nextWorker) % _workers.Length;
+            if (index < 0) index = Math.Abs(index);
+            _workers[index].Enqueue(wrappedJob);
         }
 
         public void Schedule(Action action)
         {
-            _pendingTasks.Add(Task.Run(action));
+            Schedule(new ActionJob(action));
         }
 
         public async Task CompleteAllAsync()
         {
             var tasks = new List<Task>();
-            while (_pendingTasks.TryTake(out var task))
+            while (_pendingJobTrackers.TryTake(out var tcs))
             {
-                tasks.Add(task);
+                tasks.Add(tcs.Task);
             }
 
             if (tasks.Count > 0)
@@ -36,15 +56,60 @@ namespace Shared.Services
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action)
         {
-            var options = new ParallelOptions
+            foreach (var item in source)
             {
-                MaxDegreeOfParallelism = Environment.ProcessorCount
-            };
+                Schedule(() => action(item));
+            }
+            await CompleteAllAsync();
+        }
 
-            await Parallel.ForEachAsync(source, options, async (item, token) =>
+        public void Dispose()
+        {
+            foreach (var worker in _workers)
             {
-                await Task.Run(() => action(item), token);
-            });
+                worker.Dispose();
+            }
+        }
+
+        private class TrackingJob : IJob
+        {
+            private readonly IJob _inner;
+            private readonly TaskCompletionSource _tcs;
+
+            public TrackingJob(IJob inner, TaskCompletionSource tcs)
+            {
+                _inner = inner;
+                _tcs = tcs;
+            }
+
+            public async Task ExecuteAsync()
+            {
+                try
+                {
+                    await _inner.ExecuteAsync();
+                    _tcs.TrySetResult();
+                }
+                catch (Exception ex)
+                {
+                    _tcs.TrySetException(ex);
+                }
+            }
+        }
+
+        private class ActionJob : IJob
+        {
+            private readonly Action _action;
+
+            public ActionJob(Action action)
+            {
+                _action = action;
+            }
+
+            public Task ExecuteAsync()
+            {
+                _action();
+                return Task.CompletedTask;
+            }
         }
     }
 }

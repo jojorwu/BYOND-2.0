@@ -3,7 +3,8 @@ namespace Core
     public enum SnapshotMessageType : byte
     {
         Full,
-        Delta
+        Delta,
+        Binary
     }
 
     public enum DeltaActionType : byte

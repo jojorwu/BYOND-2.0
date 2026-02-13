@@ -18,8 +18,40 @@ namespace Shared.Services
             _workers = new WorkerThread[workerCount];
             for (int i = 0; i < workerCount; i++)
             {
-                _workers[i] = new WorkerThread($"Engine-Worker-{i}");
+                _workers[i] = new WorkerThread($"Engine-Worker-{i}", TryStealJob);
             }
+
+            foreach (var worker in _workers)
+            {
+                worker.Start();
+            }
+        }
+
+        private IJob? TryStealJob(WorkerThread stealer)
+        {
+            // Simple stealing: find the worker with the most jobs and take one
+            WorkerThread? victim = null;
+            int maxJobs = 0;
+
+            for (int i = 0; i < _workers.Length; i++)
+            {
+                var worker = _workers[i];
+                if (worker == stealer) continue;
+
+                int jobCount = worker.JobCount;
+                if (jobCount > maxJobs)
+                {
+                    maxJobs = jobCount;
+                    victim = worker;
+                }
+            }
+
+            if (victim != null && victim.TrySteal(out var stolenJob))
+            {
+                return stolenJob;
+            }
+
+            return null;
         }
 
         public void Schedule(IJob job)

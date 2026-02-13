@@ -22,7 +22,7 @@ namespace Server
             _jobSystem = jobSystem;
         }
 
-        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
+        public async System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
         {
             if (objectIds == null)
             {
@@ -60,7 +60,7 @@ namespace Server
                 });
             }
 
-            _jobSystem.CompleteAllAsync().GetAwaiter().GetResult();
+            await _jobSystem.CompleteAllAsync();
 
             return nextThreads;
         }

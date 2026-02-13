@@ -12,7 +12,7 @@ namespace Core.VM.Procs
         public DreamProc(string name, byte[] bytecode, string[] arguments, int localVariableCount)
         {
             Name = name;
-            Bytecode = bytecode;
+            Bytecode = Utils.BytecodeOptimizer.Optimize(bytecode);
             Arguments = arguments;
             LocalVariableCount = localVariableCount;
         }

@@ -13,18 +13,25 @@ namespace Shared.Services
         private readonly ConcurrentQueue<IJob> _jobQueue = new();
         private readonly Thread _thread;
         private readonly AutoResetEvent _wakeEvent = new(false);
+        private readonly Func<WorkerThread, IJob?>? _stealFunc;
         private bool _disposed;
 
         public int JobCount => _jobQueue.Count;
+        public bool IsBusy { get; private set; }
 
-        public WorkerThread(string name)
+        public WorkerThread(string name, Func<WorkerThread, IJob?>? stealFunc = null)
         {
+            _stealFunc = stealFunc;
             _thread = new Thread(Run)
             {
                 Name = name,
                 IsBackground = true,
                 Priority = ThreadPriority.AboveNormal
             };
+        }
+
+        public void Start()
+        {
             _thread.Start();
         }
 
@@ -35,26 +42,44 @@ namespace Shared.Services
             _wakeEvent.Set();
         }
 
+        public bool TrySteal(out IJob? job)
+        {
+            return _jobQueue.TryDequeue(out job);
+        }
+
         private void Run()
         {
             while (!_disposed)
             {
                 if (_jobQueue.TryDequeue(out var job))
                 {
-                    try
-                    {
-                        job.ExecuteAsync().GetAwaiter().GetResult();
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log error - in a real implementation we would use ILogger
-                        Console.WriteLine($"Error executing job in {Thread.CurrentThread.Name}: {ex}");
-                    }
+                    ExecuteJob(job);
+                }
+                else if (_stealFunc != null && (job = _stealFunc(this)) != null)
+                {
+                    ExecuteJob(job);
                 }
                 else
                 {
-                    _wakeEvent.WaitOne(10); // Wait for new work or timeout
+                    _wakeEvent.WaitOne(1); // Shorter wait for better stealing responsiveness
                 }
+            }
+        }
+
+        internal void ExecuteJob(IJob job)
+        {
+            IsBusy = true;
+            try
+            {
+                job.ExecuteAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error executing job in {Thread.CurrentThread.Name}: {ex}");
+            }
+            finally
+            {
+                IsBusy = false;
             }
         }
 

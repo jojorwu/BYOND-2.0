@@ -19,12 +19,11 @@ namespace Server
             _udpServer = udpServer;
         }
 
-        public Task TickAsync(CancellationToken cancellationToken)
+        public async Task TickAsync(CancellationToken cancellationToken)
         {
-            _scriptHost.Tick();
+            await _scriptHost.TickAsync();
             var snapshot = _gameStateSnapshotter.GetSnapshot(_gameState);
             _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), cancellationToken);
-            return Task.CompletedTask;
         }
     }
 }

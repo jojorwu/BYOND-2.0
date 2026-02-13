@@ -29,7 +29,7 @@ namespace Shared
         {
             foreach (var chunk in _chunks)
             {
-                chunk.ForEachTurf(turf =>
+                chunk.ForEachTurf((turf, x, y) =>
                 {
                     if (turf != null)
                     {

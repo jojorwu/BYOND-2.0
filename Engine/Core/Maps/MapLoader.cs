@@ -58,6 +58,13 @@ namespace Core.Maps
                 foreach (var turfData in batch)
                 {
                     var turfType = _objectTypeManager.GetTurfType();
+
+                    if (turfData.Contents.Count == 0 && turfData.Id == 0) // Simple static turf
+                    {
+                        map.SetTurfType(turfData.X, turfData.Y, turfData.Z, turfType.Id);
+                        continue;
+                    }
+
                     var turf = new Turf(turfType, turfData.X, turfData.Y, turfData.Z);
                     turf.Id = turfData.Id;
                     foreach (var objData in turfData.Contents)

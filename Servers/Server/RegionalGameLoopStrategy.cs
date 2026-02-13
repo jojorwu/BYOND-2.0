@@ -55,7 +55,7 @@ namespace Server
                 }
             }
 
-            var remainingGlobals = _scriptHost.ExecuteThreads(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
+            var remainingGlobals = await _scriptHost.ExecuteThreadsAsync(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
 
             var activeRegions = _regionActivationStrategy.GetActiveRegions();
             var mergedRegions = MergeRegions(activeRegions);
@@ -109,28 +109,42 @@ namespace Server
                     }
 
                     // Execute threads for this region
-                    var remainingRegionThreads = _scriptHost.ExecuteThreads(threadsForRegion, gameObjects, objectIds: objectIds);
+                    var remainingRegionThreads = await _scriptHost.ExecuteThreadsAsync(threadsForRegion, gameObjects, objectIds: objectIds);
                     nextThreadsCollection.Add(remainingRegionThreads);
 
                     // Calculate aggregate version for cache check
                     long aggregateVersion = 0;
                     foreach (var obj in gameObjects) aggregateVersion += obj.Version;
+                    foreach (var r in mergedRegion.Regions)
+                    {
+                        foreach (var chunk in r.GetChunks())
+                        {
+                            aggregateVersion += chunk.Version;
+                        }
+                    }
 
                     // Use merged region's first region as a cache key for simplicity (or hash of all region coords)
                     long cacheKey = ((long)mergedRegion.Regions[0].Coords.X << 32) | (uint)mergedRegion.Regions[0].Coords.Y;
 
-                    string snapshot;
-                    if (_snapshotCache.TryGetValue(cacheKey, out var cached) && cached.AggregateVersion == aggregateVersion)
+                    if (_settings.Network.EnableBinarySnapshots)
                     {
-                        snapshot = cached.Snapshot;
+                        await Task.Run(() => _udpServer.SendRegionSnapshot(mergedRegion, gameObjects), token);
                     }
                     else
                     {
-                        snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
-                        _snapshotCache[cacheKey] = (aggregateVersion, snapshot);
-                    }
+                        string snapshot;
+                        if (_snapshotCache.TryGetValue(cacheKey, out var cached) && cached.AggregateVersion == aggregateVersion)
+                        {
+                            snapshot = cached.Snapshot;
+                        }
+                        else
+                        {
+                            snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
+                            _snapshotCache[cacheKey] = (aggregateVersion, snapshot);
+                        }
 
-                    await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
+                        await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
+                    }
                 }
             });
 

@@ -46,7 +46,7 @@ namespace Server
             return Task.CompletedTask;
         }
 
-        public void Tick()
+        public async Task TickAsync()
         {
             ProcessCommandQueue();
 
@@ -54,17 +54,17 @@ namespace Server
             _gameState.ForEachGameObject(o => objectIds.Add(o.Id));
 
             var threads = _envManager.GetActiveThreads();
-            var remainingThreads = _scheduler.ExecuteThreads(threads, Array.Empty<IGameObject>(), true, objectIds);
+            var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, Array.Empty<IGameObject>(), true, objectIds);
             _envManager.UpdateActiveThreads(remainingThreads);
         }
 
-        public void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+        public async Task TickAsync(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
         {
             if (processGlobals)
                 ProcessCommandQueue();
 
             var threads = _envManager.GetActiveThreads();
-            var remainingThreads = _scheduler.ExecuteThreads(threads, objectsToTick, processGlobals);
+            var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals);
             _envManager.UpdateActiveThreads(remainingThreads);
         }
 
@@ -78,9 +78,9 @@ namespace Server
             _envManager.UpdateActiveThreads(threads);
         }
 
-        public IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
+        public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
         {
-            return _scheduler.ExecuteThreads(threads, objectsToTick, processGlobals, objectIds);
+            return _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals, objectIds);
         }
 
         public void EnqueueCommand(string command, Action<string> onResult)

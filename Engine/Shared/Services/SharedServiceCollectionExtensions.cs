@@ -21,6 +21,8 @@ namespace Shared.Services
             services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
             services.AddSingleton<IProfilingService, ProfilingService>();
             services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
+            services.AddSingleton<BinarySnapshotService>();
+            services.AddSingleton<StringInterner>();
             return services;
         }
     }

@@ -52,7 +52,7 @@ namespace tests
             await strategy.TickAsync(_cancellationTokenSource.Token);
 
             // Assert
-            _scriptHostMock.Verify(s => s.Tick(), Times.Once);
+            _scriptHostMock.Verify(s => s.TickAsync(), Times.Once);
             _gameStateSnapshotterMock.Verify(gs => gs.GetSnapshot(_gameStateMock.Object), Times.Once);
             _udpServerMock.Verify(u => u.BroadcastSnapshot("snapshot"), Times.Once);
         }
@@ -61,11 +61,14 @@ namespace tests
         public async Task RegionalGameLoopStrategy_TickAsync_CallsDependencies()
         {
             // Arrange
+            _serverSettings.Network.EnableBinarySnapshots = false; // Disable for this test to match existing expectations
             var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _regionActivationStrategyMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, Options.Create(_serverSettings));
             var activeRegions = new HashSet<Region> { new Region(new Robust.Shared.Maths.Vector2i(0,0), 0) };
 
             _regionActivationStrategyMock.Setup(rm => rm.GetActiveRegions()).Returns(activeRegions);
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
+            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+                .ReturnsAsync(new List<IScriptThread>());
             _gameStateSnapshotterMock.Setup(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>())).Returns("snapshot");
 
             // Act
@@ -74,7 +77,7 @@ namespace tests
             // Assert
             _regionActivationStrategyMock.Verify(rm => rm.GetActiveRegions(), Times.Once);
             _gameStateSnapshotterMock.Verify(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>()), Times.AtLeastOnce);
-            _scriptHostMock.Verify(s => s.ExecuteThreads(It.IsAny<List<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>()), Times.AtLeastOnce());
+            _scriptHostMock.Verify(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()), Times.AtLeastOnce());
             _udpServerMock.Verify(u => u.BroadcastSnapshot(It.IsAny<MergedRegion>(), "snapshot"), Times.AtLeastOnce);
         }
 

@@ -6,11 +6,18 @@ namespace Core.VM.Utils
 {
     public static class BytecodeOptimizer
     {
+        [ThreadStatic]
+        private static List<byte>? _optimizationBuffer;
+
         public static byte[] Optimize(byte[] bytecode)
         {
             if (bytecode == null || bytecode.Length == 0) return bytecode ?? Array.Empty<byte>();
 
-            var optimized = new List<byte>(bytecode.Length);
+            _optimizationBuffer ??= new List<byte>(1024);
+            var optimized = _optimizationBuffer;
+            optimized.Clear();
+            if (optimized.Capacity < bytecode.Length) optimized.Capacity = bytecode.Length;
+
             int pc = 0;
 
             while (pc < bytecode.Length)

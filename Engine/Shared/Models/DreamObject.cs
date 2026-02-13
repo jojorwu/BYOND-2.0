@@ -8,7 +8,7 @@ namespace Shared
 {
     public class DreamObject : IDisposable
     {
-        protected ReaderWriterLockSlim _lock = new();
+        protected readonly object _lock = new();
         public ObjectType? ObjectType { get; set; }
         protected DreamValue[] _variableValues;
         public long Version { get; protected set; }
@@ -52,16 +52,11 @@ namespace Shared
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            _lock.EnterReadLock();
-            try
+            lock (_lock)
             {
                 var values = _variableValues;
                 if (index < values.Length) return values[index];
                 return DreamValue.Null;
-            }
-            finally
-            {
-                _lock.ExitReadLock();
             }
         }
 
@@ -79,34 +74,24 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            _lock.EnterReadLock();
-            try
+            lock (_lock)
             {
                 var values = _variableValues;
                 if (index >= 0 && index < values.Length)
                     return values[index];
                 return DreamValue.Null;
-            }
-            finally
-            {
-                _lock.ExitReadLock();
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariableDirect(int index)
         {
-            _lock.EnterReadLock();
-            try
+            lock (_lock)
             {
                 var values = _variableValues;
                 if (index >= 0 && index < values.Length)
                     return values[index];
                 return DreamValue.Null;
-            }
-            finally
-            {
-                _lock.ExitReadLock();
             }
         }
 
@@ -121,8 +106,7 @@ namespace Shared
         {
             if (index < 0) return;
 
-            _lock.EnterWriteLock();
-            try
+            lock (_lock)
             {
                 if (index >= _variableValues.Length)
                 {
@@ -135,10 +119,6 @@ namespace Shared
                     Version++;
                 }
             }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
         }
 
         public override string ToString()
@@ -148,14 +128,7 @@ namespace Shared
 
         public virtual void Dispose()
         {
-            _lock?.Dispose();
-            _lock = null!;
             GC.SuppressFinalize(this);
-        }
-
-        ~DreamObject()
-        {
-            _lock?.Dispose();
         }
     }
 }

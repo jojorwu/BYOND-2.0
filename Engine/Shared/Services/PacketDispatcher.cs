@@ -44,10 +44,11 @@ namespace Shared.Services
             if (_handlers.TryGetValue(typeId, out var handler))
             {
                 // Offload packet handling to the JobSystem for parallel processing
+                // Use track: false to prevent memory leaks as we don't await these jobs in the game loop
                 _jobSystem.Schedule(async () =>
                 {
                     await handler.HandleAsync(peer, payload);
-                });
+                }, track: false);
             }
         }
     }

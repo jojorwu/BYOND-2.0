@@ -20,12 +20,12 @@ namespace Shared.Interfaces
         /// <summary>
         /// Schedules a job for execution.
         /// </summary>
-        void Schedule(IJob job);
+        void Schedule(IJob job, bool track = true);
 
         /// <summary>
         /// Schedules an action as a job.
         /// </summary>
-        void Schedule(Action action);
+        void Schedule(Action action, bool track = true);
 
         /// <summary>
         /// Waits for all scheduled jobs to complete.

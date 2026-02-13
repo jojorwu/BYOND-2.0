@@ -174,6 +174,15 @@ namespace Shared
                 cell.Lock.Dispose();
             }
             _grid.Clear();
+            GC.SuppressFinalize(this);
+        }
+
+        ~SpatialGrid()
+        {
+            foreach (var cell in _grid.Values)
+            {
+                cell.Lock.Dispose();
+            }
         }
     }
 }

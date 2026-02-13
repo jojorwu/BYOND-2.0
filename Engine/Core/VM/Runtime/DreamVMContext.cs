@@ -72,6 +72,12 @@ namespace Core.VM.Runtime
         public void Dispose()
         {
             _globalLock.Dispose();
+            GC.SuppressFinalize(this);
+        }
+
+        ~DreamVMContext()
+        {
+            _globalLock?.Dispose();
         }
     }
 }

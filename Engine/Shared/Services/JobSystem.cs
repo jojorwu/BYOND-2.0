@@ -54,22 +54,29 @@ namespace Shared.Services
             return null;
         }
 
-        public void Schedule(IJob job)
+        public void Schedule(IJob job, bool track = true)
         {
-            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            _pendingJobTrackers.Add(tcs);
-
-            var wrappedJob = new TrackingJob(job, tcs);
+            IJob finalJob;
+            if (track)
+            {
+                var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _pendingJobTrackers.Add(tcs);
+                finalJob = new TrackingJob(job, tcs);
+            }
+            else
+            {
+                finalJob = job;
+            }
 
             // Round-robin distribution
             int index = Interlocked.Increment(ref _nextWorker) % _workers.Length;
             if (index < 0) index = Math.Abs(index);
-            _workers[index].Enqueue(wrappedJob);
+            _workers[index].Enqueue(finalJob);
         }
 
-        public void Schedule(Action action)
+        public void Schedule(Action action, bool track = true)
         {
-            Schedule(new ActionJob(action));
+            Schedule(new ActionJob(action), track);
         }
 
         public async Task CompleteAllAsync()

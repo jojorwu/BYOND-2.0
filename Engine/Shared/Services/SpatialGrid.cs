@@ -13,11 +13,20 @@ namespace Shared
         private class Cell
         {
             public readonly List<IGameObject> Objects = new();
-            public readonly ReaderWriterLockSlim Lock = new();
+            public readonly object Lock = new();
+
+            public void Clear()
+            {
+                lock (Lock)
+                {
+                    Objects.Clear();
+                }
+            }
         }
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
+        private readonly ConcurrentQueue<Cell> _cellPool = new();
         private readonly int _cellSize;
 
         public SpatialGrid(int cellSize = 16)
@@ -31,18 +40,25 @@ namespace Shared
             return ((long)(x / _cellSize) << 32) | (uint)(y / _cellSize);
         }
 
+        private Cell GetOrCreateCell(long key)
+        {
+            return _grid.GetOrAdd(key, _ =>
+            {
+                if (_cellPool.TryDequeue(out var cell))
+                {
+                    return cell;
+                }
+                return new Cell();
+            });
+        }
+
         public void Add(IGameObject obj)
         {
             var key = GetCellKey(obj.X, obj.Y);
-            var cell = _grid.GetOrAdd(key, _ => new Cell());
-            cell.Lock.EnterWriteLock();
-            try
+            var cell = GetOrCreateCell(key);
+            lock (cell.Lock)
             {
                 cell.Objects.Add(obj);
-            }
-            finally
-            {
-                cell.Lock.ExitWriteLock();
             }
         }
 
@@ -51,8 +67,7 @@ namespace Shared
             var key = GetCellKey(obj.X, obj.Y);
             if (_grid.TryGetValue(key, out var cell))
             {
-                cell.Lock.EnterWriteLock();
-                try
+                lock (cell.Lock)
                 {
                     int index = cell.Objects.IndexOf(obj);
                     if (index != -1)
@@ -60,11 +75,15 @@ namespace Shared
                         int last = cell.Objects.Count - 1;
                         cell.Objects[index] = cell.Objects[last];
                         cell.Objects.RemoveAt(last);
+
+                        if (cell.Objects.Count == 0)
+                        {
+                            if (_grid.TryRemove(key, out var removedCell))
+                            {
+                                _cellPool.Enqueue(removedCell);
+                            }
+                        }
                     }
-                }
-                finally
-                {
-                    cell.Lock.ExitWriteLock();
                 }
             }
         }
@@ -82,8 +101,7 @@ namespace Shared
                 long oldKey = ((long)oldGX << 32) | (uint)oldGY;
                 if (_grid.TryGetValue(oldKey, out var oldCell))
                 {
-                    oldCell.Lock.EnterWriteLock();
-                    try
+                    lock (oldCell.Lock)
                     {
                         int index = oldCell.Objects.IndexOf(obj);
                         if (index != -1)
@@ -91,25 +109,24 @@ namespace Shared
                             int last = oldCell.Objects.Count - 1;
                             oldCell.Objects[index] = oldCell.Objects[last];
                             oldCell.Objects.RemoveAt(last);
+
+                            if (oldCell.Objects.Count == 0)
+                            {
+                                if (_grid.TryRemove(oldKey, out var removedCell))
+                                {
+                                    _cellPool.Enqueue(removedCell);
+                                }
+                            }
                         }
-                    }
-                    finally
-                    {
-                        oldCell.Lock.ExitWriteLock();
                     }
                 }
 
                 // Add to new
                 long newKey = ((long)newGX << 32) | (uint)newGY;
-                var newCell = _grid.GetOrAdd(newKey, _ => new Cell());
-                newCell.Lock.EnterWriteLock();
-                try
+                var newCell = GetOrCreateCell(newKey);
+                lock (newCell.Lock)
                 {
                     newCell.Objects.Add(obj);
-                }
-                finally
-                {
-                    newCell.Lock.ExitWriteLock();
                 }
             }
         }
@@ -144,8 +161,7 @@ namespace Shared
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        cell.Lock.EnterReadLock();
-                        try
+                        lock (cell.Lock)
                         {
                             var objects = cell.Objects;
                             int count = objects.Count;
@@ -158,10 +174,6 @@ namespace Shared
                                 }
                             }
                         }
-                        finally
-                        {
-                            cell.Lock.ExitReadLock();
-                        }
                     }
                 }
             }
@@ -169,20 +181,14 @@ namespace Shared
 
         public void Dispose()
         {
-            foreach (var cell in _grid.Values)
-            {
-                cell.Lock.Dispose();
-            }
             _grid.Clear();
+            _cellPool.Clear();
             GC.SuppressFinalize(this);
         }
 
         ~SpatialGrid()
         {
-            foreach (var cell in _grid.Values)
-            {
-                cell.Lock.Dispose();
-            }
+            Dispose();
         }
     }
 }

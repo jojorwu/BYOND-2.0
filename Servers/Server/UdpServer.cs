@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
+using Shared.Interfaces;
 using Core;
 
 namespace Server
@@ -16,13 +17,15 @@ namespace Server
         private readonly NetworkEventHandler _networkEventHandler;
         private readonly IServerContext _context;
         private readonly BinarySnapshotService _binarySnapshotService;
+        private readonly IInterestManager _interestManager;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
             _context = context;
             _binarySnapshotService = binarySnapshotService;
+            _interestManager = interestManager;
         }
 
         public override Task StartAsync(CancellationToken cancellationToken)
@@ -65,7 +68,11 @@ namespace Server
             {
                 _context.PlayerManager.ForEachPlayerInRegion(r, peer =>
                 {
-                    byte[] snapshot = _binarySnapshotService.Serialize(objects, peer.LastSentVersions);
+                    // Filter objects by interest if the player has an AOI defined
+                    var interestedObjects = _interestManager.GetInterestedObjects(peer);
+                    var objectsToSend = interestedObjects.Any() ? interestedObjects : objects;
+
+                    byte[] snapshot = _binarySnapshotService.Serialize(objectsToSend, peer.LastSentVersions);
                     if (snapshot.Length > 1) // 1 byte for end marker
                     {
                         byte[] message = new byte[snapshot.Length + 1];

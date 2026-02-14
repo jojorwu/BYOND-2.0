@@ -26,6 +26,7 @@ namespace Shared.Services
             services.AddSingleton<IComponentManager, ComponentManager>();
             services.AddSingleton<IComponentQueryService, ComponentQueryService>();
             services.AddSingleton<IObjectFactory, ObjectFactory>();
+            services.AddSingleton<IInterestManager, InterestManager>();
             return services;
         }
     }

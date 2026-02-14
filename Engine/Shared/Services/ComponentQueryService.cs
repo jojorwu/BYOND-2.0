@@ -1,23 +1,21 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
 
 namespace Shared.Services
 {
-    public interface IComponentQueryService
-    {
-        IEnumerable<IGameObject> Query<T>() where T : class, IComponent;
-        IEnumerable<IGameObject> Query(params Type[] componentTypes);
-    }
-
     public class ComponentQueryService : IComponentQueryService
     {
         private readonly IComponentManager _componentManager;
+        private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
 
         public ComponentQueryService(IComponentManager componentManager)
         {
             _componentManager = componentManager;
+            _componentManager.ComponentAdded += OnComponentAdded;
+            _componentManager.ComponentRemoved += OnComponentRemoved;
         }
 
         public IEnumerable<IGameObject> Query<T>() where T : class, IComponent
@@ -30,7 +28,6 @@ namespace Shared.Services
             if (componentTypes == null || componentTypes.Length == 0)
                 return Enumerable.Empty<IGameObject>();
 
-            // Find the smallest set to start with
             var smallestSet = componentTypes
                 .Select(t => (Type: t, Count: GetCount(t)))
                 .OrderBy(x => x.Count)
@@ -49,7 +46,6 @@ namespace Shared.Services
 
         private int GetCount(Type t)
         {
-            // Reflection-based access to the generic GetComponents method
             var method = _componentManager.GetType().GetMethod("GetComponents")?.MakeGenericMethod(t);
             if (method == null) return 0;
             var results = method.Invoke(_componentManager, null) as System.Collections.IEnumerable;
@@ -65,6 +61,46 @@ namespace Shared.Services
             var results = method.Invoke(_componentManager, null) as System.Collections.IEnumerable;
             if (results == null) return Enumerable.Empty<IGameObject>();
             return results.Cast<IComponent>().Select(c => c.Owner).Where(o => o != null)!;
+        }
+
+        public void Subscribe<T>(Action<ComponentEventArgs> onAdded, Action<ComponentEventArgs> onRemoved) where T : class, IComponent
+        {
+            var list = _subscriptions.GetOrAdd(typeof(T), _ => new List<(Action<ComponentEventArgs>, Action<ComponentEventArgs>)>());
+            lock (list)
+            {
+                list.Add((onAdded, onRemoved));
+            }
+        }
+
+        public void Unsubscribe<T>(Action<ComponentEventArgs> onAdded, Action<ComponentEventArgs> onRemoved) where T : class, IComponent
+        {
+            if (_subscriptions.TryGetValue(typeof(T), out var list))
+            {
+                lock (list)
+                {
+                    list.Remove((onAdded, onRemoved));
+                }
+            }
+        }
+
+        private void OnComponentAdded(object? sender, ComponentEventArgs e)
+        {
+            if (_subscriptions.TryGetValue(e.ComponentType, out var list))
+            {
+                List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;
+                lock (list) copy = list.ToList();
+                foreach (var sub in copy) sub.Added(e);
+            }
+        }
+
+        private void OnComponentRemoved(object? sender, ComponentEventArgs e)
+        {
+            if (_subscriptions.TryGetValue(e.ComponentType, out var list))
+            {
+                List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;
+                lock (list) copy = list.ToList();
+                foreach (var sub in copy) sub.Removed(e);
+            }
         }
     }
 }

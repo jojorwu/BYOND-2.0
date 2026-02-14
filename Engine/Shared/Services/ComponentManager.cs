@@ -10,6 +10,9 @@ namespace Shared.Services
     {
         private readonly ConcurrentDictionary<Type, object> _stores = new();
 
+        public event EventHandler<ComponentEventArgs>? ComponentAdded;
+        public event EventHandler<ComponentEventArgs>? ComponentRemoved;
+
         private Dictionary<int, T> GetStore<T>() where T : class, IComponent
         {
             return (Dictionary<int, T>)_stores.GetOrAdd(typeof(T), _ => new Dictionary<int, T>());
@@ -24,18 +27,25 @@ namespace Shared.Services
                 store[owner.Id] = component;
                 component.Initialize();
             }
+            ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, typeof(T)));
         }
 
         public void RemoveComponent<T>(IGameObject owner) where T : class, IComponent
         {
             var store = GetStore<T>();
+            IComponent? removedComponent = null;
             lock (store)
             {
                 if (store.Remove(owner.Id, out var component))
                 {
+                    removedComponent = component;
                     component.Shutdown();
                     component.Owner = null;
                 }
+            }
+            if (removedComponent != null)
+            {
+                ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, removedComponent, typeof(T)));
             }
         }
 

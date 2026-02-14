@@ -14,7 +14,9 @@ namespace Shared
     public class GameObject : DreamObject, IGameObject, IPoolable
     {
         private static int nextId = 1;
-        private readonly List<IComponent> _components = new();
+        private IComponentManager? _componentManager;
+
+        public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
         /// <summary>
         /// Gets the unique identifier for the game object.
@@ -330,42 +332,34 @@ namespace Shared
 
         public void AddComponent(IComponent component)
         {
-            lock (_lock)
-            {
-                component.Owner = this;
-                _components.Add(component);
-                component.Initialize();
-                Version++;
-            }
+            if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
+
+            // We need a generic way to call AddComponent<T>
+            var method = _componentManager.GetType().GetMethod("AddComponent")?.MakeGenericMethod(component.GetType());
+            method?.Invoke(_componentManager, new object[] { this, component });
+            Version++;
         }
 
-        public void RemoveComponent(IComponent component)
+        public void AddComponent<T>(T component) where T : class, IComponent
         {
-            lock (_lock)
-            {
-                if (_components.Remove(component))
-                {
-                    component.Shutdown();
-                    component.Owner = null;
-                    Version++;
-                }
-            }
+            _componentManager?.AddComponent(this, component);
+            Version++;
+        }
+
+        public void RemoveComponent<T>() where T : class, IComponent
+        {
+            _componentManager?.RemoveComponent<T>(this);
+            Version++;
         }
 
         public T? GetComponent<T>() where T : class, IComponent
         {
-            lock (_lock)
-            {
-                return _components.OfType<T>().FirstOrDefault();
-            }
+            return _componentManager?.GetComponent<T>(this);
         }
 
         public IEnumerable<IComponent> GetComponents()
         {
-            lock (_lock)
-            {
-                return _components.ToList();
-            }
+            return _componentManager?.GetAllComponents(this) ?? Enumerable.Empty<IComponent>();
         }
 
         public virtual void Reset()
@@ -379,10 +373,14 @@ namespace Shared
             _loc = null;
             Version = 0;
 
-            lock (_lock)
+            if (_componentManager != null)
             {
-                foreach (var component in _components) component.Shutdown();
-                _components.Clear();
+                foreach (var component in _componentManager.GetAllComponents(this).ToList())
+                {
+                    // Generic removal is tricky here, but we can use reflection or a specialized method in ComponentManager
+                    var method = _componentManager.GetType().GetMethod("RemoveComponent")?.MakeGenericMethod(component.GetType());
+                    method?.Invoke(_componentManager, new object[] { this });
+                }
             }
 
             lock (_contentsLock)

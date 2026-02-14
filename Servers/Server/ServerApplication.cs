@@ -43,22 +43,26 @@ namespace Server
 
             foreach (var group in priorityGroups)
             {
-                if (group.Count == 1)
+                _logger.LogDebug("Starting group of {Count} services (Priority: {Priority})", group.Count, group[0].Priority);
+
+                var tasks = group.Select(async service =>
                 {
-                    var service = group[0];
-                    _logger.LogDebug("Starting service: {ServiceName} (Priority: {Priority})", service.GetType().Name, service.Priority);
-                    await service.InitializeAsync();
-                    await service.StartAsync(cancellationToken);
-                }
-                else
-                {
-                    _logger.LogDebug("Starting group of {Count} services in parallel (Priority: {Priority})", group.Count, group[0].Priority);
-                    await Task.WhenAll(group.Select(async service =>
+                    try
                     {
                         await service.InitializeAsync();
                         await service.StartAsync(cancellationToken);
-                    }));
-                }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to start service: {ServiceName}", service.GetType().Name);
+                        if (service.IsCritical)
+                        {
+                            throw; // Rethrow to abort startup
+                        }
+                    }
+                });
+
+                await Task.WhenAll(tasks);
             }
 
             _logger.LogInformation("Server Application started successfully.");

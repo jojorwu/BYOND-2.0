@@ -1,4 +1,5 @@
 using ImGuiNET;
+using Editor.History;
 
 namespace Editor.UI
 {
@@ -8,8 +9,9 @@ namespace Editor.UI
         private readonly ToolManager _toolManager;
         private readonly IProjectService _projectService;
         private readonly IRunService _runService;
+        private readonly HistoryManager _historyManager;
 
-        public ToolbarPanel(EditorContext editorContext, ToolManager toolManager, IProjectService projectService, IRunService runService)
+        public ToolbarPanel(EditorContext editorContext, ToolManager toolManager, IProjectService projectService, IRunService runService, HistoryManager historyManager)
         {
             _editorContext = editorContext;
             _toolManager = toolManager;
@@ -36,6 +38,23 @@ namespace Editor.UI
                     _runService.Run();
                 }
                 if (ImGui.IsItemHovered()) ImGui.SetTooltip("Build and run the current project.");
+
+                ImGui.SameLine();
+                ImGui.TextDisabled("|");
+                ImGui.SameLine();
+
+                if (ImGui.Button("Undo") && _historyManager.CanUndo)
+                {
+                    _historyManager.Undo();
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Undo the last action (Ctrl+Z).");
+
+                ImGui.SameLine();
+                if (ImGui.Button("Redo") && _historyManager.CanRedo)
+                {
+                    _historyManager.Redo();
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Redo the previously undone action (Ctrl+Y).");
 
                 ImGui.SameLine();
                 ImGui.TextDisabled("|");

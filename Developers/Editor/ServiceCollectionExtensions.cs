@@ -1,4 +1,5 @@
 using Editor.UI;
+using Editor.History;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
 
@@ -33,6 +34,7 @@ namespace Editor
             services.AddSingleton<TextureManager>();
             services.AddSingleton<AssetManager>();
             services.AddSingleton<SelectionManager>();
+            services.AddSingleton<HistoryManager>();
             services.AddSingleton<ToolManager>();
             services.AddSingleton<BuildService>();
             services.AddSingleton<SpriteRenderer>();
@@ -90,7 +92,8 @@ namespace Editor
                     provider.GetRequiredService<LocalizationManager>(),
                     provider.GetRequiredService<IProjectManager>(),
                     provider.GetRequiredService<IProjectService>(),
-                    provider.GetRequiredService<SettingsPanel>()
+                    provider.GetRequiredService<SettingsPanel>(),
+                    provider.GetRequiredService<HistoryManager>()
                 )
             );
             services.AddSingleton<ViewportPanel>(provider =>

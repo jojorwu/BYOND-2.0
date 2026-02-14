@@ -4,6 +4,7 @@ using ImGuiNET;
 using System.Numerics;
 using Robust.Shared.Maths;
 using System.IO;
+using Editor.History;
 
 namespace Editor.UI
 {
@@ -18,8 +19,9 @@ namespace Editor.UI
         private readonly IGameApi _gameApi;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IEditorSettingsManager _settingsManager;
+        private readonly HistoryManager _historyManager;
 
-        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager, IObjectTypeManager objectTypeManager, IEditorSettingsManager settingsManager)
+        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager, IObjectTypeManager objectTypeManager, IEditorSettingsManager settingsManager, HistoryManager historyManager)
         {
             _toolManager = toolManager;
             _selectionManager = selectionManager;
@@ -29,6 +31,7 @@ namespace Editor.UI
             _gameApi = gameApi;
             _objectTypeManager = objectTypeManager;
             _settingsManager = settingsManager;
+            _historyManager = historyManager;
         }
 
         public void Initialize(GL gl)
@@ -130,10 +133,11 @@ namespace Editor.UI
                                         uint textureId = _textureManager.GetTexture(spritePath);
                                         if (textureId != 0)
                                         {
+                                            var color = _selectionManager.IsSelected(gameObject) ? new Vector4(1, 0.5f, 0, 1) : Vector4.One;
                                             _spriteRenderer.Draw(textureId,
                                                 new Vector2(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize),
                                                 new Vector2(EditorConstants.TileSize, EditorConstants.TileSize),
-                                                Vector4.One, new Box2(0, 0, 1, 1));
+                                                color, new Box2(0, 0, 1, 1));
                                         }
                                     }
                                 }
@@ -177,6 +181,33 @@ namespace Editor.UI
                     if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                     {
                         _toolManager.OnMouseUp(_editorContext, scene.GameState, _selectionManager, worldMousePosInt);
+                    }
+
+                    // Shortcuts
+                    if (ImGui.GetIO().KeyCtrl)
+                    {
+                        if (ImGui.IsKeyPressed(ImGuiKey.Z)) _historyManager.Undo();
+                        if (ImGui.IsKeyPressed(ImGuiKey.Y)) _historyManager.Redo();
+                        if (ImGui.IsKeyPressed(ImGuiKey.S))
+                        {
+                            var activeScene = _editorContext.GetActiveScene();
+                            if (activeScene != null)
+                            {
+                                // We don't have direct access to SaveScene here, but we can signal it.
+                                // Or we could inject a ProjectService that has SaveScene.
+                                // For now, let's just use the MenuBar logic if we can access it or refactor.
+                            }
+                        }
+                    }
+
+                    if (ImGui.IsKeyPressed(ImGuiKey.Delete) && _selectionManager.HasSelection)
+                    {
+                        foreach (var obj in _selectionManager.Selection.ToList())
+                        {
+                            var command = new DeleteObjectCommand(scene.GameState, obj);
+                            _historyManager.ExecuteCommand(command);
+                        }
+                        _selectionManager.Deselect();
                     }
                 }
 

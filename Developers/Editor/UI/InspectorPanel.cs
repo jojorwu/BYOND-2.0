@@ -1,5 +1,6 @@
 using Shared;
 using Editor;
+using Editor.History;
 using ImGuiNET;
 using Silk.NET.OpenGL;
 using System.Collections.Generic;
@@ -14,14 +15,16 @@ namespace Editor.UI
         private readonly EditorContext _editorContext;
         private readonly AssetBrowserPanel _assetBrowserPanel;
         private readonly TextureManager _textureManager;
+        private readonly HistoryManager _historyManager;
 
-        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext, AssetBrowserPanel assetBrowserPanel, TextureManager textureManager)
+        public InspectorPanel(IGameApi gameApi, SelectionManager selectionManager, EditorContext editorContext, AssetBrowserPanel assetBrowserPanel, TextureManager textureManager, HistoryManager historyManager)
         {
             _gameApi = gameApi;
             _selectionManager = selectionManager;
             _editorContext = editorContext;
             _assetBrowserPanel = assetBrowserPanel;
             _textureManager = textureManager;
+            _historyManager = historyManager;
         }
 
         public void Draw()
@@ -53,9 +56,16 @@ namespace Editor.UI
             }
             else
             {
-                var selectedObject = _selectionManager.SelectedObject;
-                if (selectedObject != null)
+                if (_selectionManager.SelectionCount > 1)
                 {
+                    ImGui.Text($"{_selectionManager.SelectionCount} objects selected.");
+                    if (ImGui.Button("Deselect All")) _selectionManager.Deselect();
+
+                    // Here we could add batch editing logic
+                }
+                else if (_selectionManager.SelectedObject != null)
+                {
+                    var selectedObject = _selectionManager.SelectedObject;
                     if (ImGui.CollapsingHeader("General", ImGuiTreeNodeFlags.DefaultOpen))
                     {
                         ImGui.LabelText("ID", selectedObject.Id.ToString());
@@ -65,9 +75,10 @@ namespace Editor.UI
                     if (ImGui.CollapsingHeader("Transform", ImGuiTreeNodeFlags.DefaultOpen))
                     {
                         int[] position = { selectedObject.X, selectedObject.Y, selectedObject.Z };
-                        if (ImGui.InputInt3("Position", ref position[0]))
+                        if (ImGui.InputInt3("Position", ref position[0], ImGuiInputTextFlags.EnterReturnsTrue))
                         {
-                            selectedObject.SetPosition(position[0], position[1], position[2]);
+                            var command = new MoveObjectCommand(selectedObject, selectedObject.X, selectedObject.Y, selectedObject.Z, position[0], position[1], position[2]);
+                            _historyManager.ExecuteCommand(command);
                         }
                     }
 
@@ -85,9 +96,10 @@ namespace Editor.UI
                             else
                             {
                                 string valueStr = varValue.ToString();
-                                if (ImGui.InputText(varName, ref valueStr, 256))
+                                if (ImGui.InputText(varName, ref valueStr, 256, ImGuiInputTextFlags.EnterReturnsTrue))
                                 {
-                                    selectedObject.SetVariable(varName, valueStr);
+                                    var command = new ChangePropertyCommand(selectedObject, varName, varValue, new DreamValue(valueStr));
+                                    _historyManager.ExecuteCommand(command);
                                 }
                             }
                         }

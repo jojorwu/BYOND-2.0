@@ -1,2 +1,6 @@
-**/[Bb]in/
-**/[Oo]bj/
+bin/
+obj/
+*.log
+.vs/
+.idea/
+.vscode/

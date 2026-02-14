@@ -44,6 +44,7 @@ namespace Editor.UI
             _projectManager = projectManager;
             _projectService = projectService;
             _settingsPanel = settingsPanel;
+            _historyManager = historyManager;
         }
 
         public async Task SaveScene(Scene scene, bool saveAs)

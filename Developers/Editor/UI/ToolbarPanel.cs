@@ -17,6 +17,7 @@ namespace Editor.UI
             _toolManager = toolManager;
             _projectService = projectService;
             _runService = runService;
+            _historyManager = historyManager;
         }
 
         public void Draw()

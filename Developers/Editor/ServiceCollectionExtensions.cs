@@ -105,7 +105,8 @@ namespace Editor
                     provider.GetRequiredService<SpriteRenderer>(),
                     provider.GetRequiredService<TextureManager>(),
                     provider.GetRequiredService<IObjectTypeManager>(),
-                    provider.GetRequiredService<IEditorSettingsManager>()
+                    provider.GetRequiredService<IEditorSettingsManager>(),
+                    provider.GetRequiredService<HistoryManager>()
                 )
             );
             services.AddSingleton<AssetBrowserPanel>();
@@ -113,7 +114,15 @@ namespace Editor
             services.AddSingleton<ObjectBrowserPanel>();
             services.AddSingleton<ScriptEditorPanel>();
             services.AddSingleton<SettingsPanel>();
-            services.AddSingleton<ToolbarPanel>();
+            services.AddSingleton<ToolbarPanel>(provider =>
+                new ToolbarPanel(
+                    provider.GetRequiredService<EditorContext>(),
+                    provider.GetRequiredService<ToolManager>(),
+                    provider.GetRequiredService<IProjectService>(),
+                    provider.GetRequiredService<IRunService>(),
+                    provider.GetRequiredService<HistoryManager>()
+                )
+            );
             services.AddSingleton<MapControlsPanel>();
             services.AddSingleton<BuildPanel>();
             services.AddSingleton<SceneHierarchyPanel>();

@@ -14,6 +14,7 @@ namespace Shared
     public class GameObject : DreamObject, IGameObject, IPoolable
     {
         private static int nextId = 1;
+        private readonly List<IComponent> _components = new();
 
         /// <summary>
         /// Gets the unique identifier for the game object.
@@ -327,6 +328,46 @@ namespace Shared
             return ObjectType?.Name ?? "object";
         }
 
+        public void AddComponent(IComponent component)
+        {
+            lock (_lock)
+            {
+                component.Owner = this;
+                _components.Add(component);
+                component.Initialize();
+                Version++;
+            }
+        }
+
+        public void RemoveComponent(IComponent component)
+        {
+            lock (_lock)
+            {
+                if (_components.Remove(component))
+                {
+                    component.Shutdown();
+                    component.Owner = null;
+                    Version++;
+                }
+            }
+        }
+
+        public T? GetComponent<T>() where T : class, IComponent
+        {
+            lock (_lock)
+            {
+                return _components.OfType<T>().FirstOrDefault();
+            }
+        }
+
+        public IEnumerable<IComponent> GetComponents()
+        {
+            lock (_lock)
+            {
+                return _components.ToList();
+            }
+        }
+
         public virtual void Reset()
         {
             _x = 0;
@@ -337,6 +378,12 @@ namespace Shared
             _committedZ = 0;
             _loc = null;
             Version = 0;
+
+            lock (_lock)
+            {
+                foreach (var component in _components) component.Shutdown();
+                _components.Clear();
+            }
 
             lock (_contentsLock)
             {

@@ -16,13 +16,15 @@ namespace Shared.Services
         private List<List<ISystem>> _executionLayers;
         private readonly IProfilingService _profilingService;
         private readonly IJobSystem _jobSystem;
+        private readonly IComponentQueryService _componentQuery;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IComponentQueryService componentQuery)
         {
             _registry = registry;
             _profilingService = profilingService;
             _jobSystem = jobSystem;
+            _componentQuery = componentQuery;
             _executionLayers = new List<List<ISystem>>();
         }
 
@@ -36,11 +38,12 @@ namespace Shared.Services
 
             while (remaining.Count > 0)
             {
-                var currentLayer = remaining
+                // Find systems whose dependencies are met
+                var readySystems = remaining
                     .Where(s => s.Dependencies.All(d => completedNames.Contains(d)))
                     .ToList();
 
-                if (currentLayer.Count == 0)
+                if (readySystems.Count == 0)
                 {
                     // Fallback for circular dependencies: sort by priority if no layer can be formed
                     var fallbackLayer = remaining.OrderByDescending(s => s.Priority).ToList();
@@ -48,8 +51,11 @@ namespace Shared.Services
                     break;
                 }
 
-                layers.Add(currentLayer);
-                foreach (var system in currentLayer)
+                // Further refine readySystems into sub-layers based on resource conflicts
+                var subLayers = ResolveResourceConflicts(readySystems);
+                layers.AddRange(subLayers);
+
+                foreach (var system in readySystems)
                 {
                     remaining.Remove(system);
                     completedNames.Add(system.Name);
@@ -57,6 +63,68 @@ namespace Shared.Services
             }
 
             return layers;
+        }
+
+        private List<List<ISystem>> ResolveResourceConflicts(List<ISystem> systems)
+        {
+            var subLayers = new List<List<ISystem>>();
+            var remaining = new List<ISystem>(systems);
+
+            while (remaining.Count > 0)
+            {
+                var currentSubLayer = new List<ISystem>();
+                var lockedForRead = new HashSet<System.Type>();
+                var lockedForWrite = new HashSet<System.Type>();
+
+                for (int i = 0; i < remaining.Count; i++)
+                {
+                    var system = remaining[i];
+                    bool hasConflict = false;
+
+                    foreach (var res in system.WriteResources)
+                    {
+                        if (lockedForWrite.Contains(res) || lockedForRead.Contains(res))
+                        {
+                            hasConflict = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasConflict)
+                    {
+                        foreach (var res in system.ReadResources)
+                        {
+                            if (lockedForWrite.Contains(res))
+                            {
+                                hasConflict = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!hasConflict)
+                    {
+                        currentSubLayer.Add(system);
+                        foreach (var res in system.WriteResources) lockedForWrite.Add(res);
+                        foreach (var res in system.ReadResources) lockedForRead.Add(res);
+                        remaining.RemoveAt(i);
+                        i--;
+                    }
+                }
+
+                if (currentSubLayer.Count > 0)
+                {
+                    subLayers.Add(currentSubLayer);
+                }
+                else
+                {
+                    // Should not happen if logic is correct, but safety break
+                    subLayers.Add(remaining.ToList());
+                    remaining.Clear();
+                }
+            }
+
+            return subLayers;
         }
 
         public async Task TickAsync()

@@ -49,5 +49,17 @@ namespace Shared.Interfaces
         /// Gets whether the system is enabled.
         /// </summary>
         bool Enabled => true;
+
+        /// <summary>
+        /// Types of resources this system reads from.
+        /// Used for safe parallel scheduling.
+        /// </summary>
+        IEnumerable<System.Type> ReadResources => System.Array.Empty<System.Type>();
+
+        /// <summary>
+        /// Types of resources this system writes to.
+        /// Used for safe parallel scheduling.
+        /// </summary>
+        IEnumerable<System.Type> WriteResources => System.Array.Empty<System.Type>();
     }
 }

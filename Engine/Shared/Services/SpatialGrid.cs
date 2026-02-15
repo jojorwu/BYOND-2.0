@@ -41,7 +41,17 @@ namespace Shared
 
         private Cell GetOrCreateCell(long key)
         {
-            return _grid.GetOrAdd(key, _ => new Cell());
+            while (true)
+            {
+                var cell = _grid.GetOrAdd(key, _ => new Cell());
+                lock (cell.Lock)
+                {
+                    if (_grid.TryGetValue(key, out var current) && current == cell)
+                    {
+                        return cell;
+                    }
+                }
+            }
         }
 
         public void Add(IGameObject obj)
@@ -112,6 +122,27 @@ namespace Shared
             var results = new List<IGameObject>();
             GetObjectsInBox(box, results);
             return results;
+        }
+
+        public void CleanupEmptyCells()
+        {
+            foreach (var kvp in _grid)
+            {
+                var cell = kvp.Value;
+                if (cell.Objects.Count == 0)
+                {
+                    lock (cell.Lock)
+                    {
+                        if (cell.Objects.Count == 0)
+                        {
+                            if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
+                            {
+                                _grid.TryRemove(kvp.Key, out _);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)

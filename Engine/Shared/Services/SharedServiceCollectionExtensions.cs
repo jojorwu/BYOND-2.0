@@ -22,6 +22,7 @@ namespace Shared.Services
             services.AddSingleton<IProfilingService, ProfilingService>();
             services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
             services.AddSingleton<BinarySnapshotService>();
+            services.AddSingleton<SpatialGrid>();
             services.AddSingleton<StringInterner>();
             services.AddSingleton<IArchetypeManager, ArchetypeManager>();
             services.AddSingleton<IComponentManager, ComponentManager>();

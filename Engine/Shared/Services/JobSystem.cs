@@ -10,6 +10,7 @@ namespace Shared.Services
 {
     public class JobSystem : IJobSystem, IDisposable
     {
+        private const int MaxTrackedJobs = 10000;
         private readonly WorkerThread[] _workers;
         private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
         private int _nextWorker;
@@ -82,6 +83,11 @@ namespace Shared.Services
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             if (track)
             {
+                if (_pendingJobTrackers.Count > MaxTrackedJobs)
+                {
+                    // Emergency purge: something is scheduling tracked jobs without awaiting them
+                    while (_pendingJobTrackers.TryTake(out _)) { }
+                }
                 _pendingJobTrackers.Add(tcs);
             }
 

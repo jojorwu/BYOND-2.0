@@ -11,6 +11,7 @@ namespace Shared.Services
     {
         private readonly ConcurrentDictionary<string, MetricData> _metrics = new();
         private const int MaxSamples = 100;
+        private const int MaxUniqueMetrics = 1000;
 
         [ThreadStatic]
         private static Stack<MeasureScope>? _scopeStack;
@@ -24,14 +25,16 @@ namespace Shared.Services
         public void RecordMetric(string name, double value)
         {
             var currentScope = _scopeStack?.Count > 0 ? _scopeStack.Peek() : null;
-            MetricData metric;
+            MetricData? metric;
 
             if (currentScope != null)
             {
+                if (currentScope.Metric.Children.Count >= MaxUniqueMetrics && !currentScope.Metric.Children.ContainsKey(name)) return;
                 metric = currentScope.Metric.Children.GetOrAdd(name, _ => new MetricData());
             }
             else
             {
+                if (_metrics.Count >= MaxUniqueMetrics && !_metrics.ContainsKey(name)) return;
                 metric = _metrics.GetOrAdd(name, _ => new MetricData());
             }
 
@@ -46,9 +49,20 @@ namespace Shared.Services
         {
             _scopeStack ??= new Stack<MeasureScope>();
             var parent = _scopeStack.Count > 0 ? _scopeStack.Peek() : null;
-            MetricData metric = parent != null
-                ? parent.Metric.Children.GetOrAdd(name, _ => new MetricData())
-                : _metrics.GetOrAdd(name, _ => new MetricData());
+
+            MetricData? metric;
+            if (parent != null)
+            {
+                if (parent.Metric.Children.Count >= MaxUniqueMetrics && !parent.Metric.Children.ContainsKey(name))
+                    return new NullMeasureScope();
+                metric = parent.Metric.Children.GetOrAdd(name, _ => new MetricData());
+            }
+            else
+            {
+                if (_metrics.Count >= MaxUniqueMetrics && !_metrics.ContainsKey(name))
+                    return new NullMeasureScope();
+                metric = _metrics.GetOrAdd(name, _ => new MetricData());
+            }
 
             var scope = new MeasureScope(this, name, metric);
             _scopeStack.Push(scope);
@@ -84,6 +98,11 @@ namespace Shared.Services
             {
                 SummarizeRecursively(child.Key, child.Value, fullName, results);
             }
+        }
+
+        private class NullMeasureScope : IDisposable
+        {
+            public void Dispose() { }
         }
 
         private class MeasureScope : IDisposable

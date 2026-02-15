@@ -55,6 +55,12 @@ namespace Shared.Services
 
         public void Reset()
         {
+            // If we have many blocks, prune them to reclaim memory
+            if (_blocks.Count > 8)
+            {
+                _blocks.RemoveRange(8, _blocks.Count - 8);
+            }
+
             foreach (var block in _blocks)
             {
                 block.Offset = 0;

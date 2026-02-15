@@ -22,7 +22,8 @@ namespace Shared.Interfaces
         /// <summary>
         /// Executes the system's logic for one tick.
         /// </summary>
-        void Tick();
+        /// <param name="ecb">The command buffer to record structural changes.</param>
+        void Tick(IEntityCommandBuffer ecb);
 
         /// <summary>
         /// Executed after the main tick phase.

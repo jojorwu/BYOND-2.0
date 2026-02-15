@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,14 +18,16 @@ namespace Shared.Services
         private readonly IProfilingService _profilingService;
         private readonly IJobSystem _jobSystem;
         private readonly IComponentQueryService _componentQuery;
+        private readonly System.IServiceProvider _serviceProvider;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IComponentQueryService componentQuery)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IComponentQueryService componentQuery, System.IServiceProvider serviceProvider)
         {
             _registry = registry;
             _profilingService = profilingService;
             _jobSystem = jobSystem;
             _componentQuery = componentQuery;
+            _serviceProvider = serviceProvider;
             _executionLayers = new List<List<ISystem>>();
         }
 
@@ -148,17 +151,35 @@ namespace Shared.Services
                 // Main Tick Phase (Layered)
                 foreach (var layer in _executionLayers)
                 {
+                    var ecbs = new ConcurrentBag<IEntityCommandBuffer>();
+
                     if (layer.Count == 1)
                     {
-                        ExecuteSystem(layer[0]);
+                        var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
+                        ecbs.Add(ecb);
+                        ExecuteSystem(layer[0], ecb);
                     }
                     else
                     {
-                        await _jobSystem.ForEachAsync(layer, ExecuteSystem);
+                        await _jobSystem.ForEachAsync(layer, system =>
+                        {
+                            var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
+                            ecbs.Add(ecb);
+                            ExecuteSystem(system, ecb);
+                        });
                     }
 
                     // Await jobs created by this layer before moving to the next
                     await _jobSystem.CompleteAllAsync();
+
+                    // Synchronization Point: Playback all ECBs from this layer
+                    using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                    {
+                        foreach (var ecb in ecbs)
+                        {
+                            ecb.Playback();
+                        }
+                    }
                 }
 
                 // Post-Tick Phase
@@ -169,11 +190,11 @@ namespace Shared.Services
             }
         }
 
-        private void ExecuteSystem(ISystem system)
+        private void ExecuteSystem(ISystem system, IEntityCommandBuffer ecb)
         {
             using (_profilingService.Measure($"System.{system.Name}"))
             {
-                system.Tick();
+                system.Tick(ecb);
 
                 var jobs = system.CreateJobs();
                 foreach (var job in jobs)

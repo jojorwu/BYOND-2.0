@@ -1,6 +1,7 @@
-bin/
-obj/
+**/bin/
+**/obj/
 *.log
 .vs/
 .idea/
 .vscode/
+tests_ls.txt

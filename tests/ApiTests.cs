@@ -33,7 +33,7 @@ namespace Core.Tests
             var jobSystem = new Shared.Services.JobSystem();
             _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
+            var pool = new Shared.Services.SharedPool<GameObject>(() => new GameObject());
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool);
             _scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, _mapApi);

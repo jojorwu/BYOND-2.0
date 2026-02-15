@@ -14,7 +14,7 @@ namespace Shared.Services
             services.AddSingleton<IComputeService, ComputeService>();
             services.AddSingleton<IJobSystem, JobSystem>();
             services.AddSingleton<ITimerService, TimerService>();
-            services.AddSingleton<IObjectPool<GameObject>>(sp => new ObjectPool<GameObject>(() => new GameObject()));
+            services.AddSingleton<IObjectPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()));
             services.AddSingleton<ISystemRegistry, SystemRegistry>();
             services.AddSingleton<IPluginManager, PluginManager>();
             services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
@@ -27,6 +27,7 @@ namespace Shared.Services
             services.AddSingleton<IComponentQueryService, ComponentQueryService>();
             services.AddSingleton<IObjectFactory, ObjectFactory>();
             services.AddSingleton<IInterestManager, InterestManager>();
+            services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
             return services;
         }
     }

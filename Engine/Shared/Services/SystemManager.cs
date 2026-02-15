@@ -18,16 +18,18 @@ namespace Shared.Services
         private readonly IProfilingService _profilingService;
         private readonly IJobSystem _jobSystem;
         private readonly IComponentQueryService _componentQuery;
+        private readonly IComponentManager _componentManager;
         private readonly SpatialGrid _spatialGrid;
         private readonly System.IServiceProvider _serviceProvider;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IComponentQueryService componentQuery, SpatialGrid spatialGrid, System.IServiceProvider serviceProvider)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IComponentQueryService componentQuery, IComponentManager componentManager, SpatialGrid spatialGrid, System.IServiceProvider serviceProvider)
         {
             _registry = registry;
             _profilingService = profilingService;
             _jobSystem = jobSystem;
             _componentQuery = componentQuery;
+            _componentManager = componentManager;
             _spatialGrid = spatialGrid;
             _serviceProvider = serviceProvider;
             _executionLayers = new List<List<ISystem>>();
@@ -206,6 +208,7 @@ namespace Shared.Services
                 {
                     await _jobSystem.ResetAllArenasAsync();
                     _spatialGrid.CleanupEmptyCells();
+                    _componentManager.Compact();
                 }
             }
         }

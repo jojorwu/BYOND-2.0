@@ -14,5 +14,10 @@ namespace Shared.Messaging
         void UnsubscribeAsync<T>(Func<T, Task> handler);
         void Publish<T>(T eventData);
         Task PublishAsync<T>(T eventData);
+
+        /// <summary>
+        /// Removes all subscriptions from the event bus.
+        /// </summary>
+        void Clear();
     }
 }

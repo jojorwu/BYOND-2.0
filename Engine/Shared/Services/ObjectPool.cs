@@ -31,5 +31,14 @@ namespace Shared.Services
             }
             _pool.Push(obj);
         }
+
+        public void Shrink()
+        {
+            int count = _pool.Count;
+            for (int i = 0; i < count / 2; i++)
+            {
+                _pool.TryPop(out _);
+            }
+        }
     }
 }

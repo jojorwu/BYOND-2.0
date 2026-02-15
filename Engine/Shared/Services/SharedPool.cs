@@ -14,6 +14,7 @@ namespace Shared.Services
         private readonly Func<T> _factory;
         private readonly ConcurrentQueue<T> _globalQueue = new();
         private const int LocalCapacity = 16;
+        private const int MaxGlobalCapacity = 1024;
 
         [ThreadStatic]
         private static List<T>? _localCache;
@@ -56,9 +57,22 @@ namespace Shared.Services
             {
                 _localCache.Add(obj);
             }
-            else
+            else if (_globalQueue.Count < MaxGlobalCapacity)
             {
                 _globalQueue.Enqueue(obj);
+            }
+        }
+
+        public void Shrink()
+        {
+            // Prune global queue to half its current size if it's large
+            int count = _globalQueue.Count;
+            if (count > LocalCapacity * 2)
+            {
+                for (int i = 0; i < count / 2; i++)
+                {
+                    _globalQueue.TryDequeue(out _);
+                }
             }
         }
     }

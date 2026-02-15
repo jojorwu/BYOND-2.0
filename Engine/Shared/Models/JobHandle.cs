@@ -7,7 +7,7 @@ namespace Shared.Models
     /// </summary>
     public struct JobHandle
     {
-        internal readonly Task Task;
+        internal readonly Task? Task;
 
         public JobHandle(Task task)
         {

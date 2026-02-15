@@ -79,6 +79,18 @@ namespace Shared.Models
             return null;
         }
 
+        public void Compact()
+        {
+            // If capacity is significantly larger than count, trim it
+            foreach (var array in _componentArrays.Values)
+            {
+                // List<T> has TrimExcess
+                var method = array.GetType().GetMethod("TrimExcess");
+                method?.Invoke(array, null);
+            }
+            _entityIds.TrimExcess();
+        }
+
         public IEnumerable<int> GetEntityIds() => _entityIds;
     }
 }

@@ -137,5 +137,13 @@ namespace Shared.Services
                 }
             }
         }
+
+        public void Clear()
+        {
+            lock (_lock)
+            {
+                _handlers.Clear();
+            }
+        }
     }
 }

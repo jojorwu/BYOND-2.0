@@ -48,5 +48,10 @@ namespace Shared.Services
         {
             return _archetypeManager.GetAllComponents(owner.Id);
         }
+
+        public void Compact()
+        {
+            _archetypeManager.Compact();
+        }
     }
 }

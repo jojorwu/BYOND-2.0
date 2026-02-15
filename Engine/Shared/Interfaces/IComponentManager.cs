@@ -27,5 +27,10 @@ namespace Shared.Interfaces
         T? GetComponent<T>(IGameObject owner) where T : class, IComponent;
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
         IEnumerable<IComponent> GetAllComponents(IGameObject owner);
+
+        /// <summary>
+        /// Compacts internal storage to reclaim memory.
+        /// </summary>
+        void Compact();
     }
 }

@@ -15,5 +15,10 @@ namespace Shared.Interfaces
         /// Returns an object to the pool.
         /// </summary>
         void Return(T obj);
+
+        /// <summary>
+        /// Reclaims excess pooled objects to reduce memory usage.
+        /// </summary>
+        void Shrink();
     }
 }

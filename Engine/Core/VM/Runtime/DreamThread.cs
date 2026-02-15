@@ -191,7 +191,9 @@ namespace Core.VM.Runtime
         public CallFrame PopCallFrame()
         {
             if (_callStackPtr <= 0) throw new Exception("Call stack underflow");
-            return _callStack[--_callStackPtr];
+            var frame = _callStack[--_callStackPtr];
+            _callStack[_callStackPtr] = default; // Clear reference
+            return frame;
         }
 
         internal bool HandleException(ScriptRuntimeException e)
@@ -201,6 +203,7 @@ namespace Core.VM.Runtime
                 var tryBlock = TryStack.Pop();
 
                 // Unwind CallStack
+                Array.Clear(_callStack, tryBlock.CallStackDepth, _callStackPtr - tryBlock.CallStackDepth);
                 _callStackPtr = tryBlock.CallStackDepth;
 
                 // Restore stack pointer
@@ -420,6 +423,11 @@ namespace Core.VM.Runtime
             }
             ActiveEnumerators.Clear();
             EnumeratorLists.Clear();
+            Usr = null;
+
+            // Clear call stack references
+            Array.Clear(_callStack, 0, _callStackPtr);
+            _callStackPtr = 0;
 
             if (_stack != null)
             {

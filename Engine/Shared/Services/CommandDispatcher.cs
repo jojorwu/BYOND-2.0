@@ -16,10 +16,11 @@ namespace Shared.Services
         public CommandDispatcher(ILogger<CommandDispatcher> logger)
         {
             _logger = logger;
-            _commandChannel = Channel.CreateUnbounded<ICommand>(new UnboundedChannelOptions
+            _commandChannel = Channel.CreateBounded<ICommand>(new BoundedChannelOptions(1000)
             {
                 SingleReader = true,
-                SingleWriter = false
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait
             });
 
             _processorTask = Task.Run(ProcessCommandsAsync);

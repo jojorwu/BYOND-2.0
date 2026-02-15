@@ -62,10 +62,10 @@ namespace Shared.Services
             if (dependency.IsValid && !dependency.IsCompleted)
             {
                 var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                dependency.Task.ContinueWith(_ =>
+                dependency.Task!.ContinueWith(_ =>
                 {
                     var handle = ScheduleInternal(job, track);
-                    handle.Task.ContinueWith(t =>
+                    handle.Task!.ContinueWith(t =>
                     {
                         if (t.IsFaulted) tcs.TrySetException(t.Exception!);
                         else if (t.IsCanceled) tcs.TrySetCanceled();
@@ -111,12 +111,16 @@ namespace Shared.Services
             if (dependencies == null || dependencies.Length == 0) return default;
             if (dependencies.Length == 1) return dependencies[0];
 
-            var tasks = new Task[dependencies.Length];
+            var tasks = new List<Task>();
             for (int i = 0; i < dependencies.Length; i++)
             {
-                tasks[i] = dependencies[i].Task;
+                if (dependencies[i].IsValid)
+                {
+                    tasks.Add(dependencies[i].Task!);
+                }
             }
 
+            if (tasks.Count == 0) return default;
             return new JobHandle(Task.WhenAll(tasks));
         }
 

@@ -16,6 +16,7 @@ namespace Shared.Services
         T? GetComponent<T>(int entityId) where T : class, IComponent;
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
         IEnumerable<IComponent> GetAllComponents(int entityId);
+        void Compact();
     }
 
     public class ArchetypeManager : IArchetypeManager
@@ -122,6 +123,17 @@ namespace Shared.Services
                 return components.Values;
             }
             return Enumerable.Empty<IComponent>();
+        }
+
+        public void Compact()
+        {
+            lock (_archetypes)
+            {
+                foreach (var archetype in _archetypes)
+                {
+                    archetype.Compact();
+                }
+            }
         }
     }
 }

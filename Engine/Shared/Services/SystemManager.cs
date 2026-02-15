@@ -36,19 +36,21 @@ namespace Shared.Services
         private List<List<ISystem>> CalculateExecutionLayers(IEnumerable<ISystem> systems)
         {
             var layers = new List<List<ISystem>>();
-            var remaining = new HashSet<ISystem>(systems);
+            var systemList = systems.ToList();
+            var remaining = new HashSet<ISystem>(systemList);
             var completedNames = new HashSet<string>();
+            var completedGroups = new HashSet<string>();
 
             while (remaining.Count > 0)
             {
-                // Find systems whose dependencies are met
+                // Find systems whose dependencies are met (both system-level and group-level)
                 var readySystems = remaining
-                    .Where(s => s.Dependencies.All(d => completedNames.Contains(d)))
+                    .Where(s => s.Dependencies.All(d => completedNames.Contains(d) || completedGroups.Contains(d)))
                     .ToList();
 
                 if (readySystems.Count == 0)
                 {
-                    // Fallback for circular dependencies: sort by priority if no layer can be formed
+                    // Fallback for circular dependencies
                     var fallbackLayer = remaining.OrderByDescending(s => s.Priority).ToList();
                     layers.Add(fallbackLayer);
                     break;
@@ -62,6 +64,15 @@ namespace Shared.Services
                 {
                     remaining.Remove(system);
                     completedNames.Add(system.Name);
+
+                    // If all systems in a group are completed, mark group as completed
+                    if (system.Group != null)
+                    {
+                        if (systemList.Where(s => s.Group == system.Group).All(s => completedNames.Contains(s.Name)))
+                        {
+                            completedGroups.Add(system.Group);
+                        }
+                    }
                 }
             }
 

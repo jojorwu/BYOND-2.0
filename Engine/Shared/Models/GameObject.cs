@@ -362,6 +362,18 @@ namespace Shared
             return _componentManager?.GetAllComponents(this) ?? Enumerable.Empty<IComponent>();
         }
 
+        public void SendMessage(IComponentMessage message)
+        {
+            if (_componentManager == null) return;
+            foreach (var component in _componentManager.GetAllComponents(this))
+            {
+                if (component.Enabled)
+                {
+                    component.OnMessage(message);
+                }
+            }
+        }
+
         public virtual void Reset()
         {
             _x = 0;

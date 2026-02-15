@@ -47,6 +47,11 @@ namespace Shared.Interfaces
         IEnumerable<string> Dependencies => System.Array.Empty<string>();
 
         /// <summary>
+        /// The group this system belongs to.
+        /// </summary>
+        string? Group => null;
+
+        /// <summary>
         /// Gets whether the system is enabled.
         /// </summary>
         bool Enabled => true;

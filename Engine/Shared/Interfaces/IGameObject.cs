@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Shared.Interfaces;
 
 namespace Shared
 {
@@ -83,5 +84,20 @@ namespace Shared
         /// Sets a variable value by its flattened index.
         /// </summary>
         void SetVariable(int index, DreamValue value);
+
+        /// <summary>
+        /// Gets all components attached to this object.
+        /// </summary>
+        IEnumerable<IComponent> GetComponents();
+
+        /// <summary>
+        /// Gets a component of the specified type.
+        /// </summary>
+        T? GetComponent<T>() where T : class, IComponent;
+
+        /// <summary>
+        /// Sends a message to all components attached to this object.
+        /// </summary>
+        void SendMessage(IComponentMessage message);
     }
 }

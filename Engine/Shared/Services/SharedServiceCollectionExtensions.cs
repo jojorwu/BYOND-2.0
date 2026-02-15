@@ -23,6 +23,7 @@ namespace Shared.Services
             services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
             services.AddSingleton<BinarySnapshotService>();
             services.AddSingleton<StringInterner>();
+            services.AddSingleton<IArchetypeManager, ArchetypeManager>();
             services.AddSingleton<IComponentManager, ComponentManager>();
             services.AddSingleton<IComponentQueryService, ComponentQueryService>();
             services.AddSingleton<IObjectFactory, ObjectFactory>();

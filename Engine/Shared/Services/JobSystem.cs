@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
+using Shared.Models;
 
 namespace Shared.Services
 {
@@ -54,29 +56,62 @@ namespace Shared.Services
             return null;
         }
 
-        public void Schedule(IJob job, bool track = true)
+        public JobHandle Schedule(IJob job, JobHandle dependency = default, bool track = true)
         {
-            IJob finalJob;
-            if (track)
+            if (dependency.IsValid && !dependency.IsCompleted)
             {
                 var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                _pendingJobTrackers.Add(tcs);
-                finalJob = new TrackingJob(job, tcs);
+                dependency.Task.ContinueWith(_ =>
+                {
+                    var handle = ScheduleInternal(job, track);
+                    handle.Task.ContinueWith(t =>
+                    {
+                        if (t.IsFaulted) tcs.TrySetException(t.Exception!);
+                        else if (t.IsCanceled) tcs.TrySetCanceled();
+                        else tcs.TrySetResult();
+                    });
+                });
+                return new JobHandle(tcs.Task);
             }
-            else
+
+            return ScheduleInternal(job, track);
+        }
+
+        private JobHandle ScheduleInternal(IJob job, bool track)
+        {
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (track)
             {
-                finalJob = job;
+                _pendingJobTrackers.Add(tcs);
             }
+
+            var finalJob = new TrackingJob(job, tcs);
 
             // Round-robin distribution
             int index = Interlocked.Increment(ref _nextWorker) % _workers.Length;
             if (index < 0) index = Math.Abs(index);
             _workers[index].Enqueue(finalJob);
+
+            return new JobHandle(tcs.Task);
         }
 
-        public void Schedule(Action action, bool track = true)
+        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true)
         {
-            Schedule(new ActionJob(action), track);
+            return Schedule(new ActionJob(action), dependency, track);
+        }
+
+        public JobHandle CombineDependencies(params JobHandle[] dependencies)
+        {
+            if (dependencies == null || dependencies.Length == 0) return default;
+            if (dependencies.Length == 1) return dependencies[0];
+
+            var tasks = new Task[dependencies.Length];
+            for (int i = 0; i < dependencies.Length; i++)
+            {
+                tasks[i] = dependencies[i].Task;
+            }
+
+            return new JobHandle(Task.WhenAll(tasks));
         }
 
         public async Task CompleteAllAsync()
@@ -100,6 +135,16 @@ namespace Shared.Services
                 Schedule(() => action(item));
             }
             await CompleteAllAsync();
+        }
+
+        public IArenaAllocator? GetCurrentArena()
+        {
+            return WorkerThread.Current?.Arena;
+        }
+
+        public async Task ResetAllArenasAsync()
+        {
+            await ForEachAsync(_workers, worker => worker.Arena.Reset());
         }
 
         public void Dispose()

@@ -10,7 +10,11 @@ namespace Shared.Services
     /// </summary>
     public class WorkerThread : IDisposable
     {
+        [ThreadStatic]
+        internal static WorkerThread? Current;
+
         private readonly ConcurrentQueue<IJob> _jobQueue = new();
+        public readonly ArenaAllocator Arena = new();
         private readonly Thread _thread;
         private readonly AutoResetEvent _wakeEvent = new(false);
         private readonly Func<WorkerThread, IJob?>? _stealFunc;
@@ -49,6 +53,7 @@ namespace Shared.Services
 
         private void Run()
         {
+            Current = this;
             while (!_disposed)
             {
                 if (_jobQueue.TryDequeue(out var job))

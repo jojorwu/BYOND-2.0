@@ -29,6 +29,7 @@ namespace Shared.Services
             services.AddSingleton<IObjectFactory, ObjectFactory>();
             services.AddSingleton<IInterestManager, InterestManager>();
             services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
+            services.AddSingleton<IArenaAllocator, ArenaProxy>();
             return services;
         }
     }

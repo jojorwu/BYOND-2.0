@@ -198,6 +198,12 @@ namespace Shared.Services
                 {
                     await _jobSystem.ForEachAsync(enabledSystems, s => s.PostTick());
                 }
+
+                // Cleanup Phase: Reset all worker arenas
+                using (_profilingService.Measure("SystemManager.ArenaReset"))
+                {
+                    await _jobSystem.ResetAllArenasAsync();
+                }
             }
         }
 

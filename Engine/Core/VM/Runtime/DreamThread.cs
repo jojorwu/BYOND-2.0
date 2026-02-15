@@ -110,7 +110,7 @@ namespace Core.VM.Runtime
             {
                 var newStack = ArrayPool<DreamValue>.Shared.Rent(_stack.Length * 2);
                 Array.Copy(_stack, newStack, _stack.Length);
-                ArrayPool<DreamValue>.Shared.Return(_stack);
+                ArrayPool<DreamValue>.Shared.Return(_stack, true);
                 _stack = newStack;
             }
             _stack[_stackPtr++] = value;
@@ -423,11 +423,16 @@ namespace Core.VM.Runtime
 
             if (_stack != null)
             {
-                ArrayPool<DreamValue>.Shared.Return(_stack);
+                ArrayPool<DreamValue>.Shared.Return(_stack, true);
                 _stack = null!;
             }
 
             GC.SuppressFinalize(this);
+        }
+
+        ~DreamThread()
+        {
+            Dispose();
         }
     }
 }

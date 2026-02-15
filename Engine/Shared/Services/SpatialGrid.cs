@@ -26,7 +26,6 @@ namespace Shared
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
-        private readonly ConcurrentQueue<Cell> _cellPool = new();
         private readonly int _cellSize;
 
         public SpatialGrid(int cellSize = 16)
@@ -42,14 +41,7 @@ namespace Shared
 
         private Cell GetOrCreateCell(long key)
         {
-            return _grid.GetOrAdd(key, _ =>
-            {
-                if (_cellPool.TryDequeue(out var cell))
-                {
-                    return cell;
-                }
-                return new Cell();
-            });
+            return _grid.GetOrAdd(key, _ => new Cell());
         }
 
         public void Add(IGameObject obj)
@@ -75,14 +67,6 @@ namespace Shared
                         int last = cell.Objects.Count - 1;
                         cell.Objects[index] = cell.Objects[last];
                         cell.Objects.RemoveAt(last);
-
-                        if (cell.Objects.Count == 0)
-                        {
-                            if (_grid.TryRemove(key, out var removedCell))
-                            {
-                                _cellPool.Enqueue(removedCell);
-                            }
-                        }
                     }
                 }
             }
@@ -109,14 +93,6 @@ namespace Shared
                             int last = oldCell.Objects.Count - 1;
                             oldCell.Objects[index] = oldCell.Objects[last];
                             oldCell.Objects.RemoveAt(last);
-
-                            if (oldCell.Objects.Count == 0)
-                            {
-                                if (_grid.TryRemove(oldKey, out var removedCell))
-                                {
-                                    _cellPool.Enqueue(removedCell);
-                                }
-                            }
                         }
                     }
                 }
@@ -182,7 +158,6 @@ namespace Shared
         public void Dispose()
         {
             _grid.Clear();
-            _cellPool.Clear();
             GC.SuppressFinalize(this);
         }
 

@@ -360,16 +360,29 @@ namespace Shared {
         }
     }
 
-    public struct OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, params OpcodeArgType[] requiredArgs) {
-        public readonly int StackDelta = stackDelta;
-        public readonly List<OpcodeArgType> RequiredArgs = [..requiredArgs];
-        public readonly bool VariableArgs = variableArgs;
+    public struct OpcodeMetadata {
+        public readonly int StackDelta;
+        public readonly List<OpcodeArgType> RequiredArgs;
+        public readonly bool VariableArgs;
+
+        public OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, params OpcodeArgType[] requiredArgs) {
+            StackDelta = stackDelta;
+            VariableArgs = variableArgs;
+            RequiredArgs = new List<OpcodeArgType>(requiredArgs);
+        }
+
+        public OpcodeMetadata() {
+            StackDelta = 0;
+            VariableArgs = false;
+            RequiredArgs = new List<OpcodeArgType>();
+        }
     }
 
     public static class OpcodeMetadataCache {
         private static readonly OpcodeMetadata[] MetadataCache = new OpcodeMetadata[256];
 
         static OpcodeMetadataCache() {
+            for (int i = 0; i < 256; i++) MetadataCache[i] = new OpcodeMetadata();
             foreach (Opcode opcode in Enum.GetValues(typeof(Opcode))) {
                 var field = typeof(Opcode).GetField(opcode.ToString());
                 var attribute = Attribute.GetCustomAttribute(field!, typeof(OpcodeMetadataAttribute));

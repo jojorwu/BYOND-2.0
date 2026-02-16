@@ -14,6 +14,7 @@ namespace Shared
         private class Cell
         {
             public readonly List<IGameObject> Objects = new();
+            public readonly Dictionary<IGameObject, int> ObjectToIndex = new();
             public readonly object Lock = new();
 
             public void Clear()
@@ -21,6 +22,7 @@ namespace Shared
                 lock (Lock)
                 {
                     Objects.Clear();
+                    ObjectToIndex.Clear();
                 }
             }
         }
@@ -63,7 +65,10 @@ namespace Shared
             var cell = GetOrCreateCell(key);
             lock (cell.Lock)
             {
-                cell.Objects.Add(obj);
+                if (cell.ObjectToIndex.TryAdd(obj, cell.Objects.Count))
+                {
+                    cell.Objects.Add(obj);
+                }
             }
         }
 
@@ -74,12 +79,16 @@ namespace Shared
             {
                 lock (cell.Lock)
                 {
-                    int index = cell.Objects.IndexOf(obj);
-                    if (index != -1)
+                    if (cell.ObjectToIndex.Remove(obj, out int index))
                     {
-                        int last = cell.Objects.Count - 1;
-                        cell.Objects[index] = cell.Objects[last];
-                        cell.Objects.RemoveAt(last);
+                        int lastIndex = cell.Objects.Count - 1;
+                        if (index != lastIndex)
+                        {
+                            var lastObj = cell.Objects[lastIndex];
+                            cell.Objects[index] = lastObj;
+                            cell.ObjectToIndex[lastObj] = index;
+                        }
+                        cell.Objects.RemoveAt(lastIndex);
                     }
                 }
             }
@@ -100,12 +109,16 @@ namespace Shared
                 {
                     lock (oldCell.Lock)
                     {
-                        int index = oldCell.Objects.IndexOf(obj);
-                        if (index != -1)
+                        if (oldCell.ObjectToIndex.Remove(obj, out int index))
                         {
-                            int last = oldCell.Objects.Count - 1;
-                            oldCell.Objects[index] = oldCell.Objects[last];
-                            oldCell.Objects.RemoveAt(last);
+                            int lastIndex = oldCell.Objects.Count - 1;
+                            if (index != lastIndex)
+                            {
+                                var lastObj = oldCell.Objects[lastIndex];
+                                oldCell.Objects[index] = lastObj;
+                                oldCell.ObjectToIndex[lastObj] = index;
+                            }
+                            oldCell.Objects.RemoveAt(lastIndex);
                         }
                     }
                 }
@@ -115,7 +128,10 @@ namespace Shared
                 var newCell = GetOrCreateCell(newKey);
                 lock (newCell.Lock)
                 {
-                    newCell.Objects.Add(obj);
+                    if (newCell.ObjectToIndex.TryAdd(obj, newCell.Objects.Count))
+                    {
+                        newCell.Objects.Add(obj);
+                    }
                 }
             }
         }

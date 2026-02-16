@@ -37,16 +37,36 @@ namespace Shared.Services
         {
             var layers = new List<List<ISystem>>();
             var systemList = systems.ToList();
+            if (systemList.Count == 0) return layers;
+
             var remaining = new HashSet<ISystem>(systemList);
             var completedNames = new HashSet<string>();
             var completedGroups = new HashSet<string>();
 
+            // Pre-calculate group memberships for faster checks
+            var groupSystems = systemList.Where(s => s.Group != null).ToLookup(s => s.Group!);
+
             while (remaining.Count > 0)
             {
                 // Find systems whose dependencies are met (both system-level and group-level)
-                var readySystems = remaining
-                    .Where(s => s.Dependencies.All(d => completedNames.Contains(d) || completedGroups.Contains(d)))
-                    .ToList();
+                var readySystems = new List<ISystem>();
+                foreach (var system in remaining)
+                {
+                    bool dependenciesMet = true;
+                    foreach (var dep in system.Dependencies)
+                    {
+                        if (!completedNames.Contains(dep) && !completedGroups.Contains(dep))
+                        {
+                            dependenciesMet = false;
+                            break;
+                        }
+                    }
+
+                    if (dependenciesMet)
+                    {
+                        readySystems.Add(system);
+                    }
+                }
 
                 if (readySystems.Count == 0)
                 {
@@ -66,10 +86,17 @@ namespace Shared.Services
                     // If all systems in a group are completed, mark group as completed
                     if (system.Group != null)
                     {
-                        if (systemList.Where(s => s.Group == system.Group).All(s => completedNames.Contains(s.Name)))
+                        var members = groupSystems[system.Group];
+                        bool allDone = true;
+                        foreach (var member in members)
                         {
-                            completedGroups.Add(system.Group);
+                            if (!completedNames.Contains(member.Name))
+                            {
+                                allDone = false;
+                                break;
+                            }
                         }
+                        if (allDone) completedGroups.Add(system.Group);
                     }
                 }
             }
@@ -79,6 +106,8 @@ namespace Shared.Services
 
         private List<List<ISystem>> ResolveResourceConflicts(List<ISystem> systems)
         {
+            if (systems.Count <= 1) return new List<List<ISystem>> { systems };
+
             var subLayers = new List<List<ISystem>>();
             var remaining = new List<ISystem>(systems);
 
@@ -131,7 +160,7 @@ namespace Shared.Services
                 else
                 {
                     // Should not happen if logic is correct, but safety break
-                    subLayers.Add(remaining.ToList());
+                    subLayers.Add(new List<ISystem>(remaining));
                     remaining.Clear();
                 }
             }

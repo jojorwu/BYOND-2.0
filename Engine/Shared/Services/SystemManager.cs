@@ -189,33 +189,40 @@ namespace Shared.Services
                 // Main Tick Phase (Layered)
                 foreach (var layer in _executionLayers)
                 {
-                    var ecbs = new ConcurrentBag<IEntityCommandBuffer>();
-
                     if (layer.Count == 1)
                     {
+                        var system = layer[0];
                         var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
-                        ecbs.Add(ecb);
-                        ExecuteSystem(layer[0], ecb);
+                        ExecuteSystem(system, ecb);
+
+                        // Await jobs created by this system
+                        await _jobSystem.CompleteAllAsync();
+
+                        using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                        {
+                            ecb.Playback();
+                        }
                     }
                     else
                     {
+                        var ecbs = new ConcurrentBag<IEntityCommandBuffer>();
                         await _jobSystem.ForEachAsync(layer, system =>
                         {
                             var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
                             ecbs.Add(ecb);
                             ExecuteSystem(system, ecb);
                         });
-                    }
 
-                    // Await jobs created by this layer before moving to the next
-                    await _jobSystem.CompleteAllAsync();
+                        // Await jobs created by this layer
+                        await _jobSystem.CompleteAllAsync();
 
-                    // Synchronization Point: Playback all ECBs from this layer
-                    using (_profilingService.Measure("SystemManager.ECBPlayback"))
-                    {
-                        foreach (var ecb in ecbs)
+                        // Synchronization Point: Playback all ECBs from this layer
+                        using (_profilingService.Measure("SystemManager.ECBPlayback"))
                         {
-                            ecb.Playback();
+                            foreach (var ecb in ecbs)
+                            {
+                                ecb.Playback();
+                            }
                         }
                     }
                 }

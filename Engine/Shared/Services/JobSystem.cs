@@ -13,7 +13,6 @@ namespace Shared.Services
         private const int MaxTrackedJobs = 10000;
         private volatile WorkerThread[] _workers;
         private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
-        private int _nextWorker;
         private readonly int _minWorkers;
         private readonly int _maxWorkers;
         private readonly Timer _maintenanceTimer;
@@ -104,11 +103,24 @@ namespace Shared.Services
             var finalJob = new TrackingJob(job, tcs);
 
             var currentWorkers = _workers;
-            // Round-robin distribution
-            int index = Interlocked.Increment(ref _nextWorker) % currentWorkers.Length;
-            if (index < 0) index = Math.Abs(index);
-            currentWorkers[index].Enqueue(finalJob);
+            int count = currentWorkers.Length;
+            int index;
 
+            if (count > 1)
+            {
+                // Power of Two Choices for better load balancing
+                int i1 = Random.Shared.Next(count);
+                int i2 = Random.Shared.Next(count);
+                if (i1 == i2) i2 = (i1 + 1) % count;
+
+                index = currentWorkers[i1].JobCount <= currentWorkers[i2].JobCount ? i1 : i2;
+            }
+            else
+            {
+                index = 0;
+            }
+
+            currentWorkers[index].Enqueue(finalJob);
             return new JobHandle(tcs.Task);
         }
 
@@ -230,9 +242,28 @@ namespace Shared.Services
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action)
         {
-            foreach (var item in source)
+            const int BatchSize = 32;
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+
+            if (count <= BatchSize)
             {
-                Schedule(() => action(item));
+                foreach (var item in list) Schedule(() => action(item));
+            }
+            else
+            {
+                for (int i = 0; i < count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, count);
+                    Schedule(() =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            action(list[j]);
+                        }
+                    });
+                }
             }
             await CompleteAllAsync();
         }

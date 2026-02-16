@@ -8,45 +8,86 @@ namespace Shared.Services
 {
     public class EntityCommandBuffer : IEntityCommandBuffer
     {
+        private enum CommandType
+        {
+            Create,
+            Destroy,
+            AddComponent,
+            RemoveComponent
+        }
+
+        private struct Command
+        {
+            public CommandType Type;
+            public IGameObject? Target;
+            public ObjectType? ObjectType;
+            public IComponent? Component;
+            public Type? ComponentType;
+            public int X, Y, Z;
+        }
+
         private readonly IObjectFactory _objectFactory;
-        private readonly IComponentManager _componentManager;
-        private readonly ConcurrentQueue<Action> _commands = new();
+        private readonly List<Command> _commands = new();
 
         public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager)
         {
             _objectFactory = objectFactory;
-            _componentManager = componentManager;
         }
 
         public void CreateObject(ObjectType objectType, int x = 0, int y = 0, int z = 0)
         {
-            _commands.Enqueue(() => _objectFactory.Create(objectType, x, y, z));
+            lock (_commands)
+            {
+                _commands.Add(new Command { Type = CommandType.Create, ObjectType = objectType, X = x, Y = y, Z = z });
+            }
         }
 
         public void DestroyObject(IGameObject obj)
         {
-            if (obj is GameObject gameObj)
+            lock (_commands)
             {
-                _commands.Enqueue(() => _objectFactory.Destroy(gameObj));
+                _commands.Add(new Command { Type = CommandType.Destroy, Target = obj });
             }
         }
 
         public void AddComponent<T>(IGameObject obj, T component) where T : class, IComponent
         {
-            _commands.Enqueue(() => obj.AddComponent(component));
+            lock (_commands)
+            {
+                _commands.Add(new Command { Type = CommandType.AddComponent, Target = obj, Component = component });
+            }
         }
 
         public void RemoveComponent<T>(IGameObject obj) where T : class, IComponent
         {
-            _commands.Enqueue(() => obj.RemoveComponent<T>());
+            lock (_commands)
+            {
+                _commands.Add(new Command { Type = CommandType.RemoveComponent, Target = obj, ComponentType = typeof(T) });
+            }
         }
 
         public void Playback()
         {
-            while (_commands.TryDequeue(out var command))
+            // Structural changes are usually played back from a single thread during synchronization points
+            foreach (var command in _commands)
             {
-                command();
+                switch (command.Type)
+                {
+                    case CommandType.Create:
+                        _objectFactory.Create(command.ObjectType!, command.X, command.Y, command.Z);
+                        break;
+                    case CommandType.Destroy:
+                        if (command.Target is GameObject g) _objectFactory.Destroy(g);
+                        break;
+                    case CommandType.AddComponent:
+                        command.Target!.AddComponent(command.Component!);
+                        break;
+                    case CommandType.RemoveComponent:
+                        command.Target!.RemoveComponent(command.ComponentType!);
+                        break;
+                }
             }
+            _commands.Clear();
         }
     }
 }

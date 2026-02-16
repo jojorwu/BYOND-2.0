@@ -41,24 +41,24 @@ namespace Shared.Services
         private IJob? TryStealJob(WorkerThread stealer)
         {
             var currentWorkers = _workers;
-            // Simple stealing: find the worker with the most jobs and take one
-            WorkerThread? victim = null;
-            int maxJobs = 0;
+            int count = currentWorkers.Length;
+            if (count <= 1) return null;
 
-            for (int i = 0; i < currentWorkers.Length; i++)
-            {
-                var worker = currentWorkers[i];
-                if (worker == stealer) continue;
+            // Power of Two Choices for stealing: pick two random victims and steal from the one with more jobs.
+            // This is more efficient than a linear search across all workers as the number of workers grows.
+            int i1 = Random.Shared.Next(count);
+            int i2 = Random.Shared.Next(count);
 
-                int jobCount = worker.JobCount;
-                if (jobCount > maxJobs)
-                {
-                    maxJobs = jobCount;
-                    victim = worker;
-                }
-            }
+            var v1 = currentWorkers[i1];
+            var v2 = currentWorkers[i2];
 
-            if (victim != null && victim.TrySteal(out var stolenJob))
+            // Don't steal from self
+            if (v1 == stealer) v1 = currentWorkers[(i1 + 1) % count];
+            if (v2 == stealer) v2 = currentWorkers[(i2 + 1) % count];
+
+            var victim = v1.ApproximateJobCount >= v2.ApproximateJobCount ? v1 : v2;
+
+            if (victim != stealer && victim.ApproximateJobCount > 0 && victim.TrySteal(out var stolenJob))
             {
                 return stolenJob;
             }
@@ -113,7 +113,7 @@ namespace Shared.Services
                 int i2 = Random.Shared.Next(count);
                 if (i1 == i2) i2 = (i1 + 1) % count;
 
-                index = currentWorkers[i1].JobCount <= currentWorkers[i2].JobCount ? i1 : i2;
+                index = currentWorkers[i1].ApproximateJobCount <= currentWorkers[i2].ApproximateJobCount ? i1 : i2;
             }
             else
             {
@@ -240,7 +240,7 @@ namespace Shared.Services
             }
         }
 
-        public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action)
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action, JobPriority priority = JobPriority.Normal)
         {
             const int BatchSize = 32;
             var list = source as IReadOnlyList<T> ?? source.ToList();
@@ -248,7 +248,7 @@ namespace Shared.Services
 
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item));
+                foreach (var item in list) Schedule(() => action(item), priority: priority);
             }
             else
             {
@@ -262,7 +262,35 @@ namespace Shared.Services
                         {
                             action(list[j]);
                         }
-                    });
+                    }, priority: priority);
+                }
+            }
+            await CompleteAllAsync();
+        }
+
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
+        {
+            const int BatchSize = 32;
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+
+            if (count <= BatchSize)
+            {
+                foreach (var item in list) Schedule(() => action(item), priority: priority);
+            }
+            else
+            {
+                for (int i = 0; i < count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, count);
+                    Schedule(async () =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            await action(list[j]);
+                        }
+                    }, priority: priority);
                 }
             }
             await CompleteAllAsync();

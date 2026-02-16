@@ -18,14 +18,16 @@ namespace Server
         private readonly IServerContext _context;
         private readonly BinarySnapshotService _binarySnapshotService;
         private readonly IInterestManager _interestManager;
+        private readonly IJobSystem _jobSystem;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
             _context = context;
             _binarySnapshotService = binarySnapshotService;
             _interestManager = interestManager;
+            _jobSystem = jobSystem;
         }
 
         public override Task StartAsync(CancellationToken cancellationToken)
@@ -62,26 +64,32 @@ namespace Server
                 _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(message));
         }
 
-        public void SendRegionSnapshot(MergedRegion region, IEnumerable<IGameObject> objects)
+        public async Task SendRegionSnapshotAsync(MergedRegion region, System.Collections.Generic.IEnumerable<IGameObject> objects)
         {
+            var players = new System.Collections.Generic.List<INetworkPeer>();
             foreach (var r in region.Regions)
             {
-                _context.PlayerManager.ForEachPlayerInRegion(r, peer =>
-                {
-                    // Filter objects by interest if the player has an AOI defined
-                    var interestedObjects = _interestManager.GetInterestedObjects(peer);
-                    var objectsToSend = interestedObjects.Any() ? interestedObjects : objects;
-
-                    byte[] snapshot = _binarySnapshotService.Serialize(objectsToSend, peer.LastSentVersions);
-                    if (snapshot.Length > 1) // 1 byte for end marker
-                    {
-                        byte[] message = new byte[snapshot.Length + 1];
-                        message[0] = (byte)SnapshotMessageType.Binary;
-                        Buffer.BlockCopy(snapshot, 0, message, 1, snapshot.Length);
-                        _ = peer.SendAsync(message);
-                    }
-                });
+                _context.PlayerManager.ForEachPlayerInRegion(r, peer => players.Add(peer));
             }
+
+            if (players.Count == 0) return;
+
+            // Parallelize snapshot generation per player to utilize multiple cores for serialization
+            await _jobSystem.ForEachAsync(players, peer =>
+            {
+                // Filter objects by interest if the player has an AOI defined
+                var interestedObjects = _interestManager.GetInterestedObjects(peer);
+                var objectsToSend = interestedObjects.Any() ? interestedObjects : objects;
+
+                byte[] snapshot = _binarySnapshotService.Serialize(objectsToSend, peer.LastSentVersions);
+                if (snapshot.Length > 1) // 1 byte for end marker
+                {
+                    byte[] message = new byte[snapshot.Length + 1];
+                    message[0] = (byte)SnapshotMessageType.Binary;
+                    Buffer.BlockCopy(snapshot, 0, message, 1, snapshot.Length);
+                    _ = peer.SendAsync(message);
+                }
+            });
         }
     }
 }

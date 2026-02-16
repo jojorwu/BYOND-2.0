@@ -10,6 +10,9 @@ namespace Shared.Services
     {
         private readonly IComponentManager _componentManager;
         private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
+        private readonly ConcurrentDictionary<string, HashSet<IGameObject>> _queryCache = new();
+        private readonly ConcurrentDictionary<string, Type[]> _cacheKeyToTypes = new();
+        private readonly ConcurrentDictionary<Type, List<string>> _typeToCacheKeys = new();
 
         public ComponentQueryService(IComponentManager componentManager)
         {
@@ -20,7 +23,7 @@ namespace Shared.Services
 
         public IEnumerable<IGameObject> Query<T>() where T : class, IComponent
         {
-            return _componentManager.GetComponents<T>().Select(c => c.Owner).Where(o => o != null)!;
+            return Query(typeof(T));
         }
 
         public IEnumerable<IGameObject> Query(params Type[] componentTypes)
@@ -28,6 +31,41 @@ namespace Shared.Services
             if (componentTypes == null || componentTypes.Length == 0)
                 return Enumerable.Empty<IGameObject>();
 
+            if (componentTypes.Length == 1)
+            {
+                var type = componentTypes[0];
+                return _componentManager.GetComponents(type).Select(c => c.Owner).Where(o => o != null)!;
+            }
+
+            var key = GetCacheKey(componentTypes);
+            if (_queryCache.TryGetValue(key, out var cached))
+            {
+                lock (cached) return cached.ToList();
+            }
+
+            // Perform full query and cache result
+            var results = PerformFullQuery(componentTypes);
+            var set = new HashSet<IGameObject>(results);
+            if (_queryCache.TryAdd(key, set))
+            {
+                _cacheKeyToTypes[key] = componentTypes.ToArray();
+                foreach (var type in componentTypes)
+                {
+                    _typeToCacheKeys.AddOrUpdate(type, _ => new List<string> { key }, (_, list) => { lock (list) { list.Add(key); } return list; });
+                }
+            }
+            return set.ToList();
+        }
+
+        private string GetCacheKey(Type[] types)
+        {
+            if (types.Length == 1) return types[0].FullName!;
+            var names = types.Select(t => t.FullName).OrderBy(n => n).ToArray();
+            return string.Join("+", names);
+        }
+
+        private IEnumerable<IGameObject> PerformFullQuery(Type[] componentTypes)
+        {
             var smallestSet = componentTypes
                 .Select(t => (Type: t, Count: GetCount(t)))
                 .OrderBy(x => x.Count)
@@ -80,6 +118,34 @@ namespace Shared.Services
 
         private void OnComponentAdded(object? sender, ComponentEventArgs e)
         {
+            if (_typeToCacheKeys.TryGetValue(e.ComponentType, out var keys))
+            {
+                List<string> keysCopy;
+                lock (keys) keysCopy = keys.ToList();
+
+                foreach (var key in keysCopy)
+                {
+                    if (_queryCache.TryGetValue(key, out var set) && _cacheKeyToTypes.TryGetValue(key, out var types))
+                    {
+                        // Check if entity now has all components for this query
+                        bool hasAll = true;
+                        foreach (var t in types)
+                        {
+                            if (_componentManager.GetComponent(e.Owner, t) == null)
+                            {
+                                hasAll = false;
+                                break;
+                            }
+                        }
+
+                        if (hasAll)
+                        {
+                            lock (set) set.Add(e.Owner);
+                        }
+                    }
+                }
+            }
+
             if (_subscriptions.TryGetValue(e.ComponentType, out var list))
             {
                 List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;
@@ -90,6 +156,20 @@ namespace Shared.Services
 
         private void OnComponentRemoved(object? sender, ComponentEventArgs e)
         {
+            if (_typeToCacheKeys.TryGetValue(e.ComponentType, out var keys))
+            {
+                List<string> keysCopy;
+                lock (keys) keysCopy = keys.ToList();
+
+                foreach (var key in keysCopy)
+                {
+                    if (_queryCache.TryGetValue(key, out var set))
+                    {
+                        lock (set) set.Remove(e.Owner);
+                    }
+                }
+            }
+
             if (_subscriptions.TryGetValue(e.ComponentType, out var list))
             {
                 List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;

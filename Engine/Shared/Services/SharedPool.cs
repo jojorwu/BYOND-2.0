@@ -13,11 +13,17 @@ namespace Shared.Services
     {
         private readonly Func<T> _factory;
         private readonly ConcurrentQueue<T> _globalQueue = new();
-        private const int LocalCapacity = 16;
+        private const int LocalCapacity = 32;
         private const int MaxGlobalCapacity = 1024;
 
+        private class LocalCache
+        {
+            public readonly T[] Items = new T[LocalCapacity];
+            public int Count;
+        }
+
         [ThreadStatic]
-        private static List<T>? _localCache;
+        private static LocalCache? _localCache;
 
         public SharedPool(Func<T> factory)
         {
@@ -26,14 +32,13 @@ namespace Shared.Services
 
         public T Rent()
         {
-            _localCache ??= new List<T>(LocalCapacity);
-
-            if (_localCache.Count > 0)
+            var cache = _localCache;
+            if (cache != null && cache.Count > 0)
             {
-                int lastIndex = _localCache.Count - 1;
-                T obj = _localCache[lastIndex];
-                _localCache.RemoveAt(lastIndex);
-                return obj;
+                int index = --cache.Count;
+                T item = cache.Items[index];
+                cache.Items[index] = null!;
+                return item;
             }
 
             if (_globalQueue.TryDequeue(out var globalObj))
@@ -51,11 +56,11 @@ namespace Shared.Services
                 poolable.Reset();
             }
 
-            _localCache ??= new List<T>(LocalCapacity);
+            var cache = _localCache ??= new LocalCache();
 
-            if (_localCache.Count < LocalCapacity)
+            if (cache.Count < LocalCapacity)
             {
-                _localCache.Add(obj);
+                cache.Items[cache.Count++] = obj;
             }
             else if (_globalQueue.Count < MaxGlobalCapacity)
             {

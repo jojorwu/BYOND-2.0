@@ -13,6 +13,11 @@ namespace Shared.Interfaces
         Memory<byte> Allocate(int size);
 
         /// <summary>
+        /// Allocates an aligned chunk of memory from the arena.
+        /// </summary>
+        Memory<byte> Allocate(int size, int alignment);
+
+        /// <summary>
         /// Resets the arena, reclaiming all allocated memory.
         /// </summary>
         void Reset();

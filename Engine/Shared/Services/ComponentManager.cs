@@ -49,6 +49,11 @@ namespace Shared.Services
             return _archetypeManager.GetComponent<T>(owner.Id);
         }
 
+        public IComponent? GetComponent(IGameObject owner, Type componentType)
+        {
+            return _archetypeManager.GetComponent(owner.Id, componentType);
+        }
+
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             return _archetypeManager.GetComponents<T>();

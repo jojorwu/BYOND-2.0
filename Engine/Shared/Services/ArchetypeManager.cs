@@ -16,6 +16,7 @@ namespace Shared.Services
         void RemoveComponent<T>(IGameObject entity) where T : class, IComponent;
         void RemoveComponent(IGameObject entity, Type componentType);
         T? GetComponent<T>(int entityId) where T : class, IComponent;
+        IComponent? GetComponent(int entityId, Type componentType);
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
         IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(int entityId);
@@ -117,9 +118,14 @@ namespace Shared.Services
 
         public T? GetComponent<T>(int entityId) where T : class, IComponent
         {
+            return GetComponent(entityId, typeof(T)) as T;
+        }
+
+        public IComponent? GetComponent(int entityId, Type componentType)
+        {
             if (_entityToArchetype.TryGetValue(entityId, out var archetype))
             {
-                return archetype.GetComponent(entityId, typeof(T)) as T;
+                return archetype.GetComponent(entityId, componentType);
             }
             return null;
         }

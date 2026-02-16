@@ -27,6 +27,7 @@ namespace Shared.Interfaces
         void RemoveComponent<T>(IGameObject owner) where T : class, IComponent;
         void RemoveComponent(IGameObject owner, Type componentType);
         T? GetComponent<T>(IGameObject owner) where T : class, IComponent;
+        IComponent? GetComponent(IGameObject owner, Type componentType);
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
         IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(IGameObject owner);

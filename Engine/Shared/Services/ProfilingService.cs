@@ -45,6 +45,8 @@ namespace Shared.Services
             }
         }
 
+        private static readonly NullMeasureScope _nullScope = new();
+
         public IDisposable Measure(string name)
         {
             _scopeStack ??= new Stack<MeasureScope>();
@@ -54,20 +56,39 @@ namespace Shared.Services
             if (parent != null)
             {
                 if (parent.Metric.Children.Count >= MaxUniqueMetrics && !parent.Metric.Children.ContainsKey(name))
-                    return new NullMeasureScope();
+                    return _nullScope;
                 metric = parent.Metric.Children.GetOrAdd(name, _ => new MetricData());
             }
             else
             {
                 if (_metrics.Count >= MaxUniqueMetrics && !_metrics.ContainsKey(name))
-                    return new NullMeasureScope();
+                    return _nullScope;
                 metric = _metrics.GetOrAdd(name, _ => new MetricData());
             }
 
-            var scope = new MeasureScope(this, name, metric);
+            var scope = RentScope(name, metric);
             _scopeStack.Push(scope);
             return scope;
         }
+
+        private MeasureScope RentScope(string name, MetricData metric)
+        {
+            _scopePool ??= new Stack<MeasureScope>();
+            if (_scopePool.TryPop(out var scope))
+            {
+                scope.Initialize(name, metric);
+                return scope;
+            }
+            return new MeasureScope(this, name, metric);
+        }
+
+        private void ReturnScope(MeasureScope scope)
+        {
+            _scopePool?.Push(scope);
+        }
+
+        [ThreadStatic]
+        private static Stack<MeasureScope>? _scopePool;
 
         public IReadOnlyDictionary<string, MetricSummary> GetSummaries()
         {
@@ -108,22 +129,29 @@ namespace Shared.Services
         private class MeasureScope : IDisposable
         {
             private readonly ProfilingService _service;
-            private readonly string _name;
-            public readonly MetricData Metric;
-            private readonly Stopwatch _stopwatch;
+            private string _name;
+            public MetricData Metric;
+            private long _startTimestamp;
 
             public MeasureScope(ProfilingService service, string name, MetricData metric)
             {
                 _service = service;
                 _name = name;
                 Metric = metric;
-                _stopwatch = Stopwatch.StartNew();
+                _startTimestamp = Stopwatch.GetTimestamp();
+            }
+
+            public void Initialize(string name, MetricData metric)
+            {
+                _name = name;
+                Metric = metric;
+                _startTimestamp = Stopwatch.GetTimestamp();
             }
 
             public void Dispose()
             {
-                _stopwatch.Stop();
-                var duration = _stopwatch.Elapsed.TotalMilliseconds;
+                long endTimestamp = Stopwatch.GetTimestamp();
+                double duration = (endTimestamp - _startTimestamp) * 1000.0 / Stopwatch.Frequency;
 
                 _service.RecordMetricInternal(Metric, duration);
 
@@ -131,6 +159,8 @@ namespace Shared.Services
                 {
                     _scopeStack.Pop();
                 }
+
+                _service.ReturnScope(this);
             }
         }
 

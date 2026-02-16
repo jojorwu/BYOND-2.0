@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Buffers;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
@@ -16,40 +17,58 @@ namespace Shared.Services
 
         public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
         {
-            using (var ms = new MemoryStream())
+            var buffer = ArrayPool<byte>.Shared.Rent(65536);
+            try
             {
-                using (var writer = new BinaryWriter(ms))
+                using (var ms = new MemoryStream(buffer))
                 {
-                    foreach (var obj in objects)
+                    using (var writer = new BinaryWriter(ms))
                     {
-                        if (obj is GameObject g)
+                        foreach (var obj in objects)
                         {
-                            if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
+                            if (obj is GameObject g)
                             {
-                                continue;
+                                if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
+                                {
+                                    continue;
+                                }
+
+                                WriteVarInt(writer, g.Id);
+                                WriteVarInt(writer, (int)g.Version);
+                                writer.Write(g.X);
+                                writer.Write(g.Y);
+                                writer.Write(g.Z);
+
+                                // Optimized property serialization - avoiding g.Properties dictionary allocation
+                                if (g.ObjectType != null)
+                                {
+                                    var varNames = g.ObjectType.VariableNames;
+                                    WriteVarInt(writer, varNames.Count);
+                                    for (int i = 0; i < varNames.Count; i++)
+                                    {
+                                        writer.Write(varNames[i]);
+                                        g.GetVariableDirect(i).WriteTo(writer);
+                                    }
+                                }
+                                else
+                                {
+                                    WriteVarInt(writer, 0);
+                                }
+
+                                if (lastVersions != null) lastVersions[g.Id] = g.Version;
                             }
-
-                            WriteVarInt(writer, g.Id);
-                            WriteVarInt(writer, (int)g.Version);
-                            writer.Write(g.X);
-                            writer.Write(g.Y);
-                            writer.Write(g.Z);
-
-                            // Optimized property serialization
-                            var props = g.Properties;
-                            WriteVarInt(writer, props.Count);
-                            foreach (var kvp in props)
-                            {
-                                writer.Write(kvp.Key);
-                                kvp.Value.WriteTo(writer);
-                            }
-
-                            if (lastVersions != null) lastVersions[g.Id] = g.Version;
                         }
+                        WriteVarInt(writer, 0); // End of stream marker
+
+                        byte[] result = new byte[ms.Position];
+                        Buffer.BlockCopy(buffer, 0, result, 0, (int)ms.Position);
+                        return result;
                     }
-                    WriteVarInt(writer, 0); // End of stream marker
                 }
-                return ms.ToArray();
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
@@ -104,7 +123,11 @@ namespace Shared.Services
                             string key = reader.ReadString();
                             if (_interner != null) key = _interner.Intern(key);
                             var val = DreamValue.ReadFrom(reader);
-                            gameObject.SetVariable(key, val);
+
+                            // Optimized variable setting - using direct index if possible
+                            int idx = gameObject.ObjectType?.GetVariableIndex(key) ?? -1;
+                            if (idx != -1) gameObject.SetVariableDirect(idx, val);
+                            else gameObject.SetVariable(key, val);
                         }
                         objects.Add(gameObject);
                     }

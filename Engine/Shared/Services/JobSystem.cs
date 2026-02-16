@@ -67,7 +67,7 @@ namespace Shared.Services
             return null;
         }
 
-        public JobHandle Schedule(IJob job, JobHandle dependency = default, bool track = true)
+        public JobHandle Schedule(IJob job, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
         {
             if (dependency.IsValid && !dependency.IsCompleted)
             {
@@ -186,9 +186,14 @@ namespace Shared.Services
             }
         }
 
-        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true)
+        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
         {
-            return Schedule(new ActionJob(action), dependency, track);
+            return Schedule(new ActionJob(action, priority), dependency, track, priority);
+        }
+
+        public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
+        {
+            return Schedule(new AsyncActionJob(action, priority), dependency, track, priority);
         }
 
         public JobHandle CombineDependencies(params JobHandle[] dependencies)
@@ -256,6 +261,8 @@ namespace Shared.Services
             private readonly IJob _inner;
             private readonly TaskCompletionSource _tcs;
 
+            public JobPriority Priority => _inner.Priority;
+
             public TrackingJob(IJob inner, TaskCompletionSource tcs)
             {
                 _inner = inner;
@@ -279,10 +286,12 @@ namespace Shared.Services
         private class ActionJob : IJob
         {
             private readonly Action _action;
+            public JobPriority Priority { get; }
 
-            public ActionJob(Action action)
+            public ActionJob(Action action, JobPriority priority = JobPriority.Normal)
             {
                 _action = action;
+                Priority = priority;
             }
 
             public Task ExecuteAsync()
@@ -290,6 +299,20 @@ namespace Shared.Services
                 _action();
                 return Task.CompletedTask;
             }
+        }
+
+        private class AsyncActionJob : IJob
+        {
+            private readonly Func<Task> _action;
+            public JobPriority Priority { get; }
+
+            public AsyncActionJob(Func<Task> action, JobPriority priority = JobPriority.Normal)
+            {
+                _action = action;
+                Priority = priority;
+            }
+
+            public Task ExecuteAsync() => _action();
         }
     }
 }

@@ -10,12 +10,14 @@ namespace Shared.Services
     {
         private readonly Channel<ICommand> _commandChannel;
         private readonly ILogger<CommandDispatcher> _logger;
+        private readonly IJobSystem _jobSystem;
         private readonly Task _processorTask;
         private bool _disposed;
 
-        public CommandDispatcher(ILogger<CommandDispatcher> logger)
+        public CommandDispatcher(ILogger<CommandDispatcher> logger, IJobSystem jobSystem)
         {
             _logger = logger;
+            _jobSystem = jobSystem;
             _commandChannel = Channel.CreateBounded<ICommand>(new BoundedChannelOptions(1000)
             {
                 SingleReader = true,
@@ -38,14 +40,17 @@ namespace Shared.Services
             {
                 await foreach (var command in _commandChannel.Reader.ReadAllAsync())
                 {
-                    try
+                    _jobSystem.Schedule(async () =>
                     {
-                        await command.ExecuteAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error executing command: {CommandName}", command.Name);
-                    }
+                        try
+                        {
+                            await command.ExecuteAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error executing command: {CommandName}", command.Name);
+                        }
+                    }, track: false, priority: JobPriority.Critical);
                 }
             }
             catch (OperationCanceledException) { }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using Shared.Interfaces;
 
@@ -13,14 +14,15 @@ namespace Shared.Services
         [ThreadStatic]
         internal static WorkerThread? Current;
 
-        private readonly ConcurrentQueue<IJob> _jobQueue = new();
+        private readonly PriorityQueue<IJob, int> _jobQueue = new();
+        private readonly object _lock = new();
         public readonly ArenaAllocator Arena = new();
         private readonly Thread _thread;
         private readonly AutoResetEvent _wakeEvent = new(false);
         private readonly Func<WorkerThread, IJob?>? _stealFunc;
         private bool _disposed;
 
-        public int JobCount => _jobQueue.Count;
+        public int JobCount { get { lock (_lock) return _jobQueue.Count; } }
         public bool IsBusy { get; private set; }
         public DateTime LastActiveTime { get; private set; } = DateTime.UtcNow;
 
@@ -43,13 +45,19 @@ namespace Shared.Services
         public void Enqueue(IJob job)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(WorkerThread));
-            _jobQueue.Enqueue(job);
+            lock (_lock)
+            {
+                _jobQueue.Enqueue(job, -(int)job.Priority);
+            }
             _wakeEvent.Set();
         }
 
         public bool TrySteal(out IJob? job)
         {
-            return _jobQueue.TryDequeue(out job);
+            lock (_lock)
+            {
+                return _jobQueue.TryDequeue(out job, out _);
+            }
         }
 
         private void Run()
@@ -57,7 +65,13 @@ namespace Shared.Services
             Current = this;
             while (true)
             {
-                if (_jobQueue.TryDequeue(out var job))
+                IJob? job = null;
+                lock (_lock)
+                {
+                    _jobQueue.TryDequeue(out job, out _);
+                }
+
+                if (job != null)
                 {
                     ExecuteJob(job);
                 }

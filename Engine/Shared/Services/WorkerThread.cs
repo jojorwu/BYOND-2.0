@@ -22,6 +22,7 @@ namespace Shared.Services
 
         public int JobCount => _jobQueue.Count;
         public bool IsBusy { get; private set; }
+        public DateTime LastActiveTime { get; private set; } = DateTime.UtcNow;
 
         public WorkerThread(string name, Func<WorkerThread, IJob?>? stealFunc = null)
         {
@@ -54,18 +55,19 @@ namespace Shared.Services
         private void Run()
         {
             Current = this;
-            while (!_disposed)
+            while (true)
             {
                 if (_jobQueue.TryDequeue(out var job))
                 {
                     ExecuteJob(job);
                 }
-                else if (_stealFunc != null && (job = _stealFunc(this)) != null)
+                else if (!_disposed && _stealFunc != null && (job = _stealFunc(this)) != null)
                 {
                     ExecuteJob(job);
                 }
                 else
                 {
+                    if (_disposed) break;
                     _wakeEvent.WaitOne(1); // Shorter wait for better stealing responsiveness
                 }
             }
@@ -74,6 +76,7 @@ namespace Shared.Services
         internal void ExecuteJob(IJob job)
         {
             IsBusy = true;
+            LastActiveTime = DateTime.UtcNow;
             try
             {
                 job.ExecuteAsync().GetAwaiter().GetResult();

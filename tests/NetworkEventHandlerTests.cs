@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Moq;
 using Server;
 using Shared;
+using Shared.Interfaces;
 using LiteNetLib;
 
 namespace tests
@@ -11,6 +12,7 @@ namespace tests
     {
         private Mock<INetworkService> _networkServiceMock = null!;
         private Mock<IPlayerManager> _playerManagerMock = null!;
+        private Mock<IInterestManager> _interestManagerMock = null!;
         private Mock<IScriptHost> _scriptHostMock = null!;
         private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
@@ -21,10 +23,12 @@ namespace tests
         {
             _networkServiceMock = new Mock<INetworkService>();
             _playerManagerMock = new Mock<IPlayerManager>();
+            _interestManagerMock = new Mock<IInterestManager>();
             _scriptHostMock = new Mock<IScriptHost>();
             _serverSettings = new ServerSettings();
             _serverContextMock = new Mock<IServerContext>();
             _serverContextMock.Setup(c => c.PlayerManager).Returns(_playerManagerMock.Object);
+            _serverContextMock.Setup(c => c.InterestManager).Returns(_interestManagerMock.Object);
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
 
             _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object);

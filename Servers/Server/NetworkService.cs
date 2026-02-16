@@ -135,7 +135,7 @@ namespace Server
         }
 
         public void BroadcastSnapshot(string snapshot) {
-            var writer = _writerPool.Get();
+            var writer = _writerPool.Rent();
             try
             {
                 writer.Put(snapshot);

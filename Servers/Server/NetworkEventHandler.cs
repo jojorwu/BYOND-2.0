@@ -44,6 +44,7 @@ namespace Server
         private void OnPeerDisconnected(INetworkPeer peer, DisconnectInfo disconnectInfo)
         {
             _context.PlayerManager.RemovePlayer(peer);
+            _context.InterestManager.ClearPlayerInterest(peer);
         }
 
         private void OnCommandReceived(INetworkPeer peer, string command)

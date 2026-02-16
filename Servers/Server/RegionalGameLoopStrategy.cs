@@ -6,10 +6,11 @@ using Core.Regions;
 using Robust.Shared.Maths;
 using Shared;
 using Microsoft.Extensions.Options;
+using Shared.Interfaces;
 
 namespace Server
 {
-    public class RegionalGameLoopStrategy : IGameLoopStrategy
+    public class RegionalGameLoopStrategy : IGameLoopStrategy, IShrinkable
     {
         private readonly IScriptHost _scriptHost;
         private readonly IRegionManager _regionManager;
@@ -150,6 +151,14 @@ namespace Server
 
             var finalThreads = nextThreadsCollection.SelectMany(t => t);
             _scriptHost.UpdateThreads(finalThreads);
+        }
+
+        public void Shrink()
+        {
+            if (_snapshotCache.Count > 1000)
+            {
+                _snapshotCache.Clear();
+            }
         }
 
         internal List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)

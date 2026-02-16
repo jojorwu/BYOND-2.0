@@ -17,7 +17,7 @@ namespace Shared.Interfaces
         }
     }
 
-    public interface IComponentManager
+    public interface IComponentManager : IShrinkable
     {
         event EventHandler<ComponentEventArgs>? ComponentAdded;
         event EventHandler<ComponentEventArgs>? ComponentRemoved;

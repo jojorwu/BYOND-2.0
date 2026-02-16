@@ -54,6 +54,7 @@ namespace Server
         private static IServiceCollection AddServerNetworkingServices(this IServiceCollection services)
         {
             services.AddSingleton<NetDataWriterPool>();
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<NetDataWriterPool>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetDataWriterPool>());
 
             services.AddSingleton<NetworkService>();
@@ -83,6 +84,7 @@ namespace Server
             ));
 
             services.AddSingleton<RegionalGameLoopStrategy>();
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<RegionalGameLoopStrategy>());
 
             services.AddSingleton<IGameLoopStrategy>(provider =>
             {

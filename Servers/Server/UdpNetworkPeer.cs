@@ -19,7 +19,7 @@ namespace Server
 
         public ValueTask SendAsync(string data)
         {
-            var writer = _writerPool.Get();
+            var writer = _writerPool.Rent();
             try
             {
                 writer.Put(data);
@@ -34,7 +34,7 @@ namespace Server
 
         public ValueTask SendAsync(byte[] data)
         {
-            var writer = _writerPool.Get();
+            var writer = _writerPool.Rent();
             try
             {
                 writer.Put(data);

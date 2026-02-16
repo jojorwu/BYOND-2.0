@@ -11,15 +11,22 @@ namespace Shared.Services
     public class JobSystem : IJobSystem, IDisposable
     {
         private const int MaxTrackedJobs = 10000;
-        private readonly WorkerThread[] _workers;
+        private volatile WorkerThread[] _workers;
         private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
         private int _nextWorker;
+        private readonly int _minWorkers;
+        private readonly int _maxWorkers;
+        private readonly Timer _maintenanceTimer;
+        private readonly object _workerLock = new();
 
         public JobSystem()
         {
-            int workerCount = Math.Max(1, Environment.ProcessorCount);
-            _workers = new WorkerThread[workerCount];
-            for (int i = 0; i < workerCount; i++)
+            _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
+            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 4);
+
+            int initialCount = Math.Max(1, Environment.ProcessorCount);
+            _workers = new WorkerThread[initialCount];
+            for (int i = 0; i < initialCount; i++)
             {
                 _workers[i] = new WorkerThread($"Engine-Worker-{i}", TryStealJob);
             }
@@ -28,17 +35,20 @@ namespace Shared.Services
             {
                 worker.Start();
             }
+
+            _maintenanceTimer = new Timer(_ => UpdateDynamicSizing(), null, 1000, 1000);
         }
 
         private IJob? TryStealJob(WorkerThread stealer)
         {
+            var currentWorkers = _workers;
             // Simple stealing: find the worker with the most jobs and take one
             WorkerThread? victim = null;
             int maxJobs = 0;
 
-            for (int i = 0; i < _workers.Length; i++)
+            for (int i = 0; i < currentWorkers.Length; i++)
             {
-                var worker = _workers[i];
+                var worker = currentWorkers[i];
                 if (worker == stealer) continue;
 
                 int jobCount = worker.JobCount;
@@ -93,12 +103,87 @@ namespace Shared.Services
 
             var finalJob = new TrackingJob(job, tcs);
 
+            var currentWorkers = _workers;
             // Round-robin distribution
-            int index = Interlocked.Increment(ref _nextWorker) % _workers.Length;
+            int index = Interlocked.Increment(ref _nextWorker) % currentWorkers.Length;
             if (index < 0) index = Math.Abs(index);
-            _workers[index].Enqueue(finalJob);
+            currentWorkers[index].Enqueue(finalJob);
 
             return new JobHandle(tcs.Task);
+        }
+
+        private void UpdateDynamicSizing()
+        {
+            var currentWorkers = _workers;
+            int busyCount = 0;
+            int totalPending = 0;
+            var now = DateTime.UtcNow;
+
+            foreach (var worker in currentWorkers)
+            {
+                if (worker.IsBusy) busyCount++;
+                totalPending += worker.JobCount;
+            }
+
+            // Scaling rules
+            if (totalPending > currentWorkers.Length * 10 || (busyCount == currentWorkers.Length && currentWorkers.Length < _maxWorkers))
+            {
+                AdjustWorkerCount(currentWorkers.Length + 1);
+            }
+            else if (currentWorkers.Length > _minWorkers)
+            {
+                // Find a worker that has been idle for a while
+                WorkerThread? idleWorker = null;
+                foreach (var worker in currentWorkers)
+                {
+                    if (!worker.IsBusy && worker.JobCount == 0 && (now - worker.LastActiveTime).TotalSeconds > 10)
+                    {
+                        idleWorker = worker;
+                        break;
+                    }
+                }
+
+                if (idleWorker != null)
+                {
+                    AdjustWorkerCount(currentWorkers.Length - 1);
+                }
+            }
+        }
+
+        private void AdjustWorkerCount(int targetCount)
+        {
+            if (targetCount < _minWorkers || targetCount > _maxWorkers) return;
+
+            lock (_workerLock)
+            {
+                int currentCount = _workers.Length;
+                if (targetCount == currentCount) return;
+
+                if (targetCount > currentCount)
+                {
+                    // Add workers
+                    var newWorkers = new WorkerThread[targetCount];
+                    Array.Copy(_workers, newWorkers, currentCount);
+                    for (int i = currentCount; i < targetCount; i++)
+                    {
+                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", TryStealJob);
+                        newWorkers[i].Start();
+                    }
+                    _workers = newWorkers;
+                }
+                else
+                {
+                    // Remove workers (one at a time for stability)
+                    var newWorkers = new WorkerThread[targetCount];
+                    Array.Copy(_workers, newWorkers, targetCount);
+
+                    var toRemove = _workers[currentCount - 1];
+                    _workers = newWorkers;
+
+                    // Drain and dispose
+                    Task.Run(() => toRemove.Dispose());
+                }
+            }
         }
 
         public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true)
@@ -159,6 +244,7 @@ namespace Shared.Services
 
         public void Dispose()
         {
+            _maintenanceTimer.Dispose();
             foreach (var worker in _workers)
             {
                 worker.Dispose();

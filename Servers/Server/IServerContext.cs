@@ -1,5 +1,6 @@
 using Shared;
 using Core;
+using Shared.Interfaces;
 
 namespace Server
 {
@@ -10,5 +11,6 @@ namespace Server
         ServerSettings Settings { get; }
         IRegionManager RegionManager { get; }
         PerformanceMonitor PerformanceMonitor { get; }
+        IInterestManager InterestManager { get; }
     }
 }

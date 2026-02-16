@@ -21,9 +21,9 @@ namespace tests
         public void NetDataWriterPool_ReusesWriters()
         {
             var pool = new NetDataWriterPool();
-            var writer1 = pool.Get();
+            var writer1 = pool.Rent();
             pool.Return(writer1);
-            var writer2 = pool.Get();
+            var writer2 = pool.Rent();
 
             Assert.That(writer2, Is.SameAs(writer1));
         }
@@ -47,8 +47,9 @@ namespace tests
             var set = new ServerSettings();
             var rm = new Mock<IRegionManager>().Object;
             var perf = new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object);
+            var im = new Mock<IInterestManager>().Object;
 
-            var context = new ServerContext(gs, pm, Options.Create(set), rm, perf);
+            var context = new ServerContext(gs, pm, Options.Create(set), rm, perf, im);
 
             Assert.That(context.GameState, Is.SameAs(gs));
             Assert.That(context.PlayerManager, Is.SameAs(pm));

@@ -53,5 +53,7 @@ namespace Shared.Services
         {
             _archetypeManager.Compact();
         }
+
+        public void Shrink() => Compact();
     }
 }

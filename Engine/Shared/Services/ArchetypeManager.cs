@@ -64,7 +64,18 @@ namespace Shared.Services
 
         private void MoveToArchetype(int entityId)
         {
-            var components = _entityComponents[entityId];
+            if (!_entityComponents.TryGetValue(entityId, out var components)) return;
+
+            if (components.Count == 0)
+            {
+                if (_entityToArchetype.TryRemove(entityId, out var oldArch))
+                {
+                    oldArch.RemoveEntity(entityId);
+                }
+                _entityComponents.TryRemove(entityId, out _);
+                return;
+            }
+
             var signature = components.Keys.OrderBy(t => t.FullName).ToList();
 
             // Find or create archetype

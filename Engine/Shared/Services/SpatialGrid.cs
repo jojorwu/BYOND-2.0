@@ -5,10 +5,11 @@ using System.Threading;
 using Robust.Shared.Maths;
 using System.Collections.Concurrent;
 using System.Buffers;
+using Shared.Interfaces;
 
 namespace Shared
 {
-    public class SpatialGrid : IDisposable
+    public class SpatialGrid : IDisposable, IShrinkable
     {
         private class Cell
         {
@@ -23,6 +24,8 @@ namespace Shared
                 }
             }
         }
+
+        public void Shrink() => CleanupEmptyCells();
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();

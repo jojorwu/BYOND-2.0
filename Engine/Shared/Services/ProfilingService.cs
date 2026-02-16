@@ -7,7 +7,7 @@ using Shared.Interfaces;
 
 namespace Shared.Services
 {
-    public class ProfilingService : IProfilingService
+    public class ProfilingService : IProfilingService, IShrinkable
     {
         private readonly ConcurrentDictionary<string, MetricData> _metrics = new();
         private const int MaxSamples = 100;
@@ -140,6 +140,14 @@ namespace Shared.Services
             while (metric.Samples.Count > MaxSamples)
             {
                 metric.Samples.TryDequeue(out _);
+            }
+        }
+
+        public void Shrink()
+        {
+            if (_metrics.Count > MaxUniqueMetrics)
+            {
+                _metrics.Clear();
             }
         }
     }

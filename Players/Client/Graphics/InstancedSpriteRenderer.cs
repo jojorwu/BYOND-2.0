@@ -13,7 +13,7 @@ namespace Client.Graphics
         private readonly Shader _shader;
         private readonly uint _vao;
         private readonly uint _vbo;
-        private readonly uint _instanceVbo;
+        private uint _instanceVbo;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct InstanceData
@@ -23,13 +23,25 @@ namespace Client.Graphics
             public Color Color;
         }
 
-        private const int MaxInstances = 4096;
-        private readonly InstanceData[] _instanceData = new InstanceData[MaxInstances];
+        private struct Batch
+        {
+            public uint TextureId;
+            public uint NormalMapId;
+            public int Start;
+            public int Count;
+        }
+
+        private int _maxInstances = 4096;
+        private InstanceData[] _instanceData;
         private int _instanceCount = 0;
+        private readonly List<Batch> _batches = new();
+        private uint _currentTextureId;
+        private uint _currentNormalMapId;
 
         public InstancedSpriteRenderer(GL gl)
         {
             _gl = gl;
+            _instanceData = new InstanceData[_maxInstances];
 
             string vert = @"#version 330 core
 layout (location = 0) in vec2 aPos;
@@ -82,7 +94,7 @@ void main() {
 
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
             unsafe {
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxInstances * sizeof(InstanceData)), null, BufferUsageARB.DynamicDraw);
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_maxInstances * sizeof(InstanceData)), null, BufferUsageARB.DynamicDraw);
 
                 _gl.EnableVertexAttribArray(1);
                 _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)0);
@@ -100,46 +112,104 @@ void main() {
             _gl.BindVertexArray(0);
         }
 
-        public void Draw(uint textureId, Vector2 position, Vector2 size, Box2 uv, Color color, Matrix4x4 view, Matrix4x4 projection, uint normalMapId = 0)
+        private void EnsureCapacity(int count)
         {
-            if (_instanceCount >= MaxInstances) Flush(textureId, view, projection, normalMapId);
+            if (_instanceCount + count <= _maxInstances) return;
+
+            while (_instanceCount + count > _maxInstances)
+            {
+                _maxInstances *= 2;
+            }
+
+            Array.Resize(ref _instanceData, _maxInstances);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
+            unsafe {
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_maxInstances * sizeof(InstanceData)), null, BufferUsageARB.DynamicDraw);
+            }
+        }
+
+        public void Begin()
+        {
+            _instanceCount = 0;
+            _batches.Clear();
+            _currentTextureId = 0;
+            _currentNormalMapId = 0;
+        }
+
+        public void Draw(uint textureId, Vector2 position, Vector2 size, Box2 uv, Color color, uint normalMapId = 0)
+        {
+            if (textureId == 0) return;
+
+            if (_batches.Count == 0 || textureId != _currentTextureId || normalMapId != _currentNormalMapId)
+            {
+                _batches.Add(new Batch {
+                    TextureId = textureId,
+                    NormalMapId = normalMapId,
+                    Start = _instanceCount,
+                    Count = 0
+                });
+                _currentTextureId = textureId;
+                _currentNormalMapId = normalMapId;
+            }
+
+            EnsureCapacity(1);
 
             _instanceData[_instanceCount++] = new InstanceData {
                 Rect = new Vector4(position.X, position.Y, size.X, size.Y),
                 Uv = new Vector4(uv.Left, uv.Top, uv.Right, uv.Bottom),
                 Color = color
             };
+
+            var lastBatch = _batches[_batches.Count - 1];
+            lastBatch.Count++;
+            _batches[_batches.Count - 1] = lastBatch;
         }
 
-        public unsafe void Flush(uint textureId, Matrix4x4 view, Matrix4x4 projection, uint normalMapId = 0)
+        public unsafe void Flush(Matrix4x4 view, Matrix4x4 projection)
         {
             if (_instanceCount == 0) return;
+
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
+            fixed(InstanceData* p = _instanceData)
+                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_instanceCount * sizeof(InstanceData)), p);
 
             _shader.Use();
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
 
-            _gl.ActiveTexture(TextureUnit.Texture0);
-            _gl.BindTexture(TextureTarget.Texture2D, textureId);
-            _shader.SetUniform("uTexture", 0);
+            _gl.BindVertexArray(_vao);
 
-            if (normalMapId != 0) {
-                _gl.ActiveTexture(TextureUnit.Texture1);
-                _gl.BindTexture(TextureTarget.Texture2D, normalMapId);
-                _shader.SetUniform("uNormalMap", 1);
-                _shader.SetUniform("uHasNormalMap", 1);
-            } else {
-                _shader.SetUniform("uHasNormalMap", 0);
+            foreach (var batch in _batches)
+            {
+                _gl.ActiveTexture(TextureUnit.Texture0);
+                _gl.BindTexture(TextureTarget.Texture2D, batch.TextureId);
+                _shader.SetUniform("uTexture", 0);
+
+                if (batch.NormalMapId != 0) {
+                    _gl.ActiveTexture(TextureUnit.Texture1);
+                    _gl.BindTexture(TextureTarget.Texture2D, batch.NormalMapId);
+                    _shader.SetUniform("uNormalMap", 1);
+                    _shader.SetUniform("uHasNormalMap", 1);
+                } else {
+                    _shader.SetUniform("uHasNormalMap", 0);
+                }
+
+                // Note: DrawArraysInstanced doesn't take a start index for instances in older GL.
+                // We'd need DrawArraysInstancedBaseInstance (GL 4.2) or use offsets in VertexAttribPointer.
+                // For compatibility, we update VertexAttribPointers per batch.
+
+                unsafe {
+                    nuint offset = (nuint)(batch.Start * sizeof(InstanceData));
+                    _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)offset);
+                    _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)(offset + 16));
+                    _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)(offset + 32));
+                }
+
+                _gl.DrawArraysInstanced(PrimitiveType.Triangles, 0, 6, (uint)batch.Count);
             }
 
-            _gl.BindVertexArray(_vao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
-            fixed(InstanceData* p = _instanceData)
-                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_instanceCount * sizeof(InstanceData)), p);
-
-            _gl.DrawArraysInstanced(PrimitiveType.Triangles, 0, 6, (uint)_instanceCount);
-
             _instanceCount = 0;
+            _batches.Clear();
         }
 
         public void Dispose()

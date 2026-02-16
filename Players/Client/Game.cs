@@ -281,8 +281,11 @@ new MyShader()
                 _gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
                 _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-                // Pass 2.1: Chunks
-                _worldRenderer.Render(_currentState, GetCullRect(), view, projection);
+                // Pass 2.1: Chunks & Dynamic Sprites (Integrated)
+                if (_currentState != null)
+                {
+                    _worldRenderer.Render(_previousState, _currentState, _alpha, GetCullRect(), view, projection);
+                }
                 _gBuffer.Unbind();
 
                 // Main Pass
@@ -318,127 +321,6 @@ new MyShader()
                 }
 
                 _gl.Disable(EnableCap.DepthTest);
-
-                // Pass 2.2: Dynamic Sprites
-                _spriteRenderer.Begin(view, projection);
-
-                if (_currentState?.GameObjects != null)
-                {
-                    // Calculate view bounds for culling (in world/tile units)
-                    var viewWidthTiles = (_window.FramebufferSize.X / _camera.Zoom) / 32.0f;
-                    var viewHeightTiles = (_window.FramebufferSize.Y / _camera.Zoom) / 32.0f;
-                    var cameraTilePos = _camera.Position / 32.0f;
-                    var cullRect = new Box2(
-                        cameraTilePos.X - viewWidthTiles / 2 - 1,
-                        cameraTilePos.Y - viewHeightTiles / 2 - 1,
-                        cameraTilePos.X + viewWidthTiles / 2 + 1,
-                        cameraTilePos.Y + viewHeightTiles / 2 + 1
-                    );
-
-                    // Prepare data for optimized culling
-                    var gameObjects = new List<GameObject>(_currentState.GameObjects.Values);
-                    var positions = new Vector2[gameObjects.Count];
-                    var visibilityMask = new byte[gameObjects.Count];
-
-                    // Parallel position calculation and interpolation
-                    Parallel.For(0, gameObjects.Count, i =>
-                    {
-                        var currentObj = gameObjects[i];
-                        var currentPosition = GetPosition(currentObj);
-
-                        if (_previousState?.GameObjects != null && _previousState.GameObjects.TryGetValue(currentObj.Id, out var previousObj))
-                        {
-                            positions[i] = Vector2.Lerp(GetPosition(previousObj), currentPosition, _alpha);
-                        }
-                        else
-                        {
-                            positions[i] = currentPosition;
-                        }
-                    });
-
-                    // Optimized visibility culling
-                    VisibilityCuller.CalculateVisibilityOptimized(positions, cullRect, visibilityMask);
-
-                    // Build occlusion map for smart culling
-                    var opaqueCoords = new ConcurrentDictionary<Vector2i, float>();
-                    Parallel.For(0, gameObjects.Count, i =>
-                    {
-                        if (visibilityMask[i] == 0) return;
-                        var obj = gameObjects[i];
-                        var opacity = obj.GetVariable("opacity");
-                        if (opacity.Type == DreamValueType.Float && opacity.AsFloat() > 0)
-                        {
-                            var pos = new Vector2i((int)obj.X, (int)obj.Y);
-                            var layer = GetLayer(obj);
-                            opaqueCoords.AddOrUpdate(pos, layer, (_, oldLayer) => Math.Max(oldLayer, layer));
-                        }
-                    });
-
-                    // Parallel command generation for visible objects
-                    Parallel.For(0, gameObjects.Count, i =>
-                    {
-                        if (visibilityMask[i] == 0) return;
-
-                        var currentObj = gameObjects[i];
-
-                        // Smart Occlusion Culling
-                        if (opaqueCoords.TryGetValue(new Vector2i((int)currentObj.X, (int)currentObj.Y), out var opaqueLayer))
-                        {
-                            if (GetLayer(currentObj) < opaqueLayer) return;
-                        }
-                        var renderPos = positions[i];
-
-                        var layer = GetLayer(currentObj);
-                        var icon = GetIcon(currentObj);
-
-                        if (!string.IsNullOrEmpty(icon))
-                        {
-                            var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                            if (!string.IsNullOrEmpty(dmiPath))
-                            {
-                                try
-                                {
-                                    var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                                    var dmi = _dmiCache.GetDmi(dmiPath, texture);
-                                    if (dmi != null)
-                                    {
-                                        var state = dmi.Description.GetStateOrDefault(stateName);
-                                        if (state != null)
-                                        {
-                                            var frame = state.GetFrames(AtomDirection.South)[0];
-                                            var uv = new Box2(
-                                                (float)frame.X / dmi.Width,
-                                                (float)frame.Y / dmi.Height,
-                                                (float)(frame.X + dmi.Description.Width) / dmi.Width,
-                                                (float)(frame.Y + dmi.Description.Height) / dmi.Height
-                                            );
-
-                                            _spriteRenderer.Draw(dmi.TextureId, uv, renderPos * 32, new Vector2(32, 32), Color.White, layer);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Gray, layer); // Loading placeholder
-                                    }
-                                }
-                                catch (Exception)
-                                {
-                                    _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Red, layer);
-                                }
-                            }
-                            else
-                            {
-                                _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.Magenta, layer);
-                            }
-                        }
-                        else
-                        {
-                            _spriteRenderer.DrawQuad(renderPos * 32, new Vector2(32, 32), Color.White, layer);
-                        }
-                    });
-                }
-
-                _spriteRenderer.End();
 
                 // Copy G-Buffer Albedo to Scene Framebuffer (optional, or just use G-Buffer as input)
                 // For now, let's keep it simple.

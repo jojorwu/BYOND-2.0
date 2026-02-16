@@ -46,21 +46,16 @@ namespace Shared.Services
 
         private int GetCount(Type t)
         {
-            var method = _componentManager.GetType().GetMethod("GetComponents")?.MakeGenericMethod(t);
-            if (method == null) return 0;
-            var results = method.Invoke(_componentManager, null) as System.Collections.IEnumerable;
+            var results = _componentManager.GetComponents(t);
             int count = 0;
-            if (results != null) foreach (var _ in results) count++;
+            foreach (var _ in results) count++;
             return count;
         }
 
         private IEnumerable<IGameObject> GetOwners(Type t)
         {
-            var method = _componentManager.GetType().GetMethod("GetComponents")?.MakeGenericMethod(t);
-            if (method == null) return Enumerable.Empty<IGameObject>();
-            var results = method.Invoke(_componentManager, null) as System.Collections.IEnumerable;
-            if (results == null) return Enumerable.Empty<IGameObject>();
-            return results.Cast<IComponent>().Select(c => c.Owner).Where(o => o != null)!;
+            var results = _componentManager.GetComponents(t);
+            return results.Select(c => c.Owner).Where(o => o != null)!;
         }
 
         public void Subscribe<T>(Action<ComponentEventArgs> onAdded, Action<ComponentEventArgs> onRemoved) where T : class, IComponent

@@ -50,10 +50,8 @@ namespace Shared.Services
 
                 if (readySystems.Count == 0)
                 {
-                    // Fallback for circular dependencies
-                    var fallbackLayer = remaining.OrderByDescending(s => s.Priority).ToList();
-                    layers.Add(fallbackLayer);
-                    break;
+                    var names = string.Join(", ", remaining.Select(s => s.Name));
+                    throw new System.InvalidOperationException($"Circular dependency detected among systems: {names}");
                 }
 
                 // Further refine readySystems into sub-layers based on resource conflicts

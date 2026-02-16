@@ -23,9 +23,12 @@ namespace Shared.Interfaces
         event EventHandler<ComponentEventArgs>? ComponentRemoved;
 
         void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent;
+        void AddComponent(IGameObject owner, IComponent component);
         void RemoveComponent<T>(IGameObject owner) where T : class, IComponent;
+        void RemoveComponent(IGameObject owner, Type componentType);
         T? GetComponent<T>(IGameObject owner) where T : class, IComponent;
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
+        IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(IGameObject owner);
 
         /// <summary>

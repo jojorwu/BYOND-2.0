@@ -12,9 +12,12 @@ namespace Shared.Services
         void AddEntity(IGameObject entity);
         void RemoveEntity(int entityId);
         void AddComponent<T>(IGameObject entity, T component) where T : class, IComponent;
+        void AddComponent(IGameObject entity, IComponent component);
         void RemoveComponent<T>(IGameObject entity) where T : class, IComponent;
+        void RemoveComponent(IGameObject entity, Type componentType);
         T? GetComponent<T>(int entityId) where T : class, IComponent;
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
+        IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(int entityId);
         void Compact();
     }
@@ -42,8 +45,13 @@ namespace Shared.Services
 
         public void AddComponent<T>(IGameObject entity, T component) where T : class, IComponent
         {
+            AddComponent(entity, (IComponent)component);
+        }
+
+        public void AddComponent(IGameObject entity, IComponent component)
+        {
             var components = _entityComponents.GetOrAdd(entity.Id, _ => new Dictionary<Type, IComponent>());
-            components[typeof(T)] = component;
+            components[component.GetType()] = component;
             component.Owner = entity;
             component.Initialize();
             MoveToArchetype(entity.Id);
@@ -51,9 +59,14 @@ namespace Shared.Services
 
         public void RemoveComponent<T>(IGameObject entity) where T : class, IComponent
         {
+            RemoveComponent(entity, typeof(T));
+        }
+
+        public void RemoveComponent(IGameObject entity, Type componentType)
+        {
             if (_entityComponents.TryGetValue(entity.Id, out var components))
             {
-                if (components.Remove(typeof(T), out var component))
+                if (components.Remove(componentType, out var component))
                 {
                     component.Shutdown();
                     component.Owner = null;
@@ -121,6 +134,22 @@ namespace Shared.Services
                     if (archetype.Signature.Contains(typeof(T)))
                     {
                         results.AddRange(archetype.GetComponents<T>());
+                    }
+                }
+            }
+            return results;
+        }
+
+        public IEnumerable<IComponent> GetComponents(Type componentType)
+        {
+            var results = new List<IComponent>();
+            lock (_archetypes)
+            {
+                foreach (var archetype in _archetypes)
+                {
+                    if (archetype.Signature.Contains(componentType))
+                    {
+                        results.AddRange(archetype.GetComponents(componentType));
                     }
                 }
             }

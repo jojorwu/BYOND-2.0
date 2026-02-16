@@ -20,17 +20,27 @@ namespace Shared.Services
 
         public void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent
         {
+            AddComponent(owner, (IComponent)component);
+        }
+
+        public void AddComponent(IGameObject owner, IComponent component)
+        {
             _archetypeManager.AddComponent(owner, component);
-            ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, typeof(T)));
+            ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, component.GetType()));
         }
 
         public void RemoveComponent<T>(IGameObject owner) where T : class, IComponent
         {
-            var component = _archetypeManager.GetComponent<T>(owner.Id);
+            RemoveComponent(owner, typeof(T));
+        }
+
+        public void RemoveComponent(IGameObject owner, Type componentType)
+        {
+            var component = _archetypeManager.GetAllComponents(owner.Id).FirstOrDefault(c => c.GetType() == componentType);
             if (component != null)
             {
-                _archetypeManager.RemoveComponent<T>(owner);
-                ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, component, typeof(T)));
+                _archetypeManager.RemoveComponent(owner, componentType);
+                ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, component, componentType));
             }
         }
 
@@ -42,6 +52,11 @@ namespace Shared.Services
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             return _archetypeManager.GetComponents<T>();
+        }
+
+        public IEnumerable<IComponent> GetComponents(Type componentType)
+        {
+            return _archetypeManager.GetComponents(componentType);
         }
 
         public IEnumerable<IComponent> GetAllComponents(IGameObject owner)

@@ -334,9 +334,7 @@ namespace Shared
         {
             if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
 
-            // We need a generic way to call AddComponent<T>
-            var method = _componentManager.GetType().GetMethod("AddComponent")?.MakeGenericMethod(component.GetType());
-            method?.Invoke(_componentManager, new object[] { this, component });
+            _componentManager.AddComponent(this, component);
             Version++;
         }
 
@@ -389,9 +387,7 @@ namespace Shared
             {
                 foreach (var component in _componentManager.GetAllComponents(this).ToList())
                 {
-                    // Generic removal is tricky here, but we can use reflection or a specialized method in ComponentManager
-                    var method = _componentManager.GetType().GetMethod("RemoveComponent")?.MakeGenericMethod(component.GetType());
-                    method?.Invoke(_componentManager, new object[] { this });
+                    _componentManager.RemoveComponent(this, component.GetType());
                 }
             }
 

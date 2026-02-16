@@ -12,6 +12,7 @@ namespace Shared.Models
     public class Archetype
     {
         private readonly List<int> _entityIds = new();
+        private readonly Dictionary<int, int> _entityIdToIndex = new();
         private readonly Dictionary<Type, IList> _componentArrays = new();
         public HashSet<Type> Signature { get; }
 
@@ -29,6 +30,7 @@ namespace Shared.Models
 
         public void AddEntity(int entityId, IDictionary<Type, IComponent> components)
         {
+            _entityIdToIndex[entityId] = _entityIds.Count;
             _entityIds.Add(entityId);
             foreach (var type in Signature)
             {
@@ -38,19 +40,22 @@ namespace Shared.Models
 
         public void RemoveEntity(int entityId)
         {
-            int index = _entityIds.IndexOf(entityId);
-            if (index == -1) return;
+            if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
             int lastIndex = _entityIds.Count - 1;
             if (index != lastIndex)
             {
-                _entityIds[index] = _entityIds[lastIndex];
+                int lastEntityId = _entityIds[lastIndex];
+                _entityIds[index] = lastEntityId;
+                _entityIdToIndex[lastEntityId] = index;
+
                 foreach (var array in _componentArrays.Values)
                 {
                     array[index] = array[lastIndex];
                 }
             }
 
+            _entityIdToIndex.Remove(entityId);
             _entityIds.RemoveAt(lastIndex);
             foreach (var array in _componentArrays.Values)
             {
@@ -67,25 +72,38 @@ namespace Shared.Models
             return Array.Empty<T>();
         }
 
-        public bool ContainsEntity(int entityId) => _entityIds.Contains(entityId);
+        public IEnumerable<IComponent> GetComponents(Type type)
+        {
+            if (_componentArrays.TryGetValue(type, out var list))
+            {
+                foreach (var item in list) yield return (IComponent)item!;
+            }
+        }
+
+        public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);
 
         public IComponent? GetComponent(int entityId, Type type)
         {
-            int index = _entityIds.IndexOf(entityId);
-            if (index != -1 && _componentArrays.TryGetValue(type, out var array))
+            if (_entityIdToIndex.TryGetValue(entityId, out int index) && _componentArrays.TryGetValue(type, out var array))
             {
                 return (IComponent)array[index]!;
             }
             return null;
         }
 
+        private static readonly Dictionary<Type, System.Reflection.MethodInfo> _trimMethods = new();
+
         public void Compact()
         {
             // If capacity is significantly larger than count, trim it
             foreach (var array in _componentArrays.Values)
             {
-                // List<T> has TrimExcess
-                var method = array.GetType().GetMethod("TrimExcess");
+                var type = array.GetType();
+                if (!_trimMethods.TryGetValue(type, out var method))
+                {
+                    method = type.GetMethod("TrimExcess");
+                    _trimMethods[type] = method!;
+                }
                 method?.Invoke(array, null);
             }
             _entityIds.TrimExcess();

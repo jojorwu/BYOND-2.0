@@ -56,7 +56,7 @@ namespace Shared.Services
             if (v1 == stealer) v1 = currentWorkers[(i1 + 1) % count];
             if (v2 == stealer) v2 = currentWorkers[(i2 + 1) % count];
 
-            var victim = v1.ApproximateJobCount >= v2.ApproximateJobCount ? v1 : v2;
+            var victim = v1.ApproximateTotalWeight >= v2.ApproximateTotalWeight ? v1 : v2;
 
             if (victim != stealer && victim.ApproximateJobCount > 0 && victim.TrySteal(out var stolenJob))
             {
@@ -87,6 +87,12 @@ namespace Shared.Services
             return ScheduleInternal(job, track);
         }
 
+        public JobHandle Schedule(IJob job, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
+        {
+            // Weight is now handled via IJob.Weight, but we can wrap it if needed or use the provided one
+            return ScheduleInternal(job, track);
+        }
+
         private JobHandle ScheduleInternal(IJob job, bool track)
         {
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -108,12 +114,12 @@ namespace Shared.Services
 
             if (count > 1)
             {
-                // Power of Two Choices for better load balancing
+                // Power of Two Choices for better load balancing using Total Weight
                 int i1 = Random.Shared.Next(count);
                 int i2 = Random.Shared.Next(count);
                 if (i1 == i2) i2 = (i1 + 1) % count;
 
-                index = currentWorkers[i1].ApproximateJobCount <= currentWorkers[i2].ApproximateJobCount ? i1 : i2;
+                index = currentWorkers[i1].ApproximateTotalWeight <= currentWorkers[i2].ApproximateTotalWeight ? i1 : i2;
             }
             else
             {
@@ -198,14 +204,14 @@ namespace Shared.Services
             }
         }
 
-        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
+        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new ActionJob(action, priority), dependency, track, priority);
+            return Schedule(new ActionJob(action, priority, weight), dependency, track, priority);
         }
 
-        public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
+        public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new AsyncActionJob(action, priority), dependency, track, priority);
+            return Schedule(new AsyncActionJob(action, priority, weight), dependency, track, priority);
         }
 
         public JobHandle CombineDependencies(params JobHandle[] dependencies)
@@ -321,6 +327,7 @@ namespace Shared.Services
             private readonly TaskCompletionSource _tcs;
 
             public JobPriority Priority => _inner.Priority;
+            public int Weight => _inner.Weight;
 
             public TrackingJob(IJob inner, TaskCompletionSource tcs)
             {
@@ -346,11 +353,13 @@ namespace Shared.Services
         {
             private readonly Action _action;
             public JobPriority Priority { get; }
+            public int Weight { get; }
 
-            public ActionJob(Action action, JobPriority priority = JobPriority.Normal)
+            public ActionJob(Action action, JobPriority priority = JobPriority.Normal, int weight = 1)
             {
                 _action = action;
                 Priority = priority;
+                Weight = weight;
             }
 
             public Task ExecuteAsync()
@@ -364,11 +373,13 @@ namespace Shared.Services
         {
             private readonly Func<Task> _action;
             public JobPriority Priority { get; }
+            public int Weight { get; }
 
-            public AsyncActionJob(Func<Task> action, JobPriority priority = JobPriority.Normal)
+            public AsyncActionJob(Func<Task> action, JobPriority priority = JobPriority.Normal, int weight = 1)
             {
                 _action = action;
                 Priority = priority;
+                Weight = weight;
             }
 
             public Task ExecuteAsync() => _action();

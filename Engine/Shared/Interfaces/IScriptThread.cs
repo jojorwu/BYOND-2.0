@@ -28,6 +28,11 @@ namespace Shared
         int WaitTicks { get; set; }
 
         /// <summary>
+        /// Total number of instructions executed by this thread across its lifetime.
+        /// </summary>
+        long TotalInstructionsExecuted { get; }
+
+        /// <summary>
         /// Wakes up the thread if it was sleeping.
         /// </summary>
         void WakeUp();

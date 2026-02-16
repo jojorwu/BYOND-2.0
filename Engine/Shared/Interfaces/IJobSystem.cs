@@ -23,6 +23,7 @@ namespace Shared.Interfaces
     {
         Task ExecuteAsync();
         JobPriority Priority { get; }
+        int Weight { get; }
     }
 
     /// <summary>
@@ -42,12 +43,12 @@ namespace Shared.Interfaces
         /// <summary>
         /// Schedules an action as a job.
         /// </summary>
-        JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal);
+        JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1);
 
         /// <summary>
         /// Schedules an asynchronous action as a job.
         /// </summary>
-        JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal);
+        JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1);
 
         /// <summary>
         /// Combines multiple job handles into one.

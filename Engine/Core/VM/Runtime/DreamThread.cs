@@ -51,10 +51,11 @@ namespace Core.VM.Runtime
         public ScriptThreadPriority Priority { get; set; } = ScriptThreadPriority.Normal;
         public TimeSpan ExecutionTime { get; set; } = TimeSpan.Zero;
         public int WaitTicks { get; set; } = 0;
+        public long TotalInstructionsExecuted => _totalInstructionsExecuted;
 
         public DreamVMContext Context { get; }
         internal readonly int _maxInstructions;
-        internal int _totalInstructionsExecuted;
+        internal long _totalInstructionsExecuted;
         private readonly IBytecodeInterpreter _interpreter;
 
         public DreamThread(DreamProc proc, DreamVMContext context, int maxInstructions, IGameObject? associatedObject = null, IBytecodeInterpreter? interpreter = null)

@@ -46,6 +46,21 @@ namespace Server
 
             foreach (var thread in sortedThreads)
             {
+                var jobPriority = MapPriority(thread.Priority);
+
+                // Smart Boost: If a thread is heavy and has been waiting, give it a temporary boost
+                if (thread.TotalInstructionsExecuted > 100000 && thread.WaitTicks > 5)
+                {
+                    jobPriority = JobPriority.High;
+                }
+
+                // Adaptive Weighting: Heavier scripts get more weight in the job system
+                // to balance them against many small jobs.
+                int jobWeight = 1;
+                if (thread.TotalInstructionsExecuted > 500000) jobWeight = 10;
+                else if (thread.TotalInstructionsExecuted > 100000) jobWeight = 5;
+                else if (thread.TotalInstructionsExecuted > 10000) jobWeight = 2;
+
                 _jobSystem.Schedule(() =>
                 {
                     if (Interlocked.CompareExchange(ref budgetExceeded, 0, 0) == 1 || (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled))
@@ -56,8 +71,13 @@ namespace Server
                         return;
                     }
 
-                    ProcessThread(thread, processGlobals, objectIds, nextThreads);
-                });
+                    // Calculate adaptive instruction slice based on priority
+                    int instructionSlice = _settings.Performance.VmInstructionSlice;
+                    if (thread.Priority == ScriptThreadPriority.High) instructionSlice *= 2;
+                    else if (thread.Priority == ScriptThreadPriority.Low) instructionSlice /= 2;
+
+                    ProcessThread(thread, processGlobals, objectIds, nextThreads, instructionSlice);
+                }, priority: jobPriority, weight: jobWeight);
             }
 
             await _jobSystem.CompleteAllAsync();
@@ -65,7 +85,7 @@ namespace Server
             return nextThreads;
         }
 
-        private void ProcessThread(IScriptThread thread, bool processGlobals, HashSet<int>? objectIds, ConcurrentBag<IScriptThread> nextThreads)
+        private void ProcessThread(IScriptThread thread, bool processGlobals, HashSet<int>? objectIds, ConcurrentBag<IScriptThread> nextThreads, int instructionSlice)
         {
             if (thread is DreamThread dreamThread)
                 {
@@ -81,7 +101,7 @@ namespace Server
                 if (shouldProcess)
                 {
                     var threadStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                    var state = dreamThread.Run(_settings.Performance.VmInstructionSlice);
+                    var state = dreamThread.Run(instructionSlice);
                     dreamThread.ExecutionTime = threadStopwatch.Elapsed;
                     dreamThread.WaitTicks = 0;
 
@@ -109,6 +129,17 @@ namespace Server
             {
                 nextThreads.Add(thread);
             }
+        }
+
+        private JobPriority MapPriority(ScriptThreadPriority priority)
+        {
+            return priority switch
+            {
+                ScriptThreadPriority.High => JobPriority.High,
+                ScriptThreadPriority.Normal => JobPriority.Normal,
+                ScriptThreadPriority.Low => JobPriority.Low,
+                _ => JobPriority.Normal
+            };
         }
     }
 }

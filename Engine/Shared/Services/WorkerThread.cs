@@ -17,6 +17,7 @@ namespace Shared.Services
         private readonly PriorityQueue<IJob, int> _jobQueue = new();
         private readonly object _lock = new();
         private volatile int _approximateCount;
+        private volatile int _totalWeight;
         public readonly ArenaAllocator Arena = new();
         private readonly Thread _thread;
         private readonly ManualResetEventSlim _wakeEvent = new(false);
@@ -25,6 +26,7 @@ namespace Shared.Services
 
         public int JobCount { get { lock (_lock) return _jobQueue.Count; } }
         public int ApproximateJobCount => _approximateCount;
+        public int ApproximateTotalWeight => _totalWeight;
         public bool IsBusy { get; private set; }
         public DateTime LastActiveTime { get; private set; } = DateTime.UtcNow;
 
@@ -51,6 +53,7 @@ namespace Shared.Services
             {
                 _jobQueue.Enqueue(job, -(int)job.Priority);
                 _approximateCount++;
+                _totalWeight += Math.Max(1, job.Weight);
             }
             _wakeEvent.Set();
         }
@@ -67,6 +70,7 @@ namespace Shared.Services
                 if (_jobQueue.TryDequeue(out job, out _))
                 {
                     _approximateCount--;
+                    _totalWeight -= Math.Max(1, job!.Weight);
                     return true;
                 }
                 return false;
@@ -84,6 +88,7 @@ namespace Shared.Services
                     if (_jobQueue.TryDequeue(out job, out _))
                     {
                         _approximateCount--;
+                        _totalWeight -= Math.Max(1, job!.Weight);
                     }
                 }
 

@@ -11,14 +11,14 @@ namespace Shared
         /// <summary>
         /// Executes a single logical tick for the entire system.
         /// </summary>
-        void Tick();
+        System.Threading.Tasks.Task TickAsync();
 
         /// <summary>
         /// Executes a logical tick for a specific set of game objects.
         /// </summary>
         /// <param name="objectsToTick">The collection of game objects to process.</param>
         /// <param name="processGlobals">Whether to process global logic in this tick.</param>
-        void Tick(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false);
+        System.Threading.Tasks.Task TickAsync(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false);
 
         /// <summary>
         /// Enqueues a command for asynchronous execution.
@@ -47,6 +47,6 @@ namespace Shared
         /// Executes the specified collection of script threads.
         /// </summary>
         /// <returns>A collection of threads that are still active after execution.</returns>
-        IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
+        System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
     }
 }

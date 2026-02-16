@@ -25,6 +25,12 @@ namespace tests
             _vm = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new StandardNativeProcProvider() });
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            _vm.Dispose();
+        }
+
         [Test]
         public void IsTypeDirect_NullManager_DoesNotCrash()
         {

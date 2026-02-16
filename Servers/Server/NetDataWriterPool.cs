@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using LiteNetLib.Utils;
+using Shared.Interfaces;
 using Shared.Services;
 
 namespace Server
@@ -8,7 +9,7 @@ namespace Server
     /// Provides a thread-safe pool of NetDataWriter instances to reduce allocations
     /// during high-frequency network operations.
     /// </summary>
-    public class NetDataWriterPool : EngineService
+    public class NetDataWriterPool : EngineService, IObjectPool<NetDataWriter>
     {
         public override int Priority => 50;
         private readonly ConcurrentQueue<NetDataWriter> _pool = new();
@@ -16,7 +17,7 @@ namespace Server
         /// <summary>
         /// Retrieves a writer from the pool or creates a new one if the pool is empty.
         /// </summary>
-        public NetDataWriter Get()
+        public NetDataWriter Rent()
         {
             if (_pool.TryDequeue(out var writer))
             {
@@ -32,6 +33,15 @@ namespace Server
         public void Return(NetDataWriter writer)
         {
             _pool.Enqueue(writer);
+        }
+
+        public void Shrink()
+        {
+            int count = _pool.Count;
+            for (int i = 0; i < count / 2; i++)
+            {
+                _pool.TryDequeue(out _);
+            }
         }
     }
 }

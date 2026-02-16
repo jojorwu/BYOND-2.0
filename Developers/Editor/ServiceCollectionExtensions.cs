@@ -1,4 +1,5 @@
 using Editor.UI;
+using Editor.History;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
 
@@ -17,7 +18,8 @@ namespace Editor
                     provider.GetRequiredService<TextureManager>(),
                     provider.GetRequiredService<IProjectService>(),
                     provider.GetRequiredService<SettingsPanel>(),
-                    provider.GetRequiredService<IRunService>()
+                    provider.GetRequiredService<IRunService>(),
+                    provider.GetRequiredService<IEditorSettingsManager>()
                 )
             );
             services.AddSingleton<ProjectHolder>();
@@ -32,6 +34,7 @@ namespace Editor
             services.AddSingleton<TextureManager>();
             services.AddSingleton<AssetManager>();
             services.AddSingleton<SelectionManager>();
+            services.AddSingleton<HistoryManager>();
             services.AddSingleton<ToolManager>();
             services.AddSingleton<BuildService>();
             services.AddSingleton<SpriteRenderer>();
@@ -60,6 +63,13 @@ namespace Editor
                 new MainPanel(
                     provider.GetRequiredService<ProjectsPanel>(),
                     provider.GetRequiredService<ServerBrowserPanel>(),
+                    provider.GetRequiredService<ViewportPanel>(),
+                    provider.GetRequiredService<ToolbarPanel>(),
+                    provider.GetRequiredService<InspectorPanel>(),
+                    provider.GetRequiredService<ObjectBrowserPanel>(),
+                    provider.GetRequiredService<AssetBrowserPanel>(),
+                    provider.GetRequiredService<SceneHierarchyPanel>(),
+                    provider.GetRequiredService<EditorContext>(),
                     provider.GetRequiredService<EditorLaunchOptions>(),
                     provider.GetRequiredService<IUIService>()
                 )
@@ -82,7 +92,8 @@ namespace Editor
                     provider.GetRequiredService<LocalizationManager>(),
                     provider.GetRequiredService<IProjectManager>(),
                     provider.GetRequiredService<IProjectService>(),
-                    provider.GetRequiredService<SettingsPanel>()
+                    provider.GetRequiredService<SettingsPanel>(),
+                    provider.GetRequiredService<HistoryManager>()
                 )
             );
             services.AddSingleton<ViewportPanel>(provider =>
@@ -93,7 +104,9 @@ namespace Editor
                     provider.GetRequiredService<IGameApi>(),
                     provider.GetRequiredService<SpriteRenderer>(),
                     provider.GetRequiredService<TextureManager>(),
-                    provider.GetRequiredService<IObjectTypeManager>()
+                    provider.GetRequiredService<IObjectTypeManager>(),
+                    provider.GetRequiredService<IEditorSettingsManager>(),
+                    provider.GetRequiredService<HistoryManager>()
                 )
             );
             services.AddSingleton<AssetBrowserPanel>();
@@ -101,7 +114,15 @@ namespace Editor
             services.AddSingleton<ObjectBrowserPanel>();
             services.AddSingleton<ScriptEditorPanel>();
             services.AddSingleton<SettingsPanel>();
-            services.AddSingleton<ToolbarPanel>();
+            services.AddSingleton<ToolbarPanel>(provider =>
+                new ToolbarPanel(
+                    provider.GetRequiredService<EditorContext>(),
+                    provider.GetRequiredService<ToolManager>(),
+                    provider.GetRequiredService<IProjectService>(),
+                    provider.GetRequiredService<IRunService>(),
+                    provider.GetRequiredService<HistoryManager>()
+                )
+            );
             services.AddSingleton<MapControlsPanel>();
             services.AddSingleton<BuildPanel>();
             services.AddSingleton<SceneHierarchyPanel>();

@@ -301,10 +301,22 @@ namespace Shared {
         PushFloatAssign = 0x9A,
         [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
         NPushFloatAssign = 0x9B,
+        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        PushLocal = 0x9C,
         [OpcodeMetadata(-2)]
         GetStepTo = 0x9D,
         [OpcodeMetadata(-1)]
         GetDist = 0x9E,
+        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        PushArgument = 0x9F,
+        [OpcodeMetadata(-1, OpcodeArgType.Int)]
+        AssignLocal = 0xA0,
+        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+        LocalPushLocalPushAdd = 0xA1,
+        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+        LocalAddFloat = 0xA2,
+        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
+        LocalMulAdd = 0xA3,
     }
 
     public enum OpcodeArgType {

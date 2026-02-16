@@ -1,11 +1,19 @@
 using Shared;
 using Robust.Shared.Maths;
+using Editor.History;
 
 namespace Editor
 {
     public class PaintTool : ITool
     {
+        private readonly HistoryManager _historyManager;
+
         public string Name => "Paint";
+
+        public PaintTool(HistoryManager historyManager)
+        {
+            _historyManager = historyManager;
+        }
 
         public void OnSelected(EditorContext context) { }
         public void OnDeselected(EditorContext context) { }
@@ -17,8 +25,8 @@ namespace Editor
             var tileX = mousePosition.X / EditorConstants.TileSize;
             var tileY = mousePosition.Y / EditorConstants.TileSize;
 
-            var newObject = new GameObject(context.SelectedObjectType);
-            gameState.Map.GetTurf(tileX, tileY, context.CurrentZLevel)?.AddContent(newObject);
+            var command = new PlaceObjectCommand(gameState, context.SelectedObjectType, tileX, tileY, context.CurrentZLevel);
+            _historyManager.ExecuteCommand(command);
         }
 
         public void OnMouseUp(EditorContext context, GameState gameState, SelectionManager selectionManager, Vector2i mousePosition) { }

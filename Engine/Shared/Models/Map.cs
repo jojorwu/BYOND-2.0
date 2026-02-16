@@ -10,6 +10,7 @@ namespace Shared
         private const int MaxChunksPerZ = 10000;
         private const int MaxZLevels = 100;
         private readonly Dictionary<int, Dictionary<Vector2i, Chunk>> _chunksByZ = new();
+        private readonly object _mapLock = new();
 
         public Map()
         {
@@ -36,6 +37,18 @@ namespace Shared
             return null;
         }
 
+        public int GetTurfTypeId(int x, int y, int z)
+        {
+            var (chunkCoords, localCoords) = GlobalToChunk(x, y);
+
+            if (_chunksByZ.TryGetValue(z, out var chunks) && chunks.TryGetValue(chunkCoords, out var chunk))
+            {
+                return chunk.GetTurfTypeId(localCoords.X, localCoords.Y);
+            }
+
+            return 0;
+        }
+
         public void SetTurf(int x, int y, int z, ITurf turf)
         {
             if (Math.Abs(x) > MaxCoordinate || Math.Abs(y) > MaxCoordinate || z < 0 || z >= MaxZLevels)
@@ -43,21 +56,39 @@ namespace Shared
 
             var (chunkCoords, localCoords) = GlobalToChunk(x, y);
 
-            if (!_chunksByZ.TryGetValue(z, out var chunks))
-            {
-                if (_chunksByZ.Count >= MaxZLevels) return;
-                chunks = new Dictionary<Vector2i, Chunk>();
-                _chunksByZ[z] = chunks;
-            }
-
-            if (!chunks.TryGetValue(chunkCoords, out var chunk))
-            {
-                if (chunks.Count >= MaxChunksPerZ) return;
-                chunk = new Chunk();
-                chunks[chunkCoords] = chunk;
-            }
-
+            Chunk chunk = GetOrCreateChunk(z, chunkCoords);
             chunk.SetTurf(localCoords.X, localCoords.Y, turf);
+        }
+
+        public void SetTurfType(int x, int y, int z, int typeId)
+        {
+            if (Math.Abs(x) > MaxCoordinate || Math.Abs(y) > MaxCoordinate || z < 0 || z >= MaxZLevels)
+                return;
+
+            var (chunkCoords, localCoords) = GlobalToChunk(x, y);
+
+            Chunk chunk = GetOrCreateChunk(z, chunkCoords);
+            chunk.SetTurfType(localCoords.X, localCoords.Y, typeId);
+        }
+
+        private Chunk GetOrCreateChunk(int z, Vector2i chunkCoords)
+        {
+            lock (_mapLock)
+            {
+                if (!_chunksByZ.TryGetValue(z, out var chunks))
+                {
+                    chunks = new Dictionary<Vector2i, Chunk>();
+                    _chunksByZ[z] = chunks;
+                }
+
+                if (!chunks.TryGetValue(chunkCoords, out var chunk))
+                {
+                    chunk = new Chunk();
+                    chunks[chunkCoords] = chunk;
+                }
+
+                return chunk;
+            }
         }
 
         public void SetChunk(int z, Vector2i chunkCoords, Chunk chunk)
@@ -101,7 +132,7 @@ namespace Shared
             {
                 foreach (var chunk in _chunksByZ[z].Values)
                 {
-                    foreach (var turf in chunk.GetTurfs())
+                    foreach (var turf in chunk.GetTurfObjects())
                     {
                         foreach (var obj in turf.Contents)
                         {

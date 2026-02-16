@@ -23,6 +23,12 @@ namespace tests
             _vm = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
         }
 
+        [TearDown]
+        public void TearDown()
+        {
+            _vm.Dispose();
+        }
+
         private DreamValue RunTest(params object[] ops)
         {
             var bytecode = new List<byte>();

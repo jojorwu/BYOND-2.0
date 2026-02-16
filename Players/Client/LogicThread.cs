@@ -96,7 +96,35 @@ namespace Client
             // First byte is the message type. We may have other types later.
             var messageType = (SnapshotMessageType)reader.GetByte();
 
-            if (messageType == SnapshotMessageType.Full)
+            if (messageType == SnapshotMessageType.Binary)
+            {
+                byte[] data = new byte[reader.AvailableBytes];
+                reader.GetBytes(data, reader.AvailableBytes);
+
+                var binaryService = new Shared.Services.BinarySnapshotService();
+                var objects = binaryService.Deserialize(data, null!);
+
+                lock (_lock)
+                {
+                    PreviousState = CurrentState; // This is a bit simplified for deltas
+
+                    // Update current state with received objects
+                    foreach(var obj in objects)
+                    {
+                        if (CurrentState.GameObjects.TryGetValue(obj.Id, out var existing))
+                        {
+                            existing.SetPosition(obj.X, obj.Y, obj.Z);
+                            // Copy properties
+                            foreach(var prop in obj.Properties) existing.SetVariable(prop.Key, prop.Value);
+                        }
+                        else
+                        {
+                            CurrentState.AddGameObject(obj);
+                        }
+                    }
+                }
+            }
+            else if (messageType == SnapshotMessageType.Full)
             {
                 var json = reader.GetString();
 

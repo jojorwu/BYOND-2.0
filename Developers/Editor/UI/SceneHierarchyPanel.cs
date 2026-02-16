@@ -38,6 +38,23 @@ namespace Editor.UI
                         }
                         if (ImGui.BeginPopupContextItem($"ContextMenu_{gameObject.Id}"))
                         {
+                            if (ImGui.MenuItem("Focus"))
+                            {
+                                Camera.Position = new System.Numerics.Vector2(gameObject.X * EditorConstants.TileSize, gameObject.Y * EditorConstants.TileSize);
+                            }
+                            if (ImGui.MenuItem("Duplicate"))
+                            {
+                                var newObj = _gameApi.Objects.CreateObject(gameObject.ObjectType.Id, gameObject.X, gameObject.Y, gameObject.Z);
+                                if (newObj != null)
+                                {
+                                    // Copy variables
+                                    foreach (var varName in gameObject.ObjectType.VariableNames)
+                                    {
+                                        newObj.SetVariable(varName, gameObject.GetVariable(varName));
+                                    }
+                                }
+                            }
+                            ImGui.Separator();
                             if (ImGui.MenuItem("Delete"))
                             {
                                 _objectToDelete = gameObject;

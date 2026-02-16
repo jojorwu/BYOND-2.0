@@ -20,7 +20,8 @@ namespace tests
         public void SetUp()
         {
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
+            var jobSystem = new Shared.Services.JobSystem();
+            _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
         }
 
         [TearDown]

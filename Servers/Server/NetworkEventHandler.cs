@@ -38,18 +38,19 @@ namespace Server
             };
 
             var json = JsonSerializer.Serialize(serverInfo);
-            peer.Send(json);
+            _ = peer.SendAsync(json);
         }
 
         private void OnPeerDisconnected(INetworkPeer peer, DisconnectInfo disconnectInfo)
         {
             _context.PlayerManager.RemovePlayer(peer);
+            _context.InterestManager.ClearPlayerInterest(peer);
         }
 
         private void OnCommandReceived(INetworkPeer peer, string command)
         {
             _scriptHost.EnqueueCommand(command, (result) => {
-                peer.Send(result);
+                _ = peer.SendAsync(result);
             });
         }
 

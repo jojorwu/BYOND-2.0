@@ -39,114 +39,144 @@ namespace Shared
 
         public void Populate(ReadOnlySpan<DreamValue> initialValues)
         {
-            _values.Clear();
-            _valueCounts?.Clear();
-            _associativeValues?.Clear();
-
-            if (initialValues.Length > MaxListSize)
-                throw new System.InvalidOperationException("Maximum list size exceeded");
-
-            if (initialValues.Length >= DictionaryThreshold)
+            lock (_lock)
             {
-                _valueCounts ??= new Dictionary<DreamValue, int>(initialValues.Length);
-            }
+                _values.Clear();
+                _valueCounts?.Clear();
+                _associativeValues?.Clear();
 
-            foreach (var val in initialValues)
-            {
-                _values.Add(val);
-                AddCount(val);
+                if (initialValues.Length > MaxListSize)
+                    throw new System.InvalidOperationException("Maximum list size exceeded");
+
+                if (initialValues.Length >= DictionaryThreshold)
+                {
+                    _valueCounts ??= new Dictionary<DreamValue, int>(initialValues.Length);
+                }
+
+                foreach (var val in initialValues)
+                {
+                    _values.Add(val);
+                    AddCount(val);
+                }
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetValue(DreamValue key, DreamValue value)
         {
-            AssociativeValues[key] = value;
-            if (!Contains(key))
+            lock (_lock)
             {
-                if (_values.Count >= MaxListSize)
-                    throw new System.InvalidOperationException("Maximum list size exceeded");
+                AssociativeValues[key] = value;
+                if (!ContainsInternal(key))
+                {
+                    if (_values.Count >= MaxListSize)
+                        throw new System.InvalidOperationException("Maximum list size exceeded");
 
-                _values.Add(key);
-                AddCount(key);
+                    _values.Add(key);
+                    AddCount(key);
+                }
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddValue(DreamValue value)
         {
-            if (_values.Count >= MaxListSize)
-                throw new System.InvalidOperationException("Maximum list size exceeded");
+            lock (_lock)
+            {
+                if (_values.Count >= MaxListSize)
+                    throw new System.InvalidOperationException("Maximum list size exceeded");
 
-            _values.Add(value);
-            AddCount(value);
+                _values.Add(value);
+                AddCount(value);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void RemoveValue(DreamValue value)
         {
-            if (_values.Remove(value))
+            lock (_lock)
             {
-                if (RemoveCount(value))
+                if (_values.Remove(value))
                 {
-                    if (_associativeValues != null) _associativeValues.Remove(value);
+                    if (RemoveCount(value))
+                    {
+                        if (_associativeValues != null) _associativeValues.Remove(value);
+                    }
                 }
             }
         }
 
         public void RemoveAll(DreamValue value)
         {
-            bool removedAny = false;
-            for (int i = _values.Count - 1; i >= 0; i--)
+            lock (_lock)
             {
-                if (_values[i] == value)
+                bool removedAny = false;
+                for (int i = _values.Count - 1; i >= 0; i--)
                 {
-                    _values.RemoveAt(i);
-                    removedAny = true;
+                    if (_values[i] == value)
+                    {
+                        _values.RemoveAt(i);
+                        removedAny = true;
+                    }
                 }
-            }
 
-            if (removedAny)
-            {
-                if (_valueCounts != null) _valueCounts.Remove(value);
-                if (_associativeValues != null) _associativeValues.Remove(value);
+                if (removedAny)
+                {
+                    if (_valueCounts != null) _valueCounts.Remove(value);
+                    if (_associativeValues != null) _associativeValues.Remove(value);
+                }
             }
         }
 
         public DreamList Clone()
         {
-            var clone = new DreamList(ObjectType);
-            clone._values.AddRange(_values);
-            if (_valueCounts != null)
+            lock (_lock)
             {
-                clone._valueCounts = new Dictionary<DreamValue, int>(_valueCounts);
+                var clone = new DreamList(ObjectType);
+                clone._values.AddRange(_values);
+                if (_valueCounts != null)
+                {
+                    clone._valueCounts = new Dictionary<DreamValue, int>(_valueCounts);
+                }
+                if (_associativeValues != null)
+                {
+                    clone._associativeValues = new Dictionary<DreamValue, DreamValue>(_associativeValues);
+                }
+                return clone;
             }
-            if (_associativeValues != null)
-            {
-                clone._associativeValues = new Dictionary<DreamValue, DreamValue>(_associativeValues);
-            }
-            return clone;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetValue(int index, DreamValue value)
         {
-            if (index >= 0 && index < _values.Count)
+            lock (_lock)
             {
-                var old = _values[index];
-                if (old == value) return;
-
-                _values[index] = value;
-                if (RemoveCount(old))
+                if (index >= 0 && index < _values.Count)
                 {
-                    if (_associativeValues != null) _associativeValues.Remove(old);
+                    var old = _values[index];
+                    if (old == value) return;
+
+                    _values[index] = value;
+                    if (RemoveCount(old))
+                    {
+                        if (_associativeValues != null) _associativeValues.Remove(old);
+                    }
+                    AddCount(value);
                 }
-                AddCount(value);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(DreamValue value)
+        {
+            lock (_lock)
+            {
+                return ContainsInternal(value);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool ContainsInternal(DreamValue value)
         {
             if (_valueCounts != null)
                 return _valueCounts.ContainsKey(value);
@@ -163,11 +193,14 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetValue(DreamValue key)
         {
-            if (_associativeValues != null && _associativeValues.TryGetValue(key, out var value))
+            lock (_lock)
             {
-                return value;
+                if (_associativeValues != null && _associativeValues.TryGetValue(key, out var value))
+                {
+                    return value;
+                }
+                return DreamValue.Null;
             }
-            return DreamValue.Null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

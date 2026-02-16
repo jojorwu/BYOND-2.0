@@ -14,12 +14,37 @@ namespace Editor.UI
     {
         private readonly ProjectsPanel _projectsPanel;
         private readonly ServerBrowserPanel _serverBrowserPanel;
+        private readonly ViewportPanel _viewportPanel;
+        private readonly ToolbarPanel _toolbarPanel;
+        private readonly InspectorPanel _inspectorPanel;
+        private readonly ObjectBrowserPanel _objectBrowserPanel;
+        private readonly AssetBrowserPanel _assetBrowserPanel;
+        private readonly SceneHierarchyPanel _sceneHierarchyPanel;
+        private readonly EditorContext _editorContext;
         private readonly IUIService _uiService;
 
-        public MainPanel(ProjectsPanel projectsPanel, ServerBrowserPanel serverBrowserPanel, EditorLaunchOptions launchOptions, IUIService uiService)
+        public MainPanel(
+            ProjectsPanel projectsPanel,
+            ServerBrowserPanel serverBrowserPanel,
+            ViewportPanel viewportPanel,
+            ToolbarPanel toolbarPanel,
+            InspectorPanel inspectorPanel,
+            ObjectBrowserPanel objectBrowserPanel,
+            AssetBrowserPanel assetBrowserPanel,
+            SceneHierarchyPanel sceneHierarchyPanel,
+            EditorContext editorContext,
+            EditorLaunchOptions launchOptions,
+            IUIService uiService)
         {
             _projectsPanel = projectsPanel;
             _serverBrowserPanel = serverBrowserPanel;
+            _viewportPanel = viewportPanel;
+            _toolbarPanel = toolbarPanel;
+            _inspectorPanel = inspectorPanel;
+            _objectBrowserPanel = objectBrowserPanel;
+            _assetBrowserPanel = assetBrowserPanel;
+            _sceneHierarchyPanel = sceneHierarchyPanel;
+            _editorContext = editorContext;
             _uiService = uiService;
 
             if (!string.IsNullOrEmpty(launchOptions.InitialPanel))
@@ -53,6 +78,7 @@ namespace Editor.UI
             ImGui.DockSpace(dockspaceId, Vector2.Zero, ImGuiDockNodeFlags.None);
 
             DrawTabBar();
+            DrawStatusBar();
 
             switch (_uiService.GetActiveTab())
             {
@@ -63,7 +89,23 @@ namespace Editor.UI
                     _serverBrowserPanel.Draw();
                     break;
                 case EditorTab.Scene:
-                     // Draw scene related panels
+                    _toolbarPanel.Draw();
+                    _sceneHierarchyPanel.Draw();
+                    _inspectorPanel.Draw();
+                    _objectBrowserPanel.Draw();
+                    _assetBrowserPanel.Draw();
+
+                    var activeScene = _editorContext.GetActiveScene();
+                    if (activeScene != null)
+                    {
+                        _viewportPanel.Draw(activeScene);
+                    }
+                    else
+                    {
+                        ImGui.Begin("Viewport");
+                        ImGui.Text("No active scene.");
+                        ImGui.End();
+                    }
                     break;
             }
 
@@ -92,6 +134,28 @@ namespace Editor.UI
                 }
                 ImGui.EndMenuBar();
             }
+        }
+
+        private void DrawStatusBar()
+        {
+            var viewport = ImGui.GetMainViewport();
+            ImGui.SetNextWindowPos(new Vector2(viewport.Pos.X, viewport.Pos.Y + viewport.Size.Y - 25));
+            ImGui.SetNextWindowSize(new Vector2(viewport.Size.X, 25));
+            ImGuiWindowFlags flags = ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoInputs;
+
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0.1f, 0.1f, 0.1f, 1.0f));
+            if (ImGui.Begin("StatusBar", flags))
+            {
+                var scene = _editorContext.GetActiveScene();
+                string sceneInfo = scene != null ? $"Scene: {scene.FilePath}" : "No Scene Active";
+
+                ImGui.Text($"{sceneInfo}");
+                ImGui.SameLine(ImGui.GetWindowWidth() - 150);
+                ImGui.Text($"FPS: {ImGui.GetIO().Framerate:F1}");
+
+                ImGui.End();
+            }
+            ImGui.PopStyleColor();
         }
     }
 }

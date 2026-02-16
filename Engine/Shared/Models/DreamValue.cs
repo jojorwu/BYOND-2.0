@@ -535,6 +535,61 @@ namespace Shared
                     break;
             }
         }
+
+        public void WriteTo(System.IO.BinaryWriter writer)
+        {
+            writer.Write((byte)Type);
+            switch (Type)
+            {
+                case DreamValueType.Float:
+                    writer.Write(_floatValue);
+                    break;
+                case DreamValueType.String:
+                    writer.Write((string)_objectValue!);
+                    break;
+                case DreamValueType.Null:
+                    break;
+                case DreamValueType.DreamObject:
+                    if (_objectValue is GameObject g)
+                    {
+                        writer.Write(true);
+                        writer.Write(g.Id);
+                    }
+                    else
+                    {
+                        writer.Write(false);
+                        writer.Write(ToString());
+                    }
+                    break;
+                default:
+                    writer.Write(ToString());
+                    break;
+            }
+        }
+
+        public static DreamValue ReadFrom(System.IO.BinaryReader reader)
+        {
+            var type = (DreamValueType)reader.ReadByte();
+            switch (type)
+            {
+                case DreamValueType.Float:
+                    return new DreamValue(reader.ReadSingle());
+                case DreamValueType.String:
+                    return new DreamValue(reader.ReadString());
+                case DreamValueType.Null:
+                    return Null;
+                case DreamValueType.DreamObject:
+                    if (reader.ReadBoolean())
+                    {
+                        // We can't resolve GameObject here easily without a context,
+                        // so we might just store the ID for now or return a placeholder.
+                        return new DreamValue((float)reader.ReadInt32()); // Placeholder for ID
+                    }
+                    return new DreamValue(reader.ReadString());
+                default:
+                    return new DreamValue(reader.ReadString());
+            }
+        }
     }
 
     public class DreamValueConverter : JsonConverter<DreamValue>

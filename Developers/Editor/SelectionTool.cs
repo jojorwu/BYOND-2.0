@@ -2,6 +2,7 @@ using Shared;
 using Robust.Shared.Maths;
 using Editor;
 using System.Linq;
+using ImGuiNET;
 
 namespace Editor
 {
@@ -22,11 +23,20 @@ namespace Editor
             var turf = gameState.Map.GetTurf(tileX, tileY, context.CurrentZLevel);
             if (turf != null && turf.Contents.Any())
             {
-                selectionManager.Select(turf.Contents.First());
+                var obj = turf.Contents.First();
+                if (ImGui.GetIO().KeyCtrl)
+                {
+                    selectionManager.ToggleSelection(obj);
+                }
+                else
+                {
+                    selectionManager.Select(obj);
+                }
             }
             else
             {
-                selectionManager.Deselect();
+                if (!ImGui.GetIO().KeyCtrl)
+                    selectionManager.Deselect();
             }
         }
 

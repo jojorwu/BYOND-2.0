@@ -4,16 +4,28 @@ using System.Collections.Generic;
 using System.Threading;
 using Robust.Shared.Maths;
 using System.Collections.Concurrent;
+using System.Buffers;
+using Shared.Interfaces;
 
 namespace Shared
 {
-    public class SpatialGrid : IDisposable
+    public class SpatialGrid : IDisposable, IShrinkable
     {
         private class Cell
         {
             public readonly List<IGameObject> Objects = new();
             public readonly object Lock = new();
+
+            public void Clear()
+            {
+                lock (Lock)
+                {
+                    Objects.Clear();
+                }
+            }
         }
+
+        public void Shrink() => CleanupEmptyCells();
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
@@ -30,10 +42,25 @@ namespace Shared
             return ((long)(x / _cellSize) << 32) | (uint)(y / _cellSize);
         }
 
+        private Cell GetOrCreateCell(long key)
+        {
+            while (true)
+            {
+                var cell = _grid.GetOrAdd(key, _ => new Cell());
+                lock (cell.Lock)
+                {
+                    if (_grid.TryGetValue(key, out var current) && current == cell)
+                    {
+                        return cell;
+                    }
+                }
+            }
+        }
+
         public void Add(IGameObject obj)
         {
             var key = GetCellKey(obj.X, obj.Y);
-            var cell = _grid.GetOrAdd(key, _ => new Cell());
+            var cell = GetOrCreateCell(key);
             lock (cell.Lock)
             {
                 cell.Objects.Add(obj);
@@ -85,7 +112,7 @@ namespace Shared
 
                 // Add to new
                 long newKey = ((long)newGX << 32) | (uint)newGY;
-                var newCell = _grid.GetOrAdd(newKey, _ => new Cell());
+                var newCell = GetOrCreateCell(newKey);
                 lock (newCell.Lock)
                 {
                     newCell.Objects.Add(obj);
@@ -98,6 +125,27 @@ namespace Shared
             var results = new List<IGameObject>();
             GetObjectsInBox(box, results);
             return results;
+        }
+
+        public void CleanupEmptyCells()
+        {
+            foreach (var kvp in _grid)
+            {
+                var cell = kvp.Value;
+                if (cell.Objects.Count == 0)
+                {
+                    lock (cell.Lock)
+                    {
+                        if (cell.Objects.Count == 0)
+                        {
+                            if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
+                            {
+                                _grid.TryRemove(kvp.Key, out _);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)
@@ -125,9 +173,11 @@ namespace Shared
                     {
                         lock (cell.Lock)
                         {
-                            for (int i = 0; i < cell.Objects.Count; i++)
+                            var objects = cell.Objects;
+                            int count = objects.Count;
+                            for (int i = 0; i < count; i++)
                             {
-                                var obj = cell.Objects[i];
+                                var obj = objects[i];
                                 if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
                                 {
                                     results.Add(obj);
@@ -141,6 +191,13 @@ namespace Shared
 
         public void Dispose()
         {
+            _grid.Clear();
+            GC.SuppressFinalize(this);
+        }
+
+        ~SpatialGrid()
+        {
+            Dispose();
         }
     }
 }

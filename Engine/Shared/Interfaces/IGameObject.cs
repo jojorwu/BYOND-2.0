@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Shared.Interfaces;
 
 namespace Shared
 {
@@ -48,6 +49,18 @@ namespace Shared
         long Version { get; }
 
         /// <summary>
+        /// Committed coordinates for thread-safe reading.
+        /// </summary>
+        int CommittedX { get; }
+        int CommittedY { get; }
+        int CommittedZ { get; }
+
+        /// <summary>
+        /// Commits the current state to the read-only buffer.
+        /// </summary>
+        void CommitState();
+
+        /// <summary>
         /// Updates the object's 3D position in the world.
         /// </summary>
         void SetPosition(int x, int y, int z);
@@ -71,5 +84,20 @@ namespace Shared
         /// Sets a variable value by its flattened index.
         /// </summary>
         void SetVariable(int index, DreamValue value);
+
+        /// <summary>
+        /// Gets all components attached to this object.
+        /// </summary>
+        IEnumerable<IComponent> GetComponents();
+
+        /// <summary>
+        /// Gets a component of the specified type.
+        /// </summary>
+        T? GetComponent<T>() where T : class, IComponent;
+
+        /// <summary>
+        /// Sends a message to all components attached to this object.
+        /// </summary>
+        void SendMessage(IComponentMessage message);
     }
 }

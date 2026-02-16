@@ -12,6 +12,33 @@ namespace Shared.Services
             services.AddSingleton<IEngineManager, EngineManager>();
             services.AddSingleton<IEventBus, EventBus>();
             services.AddSingleton<IComputeService, ComputeService>();
+            services.AddSingleton<IJobSystem, JobSystem>();
+            services.AddSingleton<ITimerService, TimerService>();
+            services.AddSingleton<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()));
+            services.AddSingleton<IObjectPool<GameObject>>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
+            services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
+            services.AddSingleton<ISystemRegistry, SystemRegistry>();
+            services.AddSingleton<IPluginManager, PluginManager>();
+            services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
+            services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
+            services.AddSingleton<ProfilingService>();
+            services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
+            services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
+            services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
+            services.AddSingleton<BinarySnapshotService>();
+            services.AddSingleton<SpatialGrid>();
+            services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
+            services.AddSingleton<StringInterner>();
+            services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
+            services.AddSingleton<IArchetypeManager, ArchetypeManager>();
+            services.AddSingleton<ComponentManager>();
+            services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
+            services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
+            services.AddSingleton<IComponentQueryService, ComponentQueryService>();
+            services.AddSingleton<IObjectFactory, ObjectFactory>();
+            services.AddSingleton<IInterestManager, InterestManager>();
+            services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
+            services.AddSingleton<IArenaAllocator, ArenaProxy>();
             return services;
         }
     }

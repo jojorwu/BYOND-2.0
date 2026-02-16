@@ -4,6 +4,7 @@ using System;
 using System.Threading.Tasks;
 using NativeFileDialogNET;
 using Core.Maps;
+using Editor.History;
 
 namespace Editor.UI
 {
@@ -18,6 +19,7 @@ namespace Editor.UI
         private readonly IProjectManager _projectManager;
         private readonly IProjectService _projectService;
         private readonly SettingsPanel _settingsPanel;
+        private readonly HistoryManager _historyManager;
 
         public bool IsExitRequested { get; private set; }
 
@@ -30,7 +32,8 @@ namespace Editor.UI
             LocalizationManager localizationManager,
             IProjectManager projectManager,
             IProjectService projectService,
-            SettingsPanel settingsPanel)
+            SettingsPanel settingsPanel,
+            HistoryManager historyManager)
         {
             _gameApi = gameApi;
             _editorContext = editorContext;
@@ -41,6 +44,7 @@ namespace Editor.UI
             _projectManager = projectManager;
             _projectService = projectService;
             _settingsPanel = settingsPanel;
+            _historyManager = historyManager;
         }
 
         public async Task SaveScene(Scene scene, bool saveAs)
@@ -130,8 +134,14 @@ namespace Editor.UI
 
                 if (ImGui.BeginMenu(_localizationManager.GetString("Edit")))
                 {
-                    if (ImGui.MenuItem(_localizationManager.GetString("Undo"))) { }
-                    if (ImGui.MenuItem(_localizationManager.GetString("Redo"))) { }
+                    if (ImGui.MenuItem(_localizationManager.GetString("Undo"), "Ctrl+Z", false, _historyManager.CanUndo))
+                    {
+                        _historyManager.Undo();
+                    }
+                    if (ImGui.MenuItem(_localizationManager.GetString("Redo"), "Ctrl+Y", false, _historyManager.CanRedo))
+                    {
+                        _historyManager.Redo();
+                    }
                     ImGui.Separator();
                     if (ImGui.MenuItem(_localizationManager.GetString("Project Settings")))
                     {

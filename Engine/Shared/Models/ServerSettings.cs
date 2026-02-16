@@ -30,6 +30,7 @@ namespace Shared
         public int UdpPort { get; set; } = 9050;
         public string ConnectionKey { get; set; } = "BYOND2.0";
         public int DisconnectTimeout { get; set; } = 10000;
+        public bool EnableBinarySnapshots { get; set; } = true;
     }
 
     public enum NetworkMode

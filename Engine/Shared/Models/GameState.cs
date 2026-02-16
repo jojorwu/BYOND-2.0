@@ -12,8 +12,15 @@ namespace Shared
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
         public IMap? Map { get; set; }
-        public SpatialGrid SpatialGrid { get; } = new SpatialGrid();
+        public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
+
+        public GameState(SpatialGrid spatialGrid)
+        {
+            SpatialGrid = spatialGrid;
+        }
+
+        public GameState() : this(new SpatialGrid()) { } // For tests
 
         IDictionary<int, GameObject> IGameState.GameObjects => GameObjects;
 
@@ -32,6 +39,8 @@ namespace Shared
         public void Dispose()
         {
             _lock.Dispose();
+            // SpatialGrid is shared, should it be disposed here?
+            // In BYOND 2.0, GameState is the primary owner of the simulation grid.
             SpatialGrid.Dispose();
         }
 

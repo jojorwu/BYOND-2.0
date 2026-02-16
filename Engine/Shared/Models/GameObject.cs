@@ -3,6 +3,7 @@ using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
+using Shared.Interfaces;
 
 namespace Shared
 {
@@ -10,9 +11,12 @@ namespace Shared
     /// Represents an object in the game world.
     /// </summary>
     [JsonConverter(typeof(GameObjectConverter))]
-    public class GameObject : DreamObject, IGameObject
+    public class GameObject : DreamObject, IGameObject, IPoolable
     {
         private static int nextId = 1;
+        private IComponentManager? _componentManager;
+
+        public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
         /// <summary>
         /// Gets the unique identifier for the game object.
@@ -20,22 +24,50 @@ namespace Shared
         public int Id { get; set; }
 
         private int _x;
+        private int _committedX;
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
         public int X { get => _x; set { if (_x != value) { _x = value; SyncVariable("x", value); Version++; } } }
 
+        /// <summary>
+        /// Gets the committed X-coordinate, used for consistent reads across threads.
+        /// </summary>
+        public int CommittedX => _committedX;
+
         private int _y;
+        private int _committedY;
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
         public int Y { get => _y; set { if (_y != value) { _y = value; SyncVariable("y", value); Version++; } } }
 
+        /// <summary>
+        /// Gets the committed Y-coordinate, used for consistent reads across threads.
+        /// </summary>
+        public int CommittedY => _committedY;
+
         private int _z;
+        private int _committedZ;
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
         public int Z { get => _z; set { if (_z != value) { _z = value; SyncVariable("z", value); Version++; } } }
+
+        /// <summary>
+        /// Gets the committed Z-coordinate, used for consistent reads across threads.
+        /// </summary>
+        public int CommittedZ => _committedZ;
+
+        /// <summary>
+        /// Commits the current state to the read-only buffer.
+        /// </summary>
+        public void CommitState()
+        {
+            _committedX = _x;
+            _committedY = _y;
+            _committedZ = _z;
+        }
 
         private IGameObject? _loc;
         /// <summary>
@@ -249,6 +281,15 @@ namespace Shared
             Id = Interlocked.Increment(ref nextId);
         }
 
+        public void Initialize(ObjectType objectType, int x, int y, int z)
+        {
+            base.Initialize(objectType);
+            _x = x;
+            _y = y;
+            _z = z;
+            Id = Interlocked.Increment(ref nextId);
+        }
+
         /// <summary>
         /// Parameterless constructor for deserialization.
         /// </summary>
@@ -287,6 +328,80 @@ namespace Shared
         public override string ToString()
         {
             return ObjectType?.Name ?? "object";
+        }
+
+        public void AddComponent(IComponent component)
+        {
+            if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
+
+            // We need a generic way to call AddComponent<T>
+            var method = _componentManager.GetType().GetMethod("AddComponent")?.MakeGenericMethod(component.GetType());
+            method?.Invoke(_componentManager, new object[] { this, component });
+            Version++;
+        }
+
+        public void AddComponent<T>(T component) where T : class, IComponent
+        {
+            _componentManager?.AddComponent(this, component);
+            Version++;
+        }
+
+        public void RemoveComponent<T>() where T : class, IComponent
+        {
+            _componentManager?.RemoveComponent<T>(this);
+            Version++;
+        }
+
+        public T? GetComponent<T>() where T : class, IComponent
+        {
+            return _componentManager?.GetComponent<T>(this);
+        }
+
+        public IEnumerable<IComponent> GetComponents()
+        {
+            return _componentManager?.GetAllComponents(this) ?? Enumerable.Empty<IComponent>();
+        }
+
+        public void SendMessage(IComponentMessage message)
+        {
+            if (_componentManager == null) return;
+            foreach (var component in _componentManager.GetAllComponents(this))
+            {
+                if (component.Enabled)
+                {
+                    component.OnMessage(message);
+                }
+            }
+        }
+
+        public virtual void Reset()
+        {
+            _x = 0;
+            _y = 0;
+            _z = 0;
+            _committedX = 0;
+            _committedY = 0;
+            _committedZ = 0;
+            _loc = null;
+            Version = 0;
+
+            if (_componentManager != null)
+            {
+                foreach (var component in _componentManager.GetAllComponents(this).ToList())
+                {
+                    // Generic removal is tricky here, but we can use reflection or a specialized method in ComponentManager
+                    var method = _componentManager.GetType().GetMethod("RemoveComponent")?.MakeGenericMethod(component.GetType());
+                    method?.Invoke(_componentManager, new object[] { this });
+                }
+            }
+
+            lock (_contentsLock)
+            {
+                _contents.Clear();
+            }
+
+            // We don't reset Id as it should be unique for the lifetime of its registration
+            // but we could if we manage IDs in the pool.
         }
     }
 

@@ -1,12 +1,15 @@
 using System.Collections.Generic;
+using System.Threading;
 using Shared;
+
+using System;
 
 namespace Core.VM.Runtime
 {
-    public class DreamVMContext
+    public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 1000000;
-        private readonly object _globalLock = new();
+        private readonly ReaderWriterLockSlim _globalLock = new();
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
@@ -22,25 +25,36 @@ namespace Core.VM.Runtime
         public DreamValue GetGlobal(int index)
         {
             if (index < 0) return DreamValue.Null;
-            lock (_globalLock)
+            _globalLock.EnterReadLock();
+            try
             {
                 return (index < Globals.Count) ? Globals[index] : DreamValue.Null;
+            }
+            finally
+            {
+                _globalLock.ExitReadLock();
             }
         }
 
         public void SetGlobal(int index, DreamValue value)
         {
             if (index < 0 || index >= MaxGlobals) return;
-            lock (_globalLock)
+            _globalLock.EnterWriteLock();
+            try
             {
                 while (Globals.Count <= index) Globals.Add(DreamValue.Null);
                 Globals[index] = value;
+            }
+            finally
+            {
+                _globalLock.ExitWriteLock();
             }
         }
 
         public void Reset()
         {
-            lock (_globalLock)
+            _globalLock.EnterWriteLock();
+            try
             {
                 Strings.Clear();
                 Procs.Clear();
@@ -49,6 +63,21 @@ namespace Core.VM.Runtime
                 GlobalNames.Clear();
                 ListType = null;
             }
+            finally
+            {
+                _globalLock.ExitWriteLock();
+            }
+        }
+
+        public void Dispose()
+        {
+            _globalLock.Dispose();
+            GC.SuppressFinalize(this);
+        }
+
+        ~DreamVMContext()
+        {
+            _globalLock?.Dispose();
         }
     }
 }

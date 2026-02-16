@@ -1,6 +1,7 @@
 using Shared;
 using Robust.Shared.Maths;
 using System.Collections.Generic;
+using Editor.History;
 
 namespace Editor
 {
@@ -9,10 +10,10 @@ namespace Editor
         public List<ITool> Tools { get; } = new();
         private ITool? _activeTool;
 
-        public ToolManager()
+        public ToolManager(HistoryManager historyManager)
         {
             Tools.Add(new SelectionTool());
-            Tools.Add(new PaintTool());
+            Tools.Add(new PaintTool(historyManager));
         }
 
         public void SetActiveTool(ITool? tool, EditorContext context)

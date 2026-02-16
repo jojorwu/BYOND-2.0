@@ -45,10 +45,12 @@ namespace Core.Tests
             _project = new Project(projectPath);
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            _mapLoader = new MapLoader(_objectTypeManager, NullLogger<MapLoader>.Instance);
+            var jobSystem = new Shared.Services.JobSystem();
+            _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi);
+            var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool);
             var scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
@@ -73,6 +75,7 @@ namespace Core.Tests
         [TearDown]
         public void TearDown()
         {
+            _dreamVM.Dispose();
             _gameState.Dispose();
             if (Directory.Exists(_project.RootPath))
             {

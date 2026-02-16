@@ -15,6 +15,6 @@ namespace Shared
         /// <param name="processGlobals">Whether to process global (non-associated) threads.</param>
         /// <param name="objectIds">Optional set of object IDs for faster filtering.</param>
         /// <returns>A collection of threads that are still active (running or sleeping).</returns>
-        IEnumerable<IScriptThread> ExecuteThreads(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
+        System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
     }
 }

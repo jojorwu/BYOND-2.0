@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Shared;
 using Shared.Interfaces;
+using Shared.Services;
 using System;
 
 namespace Server
@@ -45,12 +46,15 @@ namespace Server
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
+            services.AddSingleton<ISystemManager, SystemManager>();
+
             return services;
         }
 
         private static IServiceCollection AddServerNetworkingServices(this IServiceCollection services)
         {
             services.AddSingleton<NetDataWriterPool>();
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<NetDataWriterPool>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetDataWriterPool>());
 
             services.AddSingleton<NetworkService>();
@@ -80,6 +84,7 @@ namespace Server
             ));
 
             services.AddSingleton<RegionalGameLoopStrategy>();
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<RegionalGameLoopStrategy>());
 
             services.AddSingleton<IGameLoopStrategy>(provider =>
             {

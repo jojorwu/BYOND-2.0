@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,7 +30,7 @@ namespace Core.VM.Runtime
     {
         public const int MaxCallStackDepth = 512;
         public const int MaxStackSize = 65536;
-        internal DreamValue[] _stack = new DreamValue[1024];
+        internal DreamValue[] _stack;
         internal int _stackPtr = 0;
         internal CallFrame[] _callStack = new CallFrame[64];
         internal int _callStackPtr = 0;
@@ -47,6 +48,10 @@ namespace Core.VM.Runtime
         public IGameObject? AssociatedObject { get; }
         public DreamObject? Usr { get; set; }
 
+        public ScriptThreadPriority Priority { get; set; } = ScriptThreadPriority.Normal;
+        public TimeSpan ExecutionTime { get; set; } = TimeSpan.Zero;
+        public int WaitTicks { get; set; } = 0;
+
         public DreamVMContext Context { get; }
         internal readonly int _maxInstructions;
         internal int _totalInstructionsExecuted;
@@ -58,6 +63,7 @@ namespace Core.VM.Runtime
             _maxInstructions = maxInstructions;
             _interpreter = interpreter ?? new BytecodeInterpreter();
             AssociatedObject = associatedObject;
+            _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
 
             PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
         }
@@ -68,6 +74,11 @@ namespace Core.VM.Runtime
             _maxInstructions = other._maxInstructions;
             _interpreter = other._interpreter;
             AssociatedObject = other.AssociatedObject;
+
+            // Rent and copy stack
+            _stack = ArrayPool<DreamValue>.Shared.Rent(other._stack.Length);
+            Array.Copy(other._stack, _stack, other._stackPtr);
+            _stackPtr = other._stackPtr;
 
             var currentFrame = other._callStack[other._callStackPtr - 1];
             PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
@@ -83,13 +94,24 @@ namespace Core.VM.Runtime
             SleepUntil = DateTime.Now.AddSeconds(seconds);
         }
 
+        public void WakeUp()
+        {
+            if (State == DreamThreadState.Sleeping)
+            {
+                State = DreamThreadState.Running;
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Push(DreamValue value)
         {
             if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
             if (_stackPtr >= _stack.Length)
             {
-                Array.Resize(ref _stack, _stack.Length * 2);
+                var newStack = ArrayPool<DreamValue>.Shared.Rent(_stack.Length * 2);
+                Array.Copy(_stack, newStack, _stack.Length);
+                ArrayPool<DreamValue>.Shared.Return(_stack, true);
+                _stack = newStack;
             }
             _stack[_stackPtr++] = value;
         }
@@ -169,7 +191,9 @@ namespace Core.VM.Runtime
         public CallFrame PopCallFrame()
         {
             if (_callStackPtr <= 0) throw new Exception("Call stack underflow");
-            return _callStack[--_callStackPtr];
+            var frame = _callStack[--_callStackPtr];
+            _callStack[_callStackPtr] = default; // Clear reference
+            return frame;
         }
 
         internal bool HandleException(ScriptRuntimeException e)
@@ -179,6 +203,7 @@ namespace Core.VM.Runtime
                 var tryBlock = TryStack.Pop();
 
                 // Unwind CallStack
+                Array.Clear(_callStack, tryBlock.CallStackDepth, _callStackPtr - tryBlock.CallStackDepth);
                 _callStackPtr = tryBlock.CallStackDepth;
 
                 // Restore stack pointer
@@ -398,7 +423,24 @@ namespace Core.VM.Runtime
             }
             ActiveEnumerators.Clear();
             EnumeratorLists.Clear();
+            Usr = null;
+
+            // Clear call stack references
+            Array.Clear(_callStack, 0, _callStackPtr);
+            _callStackPtr = 0;
+
+            if (_stack != null)
+            {
+                ArrayPool<DreamValue>.Shared.Return(_stack, true);
+                _stack = null!;
+            }
+
             GC.SuppressFinalize(this);
+        }
+
+        ~DreamThread()
+        {
+            Dispose();
         }
     }
 }

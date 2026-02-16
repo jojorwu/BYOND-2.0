@@ -6,10 +6,11 @@ using Core.Regions;
 using Robust.Shared.Maths;
 using Shared;
 using Microsoft.Extensions.Options;
+using Shared.Interfaces;
 
 namespace Server
 {
-    public class RegionalGameLoopStrategy : IGameLoopStrategy
+    public class RegionalGameLoopStrategy : IGameLoopStrategy, IShrinkable
     {
         private readonly IScriptHost _scriptHost;
         private readonly IRegionManager _regionManager;
@@ -55,10 +56,31 @@ namespace Server
                 }
             }
 
-            var remainingGlobals = _scriptHost.ExecuteThreads(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
+            var remainingGlobals = await _scriptHost.ExecuteThreadsAsync(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
 
             var activeRegions = _regionActivationStrategy.GetActiveRegions();
             var mergedRegions = MergeRegions(activeRegions);
+
+            // Batch regions by workload to reduce scheduling overhead
+            var batchedRegions = new List<List<(MergedRegion Region, List<IGameObject> Objects)>>();
+            var currentBatch = new List<(MergedRegion Region, List<IGameObject> Objects)>();
+            int currentBatchObjects = 0;
+            const int TargetObjectsPerBatch = 500;
+
+            foreach (var region in mergedRegions)
+            {
+                var objs = new List<IGameObject>();
+                region.GetGameObjects(objs);
+                if (currentBatchObjects + objs.Count > TargetObjectsPerBatch && currentBatch.Count > 0)
+                {
+                    batchedRegions.Add(currentBatch);
+                    currentBatch = new List<(MergedRegion Region, List<IGameObject> Objects)>();
+                    currentBatchObjects = 0;
+                }
+                currentBatch.Add((region, objs));
+                currentBatchObjects += objs.Count;
+            }
+            if (currentBatch.Count > 0) batchedRegions.Add(currentBatch);
 
             var nextThreadsCollection = new System.Collections.Concurrent.ConcurrentBag<IEnumerable<IScriptThread>>();
             nextThreadsCollection.Add(remainingGlobals);
@@ -71,49 +93,72 @@ namespace Server
                 CancellationToken = cancellationToken
             };
 
-            await Parallel.ForEachAsync(mergedRegions, options, async (mergedRegion, token) =>
+            await Parallel.ForEachAsync(batchedRegions, options, async (batch, token) =>
             {
-                var gameObjects = new List<IGameObject>();
-                mergedRegion.GetGameObjects(gameObjects);
-                var objectIds = new HashSet<int>(gameObjects.Count);
-                var threadsForRegion = new List<IScriptThread>();
-
-                foreach (var obj in gameObjects)
+                foreach (var (mergedRegion, gameObjects) in batch)
                 {
-                    objectIds.Add(obj.Id);
-                    if (objectThreads.TryGetValue(obj.Id, out var threads))
+                    var objectIds = new HashSet<int>(gameObjects.Count);
+                    var threadsForRegion = new List<IScriptThread>();
+
+                    foreach (var obj in gameObjects)
                     {
-                        threadsForRegion.AddRange(threads);
+                        objectIds.Add(obj.Id);
+                        if (objectThreads.TryGetValue(obj.Id, out var threads))
+                        {
+                            threadsForRegion.AddRange(threads);
+                        }
+                    }
+
+                    // Execute threads for this region
+                    var remainingRegionThreads = await _scriptHost.ExecuteThreadsAsync(threadsForRegion, gameObjects, objectIds: objectIds);
+                    nextThreadsCollection.Add(remainingRegionThreads);
+
+                    // Calculate aggregate version for cache check
+                    long aggregateVersion = 0;
+                    foreach (var obj in gameObjects) aggregateVersion += obj.Version;
+                    foreach (var r in mergedRegion.Regions)
+                    {
+                        foreach (var chunk in r.GetChunks())
+                        {
+                            aggregateVersion += chunk.Version;
+                        }
+                    }
+
+                    // Use merged region's first region as a cache key for simplicity (or hash of all region coords)
+                    long cacheKey = ((long)mergedRegion.Regions[0].Coords.X << 32) | (uint)mergedRegion.Regions[0].Coords.Y;
+
+                    if (_settings.Network.EnableBinarySnapshots)
+                    {
+                        await Task.Run(() => _udpServer.SendRegionSnapshot(mergedRegion, gameObjects), token);
+                    }
+                    else
+                    {
+                        string snapshot;
+                        if (_snapshotCache.TryGetValue(cacheKey, out var cached) && cached.AggregateVersion == aggregateVersion)
+                        {
+                            snapshot = cached.Snapshot;
+                        }
+                        else
+                        {
+                            snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
+                            _snapshotCache[cacheKey] = (aggregateVersion, snapshot);
+                        }
+
+                        await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
                     }
                 }
-
-                // Execute threads for this region
-                var remainingRegionThreads = _scriptHost.ExecuteThreads(threadsForRegion, gameObjects, objectIds: objectIds);
-                nextThreadsCollection.Add(remainingRegionThreads);
-
-                // Calculate aggregate version for cache check
-                long aggregateVersion = 0;
-                foreach (var obj in gameObjects) aggregateVersion += obj.Version;
-
-                // Use merged region's first region as a cache key for simplicity (or hash of all region coords)
-                long cacheKey = ((long)mergedRegion.Regions[0].Coords.X << 32) | (uint)mergedRegion.Regions[0].Coords.Y;
-
-                string snapshot;
-                if (_snapshotCache.TryGetValue(cacheKey, out var cached) && cached.AggregateVersion == aggregateVersion)
-                {
-                    snapshot = cached.Snapshot;
-                }
-                else
-                {
-                    snapshot = _gameStateSnapshotter.GetSnapshot(_gameState, mergedRegion);
-                    _snapshotCache[cacheKey] = (aggregateVersion, snapshot);
-                }
-
-                await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
             });
 
             var finalThreads = nextThreadsCollection.SelectMany(t => t);
             _scriptHost.UpdateThreads(finalThreads);
+        }
+
+        public void Shrink()
+        {
+            if (_snapshotCache.Count > 1000)
+            {
+                _snapshotCache.Clear();
+            }
         }
 
         internal List<MergedRegion> MergeRegions(HashSet<Region> activeRegions)

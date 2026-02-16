@@ -7,6 +7,7 @@ namespace Editor.UI
     {
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly EditorContext _editorContext;
+        private string _searchString = "";
 
         public ObjectBrowserPanel(IObjectTypeManager objectTypeManager, EditorContext editorContext)
         {
@@ -17,8 +18,14 @@ namespace Editor.UI
         public void Draw()
         {
             ImGui.Begin("Object Types");
+            ImGui.InputText("Search", ref _searchString, 256);
+            ImGui.Separator();
+
             foreach (var objectType in _objectTypeManager.GetAllObjectTypes())
             {
+                if (!string.IsNullOrEmpty(_searchString) && !objectType.Name.Contains(_searchString, System.StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 if (ImGui.Selectable(objectType.Name, _editorContext.SelectedObjectType == objectType))
                 {
                     _editorContext.SelectedObjectType = objectType;

@@ -79,11 +79,6 @@ namespace Core.VM.Runtime
 
         public DreamThreadState Run(DreamThread thread, int instructionBudget)
         {
-            if (thread.State == DreamThreadState.Sleeping && DateTime.Now >= thread.SleepUntil)
-            {
-                thread.State = DreamThreadState.Running;
-            }
-
             if (thread.State != DreamThreadState.Running)
                 return thread.State;
 
@@ -337,6 +332,12 @@ namespace Core.VM.Runtime
             table[(byte)Opcode.IndexRefWithString] = &HandleIndexRefWithString;
             table[(byte)Opcode.ReturnReferenceValue] = &HandleReturnReferenceValue;
             table[(byte)Opcode.PushFloatAssign] = &HandlePushFloatAssign;
+            table[(byte)Opcode.PushLocal] = &HandlePushLocal;
+            table[(byte)Opcode.AssignLocal] = &HandleAssignLocal;
+            table[(byte)Opcode.PushArgument] = &HandlePushArgument;
+            table[(byte)Opcode.LocalPushLocalPushAdd] = &HandleLocalPushLocalPushAdd;
+            table[(byte)Opcode.LocalAddFloat] = &HandleLocalAddFloat;
+            table[(byte)Opcode.LocalMulAdd] = &HandleLocalMulAdd;
 
             return table;
         }
@@ -1615,6 +1616,74 @@ namespace Core.VM.Runtime
             state.Thread.Push(dv);
             state.Stack = state.Thread._stack;
             state.StackPtr = state.Thread._stackPtr;
+        }
+
+        private static void HandlePushLocal(ref InterpreterState state)
+        {
+            int idx = state.ReadByte();
+            if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+            state.Push(state.Stack[state.LocalBase + idx]);
+        }
+
+        private static void HandleAssignLocal(ref InterpreterState state)
+        {
+            int idx = state.ReadByte();
+            if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+            state.Stack[state.LocalBase + idx] = state.Stack[state.StackPtr - 1];
+        }
+
+        private static void HandlePushArgument(ref InterpreterState state)
+        {
+            int idx = state.ReadByte();
+            if (idx < 0 || idx >= state.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC, state.Thread);
+            state.Push(state.Stack[state.ArgumentBase + idx]);
+        }
+
+        private static void HandleLocalPushLocalPushAdd(ref InterpreterState state)
+        {
+            int idx1 = state.ReadByte();
+            int idx2 = state.ReadByte();
+            if (idx1 < 0 || idx1 >= state.Proc.LocalVariableCount || idx2 < 0 || idx2 >= state.Proc.LocalVariableCount)
+                throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+
+            var a = state.Stack[state.LocalBase + idx1];
+            var b = state.Stack[state.LocalBase + idx2];
+
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
+                state.Push(new DreamValue(a.RawFloat + b.RawFloat));
+            else
+                state.Push(a + b);
+        }
+
+        private static void HandleLocalAddFloat(ref InterpreterState state)
+        {
+            int idx = state.ReadByte();
+            float val = state.ReadSingle();
+            if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+
+            var a = state.Stack[state.LocalBase + idx];
+            if (a.Type == DreamValueType.Float)
+                state.Push(new DreamValue(a.RawFloat + val));
+            else
+                state.Push(a + val);
+        }
+
+        private static void HandleLocalMulAdd(ref InterpreterState state)
+        {
+            int idx1 = state.ReadByte();
+            int idx2 = state.ReadByte();
+            int idx3 = state.ReadByte();
+            if (idx1 < 0 || idx1 >= state.Proc.LocalVariableCount || idx2 < 0 || idx2 >= state.Proc.LocalVariableCount || idx3 < 0 || idx3 >= state.Proc.LocalVariableCount)
+                throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+
+            var a = state.Stack[state.LocalBase + idx1];
+            var b = state.Stack[state.LocalBase + idx2];
+            var c = state.Stack[state.LocalBase + idx3];
+
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float && c.Type == DreamValueType.Float)
+                state.Push(new DreamValue(a.RawFloat * b.RawFloat + c.RawFloat));
+            else
+                state.Push(a * b + c);
         }
     }
 }

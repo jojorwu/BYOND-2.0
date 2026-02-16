@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Core.VM.Runtime
 {
-    public class DreamVM : IDreamVM
+    public class DreamVM : IDreamVM, IDisposable
     {
         public DreamVMContext Context { get; } = new();
         public List<string> Strings => Context.Strings;
@@ -76,6 +76,11 @@ namespace Core.VM.Runtime
 
             _logger.LogWarning("Could not find proc '{ProcName}' to create a thread.", procName);
             return null;
+        }
+
+        public void Dispose()
+        {
+            Context.Dispose();
         }
     }
 }

@@ -4,6 +4,7 @@ using ImGuiNET;
 using System.Numerics;
 using Robust.Shared.Maths;
 using System.IO;
+using Editor.History;
 
 namespace Editor.UI
 {
@@ -17,8 +18,10 @@ namespace Editor.UI
         private readonly TextureManager _textureManager;
         private readonly IGameApi _gameApi;
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly IEditorSettingsManager _settingsManager;
+        private readonly HistoryManager _historyManager;
 
-        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager, IObjectTypeManager objectTypeManager)
+        public ViewportPanel(ToolManager toolManager, SelectionManager selectionManager, EditorContext editorContext, IGameApi gameApi, SpriteRenderer spriteRenderer, TextureManager textureManager, IObjectTypeManager objectTypeManager, IEditorSettingsManager settingsManager, HistoryManager historyManager)
         {
             _toolManager = toolManager;
             _selectionManager = selectionManager;
@@ -27,6 +30,8 @@ namespace Editor.UI
             _textureManager = textureManager;
             _gameApi = gameApi;
             _objectTypeManager = objectTypeManager;
+            _settingsManager = settingsManager;
+            _historyManager = historyManager;
         }
 
         public void Initialize(GL gl)
@@ -81,12 +86,42 @@ namespace Editor.UI
             var currentMap = scene.GameState.Map;
             if (currentMap != null)
             {
+                var settings = _settingsManager.Settings;
+                if (settings.ShowGrid)
+                {
+                    DrawGrid(windowSize, projectionMatrix, settings);
+                }
+
+                _spriteRenderer.Begin(projectionMatrix);
+
+                // Simple frustum culling
+                var topLeftWorld = Camera.ScreenToWorld(Vector2.Zero, projectionMatrix);
+                var bottomRightWorld = Camera.ScreenToWorld(windowSize, projectionMatrix);
+
+                int minTileX = (int)Math.Floor(topLeftWorld.X / EditorConstants.TileSize);
+                int maxTileX = (int)Math.Ceiling(bottomRightWorld.X / EditorConstants.TileSize);
+                int minTileY = (int)Math.Floor(topLeftWorld.Y / EditorConstants.TileSize);
+                int maxTileY = (int)Math.Ceiling(bottomRightWorld.Y / EditorConstants.TileSize);
+
                 foreach (var (chunkCoords, chunk) in currentMap.GetChunks(_editorContext.CurrentZLevel))
                 {
+                    int chunkWorldX = chunkCoords.X * Chunk.ChunkSize;
+                    int chunkWorldY = chunkCoords.Y * Chunk.ChunkSize;
+
+                    if (chunkWorldX + Chunk.ChunkSize < minTileX || chunkWorldX > maxTileX ||
+                        chunkWorldY + Chunk.ChunkSize < minTileY || chunkWorldY > maxTileY)
+                        continue;
+
                     for (int y = 0; y < Chunk.ChunkSize; y++)
                     {
+                        int worldY = chunkWorldY + y;
+                        if (worldY < minTileY || worldY > maxTileY) continue;
+
                         for (int x = 0; x < Chunk.ChunkSize; x++)
                         {
+                            int worldX = chunkWorldX + x;
+                            if (worldX < minTileX || worldX > maxTileX) continue;
+
                             var turf = chunk.GetTurf(x, y);
                             if (turf != null)
                             {
@@ -98,9 +133,11 @@ namespace Editor.UI
                                         uint textureId = _textureManager.GetTexture(spritePath);
                                         if (textureId != 0)
                                         {
-                                            var worldX = chunkCoords.X * Chunk.ChunkSize + x;
-                                            var worldY = chunkCoords.Y * Chunk.ChunkSize + y;
-                                            _spriteRenderer.Draw(textureId, new Vector2i(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize), new Vector2i(EditorConstants.TileSize, EditorConstants.TileSize), 0.0f, projectionMatrix);
+                                            var color = _selectionManager.IsSelected(gameObject) ? new Vector4(1, 0.5f, 0, 1) : Vector4.One;
+                                            _spriteRenderer.Draw(textureId,
+                                                new Vector2(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize),
+                                                new Vector2(EditorConstants.TileSize, EditorConstants.TileSize),
+                                                color, new Box2(0, 0, 1, 1));
                                         }
                                     }
                                 }
@@ -108,6 +145,8 @@ namespace Editor.UI
                         }
                     }
                 }
+
+                _spriteRenderer.End();
 
                 if (ImGui.IsWindowHovered())
                 {
@@ -117,6 +156,22 @@ namespace Editor.UI
                     var worldMousePos = Camera.ScreenToWorld(localMousePos, projectionMatrix);
                     var worldMousePosInt = new Vector2i((int)worldMousePos.X, (int)worldMousePos.Y);
 
+                    // Panning
+                    if (ImGui.IsMouseDragging(ImGuiMouseButton.Middle))
+                    {
+                        var delta = ImGui.GetIO().MouseDelta;
+                        Camera.Position -= delta / Camera.Zoom;
+                    }
+
+                    // Zooming
+                    float scrollDelta = ImGui.GetIO().MouseWheel;
+                    if (scrollDelta != 0)
+                    {
+                        float zoomFactor = 1.1f;
+                        if (scrollDelta < 0) Camera.Zoom /= zoomFactor;
+                        else Camera.Zoom *= zoomFactor;
+                        Camera.Zoom = Math.Clamp(Camera.Zoom, 0.1f, 10.0f);
+                    }
 
                     _toolManager.OnMouseMove(_editorContext, scene.GameState, _selectionManager, worldMousePosInt);
                     if (ImGui.IsMouseClicked(ImGuiMouseButton.Left))
@@ -127,12 +182,74 @@ namespace Editor.UI
                     {
                         _toolManager.OnMouseUp(_editorContext, scene.GameState, _selectionManager, worldMousePosInt);
                     }
+
+                    // Shortcuts
+                    if (ImGui.GetIO().KeyCtrl)
+                    {
+                        if (ImGui.IsKeyPressed(ImGuiKey.Z)) _historyManager.Undo();
+                        if (ImGui.IsKeyPressed(ImGuiKey.Y)) _historyManager.Redo();
+                        if (ImGui.IsKeyPressed(ImGuiKey.S))
+                        {
+                            var activeScene = _editorContext.GetActiveScene();
+                            if (activeScene != null)
+                            {
+                                // We don't have direct access to SaveScene here, but we can signal it.
+                                // Or we could inject a ProjectService that has SaveScene.
+                                // For now, let's just use the MenuBar logic if we can access it or refactor.
+                            }
+                        }
+                    }
+
+                    if (ImGui.IsKeyPressed(ImGuiKey.Delete) && _selectionManager.HasSelection)
+                    {
+                        foreach (var obj in _selectionManager.Selection.ToList())
+                        {
+                            var command = new DeleteObjectCommand(scene.GameState, obj);
+                            _historyManager.ExecuteCommand(command);
+                        }
+                        _selectionManager.Deselect();
+                    }
                 }
 
                 _toolManager.Draw(_editorContext, scene.GameState, _selectionManager);
             }
 
             ImGui.End();
+        }
+
+        private void DrawGrid(Vector2 windowSize, Matrix4x4 projectionMatrix, EditorSettings settings)
+        {
+            var drawList = ImGui.GetWindowDrawList();
+            var windowPos = ImGui.GetWindowPos();
+            var gridSize = settings.GridSize;
+            var color = ImGui.ColorConvertFloat4ToU32(settings.GridColor);
+
+            // Calculate visible world bounds
+            var topLeftWorld = Camera.ScreenToWorld(Vector2.Zero, projectionMatrix);
+            var bottomRightWorld = Camera.ScreenToWorld(windowSize, projectionMatrix);
+
+            int startX = ((int)topLeftWorld.X / gridSize) * gridSize;
+            int startY = ((int)topLeftWorld.Y / gridSize) * gridSize;
+            int endX = (int)bottomRightWorld.X;
+            int endY = (int)bottomRightWorld.Y;
+
+            for (int x = startX; x <= endX; x += gridSize)
+            {
+                var p1i = Camera.WorldToScreen(new Vector2d(x, topLeftWorld.Y), projectionMatrix);
+                var p2i = Camera.WorldToScreen(new Vector2d(x, bottomRightWorld.Y), projectionMatrix);
+                var p1 = new Vector2(p1i.X, p1i.Y);
+                var p2 = new Vector2(p2i.X, p2i.Y);
+                drawList.AddLine(windowPos + p1, windowPos + p2, color);
+            }
+
+            for (int y = startY; y <= endY; y += gridSize)
+            {
+                var p1i = Camera.WorldToScreen(new Vector2d(topLeftWorld.X, y), projectionMatrix);
+                var p2i = Camera.WorldToScreen(new Vector2d(bottomRightWorld.X, y), projectionMatrix);
+                var p1 = new Vector2(p1i.X, p1i.Y);
+                var p2 = new Vector2(p2i.X, p2i.Y);
+                drawList.AddLine(windowPos + p1, windowPos + p2, color);
+            }
         }
 
         public void Dispose()

@@ -1,10 +1,12 @@
 using Shared;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Shared
 {
-    public class DreamObject
+    public class DreamObject : IDisposable
     {
         protected readonly object _lock = new();
         public ObjectType? ObjectType { get; set; }
@@ -13,11 +15,23 @@ namespace Shared
 
         public DreamObject(ObjectType? objectType)
         {
+            Initialize(objectType);
+        }
+
+        protected void Initialize(ObjectType? objectType)
+        {
             ObjectType = objectType;
             if (objectType != null)
             {
                 int count = objectType.VariableNames.Count;
-                _variableValues = count > 0 ? new DreamValue[count] : System.Array.Empty<DreamValue>();
+                if (_variableValues == null || _variableValues.Length < count)
+                {
+                    _variableValues = count > 0 ? new DreamValue[count] : System.Array.Empty<DreamValue>();
+                }
+                else
+                {
+                    Array.Clear(_variableValues, 0, _variableValues.Length);
+                }
 
                 int defaultCount = objectType.FlattenedDefaultValues.Count;
                 for (int i = 0; i < defaultCount && i < _variableValues.Length; i++)
@@ -38,9 +52,12 @@ namespace Shared
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            var values = _variableValues;
-            if (index < values.Length) return values[index];
-            return DreamValue.Null;
+            lock (_lock)
+            {
+                var values = _variableValues;
+                if (index < values.Length) return values[index];
+                return DreamValue.Null;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,19 +74,25 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            var values = _variableValues;
-            if (index >= 0 && index < values.Length)
-                return values[index];
-            return DreamValue.Null;
+            lock (_lock)
+            {
+                var values = _variableValues;
+                if (index >= 0 && index < values.Length)
+                    return values[index];
+                return DreamValue.Null;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariableDirect(int index)
         {
-            var values = _variableValues;
-            if (index >= 0 && index < values.Length)
-                return values[index];
-            return DreamValue.Null;
+            lock (_lock)
+            {
+                var values = _variableValues;
+                if (index >= 0 && index < values.Length)
+                    return values[index];
+                return DreamValue.Null;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,27 +106,29 @@ namespace Shared
         {
             if (index < 0) return;
 
-            if (index >= _variableValues.Length)
+            lock (_lock)
             {
-                lock (_lock)
+                if (index >= _variableValues.Length)
                 {
-                    if (index >= _variableValues.Length)
-                    {
-                        System.Array.Resize(ref _variableValues, index + 1);
-                    }
+                    System.Array.Resize(ref _variableValues, index + 1);
                 }
-            }
 
-            if (!_variableValues[index].Equals(value))
-            {
-                _variableValues[index] = value;
-                Version++;
+                if (!_variableValues[index].Equals(value))
+                {
+                    _variableValues[index] = value;
+                    Version++;
+                }
             }
         }
 
         public override string ToString()
         {
             return ObjectType?.Name ?? "object";
+        }
+
+        public virtual void Dispose()
+        {
+            GC.SuppressFinalize(this);
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Shared.Interfaces;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +14,13 @@ namespace Core.Maps
     public class MapLoader : EngineService, IMapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly IJobSystem _jobSystem;
         private readonly ILogger<MapLoader> _logger;
 
-        public MapLoader(IObjectTypeManager objectTypeManager, ILogger<MapLoader> logger)
+        public MapLoader(IObjectTypeManager typeManager, IJobSystem jobSystem, ILogger<MapLoader> logger)
         {
-            _objectTypeManager = objectTypeManager;
+            _objectTypeManager = typeManager;
+            _jobSystem = jobSystem;
             _logger = logger;
         }
 
@@ -41,33 +44,52 @@ namespace Core.Maps
             }
 
             var map = new Map();
-            foreach (var turfData in mapData.Turfs)
+
+            // Parallelize turf processing in batches
+            int batchSize = 100;
+            var turfBatches = mapData.Turfs
+                .Select((t, i) => new { Index = i, Data = t })
+                .GroupBy(x => x.Index / batchSize)
+                .Select(g => g.Select(x => x.Data).ToList())
+                .ToList();
+
+            await _jobSystem.ForEachAsync(turfBatches, batch =>
             {
-                var turfType = _objectTypeManager.GetTurfType();
-                var turf = new Turf(turfType, turfData.X, turfData.Y, turfData.Z);
-                turf.Id = turfData.Id;
-                foreach (var objData in turfData.Contents)
+                foreach (var turfData in batch)
                 {
-                    var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
-                    if (objectType != null)
+                    var turfType = _objectTypeManager.GetTurfType();
+
+                    if (turfData.Contents.Count == 0 && turfData.Id == 0) // Simple static turf
                     {
-                        var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
-                        foreach (var prop in objData.Properties)
-                        {
-                            if (prop.Value is JsonElement element)
-                            {
-                                gameObject.SetVariable(prop.Key, DreamValue.FromObject(GetValueFromJsonElement(element)));
-                            }
-                            else
-                            {
-                                gameObject.SetVariable(prop.Key, DreamValue.FromObject(prop.Value));
-                            }
-                        }
-                        turf.AddContent(gameObject);
+                        map.SetTurfType(turfData.X, turfData.Y, turfData.Z, turfType.Id);
+                        continue;
                     }
+
+                    var turf = new Turf(turfType, turfData.X, turfData.Y, turfData.Z);
+                    turf.Id = turfData.Id;
+                    foreach (var objData in turfData.Contents)
+                    {
+                        var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
+                        if (objectType != null)
+                        {
+                            var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
+                            foreach (var prop in objData.Properties)
+                            {
+                                if (prop.Value is JsonElement element)
+                                {
+                                    gameObject.SetVariable(prop.Key, DreamValue.FromObject(GetValueFromJsonElement(element)));
+                                }
+                                else
+                                {
+                                    gameObject.SetVariable(prop.Key, DreamValue.FromObject(prop.Value));
+                                }
+                            }
+                            turf.AddContent(gameObject);
+                        }
+                    }
+                    map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
                 }
-                map.SetTurf(turfData.X, turfData.Y, turfData.Z, turf);
-            }
+            });
 
             var duration = DateTime.UtcNow - startTime;
             _logger.LogInformation("Successfully loaded map from {FilePath} in {Duration}ms", filePath, duration.TotalMilliseconds);

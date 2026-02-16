@@ -33,12 +33,12 @@ namespace Shared.Services
 
         public void AddComponent<T>(IGameObject obj, T component) where T : class, IComponent
         {
-            _commands.Enqueue(() => _componentManager.AddComponent(obj, component));
+            _commands.Enqueue(() => obj.AddComponent(component));
         }
 
         public void RemoveComponent<T>(IGameObject obj) where T : class, IComponent
         {
-            _commands.Enqueue(() => _componentManager.RemoveComponent<T>(obj));
+            _commands.Enqueue(() => obj.RemoveComponent<T>());
         }
 
         public void Playback()

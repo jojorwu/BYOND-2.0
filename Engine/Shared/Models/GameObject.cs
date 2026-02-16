@@ -15,6 +15,7 @@ namespace Shared
     {
         private static int nextId = 1;
         private IComponentManager? _componentManager;
+        private readonly List<IComponent> _componentCache = new();
 
         public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
@@ -335,18 +336,50 @@ namespace Shared
             if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
 
             _componentManager.AddComponent(this, component);
+            lock (_componentCache)
+            {
+                var type = component.GetType();
+                for (int i = 0; i < _componentCache.Count; i++)
+                {
+                    if (_componentCache[i].GetType() == type)
+                    {
+                        _componentCache[i] = component;
+                        goto Added;
+                    }
+                }
+                _componentCache.Add(component);
+                Added:;
+            }
             Version++;
         }
 
         public void AddComponent<T>(T component) where T : class, IComponent
         {
-            _componentManager?.AddComponent(this, component);
-            Version++;
+            AddComponent((IComponent)component);
         }
 
         public void RemoveComponent<T>() where T : class, IComponent
         {
-            _componentManager?.RemoveComponent<T>(this);
+            RemoveComponent(typeof(T));
+        }
+
+        public void RemoveComponent(System.Type componentType)
+        {
+            if (_componentManager == null) return;
+
+            _componentManager.RemoveComponent(this, componentType);
+
+            lock (_componentCache)
+            {
+                for (int i = 0; i < _componentCache.Count; i++)
+                {
+                    if (_componentCache[i].GetType() == componentType)
+                    {
+                        _componentCache.RemoveAt(i);
+                        break;
+                    }
+                }
+            }
             Version++;
         }
 
@@ -357,13 +390,22 @@ namespace Shared
 
         public IEnumerable<IComponent> GetComponents()
         {
-            return _componentManager?.GetAllComponents(this) ?? Enumerable.Empty<IComponent>();
+            lock (_componentCache)
+            {
+                return _componentCache.ToList();
+            }
         }
 
         public void SendMessage(IComponentMessage message)
         {
-            if (_componentManager == null) return;
-            foreach (var component in _componentManager.GetAllComponents(this))
+            IComponent[] components;
+            lock (_componentCache)
+            {
+                if (_componentCache.Count == 0) return;
+                components = _componentCache.ToArray();
+            }
+
+            foreach (var component in components)
             {
                 if (component.Enabled)
                 {
@@ -385,10 +427,21 @@ namespace Shared
 
             if (_componentManager != null)
             {
-                foreach (var component in _componentManager.GetAllComponents(this).ToList())
+                List<IComponent> toRemove;
+                lock (_componentCache)
                 {
-                    _componentManager.RemoveComponent(this, component.GetType());
+                    toRemove = _componentCache.ToList();
                 }
+
+                foreach (var component in toRemove)
+                {
+                    RemoveComponent(component.GetType());
+                }
+            }
+
+            lock (_componentCache)
+            {
+                _componentCache.Clear();
             }
 
             lock (_contentsLock)

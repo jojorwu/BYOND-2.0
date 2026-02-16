@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
@@ -91,7 +92,7 @@ namespace Shared.Models
             return null;
         }
 
-        private static readonly Dictionary<Type, System.Reflection.MethodInfo> _trimMethods = new();
+        private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo> _trimMethods = new();
 
         public void Compact()
         {
@@ -99,11 +100,7 @@ namespace Shared.Models
             foreach (var array in _componentArrays.Values)
             {
                 var type = array.GetType();
-                if (!_trimMethods.TryGetValue(type, out var method))
-                {
-                    method = type.GetMethod("TrimExcess");
-                    _trimMethods[type] = method!;
-                }
+                var method = _trimMethods.GetOrAdd(type, t => t.GetMethod("TrimExcess")!);
                 method?.Invoke(array, null);
             }
             _entityIds.TrimExcess();

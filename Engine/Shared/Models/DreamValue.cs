@@ -359,19 +359,23 @@ namespace Shared
         {
             if (Type != other.Type) return false;
 
-            return Type switch
-            {
-                DreamValueType.Float => _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f,
-                DreamValueType.Null => true,
-                _ => ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false)
-            };
+            if (Type == DreamValueType.Float)
+                return _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+
+            if (Type == DreamValueType.Null) return true;
+
+            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
         }
 
         public override int GetHashCode()
         {
             if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
             if (Type == DreamValueType.Null) return 0;
-            return HashCode.Combine(Type, _objectValue);
+
+            // Manual hash combination for speed
+            int hash = (int)Type;
+            if (_objectValue != null) hash = (hash * 397) ^ _objectValue.GetHashCode();
+            return hash;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -379,15 +383,12 @@ namespace Shared
         {
             if (a.Type == b.Type)
             {
-                switch (a.Type)
-                {
-                    case DreamValueType.Float:
-                        return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
-                    case DreamValueType.Null:
-                        return true;
-                    default:
-                        return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
-                }
+                if (a.Type == DreamValueType.Float)
+                    return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
+
+                if (a.Type == DreamValueType.Null) return true;
+
+                return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
             }
 
             // DM Parity: null == 0

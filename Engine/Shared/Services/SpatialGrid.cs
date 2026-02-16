@@ -166,23 +166,46 @@ namespace Shared
 
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)
         {
+            int startGX = box.Left / _cellSize;
+            int startGY = box.Top / _cellSize;
+            int endGX = box.Right / _cellSize;
+            int endGY = box.Bottom / _cellSize;
+
+            // Fast path for single-cell queries
+            if (startGX == endGX && startGY == endGY)
+            {
+                long key = ((long)startGX << 32) | (uint)startGY;
+                if (_grid.TryGetValue(key, out var cell))
+                {
+                    lock (cell.Lock)
+                    {
+                        var objects = cell.Objects;
+                        int count = objects.Count;
+                        for (int i = 0; i < count; i++)
+                        {
+                            var obj = objects[i];
+                            if (box.Contains(new Vector2i(obj.X, obj.Y)))
+                            {
+                                results.Add(obj);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
             var seen = _seenHashSet.Value!;
             seen.Clear();
 
-            int startX = box.Left / _cellSize;
-            int startY = box.Top / _cellSize;
-            int endX = box.Right / _cellSize;
-            int endY = box.Bottom / _cellSize;
-
             // Prevent DoS via huge search area
-            if ((long)(endX - startX + 1) * (endY - startY + 1) > 10000)
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000)
             {
                 return;
             }
 
-            for (int x = startX; x <= endX; x++)
+            for (int x = startGX; x <= endGX; x++)
             {
-                for (int y = startY; y <= endY; y++)
+                for (int y = startGY; y <= endGY; y++)
                 {
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
@@ -194,6 +217,7 @@ namespace Shared
                             for (int i = 0; i < count; i++)
                             {
                                 var obj = objects[i];
+                                // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
                                 if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
                                 {
                                     results.Add(obj);

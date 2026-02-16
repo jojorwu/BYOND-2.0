@@ -64,21 +64,38 @@ namespace Shared.Models
             }
         }
 
-        public T[] GetComponents<T>() where T : class, IComponent
+        private static class EmptyList<T>
+        {
+            public static readonly List<T> Instance = new();
+        }
+
+        internal List<T> GetComponentsInternal<T>() where T : class, IComponent
         {
             if (_componentArrays.TryGetValue(typeof(T), out var list))
             {
-                return ((List<T>)list).ToArray();
+                return (List<T>)list;
             }
-            return Array.Empty<T>();
+            return EmptyList<T>.Instance;
+        }
+
+        internal IList GetComponentsInternal(Type type)
+        {
+            if (_componentArrays.TryGetValue(type, out var list))
+            {
+                return list;
+            }
+            return Array.Empty<IComponent>();
+        }
+
+        public IEnumerable<T> GetComponents<T>() where T : class, IComponent
+        {
+            return GetComponentsInternal<T>();
         }
 
         public IEnumerable<IComponent> GetComponents(Type type)
         {
-            if (_componentArrays.TryGetValue(type, out var list))
-            {
-                foreach (var item in list) yield return (IComponent)item!;
-            }
+            var list = GetComponentsInternal(type);
+            foreach (var item in list) yield return (IComponent)item!;
         }
 
         public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);

@@ -36,7 +36,7 @@ namespace Shared.Services
 
         public void RemoveComponent(IGameObject owner, Type componentType)
         {
-            var component = _archetypeManager.GetAllComponents(owner.Id).FirstOrDefault(c => c.GetType() == componentType);
+            var component = _archetypeManager.GetComponent(owner.Id, componentType);
             if (component != null)
             {
                 _archetypeManager.RemoveComponent(owner, componentType);

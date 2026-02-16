@@ -26,6 +26,8 @@ namespace Shared.Services
     public class ArchetypeManager : IArchetypeManager
     {
         private readonly List<Archetype> _archetypes = new();
+        private readonly Dictionary<string, Archetype> _signatureToArchetype = new();
+        private readonly Dictionary<Type, List<Archetype>> _typeToArchetypes = new();
         private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
         private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
 
@@ -90,17 +92,28 @@ namespace Shared.Services
                 return;
             }
 
-            var signature = components.Keys.OrderBy(t => t.FullName).ToList();
+            var sortedTypes = components.Keys.OrderBy(t => t.FullName!).ToList();
+            var signatureKey = string.Join("+", sortedTypes.Select(t => t.FullName));
 
             // Find or create archetype
-            Archetype? targetArchetype;
+            Archetype targetArchetype;
             lock (_archetypes)
             {
-                targetArchetype = _archetypes.FirstOrDefault(a => a.Signature.SetEquals(signature));
-                if (targetArchetype == null)
+                if (!_signatureToArchetype.TryGetValue(signatureKey, out targetArchetype!))
                 {
-                    targetArchetype = new Archetype(signature);
+                    targetArchetype = new Archetype(sortedTypes);
                     _archetypes.Add(targetArchetype);
+                    _signatureToArchetype[signatureKey] = targetArchetype;
+
+                    foreach (var type in sortedTypes)
+                    {
+                        if (!_typeToArchetypes.TryGetValue(type, out var list))
+                        {
+                            list = new List<Archetype>();
+                            _typeToArchetypes[type] = list;
+                        }
+                        list.Add(targetArchetype);
+                    }
                 }
             }
 
@@ -133,14 +146,17 @@ namespace Shared.Services
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             var results = new List<T>();
+            List<Archetype>? targetArchetypes;
             lock (_archetypes)
             {
-                foreach (var archetype in _archetypes)
+                _typeToArchetypes.TryGetValue(typeof(T), out targetArchetypes);
+            }
+
+            if (targetArchetypes != null)
+            {
+                foreach (var archetype in targetArchetypes)
                 {
-                    if (archetype.Signature.Contains(typeof(T)))
-                    {
-                        results.AddRange(archetype.GetComponents<T>());
-                    }
+                    results.AddRange(archetype.GetComponentsInternal<T>());
                 }
             }
             return results;
@@ -149,13 +165,20 @@ namespace Shared.Services
         public IEnumerable<IComponent> GetComponents(Type componentType)
         {
             var results = new List<IComponent>();
+            List<Archetype>? targetArchetypes;
             lock (_archetypes)
             {
-                foreach (var archetype in _archetypes)
+                _typeToArchetypes.TryGetValue(componentType, out targetArchetypes);
+            }
+
+            if (targetArchetypes != null)
+            {
+                foreach (var archetype in targetArchetypes)
                 {
-                    if (archetype.Signature.Contains(componentType))
+                    var list = archetype.GetComponentsInternal(componentType);
+                    foreach (var component in list)
                     {
-                        results.AddRange(archetype.GetComponents(componentType));
+                        results.Add((IComponent)component!);
                     }
                 }
             }

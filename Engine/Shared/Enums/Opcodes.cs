@@ -301,21 +301,21 @@ namespace Shared {
         PushFloatAssign = 0x9A,
         [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
         NPushFloatAssign = 0x9B,
-        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType)]
         PushLocal = 0x9C,
         [OpcodeMetadata(-2)]
         GetStepTo = 0x9D,
         [OpcodeMetadata(-1)]
         GetDist = 0x9E,
-        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType)]
         PushArgument = 0x9F,
-        [OpcodeMetadata(-1, OpcodeArgType.Int)]
+        [OpcodeMetadata(0, OpcodeArgType.ArgType)]
         AssignLocal = 0xA0,
-        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
         LocalPushLocalPushAdd = 0xA1,
-        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.Float)]
         LocalAddFloat = 0xA2,
-        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
         LocalMulAdd = 0xA3,
         [OpcodeMetadata(1, OpcodeArgType.ArgType)]
         GetBuiltinVar = 0xA4,

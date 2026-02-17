@@ -44,7 +44,7 @@ namespace Shared
         /// </summary>
         public int X
         {
-            get => _x;
+            get { lock (_stateLock) return _x; }
             set
             {
                 lock (_stateLock)
@@ -66,7 +66,7 @@ namespace Shared
         /// </summary>
         public int Y
         {
-            get => _y;
+            get { lock (_stateLock) return _y; }
             set
             {
                 lock (_stateLock)
@@ -88,7 +88,7 @@ namespace Shared
         /// </summary>
         public int Z
         {
-            get => _z;
+            get { lock (_stateLock) return _z; }
             set
             {
                 lock (_stateLock)
@@ -178,24 +178,28 @@ namespace Shared
         /// </summary>
         public IGameObject? Loc
         {
-            get => _loc;
+            get { lock (_stateLock) return _loc; }
             set => SetLocInternal(value, true);
         }
 
         private void SetLocInternal(IGameObject? value, bool syncVariable)
         {
-            if (_loc == value) return;
-
-            var oldLoc = _loc as GameObject;
-            _loc = value;
-            var newLoc = value as GameObject;
-
-            oldLoc?.RemoveContentInternal(this);
-            newLoc?.AddContentInternal(this);
-
-            if (syncVariable)
+            lock (_stateLock)
             {
-                SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+                if (_loc == value) return;
+
+                var oldLoc = _loc as GameObject;
+                _loc = value;
+                var newLoc = value as GameObject;
+
+                oldLoc?.RemoveContentInternal(this);
+                newLoc?.AddContentInternal(this);
+
+                if (syncVariable)
+                {
+                    // Syncing "loc" variable which might be tracked for snapshots
+                    SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+                }
             }
         }
 
@@ -577,6 +581,7 @@ namespace Shared
 
         public virtual void Reset()
         {
+            SetLocInternal(null, false);
             lock (_stateLock)
             {
                 _x = 0;
@@ -586,7 +591,6 @@ namespace Shared
                 _committedY = 0;
                 _committedZ = 0;
             }
-            _loc = null;
             Version = 0;
 
             if (_componentManager != null)

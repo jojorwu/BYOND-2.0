@@ -61,6 +61,30 @@ namespace Shared
         /// </summary>
         public int CommittedZ => _committedZ;
 
+        private string _icon = string.Empty;
+        public string Icon { get => _icon; set { if (_icon != value) { _icon = value; SyncVariable("icon", value); Version++; } } }
+
+        private string _iconState = string.Empty;
+        public string IconState { get => _iconState; set { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); Version++; } } }
+
+        private int _dir = 2;
+        public int Dir { get => _dir; set { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); Version++; } } }
+
+        private float _alpha = 255.0f;
+        public float Alpha { get => _alpha; set { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); Version++; } } }
+
+        private string _color = "#ffffff";
+        public string Color { get => _color; set { if (_color != value) { _color = value; SyncVariable("color", value); Version++; } } }
+
+        private float _layer = 2.0f;
+        public float Layer { get => _layer; set { if (_layer != value) { _layer = value; SyncVariable("layer", value); Version++; } } }
+
+        private float _pixelX = 0;
+        public float PixelX { get => _pixelX; set { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); Version++; } } }
+
+        private float _pixelY = 0;
+        public float PixelY { get => _pixelY; set { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); Version++; } } }
+
         /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>
@@ -187,6 +211,14 @@ namespace Shared
             switch (name)
             {
                 case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
+                case "icon": return new DreamValue(Icon);
+                case "icon_state": return new DreamValue(IconState);
+                case "dir": return new DreamValue((float)Dir);
+                case "alpha": return new DreamValue(Alpha);
+                case "color": return new DreamValue(Color);
+                case "layer": return new DreamValue(Layer);
+                case "pixel_x": return new DreamValue(PixelX);
+                case "pixel_y": return new DreamValue(PixelY);
                 case "name":
                     var val = base.GetVariable(name);
                     return !val.IsNull ? val : new DreamValue(ObjectType?.Name ?? "object");
@@ -212,6 +244,14 @@ namespace Shared
                     else
                         Loc = null;
                     break;
+                case "icon": value.TryGetValue(out _icon); SyncVariable("icon", value); Version++; break;
+                case "icon_state": value.TryGetValue(out _iconState); SyncVariable("icon_state", value); Version++; break;
+                case "dir": _dir = (int)value.GetValueAsFloat(); SyncVariable("dir", value); Version++; break;
+                case "alpha": _alpha = value.GetValueAsFloat(); SyncVariable("alpha", value); Version++; break;
+                case "color": value.TryGetValue(out _color); SyncVariable("color", value); Version++; break;
+                case "layer": _layer = value.GetValueAsFloat(); SyncVariable("layer", value); Version++; break;
+                case "pixel_x": _pixelX = value.GetValueAsFloat(); SyncVariable("pixel_x", value); Version++; break;
+                case "pixel_y": _pixelY = value.GetValueAsFloat(); SyncVariable("pixel_y", value); Version++; break;
                 default:
                     base.SetVariable(name, value);
                     break;
@@ -232,16 +272,22 @@ namespace Shared
                     if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
                 }
 
-                if (name == "loc")
+                switch (name)
                 {
-                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                    {
-                        SetLocInternal(loc, false);
-                    }
-                    else
-                    {
-                        SetLocInternal(null, false);
-                    }
+                    case "loc":
+                        if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                            SetLocInternal(loc, false);
+                        else
+                            SetLocInternal(null, false);
+                        break;
+                    case "icon": value.TryGetValue(out _icon); break;
+                    case "icon_state": value.TryGetValue(out _iconState); break;
+                    case "dir": _dir = (int)value.GetValueAsFloat(); break;
+                    case "alpha": _alpha = value.GetValueAsFloat(); break;
+                    case "color": value.TryGetValue(out _color); break;
+                    case "layer": _layer = value.GetValueAsFloat(); break;
+                    case "pixel_x": _pixelX = value.GetValueAsFloat(); break;
+                    case "pixel_y": _pixelY = value.GetValueAsFloat(); break;
                 }
             }
         }

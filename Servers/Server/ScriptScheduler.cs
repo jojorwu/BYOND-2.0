@@ -76,6 +76,10 @@ namespace Server
                     if (thread.Priority == ScriptThreadPriority.High) instructionSlice *= 2;
                     else if (thread.Priority == ScriptThreadPriority.Low) instructionSlice /= 2;
 
+                    // Apply carry-over balance from previous ticks (rewarding yielding, penalizing over-consumption)
+                    instructionSlice += thread.InstructionQuotaBalance;
+                    instructionSlice = Math.Max(100, instructionSlice); // Minimum slice
+
                     ProcessThread(thread, processGlobals, objectIds, nextThreads, instructionSlice);
                 }, priority: jobPriority, weight: jobWeight);
             }
@@ -101,7 +105,13 @@ namespace Server
                 if (shouldProcess)
                 {
                     var threadStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                    long before = dreamThread.TotalInstructionsExecuted;
+
                     var state = dreamThread.Run(instructionSlice);
+
+                    long executed = dreamThread.TotalInstructionsExecuted - before;
+                    dreamThread.InstructionQuotaBalance = Math.Clamp(dreamThread.InstructionQuotaBalance + (int)(instructionSlice - executed), -50000, 50000);
+
                     dreamThread.ExecutionTime = threadStopwatch.Elapsed;
                     dreamThread.WaitTicks = 0;
 

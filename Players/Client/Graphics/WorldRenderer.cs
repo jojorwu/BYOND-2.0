@@ -21,6 +21,7 @@ namespace Client.Graphics
         private readonly DmiCache _dmiCache;
         private readonly IconCache _iconCache;
         private readonly InstancedSpriteRenderer _instancedRenderer;
+        private readonly List<IGameObject> _renderObjectBuffer = new();
 
         private readonly Dictionary<Vector2i, RenderChunk> _chunks = new();
         private readonly HashSet<Vector2i> _visibleChunks = new();
@@ -99,14 +100,14 @@ void main() {
         private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             _instancedRenderer.Begin();
+            _renderObjectBuffer.Clear();
 
-            var objects = new List<IGameObject>();
-            currentState.SpatialGrid.GetObjectsInBox(new Box2i((int)cullRect.Left, (int)cullRect.Top, (int)cullRect.Right, (int)cullRect.Bottom), objects);
+            currentState.SpatialGrid.QueryBox(new Box2i((int)cullRect.Left, (int)cullRect.Top, (int)cullRect.Right, (int)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
 
             // Sort by layer for correct transparency
-            objects.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
+            _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
 
-            foreach (var obj in objects)
+            foreach (var obj in _renderObjectBuffer)
             {
                 var layer = GetLayer(obj);
                 if (layer != 2.0f) // Non-turf layer
@@ -182,7 +183,7 @@ void main() {
             int endX = startX + RenderChunk.ChunkSize;
             int endY = startY + RenderChunk.ChunkSize;
 
-            state.SpatialGrid.GetObjectsInBox(new Box2i(startX, startY, endX - 1, endY - 1), objects);
+            state.SpatialGrid.QueryBox(new Box2i(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {

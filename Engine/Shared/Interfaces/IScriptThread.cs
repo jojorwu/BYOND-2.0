@@ -33,6 +33,11 @@ namespace Shared
         long TotalInstructionsExecuted { get; }
 
         /// <summary>
+        /// Remaining instruction quota from previous ticks (positive) or over-consumption debt (negative).
+        /// </summary>
+        int InstructionQuotaBalance { get; set; }
+
+        /// <summary>
         /// Wakes up the thread if it was sleeping.
         /// </summary>
         void WakeUp();

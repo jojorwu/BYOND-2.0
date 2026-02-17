@@ -9,10 +9,10 @@ namespace Core.VM.Procs
         public string[] Arguments { get; }
         public int LocalVariableCount { get; }
 
-        public DreamProc(string name, byte[] bytecode, string[] arguments, int localVariableCount)
+        public DreamProc(string name, byte[] bytecode, string[] arguments, int localVariableCount, System.Collections.Generic.IReadOnlyList<string>? strings = null)
         {
             Name = name;
-            Bytecode = Utils.BytecodeOptimizer.Optimize(bytecode);
+            Bytecode = Utils.BytecodeOptimizer.Optimize(bytecode, strings);
             Arguments = arguments;
             LocalVariableCount = localVariableCount;
         }

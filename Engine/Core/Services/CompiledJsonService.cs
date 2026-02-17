@@ -75,7 +75,8 @@ namespace Core
                         procJson.Name,
                         bytecode,
                         arguments,
-                        localCount
+                        localCount,
+                        dreamVM.Strings
                     );
 
                     if (dreamVM is DreamVM vm2)

@@ -52,6 +52,7 @@ namespace Core.VM.Runtime
         public TimeSpan ExecutionTime { get; set; } = TimeSpan.Zero;
         public int WaitTicks { get; set; } = 0;
         public long TotalInstructionsExecuted => _totalInstructionsExecuted;
+        public int InstructionQuotaBalance { get; set; } = 0;
 
         public DreamVMContext Context { get; }
         internal readonly int _maxInstructions;

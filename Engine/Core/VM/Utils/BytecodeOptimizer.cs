@@ -13,7 +13,7 @@ namespace Core.VM.Utils
         [ThreadStatic]
         private static int[]? _pcMap;
 
-        public static byte[] Optimize(byte[] bytecode)
+        public static byte[] Optimize(byte[] bytecode, IReadOnlyList<string>? strings = null)
         {
             if (bytecode == null || bytecode.Length == 0) return bytecode ?? Array.Empty<byte>();
 
@@ -115,6 +115,42 @@ namespace Core.VM.Utils
                     optimized.Add(assignIdx);
                     pc += 3;
                     continue;
+                }
+
+                // Pattern: GetVariable(stringId) where stringId is a built-in
+                if (strings != null && pc + 4 < bytecode.Length && bytecode[pc] == (byte)Opcode.GetVariable)
+                {
+                    int stringId = BitConverter.ToInt32(bytecode, pc + 1);
+                    if (stringId >= 0 && stringId < strings.Count)
+                    {
+                        var builtin = GetBuiltinVarType(strings[stringId]);
+                        if (builtin.HasValue)
+                        {
+                            MarkPcMap(pc, pc + 5, optimized.Count);
+                            optimized.Add((byte)Opcode.GetBuiltinVar);
+                            optimized.Add((byte)builtin.Value);
+                            pc += 5;
+                            continue;
+                        }
+                    }
+                }
+
+                // Pattern: SetVariable(stringId) where stringId is a built-in
+                if (strings != null && pc + 4 < bytecode.Length && bytecode[pc] == (byte)Opcode.SetVariable)
+                {
+                    int stringId = BitConverter.ToInt32(bytecode, pc + 1);
+                    if (stringId >= 0 && stringId < strings.Count)
+                    {
+                        var builtin = GetBuiltinVarType(strings[stringId]);
+                        if (builtin.HasValue)
+                        {
+                            MarkPcMap(pc, pc + 5, optimized.Count);
+                            optimized.Add((byte)Opcode.SetBuiltinVar);
+                            optimized.Add((byte)builtin.Value);
+                            pc += 5;
+                            continue;
+                        }
+                    }
                 }
 
                 // Default: Copy opcode and arguments, tracking labels
@@ -284,6 +320,22 @@ namespace Core.VM.Utils
                 return true;
             }
             return false;
+        }
+
+        private static BuiltinVar? GetBuiltinVarType(string name)
+        {
+            return name switch
+            {
+                "icon" => BuiltinVar.Icon,
+                "icon_state" => BuiltinVar.IconState,
+                "dir" => BuiltinVar.Dir,
+                "alpha" => BuiltinVar.Alpha,
+                "color" => BuiltinVar.Color,
+                "layer" => BuiltinVar.Layer,
+                "pixel_x" => BuiltinVar.PixelX,
+                "pixel_y" => BuiltinVar.PixelY,
+                _ => null
+            };
         }
     }
 }

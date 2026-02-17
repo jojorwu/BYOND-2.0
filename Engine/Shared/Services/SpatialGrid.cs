@@ -153,6 +153,65 @@ namespace Shared
             return results;
         }
 
+        /// <summary>
+        /// Queries objects in a box without allocating a list, using a callback for each found object.
+        /// </summary>
+        public void QueryBox(Box2i box, Action<IGameObject> callback)
+        {
+            int startGX = box.Left / _cellSize;
+            int startGY = box.Bottom / _cellSize;
+            int endGX = box.Right / _cellSize;
+            int endGY = box.Top / _cellSize;
+
+            // Fast path for single-cell queries
+            if (startGX == endGX && startGY == endGY)
+            {
+                long key = ((long)startGX << 32) | (uint)startGY;
+                if (_grid.TryGetValue(key, out var cell))
+                {
+                    var objects = cell.Objects;
+                    for (int i = 0; i < objects.Length; i++)
+                    {
+                        var obj = objects[i];
+                        int ox = obj.X;
+                        int oy = obj.Y;
+                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        {
+                            callback(obj);
+                        }
+                    }
+                }
+                return;
+            }
+
+            var seen = _seenHashSet.Value!;
+            seen.Clear();
+
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
+
+            for (int x = startGX; x <= endGX; x++)
+            {
+                for (int y = startGY; y <= endGY; y++)
+                {
+                    long key = ((long)x << 32) | (uint)y;
+                    if (_grid.TryGetValue(key, out var cell))
+                    {
+                        var objects = cell.Objects;
+                        for (int i = 0; i < objects.Length; i++)
+                        {
+                            var obj = objects[i];
+                            int ox = obj.X;
+                            int oy = obj.Y;
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            {
+                                callback(obj);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         public void CleanupEmptyCells()
         {
             foreach (var kvp in _grid)

@@ -317,6 +317,10 @@ namespace Shared {
         LocalAddFloat = 0xA2,
         [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
         LocalMulAdd = 0xA3,
+        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        GetBuiltinVar = 0xA4,
+        [OpcodeMetadata(-1, OpcodeArgType.Int)]
+        SetBuiltinVar = 0xA5,
     }
 
     public enum OpcodeArgType {

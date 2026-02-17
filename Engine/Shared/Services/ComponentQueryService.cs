@@ -8,9 +8,40 @@ namespace Shared.Services
 {
     public class ComponentQueryService : IComponentQueryService
     {
+        private class QueryResult
+        {
+            public readonly HashSet<IGameObject> Set = new();
+            public volatile IGameObject[] Snapshot = System.Array.Empty<IGameObject>();
+            public readonly object Lock = new();
+
+            public void Update(IGameObject obj, bool add)
+            {
+                lock (Lock)
+                {
+                    if (add)
+                    {
+                        if (Set.Add(obj)) Snapshot = Set.ToArray();
+                    }
+                    else
+                    {
+                        if (Set.Remove(obj)) Snapshot = Set.ToArray();
+                    }
+                }
+            }
+
+            public void Initialize(IEnumerable<IGameObject> objects)
+            {
+                lock (Lock)
+                {
+                    foreach (var obj in objects) Set.Add(obj);
+                    Snapshot = Set.ToArray();
+                }
+            }
+        }
+
         private readonly IComponentManager _componentManager;
         private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
-        private readonly ConcurrentDictionary<string, HashSet<IGameObject>> _queryCache = new();
+        private readonly ConcurrentDictionary<string, QueryResult> _queryCache = new();
         private readonly ConcurrentDictionary<string, Type[]> _cacheKeyToTypes = new();
         private readonly ConcurrentDictionary<Type, List<string>> _typeToCacheKeys = new();
 
@@ -40,21 +71,25 @@ namespace Shared.Services
             var key = GetCacheKey(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
             {
-                lock (cached) return cached.ToList();
+                return cached.Snapshot;
             }
 
             // Perform full query and cache result
             var results = PerformFullQuery(componentTypes);
-            var set = new HashSet<IGameObject>(results);
-            if (_queryCache.TryAdd(key, set))
+            var queryResult = new QueryResult();
+            queryResult.Initialize(results);
+
+            if (_queryCache.TryAdd(key, queryResult))
             {
                 _cacheKeyToTypes[key] = componentTypes.ToArray();
                 foreach (var type in componentTypes)
                 {
                     _typeToCacheKeys.AddOrUpdate(type, _ => new List<string> { key }, (_, list) => { lock (list) { list.Add(key); } return list; });
                 }
+                return queryResult.Snapshot;
             }
-            return set.ToList();
+
+            return _queryCache[key].Snapshot;
         }
 
         private string GetCacheKey(Type[] types)
@@ -125,7 +160,7 @@ namespace Shared.Services
 
                 foreach (var key in keysCopy)
                 {
-                    if (_queryCache.TryGetValue(key, out var set) && _cacheKeyToTypes.TryGetValue(key, out var types))
+                    if (_queryCache.TryGetValue(key, out var result) && _cacheKeyToTypes.TryGetValue(key, out var types))
                     {
                         // Check if entity now has all components for this query
                         bool hasAll = true;
@@ -140,7 +175,7 @@ namespace Shared.Services
 
                         if (hasAll)
                         {
-                            lock (set) set.Add(e.Owner);
+                            result.Update(e.Owner, true);
                         }
                     }
                 }
@@ -163,9 +198,9 @@ namespace Shared.Services
 
                 foreach (var key in keysCopy)
                 {
-                    if (_queryCache.TryGetValue(key, out var set))
+                    if (_queryCache.TryGetValue(key, out var result))
                     {
-                        lock (set) set.Remove(e.Owner);
+                        result.Update(e.Owner, false);
                     }
                 }
             }

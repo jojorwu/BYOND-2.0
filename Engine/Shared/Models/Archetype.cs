@@ -13,9 +13,11 @@ namespace Shared.Models
     /// </summary>
     public class Archetype
     {
-        private readonly List<int> _entityIds = new();
+        private int[] _entityIds = System.Array.Empty<int>();
         private readonly Dictionary<int, int> _entityIdToIndex = new();
-        private readonly Dictionary<Type, IList> _componentArrays = new();
+        private readonly Dictionary<Type, IComponentArray> _componentArrays = new();
+        private int _count = 0;
+        private int _capacity = 0;
         public HashSet<Type> Signature { get; }
 
         public Archetype(IEnumerable<Type> signature)
@@ -23,20 +25,37 @@ namespace Shared.Models
             Signature = new HashSet<Type>(signature);
             foreach (var type in Signature)
             {
-                var listType = typeof(List<>).MakeGenericType(type);
-                _componentArrays[type] = (IList)Activator.CreateInstance(listType)!;
+                var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
+                _componentArrays[type] = (IComponentArray)Activator.CreateInstance(arrayType)!;
             }
         }
 
-        public int EntityCount => _entityIds.Count;
+        public int EntityCount => _count;
+
+        private void EnsureCapacity(int required)
+        {
+            if (required <= _capacity) return;
+
+            _capacity = _capacity == 0 ? 8 : _capacity * 2;
+            while (_capacity < required) _capacity *= 2;
+
+            System.Array.Resize(ref _entityIds, _capacity);
+            foreach (var array in _componentArrays.Values)
+            {
+                array.Resize(_capacity);
+            }
+        }
 
         public void AddEntity(int entityId, IDictionary<Type, IComponent> components)
         {
-            _entityIdToIndex[entityId] = _entityIds.Count;
-            _entityIds.Add(entityId);
+            EnsureCapacity(_count + 1);
+            int index = _count++;
+
+            _entityIds[index] = entityId;
+            _entityIdToIndex[entityId] = index;
             foreach (var type in Signature)
             {
-                _componentArrays[type].Add(components[type]);
+                _componentArrays[type].Set(index, components[type]);
             }
         }
 
@@ -44,7 +63,7 @@ namespace Shared.Models
         {
             if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
-            int lastIndex = _entityIds.Count - 1;
+            int lastIndex = _count - 1;
             if (index != lastIndex)
             {
                 int lastEntityId = _entityIds[lastIndex];
@@ -53,50 +72,45 @@ namespace Shared.Models
 
                 foreach (var array in _componentArrays.Values)
                 {
-                    array[index] = array[lastIndex];
+                    array.Copy(lastIndex, index);
                 }
             }
 
             _entityIdToIndex.Remove(entityId);
-            _entityIds.RemoveAt(lastIndex);
             foreach (var array in _componentArrays.Values)
             {
-                array.RemoveAt(lastIndex);
+                array.Clear(lastIndex);
             }
+            _count--;
         }
 
-        private static class EmptyList<T>
+        internal T[] GetComponentsInternal<T>() where T : class, IComponent
         {
-            public static readonly List<T> Instance = new();
-        }
-
-        internal List<T> GetComponentsInternal<T>() where T : class, IComponent
-        {
-            if (_componentArrays.TryGetValue(typeof(T), out var list))
+            if (_componentArrays.TryGetValue(typeof(T), out var array))
             {
-                return (List<T>)list;
+                return ((ComponentArray<T>)array).Data;
             }
-            return EmptyList<T>.Instance;
+            return System.Array.Empty<T>();
         }
 
-        internal IList GetComponentsInternal(Type type)
+        internal IComponentArray? GetComponentsInternal(Type type)
         {
-            if (_componentArrays.TryGetValue(type, out var list))
-            {
-                return list;
-            }
-            return Array.Empty<IComponent>();
+            _componentArrays.TryGetValue(type, out var array);
+            return array;
         }
 
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
-            return GetComponentsInternal<T>();
+            var data = GetComponentsInternal<T>();
+            for (int i = 0; i < _count; i++) yield return data[i];
         }
 
         public IEnumerable<IComponent> GetComponents(Type type)
         {
-            var list = GetComponentsInternal(type);
-            foreach (var item in list) yield return (IComponent)item!;
+            if (_componentArrays.TryGetValue(type, out var array))
+            {
+                for (int i = 0; i < _count; i++) yield return array.Get(i);
+            }
         }
 
         public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);
@@ -105,30 +119,42 @@ namespace Shared.Models
         {
             if (_entityIdToIndex.TryGetValue(entityId, out int index) && _componentArrays.TryGetValue(type, out var array))
             {
-                return (IComponent)array[index]!;
+                return array.Get(index);
             }
             return null;
         }
 
-        private static readonly ConcurrentDictionary<Type, Action<IList>> _trimDelegates = new();
-
         public void Compact()
         {
-            // If capacity is significantly larger than count, trim it
-            foreach (var array in _componentArrays.Values)
+            if (_capacity > _count * 2 && _capacity > 8)
             {
-                var type = array.GetType();
-                var trim = _trimDelegates.GetOrAdd(type, t =>
+                _capacity = Math.Max(_count, 8);
+                System.Array.Resize(ref _entityIds, _capacity);
+                foreach (var array in _componentArrays.Values)
                 {
-                    var method = t.GetMethod("TrimExcess")!;
-                    var param = Expression.Parameter(typeof(IList), "list");
-                    var cast = Expression.Convert(param, t);
-                    var call = Expression.Call(cast, method);
-                    return Expression.Lambda<Action<IList>>(call, param).Compile();
-                });
-                trim(array);
+                    array.Resize(_capacity);
+                }
             }
-            _entityIds.TrimExcess();
+        }
+
+        internal interface IComponentArray
+        {
+            void Resize(int capacity);
+            void Set(int index, IComponent component);
+            void Copy(int from, int to);
+            void Clear(int index);
+            IComponent Get(int index);
+        }
+
+        private class ComponentArray<T> : IComponentArray where T : class, IComponent
+        {
+            public T[] Data = System.Array.Empty<T>();
+
+            public void Resize(int capacity) => System.Array.Resize(ref Data, capacity);
+            public void Set(int index, IComponent component) => Data[index] = (T)component;
+            public void Copy(int from, int to) => Data[to] = Data[from];
+            public void Clear(int index) => Data[index] = null!;
+            public IComponent Get(int index) => Data[index];
         }
 
         public IEnumerable<int> GetEntityIds() => _entityIds;

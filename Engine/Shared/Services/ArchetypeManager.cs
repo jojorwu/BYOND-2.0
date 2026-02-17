@@ -153,7 +153,11 @@ namespace Shared.Services
             {
                 foreach (var archetype in targetArchetypes)
                 {
-                    results.AddRange(archetype.GetComponentsInternal<T>());
+                    var data = archetype.GetComponentsInternal<T>();
+                    for (int i = 0; i < archetype.EntityCount; i++)
+                    {
+                        results.Add(data[i]);
+                    }
                 }
             }
             return results;
@@ -166,10 +170,13 @@ namespace Shared.Services
             {
                 foreach (var archetype in targetArchetypes)
                 {
-                    var list = archetype.GetComponentsInternal(componentType);
-                    foreach (var component in list)
+                    var array = archetype.GetComponentsInternal(componentType);
+                    if (array != null)
                     {
-                        results.Add((IComponent)component!);
+                        for (int i = 0; i < archetype.EntityCount; i++)
+                        {
+                            results.Add(array.Get(i));
+                        }
                     }
                 }
             }

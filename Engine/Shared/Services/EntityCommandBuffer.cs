@@ -6,7 +6,7 @@ using Shared.Models;
 
 namespace Shared.Services
 {
-    public class EntityCommandBuffer : IEntityCommandBuffer
+    public class EntityCommandBuffer : IEntityCommandBuffer, IPoolable
     {
         private enum CommandType
         {
@@ -87,7 +87,17 @@ namespace Shared.Services
                         break;
                 }
             }
-            _commands.Clear();
+            Clear();
         }
+
+        public void Clear()
+        {
+            lock (_commands)
+            {
+                _commands.Clear();
+            }
+        }
+
+        public void Reset() => Clear();
     }
 }

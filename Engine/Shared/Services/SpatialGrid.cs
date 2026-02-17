@@ -13,16 +13,14 @@ namespace Shared
     {
         private class Cell
         {
-            public readonly List<IGameObject> Objects = new();
-            public readonly Dictionary<IGameObject, int> ObjectToIndex = new();
+            public volatile IGameObject[] Objects = System.Array.Empty<IGameObject>();
             public readonly object Lock = new();
 
             public void Clear()
             {
                 lock (Lock)
                 {
-                    Objects.Clear();
-                    ObjectToIndex.Clear();
+                    Objects = System.Array.Empty<IGameObject>();
                 }
             }
         }
@@ -65,9 +63,13 @@ namespace Shared
             var cell = GetOrCreateCell(key);
             lock (cell.Lock)
             {
-                if (cell.ObjectToIndex.TryAdd(obj, cell.Objects.Count))
+                var current = cell.Objects;
+                if (System.Array.IndexOf(current, obj) == -1)
                 {
-                    cell.Objects.Add(obj);
+                    var updated = new IGameObject[current.Length + 1];
+                    System.Array.Copy(current, updated, current.Length);
+                    updated[current.Length] = obj;
+                    cell.Objects = updated;
                 }
             }
         }
@@ -79,16 +81,14 @@ namespace Shared
             {
                 lock (cell.Lock)
                 {
-                    if (cell.ObjectToIndex.Remove(obj, out int index))
+                    var current = cell.Objects;
+                    int index = System.Array.IndexOf(current, obj);
+                    if (index != -1)
                     {
-                        int lastIndex = cell.Objects.Count - 1;
-                        if (index != lastIndex)
-                        {
-                            var lastObj = cell.Objects[lastIndex];
-                            cell.Objects[index] = lastObj;
-                            cell.ObjectToIndex[lastObj] = index;
-                        }
-                        cell.Objects.RemoveAt(lastIndex);
+                        var updated = new IGameObject[current.Length - 1];
+                        System.Array.Copy(current, 0, updated, 0, index);
+                        System.Array.Copy(current, index + 1, updated, index, current.Length - index - 1);
+                        cell.Objects = updated;
                     }
                 }
             }
@@ -109,16 +109,14 @@ namespace Shared
                 {
                     lock (oldCell.Lock)
                     {
-                        if (oldCell.ObjectToIndex.Remove(obj, out int index))
+                        var current = oldCell.Objects;
+                        int index = System.Array.IndexOf(current, obj);
+                        if (index != -1)
                         {
-                            int lastIndex = oldCell.Objects.Count - 1;
-                            if (index != lastIndex)
-                            {
-                                var lastObj = oldCell.Objects[lastIndex];
-                                oldCell.Objects[index] = lastObj;
-                                oldCell.ObjectToIndex[lastObj] = index;
-                            }
-                            oldCell.Objects.RemoveAt(lastIndex);
+                            var updated = new IGameObject[current.Length - 1];
+                            System.Array.Copy(current, 0, updated, 0, index);
+                            System.Array.Copy(current, index + 1, updated, index, current.Length - index - 1);
+                            oldCell.Objects = updated;
                         }
                     }
                 }
@@ -128,9 +126,13 @@ namespace Shared
                 var newCell = GetOrCreateCell(newKey);
                 lock (newCell.Lock)
                 {
-                    if (newCell.ObjectToIndex.TryAdd(obj, newCell.Objects.Count))
+                    var current = newCell.Objects;
+                    if (System.Array.IndexOf(current, obj) == -1)
                     {
-                        newCell.Objects.Add(obj);
+                        var updated = new IGameObject[current.Length + 1];
+                        System.Array.Copy(current, updated, current.Length);
+                        updated[current.Length] = obj;
+                        newCell.Objects = updated;
                     }
                 }
             }
@@ -148,11 +150,11 @@ namespace Shared
             foreach (var kvp in _grid)
             {
                 var cell = kvp.Value;
-                if (cell.Objects.Count == 0)
+                if (cell.Objects.Length == 0)
                 {
                     lock (cell.Lock)
                     {
-                        if (cell.Objects.Count == 0)
+                        if (cell.Objects.Length == 0)
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
                             {
@@ -177,17 +179,15 @@ namespace Shared
                 long key = ((long)startGX << 32) | (uint)startGY;
                 if (_grid.TryGetValue(key, out var cell))
                 {
-                    lock (cell.Lock)
+                    // Lock-free snapshot read
+                    var objects = cell.Objects;
+                    int count = objects.Length;
+                    for (int i = 0; i < count; i++)
                     {
-                        var objects = cell.Objects;
-                        int count = objects.Count;
-                        for (int i = 0; i < count; i++)
+                        var obj = objects[i];
+                        if (box.Contains(new Vector2i(obj.X, obj.Y)))
                         {
-                            var obj = objects[i];
-                            if (box.Contains(new Vector2i(obj.X, obj.Y)))
-                            {
-                                results.Add(obj);
-                            }
+                            results.Add(obj);
                         }
                     }
                 }
@@ -210,18 +210,16 @@ namespace Shared
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        lock (cell.Lock)
+                        // Lock-free snapshot read
+                        var objects = cell.Objects;
+                        int count = objects.Length;
+                        for (int i = 0; i < count; i++)
                         {
-                            var objects = cell.Objects;
-                            int count = objects.Count;
-                            for (int i = 0; i < count; i++)
+                            var obj = objects[i];
+                            // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
+                            if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
                             {
-                                var obj = objects[i];
-                                // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
-                                if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
-                                {
-                                    results.Add(obj);
-                                }
+                                results.Add(obj);
                             }
                         }
                     }

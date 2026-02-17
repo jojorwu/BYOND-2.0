@@ -17,16 +17,16 @@ namespace Shared.Services
         private List<List<ISystem>> _executionLayers;
         private readonly IProfilingService _profilingService;
         private readonly IJobSystem _jobSystem;
-        private readonly System.IServiceProvider _serviceProvider;
+        private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
         private readonly IEnumerable<IShrinkable> _shrinkables;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, System.IServiceProvider serviceProvider, IEnumerable<IShrinkable> shrinkables)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables)
         {
             _registry = registry;
             _profilingService = profilingService;
             _jobSystem = jobSystem;
-            _serviceProvider = serviceProvider;
+            _ecbPool = ecbPool;
             _shrinkables = shrinkables;
             _executionLayers = new List<List<ISystem>>();
         }
@@ -192,23 +192,30 @@ namespace Shared.Services
                     if (layer.Count == 1)
                     {
                         var system = layer[0];
-                        var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
-                        ExecuteSystem(system, ecb);
-
-                        // Await jobs created by this system
-                        await _jobSystem.CompleteAllAsync();
-
-                        using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                        var ecb = _ecbPool.Rent();
+                        try
                         {
-                            ecb.Playback();
+                            ExecuteSystem(system, ecb);
+
+                            // Await jobs created by this system
+                            await _jobSystem.CompleteAllAsync();
+
+                            using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                            {
+                                ecb.Playback();
+                            }
+                        }
+                        finally
+                        {
+                            _ecbPool.Return(ecb);
                         }
                     }
                     else
                     {
-                        var ecbs = new ConcurrentBag<IEntityCommandBuffer>();
+                        var ecbs = new ConcurrentBag<EntityCommandBuffer>();
                         await _jobSystem.ForEachAsync(layer, system =>
                         {
-                            var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
+                            var ecb = _ecbPool.Rent();
                             ecbs.Add(ecb);
                             ExecuteSystem(system, ecb);
                         });
@@ -222,6 +229,7 @@ namespace Shared.Services
                             foreach (var ecb in ecbs)
                             {
                                 ecb.Playback();
+                                _ecbPool.Return(ecb);
                             }
                         }
                     }

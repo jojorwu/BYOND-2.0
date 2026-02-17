@@ -7,6 +7,20 @@ using Shared.Interfaces;
 
 namespace Shared.Models
 {
+    public struct ArchetypeChunk<T> where T : class, IComponent
+    {
+        public readonly T[] Components;
+        public readonly int[] EntityIds;
+        public readonly int Count;
+
+        public ArchetypeChunk(T[] components, int[] entityIds, int count)
+        {
+            Components = components;
+            EntityIds = entityIds;
+            Count = count;
+        }
+    }
+
     /// <summary>
     /// Stores entities with the exact same component composition in contiguous memory.
     /// </summary>
@@ -88,6 +102,18 @@ namespace Shared.Models
                 }
                 _count--;
             }
+        }
+
+        internal ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
+        {
+            if (_componentArrays.TryGetValue(typeof(T), out var array))
+            {
+                lock (_lock)
+                {
+                    return new ArchetypeChunk<T>(((ComponentArray<T>)array).Data, _entityIds, _count);
+                }
+            }
+            return new ArchetypeChunk<T>(System.Array.Empty<T>(), System.Array.Empty<int>(), 0);
         }
 
         internal T[] GetComponentsInternal<T>() where T : class, IComponent

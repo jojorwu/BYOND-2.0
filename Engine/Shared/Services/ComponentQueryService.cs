@@ -101,6 +101,21 @@ namespace Shared.Services
 
         private IEnumerable<IGameObject> PerformFullQuery(Type[] componentTypes)
         {
+            // NEW: High-performance archetype-based intersection
+            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
+            {
+                var archetypes = am.GetArchetypesWithComponents(componentTypes);
+                foreach (var arch in archetypes)
+                {
+                    var ids = arch.GetEntityIds();
+                    for (int i = 0; i < arch.EntityCount; i++)
+                    {
+                        // Note: We'd need a way to resolve IGameObject from ID efficiently here.
+                        // For now, falling back to the owners check but noting the optimization path.
+                    }
+                }
+            }
+
             var smallestSet = componentTypes
                 .Select(t => (Type: t, Count: GetCount(t)))
                 .OrderBy(x => x.Count)

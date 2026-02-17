@@ -29,6 +29,7 @@ namespace Shared.Interfaces
         T? GetComponent<T>(IGameObject owner) where T : class, IComponent;
         IComponent? GetComponent(IGameObject owner, Type componentType);
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
+        IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent;
         IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(IGameObject owner);
 

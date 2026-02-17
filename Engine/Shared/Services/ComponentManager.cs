@@ -9,6 +9,7 @@ namespace Shared.Services
     public class ComponentManager : IComponentManager
     {
         private readonly IArchetypeManager _archetypeManager;
+        public IArchetypeManager ArchetypeManager => _archetypeManager;
 
         public event EventHandler<ComponentEventArgs>? ComponentAdded;
         public event EventHandler<ComponentEventArgs>? ComponentRemoved;
@@ -57,6 +58,11 @@ namespace Shared.Services
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             return _archetypeManager.GetComponents<T>();
+        }
+
+        public IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+        {
+            return _archetypeManager.GetChunks<T>();
         }
 
         public IEnumerable<IComponent> GetComponents(Type componentType)

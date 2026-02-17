@@ -18,8 +18,10 @@ namespace Shared.Services
         T? GetComponent<T>(int entityId) where T : class, IComponent;
         IComponent? GetComponent(int entityId, Type componentType);
         IEnumerable<T> GetComponents<T>() where T : class, IComponent;
+        IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent;
         IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(int entityId);
+        IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes);
         void Compact();
     }
 
@@ -163,19 +165,28 @@ namespace Shared.Services
 
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
-            var results = new List<T>();
             if (_typeToArchetypesCache.TryGetValue(typeof(T), out var targetArchetypes))
             {
                 foreach (var archetype in targetArchetypes)
                 {
-                    var data = archetype.GetComponentsInternal<T>();
-                    for (int i = 0; i < archetype.EntityCount; i++)
+                    var chunk = archetype.GetChunk<T>();
+                    for (int i = 0; i < chunk.Count; i++)
                     {
-                        results.Add(data[i]);
+                        yield return chunk.Components[i];
                     }
                 }
             }
-            return results;
+        }
+
+        public IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+        {
+            if (_typeToArchetypesCache.TryGetValue(typeof(T), out var targetArchetypes))
+            {
+                foreach (var archetype in targetArchetypes)
+                {
+                    yield return archetype.GetChunk<T>();
+                }
+            }
         }
 
         public IEnumerable<IComponent> GetComponents(Type componentType)
@@ -205,6 +216,34 @@ namespace Shared.Services
                 return components.Values;
             }
             return Enumerable.Empty<IComponent>();
+        }
+
+        public IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes)
+        {
+            if (componentTypes.Length == 0) return Enumerable.Empty<Archetype>();
+
+            HashSet<Archetype>? results = null;
+
+            foreach (var type in componentTypes)
+            {
+                if (_typeToArchetypesCache.TryGetValue(type, out var archetypes))
+                {
+                    if (results == null)
+                    {
+                        results = new HashSet<Archetype>(archetypes);
+                    }
+                    else
+                    {
+                        results.IntersectWith(archetypes);
+                    }
+                }
+                else
+                {
+                    return Enumerable.Empty<Archetype>();
+                }
+            }
+
+            return results ?? Enumerable.Empty<Archetype>();
         }
 
         public void Compact()

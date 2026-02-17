@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using Shared.Interfaces;
 
 namespace Shared.Models
@@ -109,7 +110,7 @@ namespace Shared.Models
             return null;
         }
 
-        private static readonly ConcurrentDictionary<Type, System.Reflection.MethodInfo> _trimMethods = new();
+        private static readonly ConcurrentDictionary<Type, Action<IList>> _trimDelegates = new();
 
         public void Compact()
         {
@@ -117,8 +118,15 @@ namespace Shared.Models
             foreach (var array in _componentArrays.Values)
             {
                 var type = array.GetType();
-                var method = _trimMethods.GetOrAdd(type, t => t.GetMethod("TrimExcess")!);
-                method?.Invoke(array, null);
+                var trim = _trimDelegates.GetOrAdd(type, t =>
+                {
+                    var method = t.GetMethod("TrimExcess")!;
+                    var param = Expression.Parameter(typeof(IList), "list");
+                    var cast = Expression.Convert(param, t);
+                    var call = Expression.Call(cast, method);
+                    return Expression.Lambda<Action<IList>>(call, param).Compile();
+                });
+                trim(array);
             }
             _entityIds.TrimExcess();
         }

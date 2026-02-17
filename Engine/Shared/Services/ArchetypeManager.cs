@@ -27,7 +27,7 @@ namespace Shared.Services
     {
         private readonly List<Archetype> _archetypes = new();
         private readonly Dictionary<string, Archetype> _signatureToArchetype = new();
-        private readonly Dictionary<Type, List<Archetype>> _typeToArchetypes = new();
+        private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
         private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
         private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
 
@@ -107,12 +107,15 @@ namespace Shared.Services
 
                     foreach (var type in sortedTypes)
                     {
-                        if (!_typeToArchetypes.TryGetValue(type, out var list))
-                        {
-                            list = new List<Archetype>();
-                            _typeToArchetypes[type] = list;
-                        }
-                        list.Add(targetArchetype);
+                        _typeToArchetypesCache.AddOrUpdate(type,
+                            _ => new[] { targetArchetype },
+                            (_, existing) =>
+                            {
+                                var updated = new Archetype[existing.Length + 1];
+                                System.Array.Copy(existing, updated, existing.Length);
+                                updated[existing.Length] = targetArchetype;
+                                return updated;
+                            });
                     }
                 }
             }
@@ -146,13 +149,7 @@ namespace Shared.Services
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             var results = new List<T>();
-            List<Archetype>? targetArchetypes;
-            lock (_archetypes)
-            {
-                _typeToArchetypes.TryGetValue(typeof(T), out targetArchetypes);
-            }
-
-            if (targetArchetypes != null)
+            if (_typeToArchetypesCache.TryGetValue(typeof(T), out var targetArchetypes))
             {
                 foreach (var archetype in targetArchetypes)
                 {
@@ -165,13 +162,7 @@ namespace Shared.Services
         public IEnumerable<IComponent> GetComponents(Type componentType)
         {
             var results = new List<IComponent>();
-            List<Archetype>? targetArchetypes;
-            lock (_archetypes)
-            {
-                _typeToArchetypes.TryGetValue(componentType, out targetArchetypes);
-            }
-
-            if (targetArchetypes != null)
+            if (_typeToArchetypesCache.TryGetValue(componentType, out var targetArchetypes))
             {
                 foreach (var archetype in targetArchetypes)
                 {

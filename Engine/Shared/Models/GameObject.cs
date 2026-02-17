@@ -15,7 +15,8 @@ namespace Shared
     {
         private static int nextId = 1;
         private IComponentManager? _componentManager;
-        private readonly List<IComponent> _componentCache = new();
+        private volatile IComponent[] _componentCache = System.Array.Empty<IComponent>();
+        private readonly object _componentCacheLock = new();
 
         public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
@@ -98,31 +99,24 @@ namespace Shared
         }
 
         protected readonly object _contentsLock = new();
-        protected readonly List<IGameObject> _contents = new();
+        protected volatile IGameObject[] _contents = System.Array.Empty<IGameObject>();
 
         /// <summary>
         /// Gets the contents of this game object.
         /// </summary>
-        public virtual IEnumerable<IGameObject> Contents
-        {
-            get
-            {
-                lock (_contentsLock)
-                {
-                    if (_contents.Count == 0) return System.Array.Empty<IGameObject>();
-                    // Return a clone to avoid concurrent modification issues during iteration
-                    return _contents.ToList();
-                }
-            }
-        }
+        public virtual IEnumerable<IGameObject> Contents => _contents;
 
         public virtual void AddContent(IGameObject obj)
         {
             lock (_contentsLock)
             {
-                if (!_contents.Contains(obj))
+                if (!System.Array.Exists(_contents, x => x == obj))
                 {
-                    _contents.Add(obj);
+                    var newContents = new IGameObject[_contents.Length + 1];
+                    System.Array.Copy(_contents, newContents, _contents.Length);
+                    newContents[_contents.Length] = obj;
+                    _contents = newContents;
+
                     if (obj is GameObject gameObj && gameObj.Loc != this)
                     {
                         gameObj.Loc = this;
@@ -135,8 +129,14 @@ namespace Shared
         {
             lock (_contentsLock)
             {
-                if (_contents.Remove(obj))
+                int index = System.Array.IndexOf(_contents, obj);
+                if (index != -1)
                 {
+                    var newContents = new IGameObject[_contents.Length - 1];
+                    System.Array.Copy(_contents, 0, newContents, 0, index);
+                    System.Array.Copy(_contents, index + 1, newContents, index, _contents.Length - index - 1);
+                    _contents = newContents;
+
                     if (obj is GameObject gameObj && gameObj.Loc == this)
                     {
                         gameObj.Loc = null;
@@ -149,8 +149,13 @@ namespace Shared
         {
             lock (_contentsLock)
             {
-                if (!_contents.Contains(obj))
-                    _contents.Add(obj);
+                if (!System.Array.Exists(_contents, x => x == obj))
+                {
+                    var newContents = new IGameObject[_contents.Length + 1];
+                    System.Array.Copy(_contents, newContents, _contents.Length);
+                    newContents[_contents.Length] = obj;
+                    _contents = newContents;
+                }
             }
         }
 
@@ -158,7 +163,14 @@ namespace Shared
         {
             lock (_contentsLock)
             {
-                _contents.Remove(obj);
+                int index = System.Array.IndexOf(_contents, obj);
+                if (index != -1)
+                {
+                    var newContents = new IGameObject[_contents.Length - 1];
+                    System.Array.Copy(_contents, 0, newContents, 0, index);
+                    System.Array.Copy(_contents, index + 1, newContents, index, _contents.Length - index - 1);
+                    _contents = newContents;
+                }
             }
         }
 
@@ -336,19 +348,30 @@ namespace Shared
             if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
 
             _componentManager.AddComponent(this, component);
-            lock (_componentCache)
+            lock (_componentCacheLock)
             {
                 var type = component.GetType();
-                for (int i = 0; i < _componentCache.Count; i++)
+                var current = _componentCache;
+                bool found = false;
+                for (int i = 0; i < current.Length; i++)
                 {
-                    if (_componentCache[i].GetType() == type)
+                    if (current[i].GetType() == type)
                     {
-                        _componentCache[i] = component;
-                        goto Added;
+                        var updated = (IComponent[])current.Clone();
+                        updated[i] = component;
+                        _componentCache = updated;
+                        found = true;
+                        break;
                     }
                 }
-                _componentCache.Add(component);
-                Added:;
+
+                if (!found)
+                {
+                    var updated = new IComponent[current.Length + 1];
+                    System.Array.Copy(current, updated, current.Length);
+                    updated[current.Length] = component;
+                    _componentCache = updated;
+                }
             }
             Version++;
         }
@@ -369,13 +392,17 @@ namespace Shared
 
             _componentManager.RemoveComponent(this, componentType);
 
-            lock (_componentCache)
+            lock (_componentCacheLock)
             {
-                for (int i = 0; i < _componentCache.Count; i++)
+                var current = _componentCache;
+                for (int i = 0; i < current.Length; i++)
                 {
-                    if (_componentCache[i].GetType() == componentType)
+                    if (current[i].GetType() == componentType)
                     {
-                        _componentCache.RemoveAt(i);
+                        var updated = new IComponent[current.Length - 1];
+                        System.Array.Copy(current, 0, updated, 0, i);
+                        System.Array.Copy(current, i + 1, updated, i, current.Length - i - 1);
+                        _componentCache = updated;
                         break;
                     }
                 }
@@ -385,28 +412,27 @@ namespace Shared
 
         public T? GetComponent<T>() where T : class, IComponent
         {
+            // Lock-free fast path for already cached components
+            var current = _componentCache;
+            for (int i = 0; i < current.Length; i++)
+            {
+                if (current[i] is T component) return component;
+            }
             return _componentManager?.GetComponent<T>(this);
         }
 
         public IEnumerable<IComponent> GetComponents()
         {
-            lock (_componentCache)
-            {
-                return _componentCache.ToList();
-            }
+            return _componentCache;
         }
 
         public void SendMessage(IComponentMessage message)
         {
-            IComponent[] components;
-            lock (_componentCache)
+            // Lock-free snapshot read
+            var components = _componentCache;
+            for (int i = 0; i < components.Length; i++)
             {
-                if (_componentCache.Count == 0) return;
-                components = _componentCache.ToArray();
-            }
-
-            foreach (var component in components)
-            {
+                var component = components[i];
                 if (component.Enabled)
                 {
                     component.OnMessage(message);
@@ -427,26 +453,22 @@ namespace Shared
 
             if (_componentManager != null)
             {
-                List<IComponent> toRemove;
-                lock (_componentCache)
-                {
-                    toRemove = _componentCache.ToList();
-                }
-
+                // We need to notify manager about component removals during reset
+                var toRemove = _componentCache;
                 foreach (var component in toRemove)
                 {
-                    RemoveComponent(component.GetType());
+                    _componentManager.RemoveComponent(this, component.GetType());
                 }
             }
 
-            lock (_componentCache)
+            lock (_componentCacheLock)
             {
-                _componentCache.Clear();
+                _componentCache = System.Array.Empty<IComponent>();
             }
 
             lock (_contentsLock)
             {
-                _contents.Clear();
+                _contents = System.Array.Empty<IGameObject>();
             }
 
             // We don't reset Id as it should be unique for the lifetime of its registration

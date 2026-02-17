@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Models;
 
@@ -32,6 +33,7 @@ namespace Shared.Services
         private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
         private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
         private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
+        private readonly ConcurrentDictionary<string, string> _signatureCache = new();
         private readonly object[] _entityLocks = Enumerable.Range(0, 256).Select(_ => new object()).ToArray();
 
         private object GetEntityLock(int entityId) => _entityLocks[(uint)entityId % _entityLocks.Length];
@@ -109,8 +111,10 @@ namespace Shared.Services
                 return;
             }
 
+            // High-performance signature generation
             var sortedTypes = components.Keys.OrderBy(t => t.FullName!).ToList();
-            var signatureKey = string.Join("+", sortedTypes.Select(t => t.FullName));
+            var typeIds = string.Join("+", sortedTypes.Select(t => t.FullName));
+            var signatureKey = _signatureCache.GetOrAdd(typeIds, typeIds);
 
             // Find or create archetype
             Archetype targetArchetype;
@@ -250,10 +254,10 @@ namespace Shared.Services
         {
             lock (_archetypes)
             {
-                foreach (var archetype in _archetypes)
+                Parallel.ForEach(_archetypes, archetype =>
                 {
                     archetype.Compact();
-                }
+                });
             }
         }
     }

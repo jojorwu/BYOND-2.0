@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
@@ -17,81 +18,101 @@ namespace Shared.Services
 
         public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
         {
-            var buffer = ArrayPool<byte>.Shared.Rent(65536);
+            var rentedBuffer = ArrayPool<byte>.Shared.Rent(65536);
+            int offset = 0;
+
             try
             {
-                using (var ms = new MemoryStream(buffer))
+                foreach (var obj in objects)
                 {
-                    using (var writer = new BinaryWriter(ms))
+                    if (obj is GameObject g)
                     {
-                        foreach (var obj in objects)
+                        if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
                         {
-                            if (obj is GameObject g)
+                            continue;
+                        }
+
+                        // Ensure buffer space (conservative estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) + Props...)
+                        EnsureBuffer(ref rentedBuffer, offset, 1024);
+
+                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.Id);
+                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), (int)g.Version);
+                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.ObjectType?.Id ?? -1);
+                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.X);
+                        offset += 4;
+                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.Y);
+                        offset += 4;
+                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.Z);
+                        offset += 4;
+
+                        if (g.ObjectType != null)
+                        {
+                            var varNames = g.ObjectType.VariableNames;
+                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), varNames.Count);
+                            for (int i = 0; i < varNames.Count; i++)
                             {
-                                if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
-                                {
-                                    continue;
-                                }
+                                var val = g.GetVariableDirect(i);
+                                int needed = 5 + val.GetWriteSize(); // 5 for property index varint max + value size
+                                EnsureBuffer(ref rentedBuffer, offset, needed);
 
-                                WriteVarInt(writer, g.Id);
-                                WriteVarInt(writer, (int)g.Version);
-                                WriteVarInt(writer, g.ObjectType?.Id ?? -1);
-                                writer.Write(g.X);
-                                writer.Write(g.Y);
-                                writer.Write(g.Z);
-
-                                // High-efficiency indexed property serialization
-                                if (g.ObjectType != null)
-                                {
-                                    var varNames = g.ObjectType.VariableNames;
-                                    WriteVarInt(writer, varNames.Count);
-                                    for (int i = 0; i < varNames.Count; i++)
-                                    {
-                                        // We only send the index, client resolves it via ObjectType
-                                        WriteVarInt(writer, i);
-                                        g.GetVariableDirect(i).WriteTo(writer);
-                                    }
-                                }
-                                else
-                                {
-                                    WriteVarInt(writer, 0);
-                                }
-
-                                if (lastVersions != null) lastVersions[g.Id] = g.Version;
+                                offset += WriteVarInt(rentedBuffer.AsSpan(offset), i);
+                                offset += val.WriteTo(rentedBuffer.AsSpan(offset));
                             }
                         }
-                        WriteVarInt(writer, 0); // End of stream marker
+                        else
+                        {
+                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0);
+                        }
 
-                        byte[] result = new byte[ms.Position];
-                        Buffer.BlockCopy(buffer, 0, result, 0, (int)ms.Position);
-                        return result;
+                        if (lastVersions != null) lastVersions[g.Id] = g.Version;
                     }
                 }
+
+                EnsureBuffer(ref rentedBuffer, offset, 1);
+                offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0); // End of stream marker
+
+                byte[] result = new byte[offset];
+                Buffer.BlockCopy(rentedBuffer, 0, result, 0, offset);
+                return result;
             }
             finally
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                ArrayPool<byte>.Shared.Return(rentedBuffer);
             }
         }
 
-        private void WriteVarInt(BinaryWriter writer, int value)
+        private void EnsureBuffer(ref byte[] buffer, int offset, int required)
+        {
+            if (offset + required > buffer.Length)
+            {
+                var newBuffer = ArrayPool<byte>.Shared.Rent(buffer.Length * 2);
+                Buffer.BlockCopy(buffer, 0, newBuffer, 0, offset);
+                ArrayPool<byte>.Shared.Return(buffer);
+                buffer = newBuffer;
+            }
+        }
+
+        private int WriteVarInt(Span<byte> span, int value)
         {
             uint v = (uint)value;
+            int count = 0;
             while (v >= 0x80)
             {
-                writer.Write((byte)(v | 0x80));
+                span[count++] = (byte)(v | 0x80);
                 v >>= 7;
             }
-            writer.Write((byte)v);
+            span[count++] = (byte)v;
+            return count;
         }
 
-        public int ReadVarInt(BinaryReader reader)
+        public int ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
         {
             int result = 0;
             int shift = 0;
+            bytesRead = 0;
             while (true)
             {
-                byte b = reader.ReadByte();
+                byte b = span[bytesRead++];
                 result |= (b & 0x7f) << shift;
                 if ((b & 0x80) == 0) return result;
                 shift += 7;
@@ -100,45 +121,64 @@ namespace Shared.Services
 
         public void Deserialize(byte[] data, IDictionary<int, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
-            using (var ms = new MemoryStream(data))
+            ReadOnlySpan<byte> span = data;
+            int offset = 0;
+
+            while (offset < span.Length)
             {
-                using (var reader = new BinaryReader(ms))
+                int id = ReadVarInt(span.Slice(offset), out int idBytes);
+                offset += idBytes;
+                if (id == 0) break;
+
+                int version = ReadVarInt(span.Slice(offset), out int vBytes);
+                offset += vBytes;
+                int typeId = ReadVarInt(span.Slice(offset), out int tBytes);
+                offset += tBytes;
+
+                int x = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
+                offset += 4;
+                int y = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
+                offset += 4;
+                int z = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
+                offset += 4;
+
+                if (!world.TryGetValue(id, out var gameObject))
                 {
-                    while (ms.Position < ms.Length)
+                    var type = typeManager.GetObjectType(typeId);
+                    if (type == null)
                     {
-                        int id = ReadVarInt(reader);
-                        if (id == 0) break;
-
-                        int version = ReadVarInt(reader);
-                        int typeId = ReadVarInt(reader);
-                        int x = reader.ReadInt32();
-                        int y = reader.ReadInt32();
-                        int z = reader.ReadInt32();
-
-                        if (!world.TryGetValue(id, out var gameObject))
-                        {
-                            var type = typeManager.GetObjectType(typeId);
-                            if (type == null) continue;
-
-                            gameObject = factory.Create(type, x, y, z);
-                            gameObject.Id = id;
-                            world[id] = gameObject;
-                        }
-                        else
-                        {
-                            gameObject.SetPosition(x, y, z);
-                        }
-
-                        int propCount = ReadVarInt(reader);
+                        // Skip properties
+                        int propCount = ReadVarInt(span.Slice(offset), out int pCountBytes);
+                        offset += pCountBytes;
                         for (int i = 0; i < propCount; i++)
                         {
-                            int propIdx = ReadVarInt(reader);
-                            var val = DreamValue.ReadFrom(reader);
-
-                            // High-efficiency variable setting using indices
-                            gameObject.SetVariableDirect(propIdx, val);
+                            ReadVarInt(span.Slice(offset), out int propIdxBytes);
+                            offset += propIdxBytes;
+                            DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
+                            offset += valBytes;
                         }
+                        continue;
                     }
+
+                    gameObject = factory.Create(type, x, y, z);
+                    gameObject.Id = id;
+                    world[id] = gameObject;
+                }
+                else
+                {
+                    gameObject.SetPosition(x, y, z);
+                }
+
+                int propertyCount = ReadVarInt(span.Slice(offset), out int propCountBytes);
+                offset += propCountBytes;
+                for (int i = 0; i < propertyCount; i++)
+                {
+                    int propIdx = ReadVarInt(span.Slice(offset), out int propIdxBytes);
+                    offset += propIdxBytes;
+                    var val = DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
+                    offset += valBytes;
+
+                    gameObject.SetVariableDirect(propIdx, val);
                 }
             }
         }

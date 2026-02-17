@@ -40,14 +40,16 @@ namespace Shared.Services
         }
 
         private readonly IComponentManager _componentManager;
+        private readonly IGameState? _gameState;
         private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
         private readonly ConcurrentDictionary<string, QueryResult> _queryCache = new();
         private readonly ConcurrentDictionary<string, Type[]> _cacheKeyToTypes = new();
         private readonly ConcurrentDictionary<Type, List<string>> _typeToCacheKeys = new();
 
-        public ComponentQueryService(IComponentManager componentManager)
+        public ComponentQueryService(IComponentManager componentManager, IGameState? gameState = null)
         {
             _componentManager = componentManager;
+            _gameState = gameState;
             _componentManager.ComponentAdded += OnComponentAdded;
             _componentManager.ComponentRemoved += OnComponentRemoved;
         }
@@ -101,21 +103,27 @@ namespace Shared.Services
 
         private IEnumerable<IGameObject> PerformFullQuery(Type[] componentTypes)
         {
-            // NEW: High-performance archetype-based intersection
-            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
+            // High-performance archetype-based intersection
+            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am && _gameState != null)
             {
                 var archetypes = am.GetArchetypesWithComponents(componentTypes);
+                var results = new List<IGameObject>();
                 foreach (var arch in archetypes)
                 {
-                    var ids = arch.GetEntityIds();
-                    for (int i = 0; i < arch.EntityCount; i++)
+                    var ids = arch.GetEntityIds().ToArray();
+                    int count = Math.Min(ids.Length, arch.EntityCount);
+                    for (int i = 0; i < count; i++)
                     {
-                        // Note: We'd need a way to resolve IGameObject from ID efficiently here.
-                        // For now, falling back to the owners check but noting the optimization path.
+                        if (_gameState.GameObjects.TryGetValue(ids[i], out var obj))
+                        {
+                            results.Add(obj);
+                        }
                     }
                 }
+                return results;
             }
 
+            // Fallback for missing GameState
             var smallestSet = componentTypes
                 .Select(t => (Type: t, Count: GetCount(t)))
                 .OrderBy(x => x.Count)

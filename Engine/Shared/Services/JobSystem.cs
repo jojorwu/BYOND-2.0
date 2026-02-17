@@ -112,7 +112,12 @@ namespace Shared.Services
             int count = currentWorkers.Length;
             int index;
 
-            if (count > 1)
+            int preferred = job.PreferredWorkerId;
+            if (preferred >= 0 && preferred < count)
+            {
+                index = preferred;
+            }
+            else if (count > 1)
             {
                 // Power of Two Choices for better load balancing using Total Weight
                 int i1 = Random.Shared.Next(count);
@@ -329,6 +334,7 @@ namespace Shared.Services
 
             public JobPriority Priority => _inner.Priority;
             public int Weight => _inner.Weight;
+            public int PreferredWorkerId => _inner.PreferredWorkerId;
 
             public TrackingJob(IJob inner, TaskCompletionSource tcs, bool isTracked)
             {

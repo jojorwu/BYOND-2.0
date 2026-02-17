@@ -42,7 +42,8 @@ namespace Shared.Services
             services.AddSingleton<ComponentManager>();
             services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
-            services.AddSingleton<IComponentQueryService, ComponentQueryService>();
+            services.AddSingleton<IComponentQueryService>(sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetService<IGameState>()));
+            services.AddSingleton<IComponentMessageBus, ComponentMessageBus>();
             services.AddSingleton<IObjectFactory, ObjectFactory>();
             services.AddSingleton<IInterestManager, InterestManager>();
             services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();

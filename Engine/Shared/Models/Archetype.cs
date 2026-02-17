@@ -33,6 +33,8 @@ namespace Shared.Models
         private int _count = 0;
         private int _capacity = 0;
         public HashSet<Type> Signature { get; }
+        public readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
+        public readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
 
         public Archetype(IEnumerable<Type> signature)
         {
@@ -133,15 +135,28 @@ namespace Shared.Models
 
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
-            var data = GetComponentsInternal<T>();
-            for (int i = 0; i < _count; i++) yield return data[i];
+            T[] data;
+            int count;
+            lock (_lock)
+            {
+                data = GetComponentsInternal<T>();
+                count = _count;
+            }
+            for (int i = 0; i < count; i++) yield return data[i];
         }
 
         public IEnumerable<IComponent> GetComponents(Type type)
         {
             if (_componentArrays.TryGetValue(type, out var array))
             {
-                for (int i = 0; i < _count; i++) yield return array.Get(i);
+                IComponentArray arr;
+                int count;
+                lock (_lock)
+                {
+                    arr = array;
+                    count = _count;
+                }
+                for (int i = 0; i < count; i++) yield return arr.Get(i);
             }
         }
 

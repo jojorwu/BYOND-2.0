@@ -24,6 +24,7 @@ namespace Shared.Interfaces
         Task ExecuteAsync();
         JobPriority Priority { get; }
         int Weight { get; }
+        int PreferredWorkerId => -1;
     }
 
     /// <summary>

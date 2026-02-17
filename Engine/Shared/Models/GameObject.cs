@@ -49,7 +49,12 @@ namespace Shared
             {
                 lock (_stateLock)
                 {
-                    if (_x != value) { _x = value; SyncVariable("x", value); }
+                    if (_x != value)
+                    {
+                        _x = value;
+                        SyncVariable("x", value);
+                        IncrementVersion();
+                    }
                 }
             }
         }
@@ -71,7 +76,12 @@ namespace Shared
             {
                 lock (_stateLock)
                 {
-                    if (_y != value) { _y = value; SyncVariable("y", value); }
+                    if (_y != value)
+                    {
+                        _y = value;
+                        SyncVariable("y", value);
+                        IncrementVersion();
+                    }
                 }
             }
         }
@@ -93,7 +103,12 @@ namespace Shared
             {
                 lock (_stateLock)
                 {
-                    if (_z != value) { _z = value; SyncVariable("z", value); }
+                    if (_z != value)
+                    {
+                        _z = value;
+                        SyncVariable("z", value);
+                        IncrementVersion();
+                    }
                 }
             }
         }
@@ -107,56 +122,56 @@ namespace Shared
         public string Icon
         {
             get => _icon;
-            set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); } } }
+            set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); IncrementVersion(); } } }
         }
 
         private string _iconState = string.Empty;
         public string IconState
         {
             get => _iconState;
-            set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); } } }
+            set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); IncrementVersion(); } } }
         }
 
         private int _dir = 2;
         public int Dir
         {
             get => _dir;
-            set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); } } }
+            set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); IncrementVersion(); } } }
         }
 
         private float _alpha = 255.0f;
         public float Alpha
         {
             get => _alpha;
-            set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); } } }
+            set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); IncrementVersion(); } } }
         }
 
         private string _color = "#ffffff";
         public string Color
         {
             get => _color;
-            set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); } } }
+            set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); IncrementVersion(); } } }
         }
 
         private float _layer = 2.0f;
         public float Layer
         {
             get => _layer;
-            set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); } } }
+            set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); IncrementVersion(); } } }
         }
 
         private float _pixelX = 0;
         public float PixelX
         {
             get => _pixelX;
-            set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); } } }
+            set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); IncrementVersion(); } } }
         }
 
         private float _pixelY = 0;
         public float PixelY
         {
             get => _pixelY;
-            set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); } } }
+            set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); IncrementVersion(); } } }
         }
 
         /// <summary>

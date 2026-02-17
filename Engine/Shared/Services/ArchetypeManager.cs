@@ -66,13 +66,31 @@ namespace Shared.Services
 
         public void AddComponent(IGameObject entity, IComponent component)
         {
+            var componentType = component.GetType();
             lock (GetEntityLock(entity.Id))
             {
                 var components = _entityComponents.GetOrAdd(entity.Id, _ => new Dictionary<Type, IComponent>());
-                components[component.GetType()] = component;
+                components[componentType] = component;
                 component.Owner = entity;
                 component.Initialize();
-                MoveToArchetypeInternal(entity.Id);
+
+                if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) &&
+                    currentArchetype.AddTransitions.TryGetValue(componentType, out var targetArchetype))
+                {
+                    currentArchetype.RemoveEntity(entity.Id);
+                    targetArchetype.AddEntity(entity.Id, components);
+                    _entityToArchetype[entity.Id] = targetArchetype;
+                }
+                else
+                {
+                    MoveToArchetypeInternal(entity.Id);
+                    // Build transition edge
+                    if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
+                    {
+                        currentArchetype.AddTransitions.TryAdd(componentType, newArchetype);
+                        newArchetype.RemoveTransitions.TryAdd(componentType, currentArchetype);
+                    }
+                }
             }
         }
 
@@ -91,7 +109,25 @@ namespace Shared.Services
                     {
                         component.Shutdown();
                         component.Owner = null;
-                        MoveToArchetypeInternal(entity.Id);
+
+                        if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) &&
+                            currentArchetype.RemoveTransitions.TryGetValue(componentType, out var targetArchetype))
+                        {
+                            currentArchetype.RemoveEntity(entity.Id);
+                            targetArchetype.AddEntity(entity.Id, components);
+                            _entityToArchetype[entity.Id] = targetArchetype;
+                        }
+                        else
+                        {
+                            var oldArchetype = currentArchetype;
+                            MoveToArchetypeInternal(entity.Id);
+                            // Build transition edge
+                            if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
+                            {
+                                oldArchetype.RemoveTransitions.TryAdd(componentType, newArchetype);
+                                newArchetype.AddTransitions.TryAdd(componentType, oldArchetype);
+                            }
+                        }
                     }
                 }
             }

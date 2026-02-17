@@ -21,5 +21,13 @@ namespace Shared.Interfaces
         /// Resets the arena, reclaiming all allocated memory.
         /// </summary>
         void Reset();
+
+        /// <summary>
+        /// Allocates an aligned span of memory from the arena.
+        /// </summary>
+        Span<byte> AllocateSpan(int size, int alignment = 1)
+        {
+            return Allocate(size, alignment).Span;
+        }
     }
 }

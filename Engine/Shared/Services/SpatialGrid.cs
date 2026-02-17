@@ -45,9 +45,15 @@ namespace Shared
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int GetGridCoord(int val)
+        {
+            return val >= 0 ? val / _cellSize : (val - _cellSize + 1) / _cellSize;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private long GetCellKey(int x, int y)
         {
-            return ((long)(x / _cellSize) << 32) | (uint)(y / _cellSize);
+            return ((long)GetGridCoord(x) << 32) | (uint)GetGridCoord(y);
         }
 
         private Cell GetOrCreateCell(long key)
@@ -104,10 +110,10 @@ namespace Shared
 
         public void Update(IGameObject obj, int oldX, int oldY)
         {
-            int oldGX = oldX / _cellSize;
-            int oldGY = oldY / _cellSize;
-            int newGX = obj.X / _cellSize;
-            int newGY = obj.Y / _cellSize;
+            int oldGX = GetGridCoord(oldX);
+            int oldGY = GetGridCoord(oldY);
+            int newGX = GetGridCoord(obj.X);
+            int newGY = GetGridCoord(obj.Y);
 
             if (oldGX != newGX || oldGY != newGY)
             {
@@ -160,10 +166,10 @@ namespace Shared
         /// </summary>
         public void QueryBox(Box2i box, Action<IGameObject> callback)
         {
-            int startGX = box.Left / _cellSize;
-            int startGY = box.Bottom / _cellSize;
-            int endGX = box.Right / _cellSize;
-            int endGY = box.Top / _cellSize;
+            int startGX = GetGridCoord(box.Left);
+            int startGY = GetGridCoord(box.Bottom);
+            int endGX = GetGridCoord(box.Right);
+            int endGY = GetGridCoord(box.Top);
 
             // Fast path for single-cell queries
             if (startGX == endGX && startGY == endGY)
@@ -219,10 +225,10 @@ namespace Shared
         /// </summary>
         public void QueryBox<TState>(Box2i box, ref TState state, QueryCallback<TState> callback)
         {
-            int startGX = box.Left / _cellSize;
-            int startGY = box.Bottom / _cellSize;
-            int endGX = box.Right / _cellSize;
-            int endGY = box.Top / _cellSize;
+            int startGX = GetGridCoord(box.Left);
+            int startGY = GetGridCoord(box.Bottom);
+            int endGX = GetGridCoord(box.Right);
+            int endGY = GetGridCoord(box.Top);
 
             // Fast path for single-cell queries
             if (startGX == endGX && startGY == endGY)
@@ -296,10 +302,10 @@ namespace Shared
 
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)
         {
-            int startGX = box.Left / _cellSize;
-            int startGY = box.Bottom / _cellSize;
-            int endGX = box.Right / _cellSize;
-            int endGY = box.Top / _cellSize;
+            int startGX = GetGridCoord(box.Left);
+            int startGY = GetGridCoord(box.Bottom);
+            int endGX = GetGridCoord(box.Right);
+            int endGY = GetGridCoord(box.Top);
 
             // Fast path for single-cell queries
             if (startGX == endGX && startGY == endGY)

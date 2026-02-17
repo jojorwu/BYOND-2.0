@@ -44,6 +44,18 @@ namespace Shared
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
+        private DreamValue(DreamValueType type, float floatValue, object? objectValue)
+        {
+            Type = type;
+            _floatValue = floatValue;
+            _objectValue = objectValue;
+        }
+
+        internal static DreamValue CreateObjectIdReference(int objectId)
+        {
+            return new DreamValue(DreamValueType.DreamObject, objectId, null);
+        }
+
         public DreamValue(DreamObject value)
         {
             Type = DreamValueType.DreamObject;
@@ -172,6 +184,9 @@ namespace Shared
             gameObject = null;
             return false;
         }
+
+        public bool IsObjectIdReference => Type == DreamValueType.DreamObject && _objectValue == null;
+        public int ObjectId => (int)_floatValue;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public float AsFloat()
@@ -670,7 +685,7 @@ namespace Shared
                     if (span[offset++] != 0)
                     {
                         bytesRead = offset + 4;
-                        return new DreamValue((float)System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset)));
+                        return CreateObjectIdReference(System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset)));
                     }
                     else
                     {

@@ -14,9 +14,21 @@ namespace Shared
     public class GameObject : DreamObject, IGameObject, IPoolable
     {
         private static int nextId = 1;
+
+        public static void EnsureNextId(int id)
+        {
+            int current;
+            do
+            {
+                current = nextId;
+                if (current > id) break;
+            } while (Interlocked.CompareExchange(ref nextId, id + 1, current) != current);
+        }
+
         private IComponentManager? _componentManager;
         private volatile IComponent[] _componentCache = System.Array.Empty<IComponent>();
         private readonly object _componentCacheLock = new();
+        private readonly object _stateLock = new();
 
         public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
@@ -30,7 +42,17 @@ namespace Shared
         /// <summary>
         /// Gets or sets the X-coordinate of the game object.
         /// </summary>
-        public int X { get => _x; set { if (_x != value) { _x = value; SyncVariable("x", value); Version++; } } }
+        public int X
+        {
+            get => _x;
+            set
+            {
+                lock (_stateLock)
+                {
+                    if (_x != value) { _x = value; SyncVariable("x", value); }
+                }
+            }
+        }
 
         /// <summary>
         /// Gets the committed X-coordinate, used for consistent reads across threads.
@@ -42,7 +64,17 @@ namespace Shared
         /// <summary>
         /// Gets or sets the Y-coordinate of the game object.
         /// </summary>
-        public int Y { get => _y; set { if (_y != value) { _y = value; SyncVariable("y", value); Version++; } } }
+        public int Y
+        {
+            get => _y;
+            set
+            {
+                lock (_stateLock)
+                {
+                    if (_y != value) { _y = value; SyncVariable("y", value); }
+                }
+            }
+        }
 
         /// <summary>
         /// Gets the committed Y-coordinate, used for consistent reads across threads.
@@ -54,7 +86,17 @@ namespace Shared
         /// <summary>
         /// Gets or sets the Z-coordinate of the game object.
         /// </summary>
-        public int Z { get => _z; set { if (_z != value) { _z = value; SyncVariable("z", value); Version++; } } }
+        public int Z
+        {
+            get => _z;
+            set
+            {
+                lock (_stateLock)
+                {
+                    if (_z != value) { _z = value; SyncVariable("z", value); }
+                }
+            }
+        }
 
         /// <summary>
         /// Gets the committed Z-coordinate, used for consistent reads across threads.
@@ -62,37 +104,72 @@ namespace Shared
         public int CommittedZ => _committedZ;
 
         private string _icon = string.Empty;
-        public string Icon { get => _icon; set { if (_icon != value) { _icon = value; SyncVariable("icon", value); Version++; } } }
+        public string Icon
+        {
+            get => _icon;
+            set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); } } }
+        }
 
         private string _iconState = string.Empty;
-        public string IconState { get => _iconState; set { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); Version++; } } }
+        public string IconState
+        {
+            get => _iconState;
+            set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); } } }
+        }
 
         private int _dir = 2;
-        public int Dir { get => _dir; set { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); Version++; } } }
+        public int Dir
+        {
+            get => _dir;
+            set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); } } }
+        }
 
         private float _alpha = 255.0f;
-        public float Alpha { get => _alpha; set { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); Version++; } } }
+        public float Alpha
+        {
+            get => _alpha;
+            set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); } } }
+        }
 
         private string _color = "#ffffff";
-        public string Color { get => _color; set { if (_color != value) { _color = value; SyncVariable("color", value); Version++; } } }
+        public string Color
+        {
+            get => _color;
+            set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); } } }
+        }
 
         private float _layer = 2.0f;
-        public float Layer { get => _layer; set { if (_layer != value) { _layer = value; SyncVariable("layer", value); Version++; } } }
+        public float Layer
+        {
+            get => _layer;
+            set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); } } }
+        }
 
         private float _pixelX = 0;
-        public float PixelX { get => _pixelX; set { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); Version++; } } }
+        public float PixelX
+        {
+            get => _pixelX;
+            set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); } } }
+        }
 
         private float _pixelY = 0;
-        public float PixelY { get => _pixelY; set { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); Version++; } } }
+        public float PixelY
+        {
+            get => _pixelY;
+            set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); } } }
+        }
 
         /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>
         public void CommitState()
         {
-            _committedX = _x;
-            _committedY = _y;
-            _committedZ = _z;
+            lock (_stateLock)
+            {
+                _committedX = _x;
+                _committedY = _y;
+                _committedZ = _z;
+            }
         }
 
         private IGameObject? _loc;
@@ -132,6 +209,7 @@ namespace Shared
 
         public virtual void AddContent(IGameObject obj)
         {
+            bool added = false;
             lock (_contentsLock)
             {
                 if (!System.Array.Exists(_contents, x => x == obj))
@@ -140,17 +218,19 @@ namespace Shared
                     System.Array.Copy(_contents, newContents, _contents.Length);
                     newContents[_contents.Length] = obj;
                     _contents = newContents;
-
-                    if (obj is GameObject gameObj && gameObj.Loc != this)
-                    {
-                        gameObj.Loc = this;
-                    }
+                    added = true;
                 }
+            }
+
+            if (added && obj is GameObject gameObj && gameObj.Loc != this)
+            {
+                gameObj.Loc = this;
             }
         }
 
         public virtual void RemoveContent(IGameObject obj)
         {
+            bool removed = false;
             lock (_contentsLock)
             {
                 int index = System.Array.IndexOf(_contents, obj);
@@ -160,12 +240,13 @@ namespace Shared
                     System.Array.Copy(_contents, 0, newContents, 0, index);
                     System.Array.Copy(_contents, index + 1, newContents, index, _contents.Length - index - 1);
                     _contents = newContents;
-
-                    if (obj is GameObject gameObj && gameObj.Loc == this)
-                    {
-                        gameObj.Loc = null;
-                    }
+                    removed = true;
                 }
+            }
+
+            if (removed && obj is GameObject gameObj && gameObj.Loc == this)
+            {
+                gameObj.Loc = null;
             }
         }
 
@@ -236,58 +317,66 @@ namespace Shared
                 if (name[0] == 'z') { Z = (int)value.GetValueAsFloat(); return; }
             }
 
-            switch (name)
+            lock (_stateLock)
             {
-                case "loc":
-                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                        Loc = loc;
-                    else
-                        Loc = null;
-                    break;
-                case "icon": value.TryGetValue(out _icon); SyncVariable("icon", value); Version++; break;
-                case "icon_state": value.TryGetValue(out _iconState); SyncVariable("icon_state", value); Version++; break;
-                case "dir": _dir = (int)value.GetValueAsFloat(); SyncVariable("dir", value); Version++; break;
-                case "alpha": _alpha = value.GetValueAsFloat(); SyncVariable("alpha", value); Version++; break;
-                case "color": value.TryGetValue(out _color); SyncVariable("color", value); Version++; break;
-                case "layer": _layer = value.GetValueAsFloat(); SyncVariable("layer", value); Version++; break;
-                case "pixel_x": _pixelX = value.GetValueAsFloat(); SyncVariable("pixel_x", value); Version++; break;
-                case "pixel_y": _pixelY = value.GetValueAsFloat(); SyncVariable("pixel_y", value); Version++; break;
-                default:
-                    base.SetVariable(name, value);
-                    break;
+                switch (name)
+                {
+                    case "loc":
+                        if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                            Loc = loc;
+                        else
+                            Loc = null;
+                        break;
+                    case "icon":
+                    case "icon_state":
+                    case "dir":
+                    case "alpha":
+                    case "color":
+                    case "layer":
+                    case "pixel_x":
+                    case "pixel_y":
+                        SyncVariable(name, value);
+                        break;
+                    default:
+                        base.SetVariable(name, value);
+                        break;
+                }
             }
         }
 
         public override void SetVariableDirect(int index, DreamValue value)
         {
-            base.SetVariableDirect(index, value);
-
-            if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
+            lock (_stateLock)
             {
-                var name = ObjectType.VariableNames[index];
-                if (name.Length == 1)
-                {
-                    if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
-                    if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
-                    if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
-                }
+                base.SetVariableDirect(index, value);
 
-                switch (name)
+                if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
                 {
-                    case "loc":
-                        if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                            SetLocInternal(loc, false);
-                        else
-                            SetLocInternal(null, false);
-                        break;
-                    case "icon": value.TryGetValue(out _icon); break;
-                    case "icon_state": value.TryGetValue(out _iconState); break;
-                    case "dir": _dir = (int)value.GetValueAsFloat(); break;
-                    case "alpha": _alpha = value.GetValueAsFloat(); break;
-                    case "color": value.TryGetValue(out _color); break;
-                    case "layer": _layer = value.GetValueAsFloat(); break;
-                    case "pixel_x": _pixelX = value.GetValueAsFloat(); break;
-                    case "pixel_y": _pixelY = value.GetValueAsFloat(); break;
+                    var name = ObjectType.VariableNames[index];
+                    if (name.Length == 1)
+                    {
+                        if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
+                        if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
+                        if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
+                    }
+
+                    switch (name)
+                    {
+                        case "loc":
+                            if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                                SetLocInternal(loc, false);
+                            else
+                                SetLocInternal(null, false);
+                            break;
+                        case "icon": value.TryGetValue(out _icon); break;
+                        case "icon_state": value.TryGetValue(out _iconState); break;
+                        case "dir": _dir = (int)value.GetValueAsFloat(); break;
+                        case "alpha": _alpha = value.GetValueAsFloat(); break;
+                        case "color": value.TryGetValue(out _color); break;
+                        case "layer": _layer = value.GetValueAsFloat(); break;
+                        case "pixel_x": _pixelX = value.GetValueAsFloat(); break;
+                        case "pixel_y": _pixelY = value.GetValueAsFloat(); break;
+                    }
                 }
             }
         }
@@ -419,7 +508,7 @@ namespace Shared
                     _componentCache = updated;
                 }
             }
-            Version++;
+            IncrementVersion();
         }
 
         public void AddComponent<T>(T component) where T : class, IComponent
@@ -453,7 +542,7 @@ namespace Shared
                     }
                 }
             }
-            Version++;
+            IncrementVersion();
         }
 
         public T? GetComponent<T>() where T : class, IComponent
@@ -488,12 +577,15 @@ namespace Shared
 
         public virtual void Reset()
         {
-            _x = 0;
-            _y = 0;
-            _z = 0;
-            _committedX = 0;
-            _committedY = 0;
-            _committedZ = 0;
+            lock (_stateLock)
+            {
+                _x = 0;
+                _y = 0;
+                _z = 0;
+                _committedX = 0;
+                _committedY = 0;
+                _committedZ = 0;
+            }
             _loc = null;
             Version = 0;
 

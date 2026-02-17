@@ -123,12 +123,15 @@ namespace Shared.Services
         {
             ReadOnlySpan<byte> span = data;
             int offset = 0;
+            var unresolvedReferences = new List<(GameObject target, int propIdx, int refId)>();
 
             while (offset < span.Length)
             {
                 int id = ReadVarInt(span.Slice(offset), out int idBytes);
                 offset += idBytes;
                 if (id == 0) break;
+
+                GameObject.EnsureNextId(id);
 
                 int version = ReadVarInt(span.Slice(offset), out int vBytes);
                 offset += vBytes;
@@ -142,29 +145,27 @@ namespace Shared.Services
                 int z = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
                 offset += 4;
 
-                if (!world.TryGetValue(id, out var gameObject))
+                bool skip = false;
+                if (world.TryGetValue(id, out var gameObject))
                 {
-                    var type = typeManager.GetObjectType(typeId);
-                    if (type == null)
-                    {
-                        // Skip properties
-                        int propCount = ReadVarInt(span.Slice(offset), out int pCountBytes);
-                        offset += pCountBytes;
-                        for (int i = 0; i < propCount; i++)
-                        {
-                            ReadVarInt(span.Slice(offset), out int propIdxBytes);
-                            offset += propIdxBytes;
-                            DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
-                            offset += valBytes;
-                        }
-                        continue;
-                    }
-
-                    gameObject = factory.Create(type, x, y, z);
-                    gameObject.Id = id;
-                    world[id] = gameObject;
+                    if (gameObject.Version >= version) skip = true;
                 }
                 else
+                {
+                    var type = typeManager.GetObjectType(typeId);
+                    if (type != null)
+                    {
+                        gameObject = factory.Create(type, x, y, z);
+                        gameObject.Id = id;
+                        world[id] = gameObject;
+                    }
+                    else
+                    {
+                        skip = true;
+                    }
+                }
+
+                if (!skip && gameObject != null)
                 {
                     gameObject.SetPosition(x, y, z);
                 }
@@ -178,7 +179,35 @@ namespace Shared.Services
                     var val = DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
                     offset += valBytes;
 
-                    gameObject.SetVariableDirect(propIdx, val);
+                    if (!skip && gameObject != null)
+                    {
+                        if (val.IsObjectIdReference)
+                        {
+                            unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
+                        }
+                        else
+                        {
+                            gameObject.SetVariableDirect(propIdx, val);
+                        }
+                    }
+                }
+
+                if (!skip && gameObject != null)
+                {
+                    gameObject.Version = version;
+                }
+            }
+
+            // Second pass: Resolve references
+            foreach (var (target, propIdx, refId) in unresolvedReferences)
+            {
+                if (world.TryGetValue(refId, out var refObj))
+                {
+                    target.SetVariableDirect(propIdx, new DreamValue(refObj));
+                }
+                else
+                {
+                    target.SetVariableDirect(propIdx, DreamValue.Null);
                 }
             }
         }

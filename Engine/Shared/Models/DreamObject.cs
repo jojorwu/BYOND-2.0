@@ -11,7 +11,9 @@ namespace Shared
         protected readonly object _lock = new();
         public ObjectType? ObjectType { get; set; }
         protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
-        public long Version { get; protected set; }
+        private long _version;
+        public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }
+        protected void IncrementVersion() => Interlocked.Increment(ref _version);
 
         public DreamObject(ObjectType? objectType)
         {
@@ -109,7 +111,7 @@ namespace Shared
                     System.Array.Copy(currentValues, newValues, currentValues.Length);
                     newValues[index] = value;
                     _variableValues = newValues; // Volatile swap
-                    Version++;
+                    IncrementVersion();
                 }
                 else if (!currentValues[index].Equals(value))
                 {
@@ -117,7 +119,7 @@ namespace Shared
                     var newValues = (DreamValue[])currentValues.Clone();
                     newValues[index] = value;
                     _variableValues = newValues; // Volatile swap
-                    Version++;
+                    IncrementVersion();
                 }
             }
         }

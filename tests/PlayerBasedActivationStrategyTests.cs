@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Robust.Shared.Maths;
 using System;
-using Core.Objects;
+using Shared.Services;
 using Microsoft.Extensions.Options;
 
 namespace tests

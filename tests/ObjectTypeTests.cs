@@ -1,7 +1,7 @@
 using Shared;
 using NUnit.Framework;
 using Core;
-using Core.Objects;
+using Shared.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace tests

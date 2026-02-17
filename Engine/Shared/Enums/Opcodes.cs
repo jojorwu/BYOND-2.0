@@ -317,9 +317,9 @@ namespace Shared {
         LocalAddFloat = 0xA2,
         [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
         LocalMulAdd = 0xA3,
-        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType)]
         GetBuiltinVar = 0xA4,
-        [OpcodeMetadata(-1, OpcodeArgType.Int)]
+        [OpcodeMetadata(-1, OpcodeArgType.ArgType)]
         SetBuiltinVar = 0xA5,
     }
 

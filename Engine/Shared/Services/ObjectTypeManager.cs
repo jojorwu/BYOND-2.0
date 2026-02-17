@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
-namespace Core.Objects
+namespace Shared.Services
 {
     public class ObjectTypeManager : EngineService, IObjectTypeManager
     {

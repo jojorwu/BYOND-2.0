@@ -1,6 +1,5 @@
 using Core.Api;
 using Core.Maps;
-using Core.Objects;
 using Core.Players;
 using Core.Regions;
 using Core.VM.Runtime;
@@ -32,10 +31,6 @@ namespace Core
         private static IServiceCollection AddCoreStateServices(this IServiceCollection services)
         {
             services.AddSingleton<IGameState, GameState>();
-
-            services.AddSingleton<ObjectTypeManager>();
-            services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
 
             services.AddSingleton<MapLoader>();
             services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());

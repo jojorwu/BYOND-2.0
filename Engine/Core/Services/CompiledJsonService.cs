@@ -6,7 +6,6 @@ using System.Linq;
 using Core.VM.Procs;
 using Core.VM.Runtime;
 using Shared.Compiler;
-using Core.Objects;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
 using Core.Utils;

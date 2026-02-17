@@ -10,7 +10,7 @@ namespace Shared
     {
         protected readonly object _lock = new();
         public ObjectType? ObjectType { get; set; }
-        protected DreamValue[] _variableValues;
+        protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
         public long Version { get; protected set; }
 
         public DreamObject(ObjectType? objectType)
@@ -52,12 +52,10 @@ namespace Shared
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            lock (_lock)
-            {
-                var values = _variableValues;
-                if (index < values.Length) return values[index];
-                return DreamValue.Null;
-            }
+            // Lock-free read via volatile array
+            var values = _variableValues;
+            if (index < values.Length) return values[index];
+            return DreamValue.Null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -74,25 +72,21 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            lock (_lock)
-            {
-                var values = _variableValues;
-                if (index >= 0 && index < values.Length)
-                    return values[index];
-                return DreamValue.Null;
-            }
+            // Lock-free read via volatile array
+            var values = _variableValues;
+            if (index >= 0 && index < values.Length)
+                return values[index];
+            return DreamValue.Null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariableDirect(int index)
         {
-            lock (_lock)
-            {
-                var values = _variableValues;
-                if (index >= 0 && index < values.Length)
-                    return values[index];
-                return DreamValue.Null;
-            }
+            // Lock-free read via volatile array
+            var values = _variableValues;
+            if (index >= 0 && index < values.Length)
+                return values[index];
+            return DreamValue.Null;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -108,14 +102,21 @@ namespace Shared
 
             lock (_lock)
             {
-                if (index >= _variableValues.Length)
+                var currentValues = _variableValues;
+                if (index >= currentValues.Length)
                 {
-                    System.Array.Resize(ref _variableValues, index + 1);
+                    var newValues = new DreamValue[index + 1];
+                    System.Array.Copy(currentValues, newValues, currentValues.Length);
+                    newValues[index] = value;
+                    _variableValues = newValues; // Volatile swap
+                    Version++;
                 }
-
-                if (!_variableValues[index].Equals(value))
+                else if (!currentValues[index].Equals(value))
                 {
-                    _variableValues[index] = value;
+                    // Copy-on-Write to avoid tearing and ensure consistency for concurrent readers
+                    var newValues = (DreamValue[])currentValues.Clone();
+                    newValues[index] = value;
+                    _variableValues = newValues; // Volatile swap
                     Version++;
                 }
             }

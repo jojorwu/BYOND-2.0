@@ -13,6 +13,7 @@ using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Shared;
+using Shared.Interfaces;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
@@ -26,6 +27,8 @@ namespace Client
 
     public class Game : IClient
     {
+        private readonly IObjectTypeManager _typeManager;
+        private readonly IObjectFactory _objectFactory;
         private IWindow _window;
         private GL _gl = null!;
         private LogicThread _logicThread = null!;
@@ -61,12 +64,14 @@ namespace Client
         private double _accumulator;
         private float _alpha;
 
-        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache)
+        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory)
         {
             _textureCache = textureCache;
             _csharpShaderManager = csharpShaderManager;
             _dmiCache = dmiCache;
             _iconCache = iconCache;
+            _typeManager = typeManager;
+            _objectFactory = objectFactory;
 
             var options = WindowOptions.Default;
             options.Title = "BYOND 2.0 Client";
@@ -185,7 +190,7 @@ new MyShader()
                 if (_connectionPanel.IsConnectRequested)
                 {
                     _connectionPanel.IsConnectRequested = false;
-                    _logicThread = new LogicThread(_connectionPanel.ServerAddress);
+                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory);
                     _previousState = _logicThread.PreviousState;
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();

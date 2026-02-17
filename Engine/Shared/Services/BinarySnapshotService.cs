@@ -35,18 +35,20 @@ namespace Shared.Services
 
                                 WriteVarInt(writer, g.Id);
                                 WriteVarInt(writer, (int)g.Version);
+                                WriteVarInt(writer, g.ObjectType?.Id ?? -1);
                                 writer.Write(g.X);
                                 writer.Write(g.Y);
                                 writer.Write(g.Z);
 
-                                // Optimized property serialization - avoiding g.Properties dictionary allocation
+                                // High-efficiency indexed property serialization
                                 if (g.ObjectType != null)
                                 {
                                     var varNames = g.ObjectType.VariableNames;
                                     WriteVarInt(writer, varNames.Count);
                                     for (int i = 0; i < varNames.Count; i++)
                                     {
-                                        writer.Write(varNames[i]);
+                                        // We only send the index, client resolves it via ObjectType
+                                        WriteVarInt(writer, i);
                                         g.GetVariableDirect(i).WriteTo(writer);
                                     }
                                 }
@@ -96,9 +98,8 @@ namespace Shared.Services
             }
         }
 
-        public List<GameObject> Deserialize(byte[] data, IObjectTypeManager typeManager)
+        public void Deserialize(byte[] data, IDictionary<int, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
-            var objects = new List<GameObject>();
             using (var ms = new MemoryStream(data))
             {
                 using (var reader = new BinaryReader(ms))
@@ -109,31 +110,37 @@ namespace Shared.Services
                         if (id == 0) break;
 
                         int version = ReadVarInt(reader);
+                        int typeId = ReadVarInt(reader);
                         int x = reader.ReadInt32();
                         int y = reader.ReadInt32();
                         int z = reader.ReadInt32();
 
-                        var gameObject = new GameObject(); // We might need a factory here
-                        gameObject.Id = id;
-                        gameObject.SetPosition(x, y, z);
+                        if (!world.TryGetValue(id, out var gameObject))
+                        {
+                            var type = typeManager.GetObjectType(typeId);
+                            if (type == null) continue;
+
+                            gameObject = factory.Create(type, x, y, z);
+                            gameObject.Id = id;
+                            world[id] = gameObject;
+                        }
+                        else
+                        {
+                            gameObject.SetPosition(x, y, z);
+                        }
 
                         int propCount = ReadVarInt(reader);
                         for (int i = 0; i < propCount; i++)
                         {
-                            string key = reader.ReadString();
-                            if (_interner != null) key = _interner.Intern(key);
+                            int propIdx = ReadVarInt(reader);
                             var val = DreamValue.ReadFrom(reader);
 
-                            // Optimized variable setting - using direct index if possible
-                            int idx = gameObject.ObjectType?.GetVariableIndex(key) ?? -1;
-                            if (idx != -1) gameObject.SetVariableDirect(idx, val);
-                            else gameObject.SetVariable(key, val);
+                            // High-efficiency variable setting using indices
+                            gameObject.SetVariableDirect(propIdx, val);
                         }
-                        objects.Add(gameObject);
                     }
                 }
             }
-            return objects;
         }
     }
 }

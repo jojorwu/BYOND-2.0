@@ -31,6 +31,9 @@ namespace Shared.Services
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
             services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
             services.AddSingleton<BinarySnapshotService>();
+            services.AddSingleton<ObjectTypeManager>();
+            services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
             services.AddSingleton<SpatialGrid>();
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
             services.AddSingleton<StringInterner>();

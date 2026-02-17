@@ -17,6 +17,10 @@ namespace Core.VM.Utils
         {
             if (bytecode == null || bytecode.Length == 0) return bytecode ?? Array.Empty<byte>();
 
+            // Reclaim memory if buffers are excessively large (e.g., > 1MB)
+            if (_optimizationBuffer != null && _optimizationBuffer.Capacity > 1024 * 1024) _optimizationBuffer = null;
+            if (_pcMap != null && _pcMap.Length > 256 * 1024) _pcMap = null;
+
             _optimizationBuffer ??= new List<byte>(bytecode.Length);
             var optimized = _optimizationBuffer;
             optimized.Clear();
@@ -26,7 +30,7 @@ namespace Core.VM.Utils
             _labelLocations.Clear();
 
             if (_pcMap == null || _pcMap.Length < bytecode.Length + 1)
-                _pcMap = new int[bytecode.Length + 1];
+                _pcMap = new int[Math.Max(1024, bytecode.Length + 1)];
 
             Array.Fill(_pcMap, -1);
 
@@ -150,6 +154,23 @@ namespace Core.VM.Utils
                             pc += 5;
                             continue;
                         }
+                    }
+                }
+
+                // Pattern: PushReferenceValue(ref), JumpIfFalse(label) -> JumpIfReferenceFalse(ref, label)
+                if (pc + 1 < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue)
+                {
+                    int refSize = GetReferenceSize(bytecode, pc + 1);
+                    int jumpPc = pc + 1 + refSize;
+                    if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse)
+                    {
+                        MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                        optimized.Add((byte)Opcode.JumpIfReferenceFalse);
+                        optimized.AddRange(bytecode.AsSpan(pc + 1, refSize));
+                        _labelLocations.Add(optimized.Count);
+                        optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
+                        pc = jumpPc + 5;
+                        continue;
                     }
                 }
 

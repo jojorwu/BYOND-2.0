@@ -14,8 +14,9 @@ namespace Shared.Models
     public class Archetype
     {
         private int[] _entityIds = System.Array.Empty<int>();
-        private readonly Dictionary<int, int> _entityIdToIndex = new();
+        private readonly ConcurrentDictionary<int, int> _entityIdToIndex = new();
         private readonly Dictionary<Type, IComponentArray> _componentArrays = new();
+        private readonly object _lock = new();
         private int _count = 0;
         private int _capacity = 0;
         public HashSet<Type> Signature { get; }
@@ -48,40 +49,46 @@ namespace Shared.Models
 
         public void AddEntity(int entityId, IDictionary<Type, IComponent> components)
         {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
-
-            _entityIds[index] = entityId;
-            _entityIdToIndex[entityId] = index;
-            foreach (var type in Signature)
+            lock (_lock)
             {
-                _componentArrays[type].Set(index, components[type]);
+                EnsureCapacity(_count + 1);
+                int index = _count++;
+
+                _entityIds[index] = entityId;
+                _entityIdToIndex[entityId] = index;
+                foreach (var type in Signature)
+                {
+                    _componentArrays[type].Set(index, components[type]);
+                }
             }
         }
 
         public void RemoveEntity(int entityId)
         {
-            if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
-
-            int lastIndex = _count - 1;
-            if (index != lastIndex)
+            lock (_lock)
             {
-                int lastEntityId = _entityIds[lastIndex];
-                _entityIds[index] = lastEntityId;
-                _entityIdToIndex[lastEntityId] = index;
+                if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
+                int lastIndex = _count - 1;
+                if (index != lastIndex)
+                {
+                    int lastEntityId = _entityIds[lastIndex];
+                    _entityIds[index] = lastEntityId;
+                    _entityIdToIndex[lastEntityId] = index;
+
+                    foreach (var array in _componentArrays.Values)
+                    {
+                        array.Copy(lastIndex, index);
+                    }
+                }
+
+                _entityIdToIndex.TryRemove(entityId, out _);
                 foreach (var array in _componentArrays.Values)
                 {
-                    array.Copy(lastIndex, index);
+                    array.Clear(lastIndex);
                 }
+                _count--;
             }
-
-            _entityIdToIndex.Remove(entityId);
-            foreach (var array in _componentArrays.Values)
-            {
-                array.Clear(lastIndex);
-            }
-            _count--;
         }
 
         internal T[] GetComponentsInternal<T>() where T : class, IComponent
@@ -117,22 +124,28 @@ namespace Shared.Models
 
         public IComponent? GetComponent(int entityId, Type type)
         {
-            if (_entityIdToIndex.TryGetValue(entityId, out int index) && _componentArrays.TryGetValue(type, out var array))
+            lock (_lock)
             {
-                return array.Get(index);
+                if (_entityIdToIndex.TryGetValue(entityId, out int index) && _componentArrays.TryGetValue(type, out var array))
+                {
+                    return array.Get(index);
+                }
             }
             return null;
         }
 
         public void Compact()
         {
-            if (_capacity > _count * 2 && _capacity > 8)
+            lock (_lock)
             {
-                _capacity = Math.Max(_count, 8);
-                System.Array.Resize(ref _entityIds, _capacity);
-                foreach (var array in _componentArrays.Values)
+                if (_capacity > _count * 2 && _capacity > 8)
                 {
-                    array.Resize(_capacity);
+                    _capacity = Math.Max(_count, 8);
+                    System.Array.Resize(ref _entityIds, _capacity);
+                    foreach (var array in _componentArrays.Values)
+                    {
+                        array.Resize(_capacity);
+                    }
                 }
             }
         }

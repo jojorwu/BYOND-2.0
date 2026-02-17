@@ -25,7 +25,15 @@ namespace Shared
             }
         }
 
-        public void Shrink() => CleanupEmptyCells();
+        public void Shrink()
+        {
+            CleanupEmptyCells();
+            if (_seenHashSet.IsValueCreated && _seenHashSet.Value!.Count > 1000)
+            {
+                _seenHashSet.Value.Clear();
+                _seenHashSet.Value.TrimExcess();
+            }
+        }
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
@@ -169,9 +177,9 @@ namespace Shared
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)
         {
             int startGX = box.Left / _cellSize;
-            int startGY = box.Top / _cellSize;
+            int startGY = box.Bottom / _cellSize;
             int endGX = box.Right / _cellSize;
-            int endGY = box.Bottom / _cellSize;
+            int endGY = box.Top / _cellSize;
 
             // Fast path for single-cell queries
             if (startGX == endGX && startGY == endGY)
@@ -185,7 +193,9 @@ namespace Shared
                     for (int i = 0; i < count; i++)
                     {
                         var obj = objects[i];
-                        if (box.Contains(new Vector2i(obj.X, obj.Y)))
+                        int ox = obj.X;
+                        int oy = obj.Y;
+                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
                         {
                             results.Add(obj);
                         }
@@ -216,8 +226,10 @@ namespace Shared
                         for (int i = 0; i < count; i++)
                         {
                             var obj = objects[i];
+                            int ox = obj.X;
+                            int oy = obj.Y;
                             // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
-                            if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
                             {
                                 results.Add(obj);
                             }

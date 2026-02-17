@@ -30,20 +30,29 @@ namespace Shared.Services
         private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
         private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
         private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
+        private readonly object[] _entityLocks = Enumerable.Range(0, 256).Select(_ => new object()).ToArray();
+
+        private object GetEntityLock(int entityId) => _entityLocks[(uint)entityId % _entityLocks.Length];
 
         public void AddEntity(IGameObject entity)
         {
-            _entityComponents[entity.Id] = new Dictionary<Type, IComponent>();
-            MoveToArchetype(entity.Id);
+            lock (GetEntityLock(entity.Id))
+            {
+                _entityComponents[entity.Id] = new Dictionary<Type, IComponent>();
+                MoveToArchetypeInternal(entity.Id);
+            }
         }
 
         public void RemoveEntity(int entityId)
         {
-            if (_entityToArchetype.TryRemove(entityId, out var archetype))
+            lock (GetEntityLock(entityId))
             {
-                archetype.RemoveEntity(entityId);
+                if (_entityToArchetype.TryRemove(entityId, out var archetype))
+                {
+                    archetype.RemoveEntity(entityId);
+                }
+                _entityComponents.TryRemove(entityId, out _);
             }
-            _entityComponents.TryRemove(entityId, out _);
         }
 
         public void AddComponent<T>(IGameObject entity, T component) where T : class, IComponent
@@ -53,11 +62,14 @@ namespace Shared.Services
 
         public void AddComponent(IGameObject entity, IComponent component)
         {
-            var components = _entityComponents.GetOrAdd(entity.Id, _ => new Dictionary<Type, IComponent>());
-            components[component.GetType()] = component;
-            component.Owner = entity;
-            component.Initialize();
-            MoveToArchetype(entity.Id);
+            lock (GetEntityLock(entity.Id))
+            {
+                var components = _entityComponents.GetOrAdd(entity.Id, _ => new Dictionary<Type, IComponent>());
+                components[component.GetType()] = component;
+                component.Owner = entity;
+                component.Initialize();
+                MoveToArchetypeInternal(entity.Id);
+            }
         }
 
         public void RemoveComponent<T>(IGameObject entity) where T : class, IComponent
@@ -67,18 +79,21 @@ namespace Shared.Services
 
         public void RemoveComponent(IGameObject entity, Type componentType)
         {
-            if (_entityComponents.TryGetValue(entity.Id, out var components))
+            lock (GetEntityLock(entity.Id))
             {
-                if (components.Remove(componentType, out var component))
+                if (_entityComponents.TryGetValue(entity.Id, out var components))
                 {
-                    component.Shutdown();
-                    component.Owner = null;
-                    MoveToArchetype(entity.Id);
+                    if (components.Remove(componentType, out var component))
+                    {
+                        component.Shutdown();
+                        component.Owner = null;
+                        MoveToArchetypeInternal(entity.Id);
+                    }
                 }
             }
         }
 
-        private void MoveToArchetype(int entityId)
+        private void MoveToArchetypeInternal(int entityId)
         {
             if (!_entityComponents.TryGetValue(entityId, out var components)) return;
 

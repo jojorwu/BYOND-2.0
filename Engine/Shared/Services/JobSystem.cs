@@ -106,7 +106,7 @@ namespace Shared.Services
                 _pendingJobTrackers.Add(tcs);
             }
 
-            var finalJob = new TrackingJob(job, tcs);
+            var finalJob = new TrackingJob(job, tcs, track);
 
             var currentWorkers = _workers;
             int count = currentWorkers.Length;
@@ -325,14 +325,16 @@ namespace Shared.Services
         {
             private readonly IJob _inner;
             private readonly TaskCompletionSource _tcs;
+            private readonly bool _isTracked;
 
             public JobPriority Priority => _inner.Priority;
             public int Weight => _inner.Weight;
 
-            public TrackingJob(IJob inner, TaskCompletionSource tcs)
+            public TrackingJob(IJob inner, TaskCompletionSource tcs, bool isTracked)
             {
                 _inner = inner;
                 _tcs = tcs;
+                _isTracked = isTracked;
             }
 
             public async Task ExecuteAsync()
@@ -345,6 +347,10 @@ namespace Shared.Services
                 catch (Exception ex)
                 {
                     _tcs.TrySetException(ex);
+                    if (!_isTracked)
+                    {
+                        Console.Error.WriteLine($"[JobSystem] Untracked job failed: {ex}");
+                    }
                 }
             }
         }

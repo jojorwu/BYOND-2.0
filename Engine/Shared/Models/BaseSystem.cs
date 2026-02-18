@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 using Shared.Attributes;
 using Shared.Interfaces;
 
@@ -11,6 +12,11 @@ namespace Shared.Models
     {
         private readonly SystemAttribute? _systemAttr;
         private readonly List<ResourceAttribute> _resourceAttrs;
+
+        /// <summary>
+        /// Logger instance for this system.
+        /// </summary>
+        protected ILogger Logger { get; private set; } = default!;
 
         protected BaseSystem()
         {
@@ -37,7 +43,10 @@ namespace Shared.Models
             .Where(a => a.Access == ResourceAccess.Write)
             .Select(a => a.ResourceType);
 
-        public virtual void Initialize() { }
+        public virtual void Initialize(ILogger logger)
+        {
+            Logger = logger;
+        }
 
         public virtual void PreTick() { }
 

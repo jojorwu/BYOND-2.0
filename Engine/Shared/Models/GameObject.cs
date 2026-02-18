@@ -532,6 +532,51 @@ namespace Shared
             AddComponent((IComponent)component);
         }
 
+        /// <summary>
+        /// Adds multiple components to the game object in a single operation, reducing array reallocations.
+        /// </summary>
+        public void AddComponentBatch(IEnumerable<IComponent> components)
+        {
+            if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
+
+            var componentsList = components.ToList();
+            if (componentsList.Count == 0) return;
+
+            foreach (var component in componentsList)
+            {
+                _componentManager.AddComponent(this, component);
+            }
+
+            lock (_componentCacheLock)
+            {
+                var current = _componentCache;
+                var updatedList = current.ToList();
+
+                foreach (var component in componentsList)
+                {
+                    var type = component.GetType();
+                    bool found = false;
+                    for (int i = 0; i < updatedList.Count; i++)
+                    {
+                        if (updatedList[i].GetType() == type)
+                        {
+                            updatedList[i] = component;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found)
+                    {
+                        updatedList.Add(component);
+                    }
+                }
+
+                _componentCache = updatedList.ToArray();
+            }
+            IncrementVersion();
+        }
+
         public void RemoveComponent<T>() where T : class, IComponent
         {
             RemoveComponent(typeof(T));

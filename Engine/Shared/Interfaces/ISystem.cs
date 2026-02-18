@@ -17,7 +17,7 @@ namespace Shared.Interfaces
         /// <summary>
         /// Initializes the system. Called once when the system is registered.
         /// </summary>
-        void Initialize() { }
+        void Initialize(Microsoft.Extensions.Logging.ILogger logger) { }
 
         /// <summary>
         /// Executed before the main tick phase.

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 
 namespace Shared.Services
@@ -19,21 +20,24 @@ namespace Shared.Services
         private readonly IJobSystem _jobSystem;
         private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
         private readonly IEnumerable<IShrinkable> _shrinkables;
+        private readonly ILoggerFactory _loggerFactory;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables, IEnumerable<ISystem> systems)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables, IEnumerable<ISystem> systems, ILoggerFactory loggerFactory)
         {
             _registry = registry;
             _profilingService = profilingService;
             _jobSystem = jobSystem;
             _ecbPool = ecbPool;
             _shrinkables = shrinkables;
+            _loggerFactory = loggerFactory;
             _executionLayers = new List<List<ISystem>>();
 
             // Automatically register all systems discovered by DI
             foreach (var system in systems)
             {
-                system.Initialize();
+                var logger = _loggerFactory.CreateLogger(system.GetType());
+                system.Initialize(logger);
                 _registry.Register(system);
             }
         }
@@ -179,8 +183,11 @@ namespace Shared.Services
         {
             if (_isDirty)
             {
-                _executionLayers = CalculateExecutionLayers(_registry.GetSystems().Where(s => s.Enabled));
-                _isDirty = false;
+                using (_profilingService.Measure("SystemManager.RebuildExecutionPlan"))
+                {
+                    _executionLayers = CalculateExecutionLayers(_registry.GetSystems().Where(s => s.Enabled));
+                    _isDirty = false;
+                }
             }
 
             var enabledSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
@@ -190,53 +197,69 @@ namespace Shared.Services
                 // Pre-Tick Phase
                 using (_profilingService.Measure("SystemManager.PreTick"))
                 {
-                    await _jobSystem.ForEachAsync(enabledSystems, s => s.PreTick());
+                    await _jobSystem.ForEachAsync(enabledSystems, system =>
+                    {
+                        using (_profilingService.Measure($"System.{system.Name}.PreTick"))
+                        {
+                            system.PreTick();
+                        }
+                    });
                 }
 
                 // Main Tick Phase (Layered)
+                int layerIdx = 0;
                 foreach (var layer in _executionLayers)
                 {
-                    if (layer.Count == 1)
+                    using (_profilingService.Measure($"SystemManager.Layer.{layerIdx++}"))
                     {
-                        var system = layer[0];
-                        var ecb = _ecbPool.Rent();
-                        try
+                        if (layer.Count == 1)
                         {
-                            ExecuteSystem(system, ecb);
-
-                            // Await jobs created by this system
-                            await _jobSystem.CompleteAllAsync();
-
-                            using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                            var system = layer[0];
+                            var ecb = _ecbPool.Rent();
+                            try
                             {
-                                ecb.Playback();
+                                ExecuteSystem(system, ecb);
+
+                                // Await jobs created by this system
+                                using (_profilingService.Measure("SystemManager.AwaitJobs"))
+                                {
+                                    await _jobSystem.CompleteAllAsync();
+                                }
+
+                                using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                                {
+                                    ecb.Playback();
+                                }
+                            }
+                            finally
+                            {
+                                _ecbPool.Return(ecb);
                             }
                         }
-                        finally
+                        else
                         {
-                            _ecbPool.Return(ecb);
-                        }
-                    }
-                    else
-                    {
-                        var ecbs = new ConcurrentBag<EntityCommandBuffer>();
-                        await _jobSystem.ForEachAsync(layer, system =>
-                        {
-                            var ecb = _ecbPool.Rent();
-                            ecbs.Add(ecb);
-                            ExecuteSystem(system, ecb);
-                        });
-
-                        // Await jobs created by this layer
-                        await _jobSystem.CompleteAllAsync();
-
-                        // Synchronization Point: Playback all ECBs from this layer
-                        using (_profilingService.Measure("SystemManager.ECBPlayback"))
-                        {
-                            foreach (var ecb in ecbs)
+                            var ecbs = new ConcurrentBag<EntityCommandBuffer>();
+                            await _jobSystem.ForEachAsync(layer, system =>
                             {
-                                ecb.Playback();
-                                _ecbPool.Return(ecb);
+                                var ecb = _ecbPool.Rent();
+                                ecbs.Add(ecb);
+                                ExecuteSystem(system, ecb);
+                            });
+
+                            // Await jobs created by this layer
+                            using (_profilingService.Measure("SystemManager.AwaitJobs"))
+                            {
+                                await _jobSystem.CompleteAllAsync();
+                            }
+
+                            // Synchronization Point: Playback all ECBs from this layer
+                            using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                            {
+                                foreach (var ecb in ecbs)
+                                {
+                                    ecb.Playback();
+                                    _ecbPool.Return(ecb);
+                                }
                             }
                         }
                     }
@@ -245,7 +268,13 @@ namespace Shared.Services
                 // Post-Tick Phase
                 using (_profilingService.Measure("SystemManager.PostTick"))
                 {
-                    await _jobSystem.ForEachAsync(enabledSystems, s => s.PostTick());
+                    await _jobSystem.ForEachAsync(enabledSystems, system =>
+                    {
+                        using (_profilingService.Measure($"System.{system.Name}.PostTick"))
+                        {
+                            system.PostTick();
+                        }
+                    });
                 }
 
                 // Cleanup Phase: Reset all worker arenas and shrink all registered pools/caches

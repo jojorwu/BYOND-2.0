@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
 using Shared.Messaging;
@@ -61,6 +64,26 @@ namespace Shared.Services
             var module = new T();
             services.AddSingleton<IEngineModule>(module);
             module.RegisterServices(services);
+            return services;
+        }
+
+        /// <summary>
+        /// Scans the given assembly for types implementing IEngineModule and registers them.
+        /// </summary>
+        public static IServiceCollection AddEngineModulesFromAssembly(this IServiceCollection services, Assembly assembly)
+        {
+            var moduleTypes = assembly.GetTypes()
+                .Where(t => typeof(IEngineModule).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+            foreach (var type in moduleTypes)
+            {
+                if (Activator.CreateInstance(type) is IEngineModule module)
+                {
+                    services.AddSingleton(typeof(IEngineModule), module);
+                    module.RegisterServices(services);
+                }
+            }
+
             return services;
         }
 

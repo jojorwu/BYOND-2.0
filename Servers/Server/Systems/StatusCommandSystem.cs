@@ -21,8 +21,9 @@ namespace Server.Systems
             _monitor = monitor;
         }
 
-        public override void Initialize()
+        public override void Initialize(Microsoft.Extensions.Logging.ILogger logger)
         {
+            base.Initialize(logger);
             _registry.RegisterHandler(this);
         }
 

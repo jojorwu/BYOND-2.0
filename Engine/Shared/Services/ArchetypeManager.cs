@@ -209,10 +209,9 @@ namespace Shared.Services
             {
                 foreach (var archetype in targetArchetypes)
                 {
-                    var chunk = archetype.GetChunk<T>();
-                    for (int i = 0; i < chunk.Count; i++)
+                    foreach (var component in archetype.GetComponents<T>())
                     {
-                        yield return chunk.Components[i];
+                        yield return component;
                     }
                 }
             }
@@ -231,22 +230,16 @@ namespace Shared.Services
 
         public IEnumerable<IComponent> GetComponents(Type componentType)
         {
-            var results = new List<IComponent>();
             if (_typeToArchetypesCache.TryGetValue(componentType, out var targetArchetypes))
             {
                 foreach (var archetype in targetArchetypes)
                 {
-                    var array = archetype.GetComponentsInternal(componentType);
-                    if (array != null)
+                    foreach (var component in archetype.GetComponents(componentType))
                     {
-                        for (int i = 0; i < archetype.EntityCount; i++)
-                        {
-                            results.Add(array.Get(i));
-                        }
+                        yield return component;
                     }
                 }
             }
-            return results;
         }
 
         public IEnumerable<IComponent> GetAllComponents(int entityId)

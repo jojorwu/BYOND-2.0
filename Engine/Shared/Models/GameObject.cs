@@ -14,6 +14,7 @@ namespace Shared
     public class GameObject : DreamObject, IGameObject, IPoolable
     {
         private static int nextId = 1;
+        private static readonly object _globalHierarchyLock = new();
 
         public static void EnsureNextId(int id)
         {
@@ -53,7 +54,6 @@ namespace Shared
                     {
                         _x = value;
                         SyncVariable("x", value);
-                        IncrementVersion();
                     }
                 }
             }
@@ -80,7 +80,6 @@ namespace Shared
                     {
                         _y = value;
                         SyncVariable("y", value);
-                        IncrementVersion();
                     }
                 }
             }
@@ -107,7 +106,6 @@ namespace Shared
                     {
                         _z = value;
                         SyncVariable("z", value);
-                        IncrementVersion();
                     }
                 }
             }
@@ -122,56 +120,56 @@ namespace Shared
         public string Icon
         {
             get => _icon;
-            set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); } } }
         }
 
         private string _iconState = string.Empty;
         public string IconState
         {
             get => _iconState;
-            set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); } } }
         }
 
         private int _dir = 2;
         public int Dir
         {
             get => _dir;
-            set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); } } }
         }
 
         private float _alpha = 255.0f;
         public float Alpha
         {
             get => _alpha;
-            set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); } } }
         }
 
         private string _color = "#ffffff";
         public string Color
         {
             get => _color;
-            set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); } } }
         }
 
         private float _layer = 2.0f;
         public float Layer
         {
             get => _layer;
-            set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); } } }
         }
 
         private float _pixelX = 0;
         public float PixelX
         {
             get => _pixelX;
-            set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); } } }
         }
 
         private float _pixelY = 0;
         public float PixelY
         {
             get => _pixelY;
-            set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); IncrementVersion(); } } }
+            set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); } } }
         }
 
         /// <summary>
@@ -199,22 +197,28 @@ namespace Shared
 
         private void SetLocInternal(IGameObject? value, bool syncVariable)
         {
-            lock (_stateLock)
-            {
-                if (_loc == value) return;
+            GameObject? oldLoc = null;
+            GameObject? newLoc = null;
 
-                var oldLoc = _loc as GameObject;
-                _loc = value;
-                var newLoc = value as GameObject;
+            lock (_globalHierarchyLock)
+            {
+                lock (_stateLock)
+                {
+                    if (_loc == value) return;
+
+                    oldLoc = _loc as GameObject;
+                    _loc = value;
+                    newLoc = value as GameObject;
+
+                    if (syncVariable)
+                    {
+                        // Syncing "loc" variable which might be tracked for snapshots
+                        SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+                    }
+                }
 
                 oldLoc?.RemoveContentInternal(this);
                 newLoc?.AddContentInternal(this);
-
-                if (syncVariable)
-                {
-                    // Syncing "loc" variable which might be tracked for snapshots
-                    SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
-                }
             }
         }
 
@@ -228,44 +232,34 @@ namespace Shared
 
         public virtual void AddContent(IGameObject obj)
         {
-            bool added = false;
-            lock (_contentsLock)
-            {
-                if (!System.Array.Exists(_contents, x => x == obj))
-                {
-                    var newContents = new IGameObject[_contents.Length + 1];
-                    System.Array.Copy(_contents, newContents, _contents.Length);
-                    newContents[_contents.Length] = obj;
-                    _contents = newContents;
-                    added = true;
-                }
-            }
-
-            if (added && obj is GameObject gameObj && gameObj.Loc != this)
+            if (obj is GameObject gameObj)
             {
                 gameObj.Loc = this;
+            }
+            else
+            {
+                lock (_globalHierarchyLock)
+                {
+                    AddContentInternal(obj);
+                }
             }
         }
 
         public virtual void RemoveContent(IGameObject obj)
         {
-            bool removed = false;
-            lock (_contentsLock)
+            if (obj is GameObject gameObj)
             {
-                int index = System.Array.IndexOf(_contents, obj);
-                if (index != -1)
+                if (gameObj.Loc == this)
                 {
-                    var newContents = new IGameObject[_contents.Length - 1];
-                    System.Array.Copy(_contents, 0, newContents, 0, index);
-                    System.Array.Copy(_contents, index + 1, newContents, index, _contents.Length - index - 1);
-                    _contents = newContents;
-                    removed = true;
+                    gameObj.Loc = null;
                 }
             }
-
-            if (removed && obj is GameObject gameObj && gameObj.Loc == this)
+            else
             {
-                gameObj.Loc = null;
+                lock (_globalHierarchyLock)
+                {
+                    RemoveContentInternal(obj);
+                }
             }
         }
 

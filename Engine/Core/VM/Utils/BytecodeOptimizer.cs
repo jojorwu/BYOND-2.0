@@ -12,10 +12,16 @@ namespace Core.VM.Utils
         private static List<int>? _labelLocations;
         [ThreadStatic]
         private static int[]? _pcMap;
+        [ThreadStatic]
+        private static HashSet<int>? _jumpTargets;
 
         public static byte[] Optimize(byte[] bytecode, IReadOnlyList<string>? strings = null)
         {
             if (bytecode == null || bytecode.Length == 0) return bytecode ?? Array.Empty<byte>();
+
+            _jumpTargets ??= new HashSet<int>();
+            _jumpTargets.Clear();
+            PreScanJumpTargets(bytecode, _jumpTargets);
 
             // Reclaim memory if buffers are excessively large (e.g., > 1MB)
             if (_optimizationBuffer != null && _optimizationBuffer.Capacity > 1024 * 1024) _optimizationBuffer = null;
@@ -41,15 +47,26 @@ namespace Core.VM.Utils
                 int currentOriginalPc = pc;
                 int currentOptimizedPc = optimized.Count;
 
+                // Check if any part of the potential patterns is a jump target
+                bool IsJumpTarget(int start, int count)
+                {
+                    if (_jumpTargets == null) return false;
+                    for (int i = 1; i < count; i++) // i=1 because jumping to the START of a pattern is okay
+                    {
+                        if (_jumpTargets.Contains(start + i)) return true;
+                    }
+                    return false;
+                }
+
                 // Pattern: PushReferenceValue(Local, idx)
-                if (IsPushLocal(bytecode, pc, out byte idx))
+                if (IsPushLocal(bytecode, pc, out byte idx) && !IsJumpTarget(pc, 3))
                 {
                     // Peek for next instruction
                     int nextPc = pc + 3;
-                    if (IsPushLocal(bytecode, nextPc, out byte idx2))
+                    if (IsPushLocal(bytecode, nextPc, out byte idx2) && !IsJumpTarget(nextPc, 3))
                     {
                         int nextNextPc = nextPc + 3;
-                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Add)
+                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Add && !IsJumpTarget(nextNextPc, 1))
                         {
                             MarkPcMap(pc, nextNextPc + 1, optimized.Count);
                             optimized.Add((byte)Opcode.LocalPushLocalPushAdd);
@@ -59,13 +76,13 @@ namespace Core.VM.Utils
                             continue;
                         }
 
-                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Multiply)
+                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Multiply && !IsJumpTarget(nextNextPc, 1))
                         {
                             int thirdPc = nextNextPc + 1;
-                            if (IsPushLocal(bytecode, thirdPc, out byte idx3))
+                            if (IsPushLocal(bytecode, thirdPc, out byte idx3) && !IsJumpTarget(thirdPc, 3))
                             {
                                 int fourthPc = thirdPc + 3;
-                                if (fourthPc < bytecode.Length && bytecode[fourthPc] == (byte)Opcode.Add)
+                                if (fourthPc < bytecode.Length && bytecode[fourthPc] == (byte)Opcode.Add && !IsJumpTarget(fourthPc, 1))
                                 {
                                     MarkPcMap(pc, fourthPc + 1, optimized.Count);
                                     optimized.Add((byte)Opcode.LocalMulAdd);
@@ -79,10 +96,10 @@ namespace Core.VM.Utils
                         }
                     }
 
-                    if (pc + 3 + 4 < bytecode.Length && bytecode[pc + 3] == (byte)Opcode.PushFloat)
+                    if (pc + 3 + 4 < bytecode.Length && bytecode[pc + 3] == (byte)Opcode.PushFloat && !IsJumpTarget(pc + 3, 5))
                     {
                         int addPc = pc + 3 + 5;
-                        if (addPc < bytecode.Length && bytecode[addPc] == (byte)Opcode.Add)
+                        if (addPc < bytecode.Length && bytecode[addPc] == (byte)Opcode.Add && !IsJumpTarget(addPc, 1))
                         {
                             MarkPcMap(pc, addPc + 1, optimized.Count);
                             optimized.Add((byte)Opcode.LocalAddFloat);
@@ -158,11 +175,11 @@ namespace Core.VM.Utils
                 }
 
                 // Pattern: PushReferenceValue(ref), JumpIfFalse(label) -> JumpIfReferenceFalse(ref, label)
-                if (pc + 1 < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue)
+                if (pc + 1 < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue && !IsJumpTarget(pc, 1 + GetReferenceSize(bytecode, pc + 1)))
                 {
                     int refSize = GetReferenceSize(bytecode, pc + 1);
                     int jumpPc = pc + 1 + refSize;
-                    if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse)
+                    if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(jumpPc, 5))
                     {
                         MarkPcMap(pc, jumpPc + 5, optimized.Count);
                         optimized.Add((byte)Opcode.JumpIfReferenceFalse);
@@ -317,6 +334,41 @@ namespace Core.VM.Utils
                 return true;
             }
             return false;
+        }
+
+        private static void PreScanJumpTargets(byte[] bytecode, HashSet<int> targets)
+        {
+            int pc = 0;
+            while (pc < bytecode.Length)
+            {
+                Opcode opcode = (Opcode)bytecode[pc++];
+                var metadata = OpcodeMetadataCache.GetMetadata(opcode);
+                int varCount = 0;
+                foreach (var argType in metadata.RequiredArgs)
+                {
+                    if (argType == OpcodeArgType.Label)
+                    {
+                        int target = BitConverter.ToInt32(bytecode, pc);
+                        targets.Add(target);
+                        pc += 4;
+                    }
+                    else
+                    {
+                        int size = GetArgSize(argType, bytecode, pc);
+                        if (size == 4 && metadata.VariableArgs) varCount = BitConverter.ToInt32(bytecode, pc);
+                        pc += size;
+                    }
+                }
+
+                if (metadata.VariableArgs)
+                {
+                    var argType = GetVariableArgType(opcode);
+                    for (int i = 0; i < varCount; i++)
+                    {
+                        pc += GetArgSize(argType, bytecode, pc);
+                    }
+                }
+            }
         }
 
         private static bool IsPushArgument(byte[] bytecode, int pc, out byte index)

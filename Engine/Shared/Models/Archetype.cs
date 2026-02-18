@@ -139,25 +139,29 @@ namespace Shared.Models
             int count;
             lock (_lock)
             {
-                data = GetComponentsInternal<T>();
+                var originalData = GetComponentsInternal<T>();
                 count = _count;
+                // We must copy the array because elements might be swapped or cleared during iteration
+                data = new T[count];
+                Array.Copy(originalData, data, count);
             }
-            for (int i = 0; i < count; i++) yield return data[i];
+            return data;
         }
 
         public IEnumerable<IComponent> GetComponents(Type type)
         {
             if (_componentArrays.TryGetValue(type, out var array))
             {
-                IComponentArray arr;
-                int count;
+                IComponent[] data;
                 lock (_lock)
                 {
-                    arr = array;
-                    count = _count;
+                    int count = _count;
+                    data = new IComponent[count];
+                    for (int i = 0; i < count; i++) data[i] = array.Get(i);
                 }
-                for (int i = 0; i < count; i++) yield return arr.Get(i);
+                return data;
             }
+            return Array.Empty<IComponent>();
         }
 
         public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);
@@ -210,6 +214,15 @@ namespace Shared.Models
             public IComponent Get(int index) => Data[index];
         }
 
-        public IEnumerable<int> GetEntityIds() => _entityIds;
+        public int[] GetEntityIdsSnapshot()
+        {
+            lock (_lock)
+            {
+                int count = _count;
+                int[] snapshot = new int[count];
+                Array.Copy(_entityIds, snapshot, count);
+                return snapshot;
+            }
+        }
     }
 }

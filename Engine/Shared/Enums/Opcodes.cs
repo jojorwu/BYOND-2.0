@@ -105,7 +105,7 @@ namespace Shared {
         SwitchCase = 0x32,
         [OpcodeMetadata(0, OpcodeArgType.Reference)]
         Mask = 0x33,
-        [OpcodeMetadata(-2, OpcodeArgType.String)]
+        [OpcodeMetadata(-1, OpcodeArgType.String)]
         SetVariable = 0x34,
         [OpcodeMetadata]
         Error = 0x35,
@@ -159,7 +159,7 @@ namespace Shared {
         OutputReference = 0x4E,
         [OpcodeMetadata(-2)]
         Output = 0x4F,
-        [OpcodeMetadata(0, OpcodeArgType.String)]
+        [OpcodeMetadata(1, OpcodeArgType.String)]
         GetVariable = 0x50,
         [OpcodeMetadata(-1)]
         Pop = 0x51,

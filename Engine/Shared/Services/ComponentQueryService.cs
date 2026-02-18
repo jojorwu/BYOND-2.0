@@ -110,11 +110,10 @@ namespace Shared.Services
                 var results = new List<IGameObject>();
                 foreach (var arch in archetypes)
                 {
-                    var ids = arch.GetEntityIds().ToArray();
-                    int count = Math.Min(ids.Length, arch.EntityCount);
-                    for (int i = 0; i < count; i++)
+                    var ids = arch.GetEntityIdsSnapshot();
+                    foreach (int id in ids)
                     {
-                        if (_gameState.GameObjects.TryGetValue(ids[i], out var obj))
+                        if (_gameState.GameObjects.TryGetValue(id, out var obj))
                         {
                             results.Add(obj);
                         }

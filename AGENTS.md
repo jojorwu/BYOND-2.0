@@ -34,14 +34,25 @@ This document provides a high-level overview of the project's architecture and g
 
 3. **Service-Oriented Design**:
    - Prefer small, focused services with clear interfaces.
-   - Core engine components (VM, ScriptHost, Network) are managed by the `ServerApplication` or launcher main loops.
+   - Core engine components (VM, ScriptHost, Network) are managed by the `ServerApplication` or launcher main loops via `IEngineModule`.
 
-4. **Performance First**:
+4. **Modularity and Extensibility**:
+   - Use `IEngineModule` and `BaseModule` to group related services and systems.
+   - Modules are initialized and shut down by the application lifecycle (`StartAsync`/`StopAsync`).
+   - Register modules using `services.AddEngineModule<MyModule>()`.
+
+5. **Declarative Systems (ECS)**:
+   - Inherit from `BaseSystem` to implement game logic.
+   - Use `[System]` attribute to define metadata: `Name`, `Group`, `Priority`, and `Dependencies`.
+   - Use `[Resource]` attribute to declare read/write dependencies for the task scheduler.
+   - Systems registered in DI via `services.AddSystem<MySystem>()` are automatically discovered and executed by `SystemManager`.
+
+6. **Performance First**:
    - Critical data paths (like `DreamValue` arithmetic or `DreamObject` access) use `AggressiveInlining` and optimized logic (switch expressions).
    - Minimize allocations in the main game loop (e.g., use `Array.Empty` instead of new lists).
    - Use `IComputeService` for hardware-accelerated tasks (CUDA, ROCm, or SIMD).
 
-5. **Cross-Platform Readiness**:
+7. **Cross-Platform Readiness**:
    - All engine logic should remain platform-agnostic.
    - Platform-specific code should be abstracted behind interfaces.
 

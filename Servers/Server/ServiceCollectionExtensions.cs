@@ -46,8 +46,6 @@ namespace Server
             services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
 
-            services.AddSingleton<ISystemManager, SystemManager>();
-
             return services;
         }
 

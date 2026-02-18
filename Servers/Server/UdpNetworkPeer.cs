@@ -2,6 +2,8 @@ using Shared;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Server
 {
@@ -45,6 +47,16 @@ namespace Server
                 _writerPool.Return(writer);
             }
             return ValueTask.CompletedTask;
+        }
+
+        public void PruneLastSentVersions(IEnumerable<int> activeIds)
+        {
+            var activeSet = activeIds as HashSet<int> ?? activeIds.ToHashSet();
+            var keysToRemove = LastSentVersions.Keys.Where(k => !activeSet.Contains(k)).ToList();
+            foreach (var key in keysToRemove)
+            {
+                LastSentVersions.Remove(key);
+            }
         }
     }
 }

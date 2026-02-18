@@ -256,10 +256,14 @@ namespace Shared.Services
             const int BatchSize = 32;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
+            if (count == 0) return;
+
+            var handles = new List<JobHandle>();
 
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item), priority: priority);
+                foreach (var item in list)
+                    handles.Add(Schedule(() => action(item), priority: priority, track: false));
             }
             else
             {
@@ -267,16 +271,17 @@ namespace Shared.Services
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(() =>
+                    handles.Add(Schedule(() =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             action(list[j]);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false));
                 }
             }
-            await CompleteAllAsync();
+
+            await CombineDependencies(handles.ToArray()).Task!;
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
@@ -284,10 +289,14 @@ namespace Shared.Services
             const int BatchSize = 32;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
+            if (count == 0) return;
+
+            var handles = new List<JobHandle>();
 
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item), priority: priority);
+                foreach (var item in list)
+                    handles.Add(Schedule(async () => await action(item), priority: priority, track: false));
             }
             else
             {
@@ -295,16 +304,17 @@ namespace Shared.Services
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(async () =>
+                    handles.Add(Schedule(async () =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             await action(list[j]);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false));
                 }
             }
-            await CompleteAllAsync();
+
+            await CombineDependencies(handles.ToArray()).Task!;
         }
 
         public IArenaAllocator? GetCurrentArena()

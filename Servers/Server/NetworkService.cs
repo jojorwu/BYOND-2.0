@@ -64,11 +64,31 @@ namespace Server
         private async Task PollEvents(CancellationToken token)
         {
             _logger.LogInformation("Network event polling started.");
+            int pruneCounter = 0;
             while (!token.IsCancellationRequested)
             {
                 _netManager.PollEvents();
+
+                // Prune every ~30 seconds (5ms * 6000 = 30000ms)
+                if (++pruneCounter >= 6000)
+                {
+                    pruneCounter = 0;
+                    PruneAllPeers();
+                }
+
                 // Lower delay for better responsiveness, but enough to avoid CPU pinning
                 await Task.Delay(5, token);
+            }
+        }
+
+        private void PruneAllPeers()
+        {
+            var activeIds = new List<int>();
+            _context.GameState.ForEachGameObject(o => activeIds.Add(o.Id));
+
+            foreach (var peer in _peers.Values)
+            {
+                peer.PruneLastSentVersions(activeIds);
             }
         }
 

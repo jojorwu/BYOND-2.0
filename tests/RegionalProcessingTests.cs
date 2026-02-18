@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Moq;
 using Server;
+using Server.Systems;
 using Shared;
 using Shared.Interfaces;
 using Shared.Services;
@@ -67,7 +68,7 @@ namespace tests
         {
             // Arrange
             _serverSettings.Network.EnableBinarySnapshots = true;
-            var strategy = new RegionalGameLoopStrategy(
+            var strategy = new RegionalProcessingSystem(
                 _scriptHostMock.Object,
                 _regionManagerMock.Object,
                 _regionActivationStrategyMock.Object,

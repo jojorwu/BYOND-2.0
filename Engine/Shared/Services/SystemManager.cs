@@ -33,6 +33,7 @@ namespace Shared.Services
             // Automatically register all systems discovered by DI
             foreach (var system in systems)
             {
+                system.Initialize();
                 _registry.Register(system);
             }
         }

@@ -24,6 +24,7 @@ namespace Shared.Services
 
             services.AddSingleton<ISystemRegistry, SystemRegistry>();
             services.AddSingleton<ISystemManager, SystemManager>();
+            services.AddSingleton<ICommandRegistry, CommandRegistry>();
             services.AddSingleton<IPluginManager, PluginManager>();
             services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
             services.AddSingleton<IPacketDispatcher, PacketDispatcher>();

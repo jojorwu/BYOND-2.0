@@ -37,6 +37,8 @@ namespace Shared.Models
             .Where(a => a.Access == ResourceAccess.Write)
             .Select(a => a.ResourceType);
 
+        public virtual void Initialize() { }
+
         public virtual void PreTick() { }
 
         public abstract void Tick(IEntityCommandBuffer ecb);

@@ -10,10 +10,10 @@ using Shared.Interfaces;
 using Shared.Models;
 using Shared.Attributes;
 
-namespace Server
+namespace Server.Systems
 {
     [System("RegionalProcessingSystem", Priority = 50)]
-    public class RegionalGameLoopStrategy : BaseSystem, IShrinkable
+    public class RegionalProcessingSystem : BaseSystem, IShrinkable
     {
         private readonly IScriptHost _scriptHost;
         private readonly IRegionManager _regionManager;
@@ -25,7 +25,7 @@ namespace Server
         private readonly ServerSettings _settings;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<long, (long AggregateVersion, string Snapshot)> _snapshotCache = new();
 
-        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
+        public RegionalProcessingSystem(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
         {
             _scriptHost = scriptHost;
             _regionManager = regionManager;

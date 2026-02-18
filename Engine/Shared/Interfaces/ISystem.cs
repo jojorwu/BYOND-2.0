@@ -15,6 +15,11 @@ namespace Shared.Interfaces
         string Name => GetType().Name;
 
         /// <summary>
+        /// Initializes the system. Called once when the system is registered.
+        /// </summary>
+        void Initialize() { }
+
+        /// <summary>
         /// Executed before the main tick phase.
         /// </summary>
         void PreTick() { }

@@ -52,9 +52,9 @@ namespace Server
             services.AddSingleton<IGameStateSnapshotter>(p => p.GetRequiredService<GameStateSnapshotter>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameStateSnapshotter>());
 
-            services.AddSingleton<RegionalGameLoopStrategy>();
-            services.AddSingleton<ISystem>(p => p.GetRequiredService<RegionalGameLoopStrategy>());
-            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<RegionalGameLoopStrategy>());
+            services.AddSingleton<RegionalProcessingSystem>();
+            services.AddSingleton<ISystem>(p => p.GetRequiredService<RegionalProcessingSystem>());
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<RegionalProcessingSystem>());
 
             services.AddSingleton<GameLoop>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameLoop>());
@@ -67,6 +67,7 @@ namespace Server
             services.AddSystem<ScriptSystem>();
             services.AddSystem<NetworkingSystem>();
             services.AddSystem<StateCommitSystem>();
+            services.AddSystem<StatusCommandSystem>();
         }
 
         public override async Task InitializeAsync(IServiceProvider serviceProvider)

@@ -375,7 +375,13 @@ namespace Shared
             if (Type != other.Type) return false;
 
             if (Type == DreamValueType.Float)
-                return _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+            {
+                float f1 = _floatValue;
+                float f2 = other._floatValue;
+                // ReSharper disable once CompareOfFloatsByEqualityOperator
+                if (f1 == f2) return true;
+                return MathF.Abs(f1 - f2) < 0.00001f;
+            }
 
             if (Type == DreamValueType.Null) return true;
 
@@ -399,7 +405,13 @@ namespace Shared
             if (a.Type == b.Type)
             {
                 if (a.Type == DreamValueType.Float)
-                    return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
+                {
+                    float f1 = a._floatValue;
+                    float f2 = b._floatValue;
+                    // ReSharper disable once CompareOfFloatsByEqualityOperator
+                    if (f1 == f2) return true;
+                    return MathF.Abs(f1 - f2) < 0.00001f;
+                }
 
                 if (a.Type == DreamValueType.Null) return true;
 

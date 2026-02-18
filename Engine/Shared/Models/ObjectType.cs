@@ -57,6 +57,19 @@ namespace Shared
 
         private Dictionary<string, int>? _variableIndices;
 
+        public int IndexX { get; private set; } = -1;
+        public int IndexY { get; private set; } = -1;
+        public int IndexZ { get; private set; } = -1;
+        public int IndexLoc { get; private set; } = -1;
+        public int IndexIcon { get; private set; } = -1;
+        public int IndexIconState { get; private set; } = -1;
+        public int IndexDir { get; private set; } = -1;
+        public int IndexAlpha { get; private set; } = -1;
+        public int IndexColor { get; private set; } = -1;
+        public int IndexLayer { get; private set; } = -1;
+        public int IndexPixelX { get; private set; } = -1;
+        public int IndexPixelY { get; private set; } = -1;
+
         public ObjectType(int id, string name)
         {
             Id = id;
@@ -93,7 +106,24 @@ namespace Shared
             _variableIndices = new Dictionary<string, int>(VariableNames.Count);
             for (int i = 0; i < VariableNames.Count; i++)
             {
-                _variableIndices[VariableNames[i]] = i;
+                var name = VariableNames[i];
+                _variableIndices[name] = i;
+
+                switch (name)
+                {
+                    case "x": IndexX = i; break;
+                    case "y": IndexY = i; break;
+                    case "z": IndexZ = i; break;
+                    case "loc": IndexLoc = i; break;
+                    case "icon": IndexIcon = i; break;
+                    case "icon_state": IndexIconState = i; break;
+                    case "dir": IndexDir = i; break;
+                    case "alpha": IndexAlpha = i; break;
+                    case "color": IndexColor = i; break;
+                    case "layer": IndexLayer = i; break;
+                    case "pixel_x": IndexPixelX = i; break;
+                    case "pixel_y": IndexPixelY = i; break;
+                }
             }
         }
 

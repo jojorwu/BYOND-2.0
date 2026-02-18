@@ -503,8 +503,6 @@ namespace Core.VM.Runtime
             var count = ReadInt32(proc, ref pc);
             if (count < 0 || count > _stackPtr)
                 throw new ScriptRuntimeException($"Invalid concatenation count: {count}", proc, pc, this);
-            if (count > 1024)
-                throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, this);
 
             if (count == 0)
             {
@@ -525,6 +523,7 @@ namespace Core.VM.Runtime
                 throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, this);
 
             _stackPtr -= count;
+            // string.Concat(ReadOnlySpan<string>) is available in .NET Core 2.1+
             Push(new DreamValue(string.Concat(strings)));
         }
 
@@ -536,13 +535,9 @@ namespace Core.VM.Runtime
                 throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, this);
             if (formatCount < 0 || formatCount > _stackPtr)
                 throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, this);
-            var formatString = Context.Strings[stringId];
 
-            var values = new DreamValue[formatCount];
-            for (int i = formatCount - 1; i >= 0; i--)
-            {
-                values[i] = Pop();
-            }
+            var formatString = Context.Strings[stringId];
+            var values = _stack.AsSpan(_stackPtr - formatCount, formatCount);
 
             var result = new System.Text.StringBuilder(formatString.Length + formatCount * 8);
             int valueIndex = 0;
@@ -570,6 +565,7 @@ namespace Core.VM.Runtime
                 }
             }
 
+            _stackPtr -= formatCount;
             Push(new DreamValue(result.ToString()));
         }
 
@@ -614,15 +610,14 @@ namespace Core.VM.Runtime
                 throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, this);
 
             var argCount = argStackDelta - 1;
-            var values = new DreamValue[argCount];
-            for (int i = argCount - 1; i >= 0; i--)
-            {
-                values[i] = Pop();
-            }
+            var typeValueIdx = _stackPtr - argStackDelta;
+            var typeValue = _stack[typeValueIdx];
 
-            var typeValue = Pop();
             if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
             {
+                // Capture arguments before changing stack
+                var arguments = _stack.AsSpan(_stackPtr - argCount, argCount);
+
                 GameObject newObj;
                 if (Context.ObjectFactory != null)
                 {
@@ -635,11 +630,10 @@ namespace Core.VM.Runtime
 
                 Context.GameState?.AddGameObject(newObj);
 
-                Push(new DreamValue(newObj));
-
+                // Check for location argument (first arg)
                 if (argCount > 0)
                 {
-                    var locValue = values[0];
+                    var locValue = arguments[0];
                     if (locValue.TryGetValueAsGameObject(out var locObj))
                     {
                         newObj.Loc = locObj;
@@ -649,17 +643,26 @@ namespace Core.VM.Runtime
                 var newProc = newObj.ObjectType?.GetProc("New");
                 if (newProc != null)
                 {
-                    // Push arguments for New
-                    for (int i = 0; i < argCount; i++)
-                    {
-                        Push(values[i]);
-                    }
+                    // We need to keep arguments on stack for New, but replace typeValue with newObj
+                    _stack[typeValueIdx] = new DreamValue(newObj);
+                    // The stack already has arguments above typeValueIdx.
+                    // Stack: [newObj, arg1, arg2, ...]
+                    // We need to move pc and call PerformCall
                     SavePC(pc);
+                    // PerformCall will expect arguments to be at the top of the stack.
+                    // Current stack pointer is still at the end of arguments.
                     PerformCall(newProc, newObj, argCount, argCount, discardReturnValue: true);
+                }
+                else
+                {
+                    // No New proc, just clean up stack and push new object
+                    _stackPtr = typeValueIdx;
+                    Push(new DreamValue(newObj));
                 }
             }
             else
             {
+                _stackPtr = typeValueIdx;
                 Push(DreamValue.Null);
             }
         }

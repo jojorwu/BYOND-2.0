@@ -379,44 +379,21 @@ namespace Shared
             {
                 base.SetVariableDirect(index, value);
 
-                if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
-                {
-                    UpdateBuiltinFromVariable(ObjectType.VariableNames[index], value);
-                }
-            }
-        }
+                var ot = ObjectType;
+                if (ot == null) return;
 
-        private void UpdateBuiltinFromVariable(string name, DreamValue value)
-        {
-            if (name.Length == 1)
-            {
-                switch (name[0])
-                {
-                    case 'x': _x = (int)value.GetValueAsFloat(); return;
-                    case 'y': _y = (int)value.GetValueAsFloat(); return;
-                    case 'z': _z = (int)value.GetValueAsFloat(); return;
-                }
-            }
-
-            switch (name)
-            {
-                case "loc":
-                    SetLocInternal((value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) ? loc : null, false);
-                    break;
-                case "icon":
-                    if (value.TryGetValue(out string? icon)) _icon = icon;
-                    break;
-                case "icon_state":
-                    if (value.TryGetValue(out string? iconState)) _iconState = iconState;
-                    break;
-                case "dir": _dir = (int)value.GetValueAsFloat(); break;
-                case "alpha": _alpha = value.GetValueAsFloat(); break;
-                case "color":
-                    if (value.TryGetValue(out string? color)) _color = color;
-                    break;
-                case "layer": _layer = value.GetValueAsFloat(); break;
-                case "pixel_x": _pixelX = value.GetValueAsFloat(); break;
-                case "pixel_y": _pixelY = value.GetValueAsFloat(); break;
+                if (index == ot.IndexX) { _x = (int)value.GetValueAsFloat(); return; }
+                if (index == ot.IndexY) { _y = (int)value.GetValueAsFloat(); return; }
+                if (index == ot.IndexZ) { _z = (int)value.GetValueAsFloat(); return; }
+                if (index == ot.IndexLoc) { SetLocInternal((value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) ? loc : null, false); return; }
+                if (index == ot.IndexIcon) { if (value.TryGetValue(out string? icon)) _icon = icon; return; }
+                if (index == ot.IndexIconState) { if (value.TryGetValue(out string? iconState)) _iconState = iconState; return; }
+                if (index == ot.IndexDir) { _dir = (int)value.GetValueAsFloat(); return; }
+                if (index == ot.IndexAlpha) { _alpha = value.GetValueAsFloat(); return; }
+                if (index == ot.IndexColor) { if (value.TryGetValue(out string? color)) _color = color; return; }
+                if (index == ot.IndexLayer) { _layer = value.GetValueAsFloat(); return; }
+                if (index == ot.IndexPixelX) { _pixelX = value.GetValueAsFloat(); return; }
+                if (index == ot.IndexPixelY) { _pixelY = value.GetValueAsFloat(); return; }
             }
         }
 

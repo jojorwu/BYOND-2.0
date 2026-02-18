@@ -21,7 +21,7 @@ namespace Shared.Services
         private readonly IEnumerable<IShrinkable> _shrinkables;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables, IEnumerable<ISystem> systems)
         {
             _registry = registry;
             _profilingService = profilingService;
@@ -29,6 +29,12 @@ namespace Shared.Services
             _ecbPool = ecbPool;
             _shrinkables = shrinkables;
             _executionLayers = new List<List<ISystem>>();
+
+            // Automatically register all systems discovered by DI
+            foreach (var system in systems)
+            {
+                _registry.Register(system);
+            }
         }
 
         public void MarkDirty() => _isDirty = true;

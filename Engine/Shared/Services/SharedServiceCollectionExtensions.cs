@@ -23,6 +23,7 @@ namespace Shared.Services
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
 
             services.AddSingleton<ISystemRegistry, SystemRegistry>();
+            services.AddSingleton<ISystemManager, SystemManager>();
             services.AddSingleton<IPluginManager, PluginManager>();
             services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
             services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
@@ -48,6 +49,26 @@ namespace Shared.Services
             services.AddSingleton<IInterestManager, InterestManager>();
             services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
             services.AddSingleton<IArenaAllocator, ArenaProxy>();
+            return services;
+        }
+
+        /// <summary>
+        /// Registers an engine module and its associated services.
+        /// </summary>
+        public static IServiceCollection AddEngineModule<T>(this IServiceCollection services) where T : class, IEngineModule, new()
+        {
+            var module = new T();
+            services.AddSingleton<IEngineModule>(module);
+            module.RegisterServices(services);
+            return services;
+        }
+
+        /// <summary>
+        /// Registers a system in the DI container so it can be automatically discovered by the SystemManager.
+        /// </summary>
+        public static IServiceCollection AddSystem<T>(this IServiceCollection services) where T : class, ISystem
+        {
+            services.AddSingleton<ISystem, T>();
             return services;
         }
     }

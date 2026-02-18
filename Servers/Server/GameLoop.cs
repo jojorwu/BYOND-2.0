@@ -54,7 +54,15 @@ namespace Server
                 while (accumulator >= targetFrameTime)
                 {
                     _timerService.Tick();
-                    await _systemManager.TickAsync();
+                    try
+                    {
+                        await _systemManager.TickAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Critical error during SystemManager.TickAsync! Attempting to continue.");
+                        _context.PerformanceMonitor.RecordError();
+                    }
 
                     _context.PerformanceMonitor.RecordTick();
                     accumulator -= targetFrameTime;

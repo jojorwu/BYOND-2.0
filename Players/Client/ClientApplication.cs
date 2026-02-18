@@ -37,13 +37,29 @@ namespace Client
 
             foreach (var module in _modules)
             {
-                await module.InitializeAsync(_serviceProvider);
+                try
+                {
+                    await module.InitializeAsync(_serviceProvider);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to initialize module: {ModuleName}", module.Name);
+                    if (module.IsCritical) throw;
+                }
             }
 
             foreach (var service in _services.OrderByDescending(s => s.Priority))
             {
-                await service.InitializeAsync();
-                await service.StartAsync(cancellationToken);
+                try
+                {
+                    await service.InitializeAsync();
+                    await service.StartAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to start service: {ServiceName}", service.GetType().Name);
+                    if (service.IsCritical) throw;
+                }
             }
 
             _logger.LogInformation("Client Application started.");

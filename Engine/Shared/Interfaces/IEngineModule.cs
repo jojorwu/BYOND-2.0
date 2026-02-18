@@ -15,6 +15,11 @@ namespace Shared.Interfaces
         string Name { get; }
 
         /// <summary>
+        /// Whether the module is critical. Failure to initialize a critical module will abort startup.
+        /// </summary>
+        bool IsCritical => true;
+
+        /// <summary>
         /// Registers services for this module in the dependency injection container.
         /// </summary>
         /// <param name="services">The service collection.</param>

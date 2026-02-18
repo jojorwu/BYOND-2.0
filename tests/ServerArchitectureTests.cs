@@ -73,7 +73,7 @@ namespace tests
             // Mocking classes with complex constructors
             var gameLoopMock = new Mock<GameLoop>(new Mock<ISystemManager>().Object, new Mock<ITimerService>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
             var httpServerMock = new Mock<HttpServer>(Options.Create(settings), projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
-            var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object);
+            var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object, null);
 
             var udpServerEngineMock = udpServerMock.As<IEngineService>();
             var scriptHostEngineMock = scriptHostMock.As<IEngineService>();

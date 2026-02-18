@@ -41,10 +41,23 @@ namespace Server
             _logger.LogInformation("Starting Server Application...");
 
             // Initialize Modules
+            _logger.LogInformation("Initializing {Count} engine modules...", _modules.Count);
             foreach (var module in _modules)
             {
-                _logger.LogDebug("Initializing module: {ModuleName}", module.Name);
-                await module.InitializeAsync(_serviceProvider);
+                try
+                {
+                    _logger.LogDebug("Initializing module: {ModuleName}", module.Name);
+                    await module.InitializeAsync(_serviceProvider);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to initialize module: {ModuleName}", module.Name);
+                    if (module.IsCritical)
+                    {
+                        _logger.LogCritical("Critical module {ModuleName} failed to initialize. Aborting startup.", module.Name);
+                        throw;
+                    }
+                }
             }
 
             // Group by priority and start independent services in parallel
@@ -62,7 +75,9 @@ namespace Server
                 {
                     try
                     {
+                        _logger.LogDebug("Initializing service: {ServiceName}", service.GetType().Name);
                         await service.InitializeAsync();
+                        _logger.LogDebug("Starting service: {ServiceName}", service.GetType().Name);
                         await service.StartAsync(cancellationToken);
                     }
                     catch (Exception ex)
@@ -70,6 +85,7 @@ namespace Server
                         _logger.LogError(ex, "Failed to start service: {ServiceName}", service.GetType().Name);
                         if (service.IsCritical)
                         {
+                            _logger.LogCritical("Critical service {ServiceName} failed to start. Aborting startup.", service.GetType().Name);
                             throw; // Rethrow to abort startup
                         }
                     }

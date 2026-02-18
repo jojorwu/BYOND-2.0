@@ -29,8 +29,8 @@ namespace Core.VM.Runtime
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Push(DreamValue value)
         {
-            if (StackPtr >= DreamThread.MaxStackSize) throw new ScriptRuntimeException("Stack overflow", Proc, PC, Thread);
-            if (StackPtr >= Stack.Length)
+            if ((uint)StackPtr >= (uint)DreamThread.MaxStackSize) throw new ScriptRuntimeException("Stack overflow", Proc, PC, Thread);
+            if ((uint)StackPtr >= (uint)Stack.Length)
             {
                 Thread._stackPtr = StackPtr;
                 Thread.Push(value);
@@ -48,6 +48,27 @@ namespace Core.VM.Runtime
         {
             if (StackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", Proc, PC, Thread);
             return Stack[--StackPtr];
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public DreamValue Peek(int offset = 0)
+        {
+            int index = StackPtr - 1 - offset;
+            if (index < 0) throw new ScriptRuntimeException("Stack underflow during Peek", Proc, PC, Thread);
+            return Stack[index];
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void PopCount(int count)
+        {
+            if (StackPtr < count) throw new ScriptRuntimeException("Stack underflow during PopCount", Proc, PC, Thread);
+            StackPtr -= count;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EnsureStack(int count)
+        {
+            if (StackPtr < count) throw new ScriptRuntimeException("Stack underflow", Proc, PC, Thread);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -374,7 +395,7 @@ namespace Core.VM.Runtime
 
         private static void HandleAdd(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Add", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             var a = state.Stack[state.StackPtr - 1];
             if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -385,7 +406,7 @@ namespace Core.VM.Runtime
 
         private static void HandleSubtract(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Subtract", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             var a = state.Stack[state.StackPtr - 1];
             if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -396,7 +417,7 @@ namespace Core.VM.Runtime
 
         private static void HandleMultiply(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Multiply", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             var a = state.Stack[state.StackPtr - 1];
             if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -407,7 +428,7 @@ namespace Core.VM.Runtime
 
         private static void HandleDivide(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Divide", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             var a = state.Stack[state.StackPtr - 1];
             if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
@@ -421,69 +442,69 @@ namespace Core.VM.Runtime
 
         private static void HandleCompareEquals(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareEquals", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1] == b ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareNotEquals(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareNotEquals", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1] != b ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareLessThan(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareLessThan", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1] < b ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareGreaterThan(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareGreaterThan", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1] > b ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareLessThanOrEqual(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareLessThanOrEqual", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1] <= b ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareGreaterThanOrEqual(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareGreaterThanOrEqual", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1] >= b ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareEquivalent(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareEquivalent", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1].Equals(b) ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleCompareNotEquivalent(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareNotEquivalent", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] = !state.Stack[state.StackPtr - 1].Equals(b) ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleNegate(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Negate", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(1);
             state.Stack[state.StackPtr - 1] = -state.Stack[state.StackPtr - 1];
         }
 
         private static void HandleBooleanNot(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BooleanNot", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(1);
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False;
         }
 
@@ -563,8 +584,7 @@ namespace Core.VM.Runtime
 
         private static void HandleJumpIfFalse(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfFalse", state.Proc, state.PC, state.Thread);
-            var val = state.Stack[--state.StackPtr];
+            var val = state.Pop();
             var address = state.ReadInt32();
             if (val.IsFalse()) state.PC = address;
         }
@@ -593,7 +613,7 @@ namespace Core.VM.Runtime
 
         private static void HandleOutput(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Output", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var message = state.Stack[--state.StackPtr];
             var target = state.Stack[--state.StackPtr];
             if (!message.IsNull) Console.WriteLine(message.ToString());
@@ -617,21 +637,21 @@ namespace Core.VM.Runtime
 
         private static void HandleBitAnd(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitAnd", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] &= b;
         }
 
         private static void HandleBitOr(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitOr", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] |= b;
         }
 
         private static void HandleBitXor(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitXor", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] ^= b;
         }
@@ -649,13 +669,13 @@ namespace Core.VM.Runtime
 
         private static void HandleBitNot(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BitNot", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(1);
             state.Stack[state.StackPtr - 1] = ~state.Stack[state.StackPtr - 1];
         }
 
         private static void HandleBitShiftLeft(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitShiftLeft", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] <<= b;
         }
@@ -673,7 +693,7 @@ namespace Core.VM.Runtime
 
         private static void HandleBitShiftRight(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during BitShiftRight", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var b = state.Stack[--state.StackPtr];
             state.Stack[state.StackPtr - 1] >>= b;
         }
@@ -805,28 +825,27 @@ namespace Core.VM.Runtime
 
         private static void HandleIsNull(ref InterpreterState state)
         {
+            state.EnsureStack(1);
             state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1].IsNull ? DreamValue.True : DreamValue.False;
         }
 
         private static void HandleJumpIfNull(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfNull", state.Proc, state.PC, state.Thread);
-            var val = state.Stack[--state.StackPtr];
+            var val = state.Pop();
             var address = state.ReadInt32();
             if (val.Type == DreamValueType.Null) state.PC = address;
         }
 
         private static void HandleJumpIfNullNoPop(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfNullNoPop", state.Proc, state.PC, state.Thread);
-            var val = state.Stack[state.StackPtr - 1];
+            var val = state.Peek();
             var address = state.ReadInt32();
             if (val.Type == DreamValueType.Null) state.PC = address;
         }
 
         private static void HandleSwitchCase(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during SwitchCase", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var caseValue = state.Stack[--state.StackPtr];
             var switchValue = state.Stack[state.StackPtr - 1];
             var jumpAddress = state.ReadInt32();
@@ -835,7 +854,7 @@ namespace Core.VM.Runtime
 
         private static void HandleSwitchCaseRange(ref InterpreterState state)
         {
-            if (state.StackPtr < 3) throw new ScriptRuntimeException("Stack underflow during SwitchCaseRange", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(3);
             var max = state.Stack[--state.StackPtr];
             var min = state.Stack[--state.StackPtr];
             var switchValue = state.Stack[state.StackPtr - 1];
@@ -845,8 +864,7 @@ namespace Core.VM.Runtime
 
         private static void HandleBooleanAnd(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BooleanAnd", state.Proc, state.PC, state.Thread);
-            var val = state.Stack[--state.StackPtr];
+            var val = state.Pop();
             var jumpAddress = state.ReadInt32();
             if (val.IsFalse())
             {
@@ -857,8 +875,7 @@ namespace Core.VM.Runtime
 
         private static void HandleBooleanOr(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during BooleanOr", state.Proc, state.PC, state.Thread);
-            var val = state.Stack[--state.StackPtr];
+            var val = state.Pop();
             var jumpAddress = state.ReadInt32();
             if (!val.IsFalse())
             {
@@ -994,9 +1011,8 @@ namespace Core.VM.Runtime
 
         private static void HandleDereferenceField(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during DereferenceField", state.Proc, state.PC, state.Thread);
             var nameId = state.ReadInt32();
-            var objValue = state.Stack[--state.StackPtr];
+            var objValue = state.Pop();
             DreamValue val = DreamValue.Null;
             if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
             {
@@ -1009,7 +1025,7 @@ namespace Core.VM.Runtime
 
         private static void HandleDereferenceIndex(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during DereferenceIndex", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var index = state.Stack[--state.StackPtr];
             var objValue = state.Stack[--state.StackPtr];
             DreamValue val = DreamValue.Null;
@@ -1018,7 +1034,7 @@ namespace Core.VM.Runtime
                 if (index.Type == DreamValueType.Float)
                 {
                     int i = (int)index.RawFloat - 1;
-                    if (i >= 0 && i < list.Values.Count) val = list.Values[i];
+                    if ((uint)i < (uint)list.Values.Count) val = list.Values[i];
                 }
                 else val = list.GetValue(index);
             }
@@ -1073,7 +1089,7 @@ namespace Core.VM.Runtime
 
         private static void HandleInitial(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Initial", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var key = state.Stack[--state.StackPtr];
             var objValue = state.Stack[--state.StackPtr];
             DreamValue result = DreamValue.Null;
@@ -1091,7 +1107,7 @@ namespace Core.VM.Runtime
 
         private static void HandleIsType(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during IsType", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var typeValue = state.Stack[--state.StackPtr];
             var objValue = state.Stack[state.StackPtr - 1];
             bool result = false;
@@ -1106,7 +1122,7 @@ namespace Core.VM.Runtime
 
         private static void HandleAsType(ref InterpreterState state)
         {
-            if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during AsType", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(2);
             var typeValue = state.Stack[--state.StackPtr];
             var objValue = state.Stack[state.StackPtr - 1];
             bool matches = false;
@@ -1367,7 +1383,7 @@ namespace Core.VM.Runtime
 
         private static void HandleIsInRange(ref InterpreterState state)
         {
-            if (state.StackPtr < 3) throw new ScriptRuntimeException("Stack underflow during IsInRange", state.Proc, state.PC, state.Thread);
+            state.EnsureStack(3);
             var max = state.Stack[--state.StackPtr];
             var min = state.Stack[--state.StackPtr];
             var val = state.Stack[--state.StackPtr];
@@ -1405,11 +1421,10 @@ namespace Core.VM.Runtime
 
         private static void HandleSpawn(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Spawn", state.Proc, state.PC, state.Thread);
             var address = state.ReadInt32();
             var bodyPc = state.PC;
             state.PC = address;
-            var delay = state.Stack[--state.StackPtr];
+            var delay = state.Pop();
             state.Thread._stackPtr = state.StackPtr;
             var newThread = new DreamThread(state.Thread, bodyPc);
             if (delay.TryGetValue(out float seconds) && seconds > 0) newThread.Sleep(seconds / 10.0f);
@@ -1501,19 +1516,17 @@ namespace Core.VM.Runtime
 
         private static void HandleSwitchOnFloat(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during SwitchOnFloat", state.Proc, state.PC, state.Thread);
             var value = state.ReadSingle();
             var jumpAddress = state.ReadInt32();
-            var switchValue = state.Stack[state.StackPtr - 1];
+            var switchValue = state.Peek();
             if (switchValue.Type == DreamValueType.Float && switchValue.RawFloat == value) state.PC = jumpAddress;
         }
 
         private static void HandleSwitchOnString(ref InterpreterState state)
         {
-            if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during SwitchOnString", state.Proc, state.PC, state.Thread);
             var stringId = state.ReadInt32();
             var jumpAddress = state.ReadInt32();
-            var switchValue = state.Stack[state.StackPtr - 1];
+            var switchValue = state.Peek();
             if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == state.Thread.Context.Strings[stringId]) state.PC = jumpAddress;
         }
 

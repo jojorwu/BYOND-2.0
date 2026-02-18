@@ -23,6 +23,7 @@ namespace Shared.Services
         IEnumerable<IComponent> GetComponents(Type componentType);
         IEnumerable<IComponent> GetAllComponents(int entityId);
         IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes);
+        void ForEach<T>(Action<T, int> action) where T : class, IComponent;
         void Compact();
     }
 
@@ -277,6 +278,17 @@ namespace Shared.Services
             }
 
             return results ?? Enumerable.Empty<Archetype>();
+        }
+
+        public void ForEach<T>(Action<T, int> action) where T : class, IComponent
+        {
+            if (_typeToArchetypesCache.TryGetValue(typeof(T), out var archetypes))
+            {
+                foreach (var archetype in archetypes)
+                {
+                    archetype.ForEach(action);
+                }
+            }
         }
 
         public void Compact()

@@ -280,6 +280,29 @@ namespace Core.VM.Runtime
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetReferenceValue(DMReference reference, CallFrame frame, int stackOffset = 0)
         {
+            // Fast-path for common reference types
+            if (reference.RefType == DMReference.Type.Local)
+            {
+                int idx = reference.Index;
+                if ((uint)idx >= (uint)frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
+                return _stack[frame.StackBase + frame.Proc.Arguments.Length + idx];
+            }
+            if (reference.RefType == DMReference.Type.Argument)
+            {
+                int idx = reference.Index;
+                if ((uint)idx >= (uint)frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
+                return _stack[frame.StackBase + idx];
+            }
+            if (reference.RefType == DMReference.Type.Global)
+            {
+                return Context.GetGlobal(reference.Index);
+            }
+
+            return GetReferenceValueSlow(reference, frame, stackOffset);
+        }
+
+        private DreamValue GetReferenceValueSlow(DMReference reference, CallFrame frame, int stackOffset)
+        {
             switch (reference.RefType)
             {
                 case DMReference.Type.NoRef:
@@ -294,36 +317,21 @@ namespace Core.VM.Runtime
                 case DMReference.Type.Args:
                     {
                         var list = new DreamList(Context.ListType);
-                        for (int i = 0; i < frame.Proc.Arguments.Length; i++)
+                        var args = frame.Proc.Arguments;
+                        for (int i = 0; i < args.Length; i++)
                         {
                             list.AddValue(_stack[frame.StackBase + i]);
                         }
                         return new DreamValue(list);
                     }
-                case DMReference.Type.Global:
-                    return Context.GetGlobal(reference.Index);
-                case DMReference.Type.Argument:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
-                    return _stack[frame.StackBase + reference.Index];
-                case DMReference.Type.Local:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
-                    return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
                 case DMReference.Type.SrcField:
-                    {
-                        if (frame.Instance == null) return DreamValue.Null;
-                        int idx = frame.Instance.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
-                        return idx != -1 ? frame.Instance.GetVariableDirect(idx) : frame.Instance.GetVariable(reference.Name);
-                    }
+                    return GetObjectVariable(frame.Instance, reference.Name);
                 case DMReference.Type.Field:
                     {
                         if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference access", frame.Proc, 0, this);
-                        var obj = _stack[_stackPtr - 1 - stackOffset];
-                        if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
-                        {
-                            int idx = dreamObject.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
-                            return idx != -1 ? dreamObject.GetVariableDirect(idx) : dreamObject.GetVariable(reference.Name);
-                        }
-                        return DreamValue.Null;
+                        var objVal = _stack[_stackPtr - 1 - stackOffset];
+                        objVal.TryGetValue(out DreamObject? obj);
+                        return GetObjectVariable(obj, reference.Name);
                     }
                 case DMReference.Type.ListIndex:
                     {
@@ -335,7 +343,7 @@ namespace Core.VM.Runtime
                             if (index.Type == DreamValueType.Float)
                             {
                                 int i = (int)index.RawFloat - 1;
-                                return (i >= 0 && i < list.Values.Count) ? list.Values[i] : DreamValue.Null;
+                                return (uint)i < (uint)list.Values.Count ? list.Values[i] : DreamValue.Null;
                             }
                             return list.GetValue(index);
                         }
@@ -346,43 +354,57 @@ namespace Core.VM.Runtime
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private DreamValue GetObjectVariable(DreamObject? obj, string? name)
+        {
+            if (obj == null || name == null) return DreamValue.Null;
+            int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+            return idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+        }
+
         /// <summary>
         /// Updates the value pointed to by a reference.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value, int stackOffset = 0)
         {
+            // Fast-path for common reference types
+            if (reference.RefType == DMReference.Type.Local)
+            {
+                int idx = reference.Index;
+                if ((uint)idx >= (uint)frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
+                _stack[frame.StackBase + frame.Proc.Arguments.Length + idx] = value;
+                return;
+            }
+            if (reference.RefType == DMReference.Type.Argument)
+            {
+                int idx = reference.Index;
+                if ((uint)idx >= (uint)frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
+                _stack[frame.StackBase + idx] = value;
+                return;
+            }
+            if (reference.RefType == DMReference.Type.Global)
+            {
+                Context.SetGlobal(reference.Index, value);
+                return;
+            }
+
+            SetReferenceValueSlow(reference, frame, value, stackOffset);
+        }
+
+        private void SetReferenceValueSlow(DMReference reference, CallFrame frame, DreamValue value, int stackOffset)
+        {
             switch (reference.RefType)
             {
-                case DMReference.Type.Global:
-                    Context.SetGlobal(reference.Index, value);
-                    break;
-                case DMReference.Type.Argument:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
-                    _stack[frame.StackBase + reference.Index] = value;
-                    break;
-                case DMReference.Type.Local:
-                    if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
-                    _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
-                    break;
                 case DMReference.Type.SrcField:
-                    if (frame.Instance != null)
-                    {
-                        int idx = frame.Instance.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
-                        if (idx != -1) frame.Instance.SetVariableDirect(idx, value);
-                        else frame.Instance.SetVariable(reference.Name, value);
-                    }
+                    SetObjectVariable(frame.Instance, reference.Name, value);
                     break;
                 case DMReference.Type.Field:
                     {
                         if (_stackPtr - 1 - stackOffset < 0) throw new ScriptRuntimeException("Stack underflow during Field reference assignment", frame.Proc, 0, this);
-                        var obj = _stack[_stackPtr - 1 - stackOffset];
-                        if (obj.TryGetValue(out DreamObject? dreamObject) && dreamObject != null)
-                        {
-                            int idx = dreamObject.ObjectType?.GetVariableIndex(reference.Name) ?? -1;
-                            if (idx != -1) dreamObject.SetVariableDirect(idx, value);
-                            else dreamObject.SetVariable(reference.Name, value);
-                        }
+                        var objVal = _stack[_stackPtr - 1 - stackOffset];
+                        objVal.TryGetValue(out DreamObject? obj);
+                        SetObjectVariable(obj, reference.Name, value);
                     }
                     break;
                 case DMReference.Type.ListIndex:
@@ -395,7 +417,7 @@ namespace Core.VM.Runtime
                             if (index.Type == DreamValueType.Float)
                             {
                                 int i = (int)index.RawFloat - 1;
-                                if (i >= 0 && i < list.Values.Count)
+                                if ((uint)i < (uint)list.Values.Count)
                                     list.SetValue(i, value);
                                 else if (i == list.Values.Count)
                                     list.AddValue(value);
@@ -410,6 +432,15 @@ namespace Core.VM.Runtime
                 default:
                     throw new Exception($"Unsupported reference type for writing: {reference.RefType}");
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SetObjectVariable(DreamObject? obj, string? name, DreamValue value)
+        {
+            if (obj == null || name == null) return;
+            int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+            if (idx != -1) obj.SetVariableDirect(idx, value);
+            else obj.SetVariable(name, value);
         }
 
         public DreamThreadState Run(int instructionBudget)

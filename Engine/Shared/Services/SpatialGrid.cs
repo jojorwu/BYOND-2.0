@@ -47,7 +47,8 @@ namespace Shared
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int GetGridCoord(int val)
         {
-            return val >= 0 ? val / _cellSize : (val - _cellSize + 1) / _cellSize;
+            // Simplified floor division for both positive and negative values
+            return (val < 0 ? val - _cellSize + 1 : val) / _cellSize;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -166,64 +167,25 @@ namespace Shared
         /// </summary>
         public void QueryBox(Box2i box, Action<IGameObject> callback)
         {
-            int startGX = GetGridCoord(box.Left);
-            int startGY = GetGridCoord(box.Bottom);
-            int endGX = GetGridCoord(box.Right);
-            int endGY = GetGridCoord(box.Top);
+            var internalCallback = new QueryState(callback);
+            QueryBoxInternal(box, ref internalCallback, (IGameObject obj, ref QueryState s) => s.Action(obj));
+        }
 
-            // Fast path for single-cell queries
-            if (startGX == endGX && startGY == endGY)
-            {
-                long key = ((long)startGX << 32) | (uint)startGY;
-                if (_grid.TryGetValue(key, out var cell))
-                {
-                    var objects = cell.Objects;
-                    for (int i = 0; i < objects.Length; i++)
-                    {
-                        var obj = objects[i];
-                        int ox = obj.X;
-                        int oy = obj.Y;
-                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
-                        {
-                            callback(obj);
-                        }
-                    }
-                }
-                return;
-            }
-
-            var seen = _seenHashSet.Value!;
-            seen.Clear();
-
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
-
-            for (int x = startGX; x <= endGX; x++)
-            {
-                for (int y = startGY; y <= endGY; y++)
-                {
-                    long key = ((long)x << 32) | (uint)y;
-                    if (_grid.TryGetValue(key, out var cell))
-                    {
-                        var objects = cell.Objects;
-                        for (int i = 0; i < objects.Length; i++)
-                        {
-                            var obj = objects[i];
-                            int ox = obj.X;
-                            int oy = obj.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
-                            {
-                                callback(obj);
-                            }
-                        }
-                    }
-                }
-            }
+        private struct QueryState
+        {
+            public Action<IGameObject> Action;
+            public QueryState(Action<IGameObject> action) => Action = action;
         }
 
         /// <summary>
         /// Queries objects in a box without allocating a list or closure, passing state to the callback.
         /// </summary>
         public void QueryBox<TState>(Box2i box, ref TState state, QueryCallback<TState> callback)
+        {
+            QueryBoxInternal(box, ref state, callback);
+        }
+
+        private void QueryBoxInternal<TState>(Box2i box, ref TState state, QueryCallback<TState> callback)
         {
             int startGX = GetGridCoord(box.Left);
             int startGY = GetGridCoord(box.Bottom);
@@ -240,9 +202,7 @@ namespace Shared
                     for (int i = 0; i < objects.Length; i++)
                     {
                         var obj = objects[i];
-                        int ox = obj.X;
-                        int oy = obj.Y;
-                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        if (box.Contains(obj.X, obj.Y))
                         {
                             callback(obj, ref state);
                         }
@@ -251,10 +211,11 @@ namespace Shared
                 return;
             }
 
+            // Prevent DoS via huge search area
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
+
             var seen = _seenHashSet.Value!;
             seen.Clear();
-
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
 
             for (int x = startGX; x <= endGX; x++)
             {
@@ -267,9 +228,7 @@ namespace Shared
                         for (int i = 0; i < objects.Length; i++)
                         {
                             var obj = objects[i];
-                            int ox = obj.X;
-                            int oy = obj.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            if (box.Contains(obj.X, obj.Y) && seen.Add(obj.Id))
                             {
                                 callback(obj, ref state);
                             }
@@ -281,19 +240,19 @@ namespace Shared
 
         public void CleanupEmptyCells()
         {
+            // Use a two-pass approach to avoid holding locks while iterating the concurrent dictionary if possible,
+            // or just rely on TryRemove which is thread-safe.
             foreach (var kvp in _grid)
             {
                 var cell = kvp.Value;
                 if (cell.Objects.Length == 0)
                 {
+                    // Double-check with lock to ensure no one is adding to it
                     lock (cell.Lock)
                     {
                         if (cell.Objects.Length == 0)
                         {
-                            if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
-                            {
-                                _grid.TryRemove(kvp.Key, out _);
-                            }
+                            _grid.TryRemove(kvp.Key, out _);
                         }
                     }
                 }
@@ -302,67 +261,7 @@ namespace Shared
 
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)
         {
-            int startGX = GetGridCoord(box.Left);
-            int startGY = GetGridCoord(box.Bottom);
-            int endGX = GetGridCoord(box.Right);
-            int endGY = GetGridCoord(box.Top);
-
-            // Fast path for single-cell queries
-            if (startGX == endGX && startGY == endGY)
-            {
-                long key = ((long)startGX << 32) | (uint)startGY;
-                if (_grid.TryGetValue(key, out var cell))
-                {
-                    // Lock-free snapshot read
-                    var objects = cell.Objects;
-                    int count = objects.Length;
-                    for (int i = 0; i < count; i++)
-                    {
-                        var obj = objects[i];
-                        int ox = obj.X;
-                        int oy = obj.Y;
-                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
-                        {
-                            results.Add(obj);
-                        }
-                    }
-                }
-                return;
-            }
-
-            var seen = _seenHashSet.Value!;
-            seen.Clear();
-
-            // Prevent DoS via huge search area
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000)
-            {
-                return;
-            }
-
-            for (int x = startGX; x <= endGX; x++)
-            {
-                for (int y = startGY; y <= endGY; y++)
-                {
-                    long key = ((long)x << 32) | (uint)y;
-                    if (_grid.TryGetValue(key, out var cell))
-                    {
-                        // Lock-free snapshot read
-                        var objects = cell.Objects;
-                        int count = objects.Length;
-                        for (int i = 0; i < count; i++)
-                        {
-                            var obj = objects[i];
-                            int ox = obj.X;
-                            int oy = obj.Y;
-                            // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
-                            {
-                                results.Add(obj);
-                            }
-                        }
-                    }
-                }
-            }
+            QueryBoxInternal(box, ref results, (IGameObject obj, ref List<IGameObject> res) => res.Add(obj));
         }
 
         public void Dispose()

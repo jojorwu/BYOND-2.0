@@ -133,6 +133,27 @@ namespace Shared.Models
             return array;
         }
 
+        /// <summary>
+        /// Executes an action on each component of type T. Faster than GetComponents as it avoids array copying.
+        /// WARNING: The action must not perform structural changes on this archetype.
+        /// </summary>
+        public void ForEach<T>(Action<T, int> action) where T : class, IComponent
+        {
+            if (_componentArrays.TryGetValue(typeof(T), out var array))
+            {
+                lock (_lock)
+                {
+                    var data = ((ComponentArray<T>)array).Data;
+                    var entityIds = _entityIds;
+                    int count = _count;
+                    for (int i = 0; i < count; i++)
+                    {
+                        action(data[i], entityIds[i]);
+                    }
+                }
+            }
+        }
+
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             T[] data;
@@ -143,7 +164,7 @@ namespace Shared.Models
                 count = _count;
                 // We must copy the array because elements might be swapped or cleared during iteration
                 data = new T[count];
-                Array.Copy(originalData, data, count);
+                System.Array.Copy(originalData, data, count);
             }
             return data;
         }
@@ -161,7 +182,7 @@ namespace Shared.Models
                 }
                 return data;
             }
-            return Array.Empty<IComponent>();
+            return System.Array.Empty<IComponent>();
         }
 
         public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);

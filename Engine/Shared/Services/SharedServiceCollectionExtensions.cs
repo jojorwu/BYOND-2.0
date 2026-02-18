@@ -17,6 +17,11 @@ namespace Shared.Services
             services.AddSingleton<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()));
             services.AddSingleton<IObjectPool<GameObject>>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
+
+            services.AddSingleton<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())));
+            services.AddSingleton<IObjectPool<EntityCommandBuffer>>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
+            services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
+
             services.AddSingleton<ISystemRegistry, SystemRegistry>();
             services.AddSingleton<IPluginManager, PluginManager>();
             services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
@@ -26,6 +31,9 @@ namespace Shared.Services
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
             services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
             services.AddSingleton<BinarySnapshotService>();
+            services.AddSingleton<ObjectTypeManager>();
+            services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
             services.AddSingleton<SpatialGrid>();
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
             services.AddSingleton<StringInterner>();
@@ -34,7 +42,8 @@ namespace Shared.Services
             services.AddSingleton<ComponentManager>();
             services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
             services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
-            services.AddSingleton<IComponentQueryService, ComponentQueryService>();
+            services.AddSingleton<IComponentQueryService>(sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetService<IGameState>()));
+            services.AddSingleton<IComponentMessageBus, ComponentMessageBus>();
             services.AddSingleton<IObjectFactory, ObjectFactory>();
             services.AddSingleton<IInterestManager, InterestManager>();
             services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();

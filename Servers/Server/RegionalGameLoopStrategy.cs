@@ -18,10 +18,11 @@ namespace Server
         private readonly IUdpServer _udpServer;
         private readonly IGameState _gameState;
         private readonly IGameStateSnapshotter _gameStateSnapshotter;
+        private readonly IJobSystem _jobSystem;
         private readonly ServerSettings _settings;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<long, (long AggregateVersion, string Snapshot)> _snapshotCache = new();
 
-        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IOptions<ServerSettings> settings)
+        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
         {
             _scriptHost = scriptHost;
             _regionManager = regionManager;
@@ -29,6 +30,7 @@ namespace Server
             _udpServer = udpServer;
             _gameState = gameState;
             _gameStateSnapshotter = gameStateSnapshotter;
+            _jobSystem = jobSystem;
             _settings = settings.Value;
         }
 
@@ -85,15 +87,8 @@ namespace Server
             var nextThreadsCollection = new System.Collections.Concurrent.ConcurrentBag<IEnumerable<IScriptThread>>();
             nextThreadsCollection.Add(remainingGlobals);
 
-            var options = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = _settings.Performance.RegionalProcessing.MaxThreads > 0
-                    ? _settings.Performance.RegionalProcessing.MaxThreads
-                    : -1,
-                CancellationToken = cancellationToken
-            };
-
-            await Parallel.ForEachAsync(batchedRegions, options, async (batch, token) =>
+            // Use internal JobSystem instead of Parallel.ForEachAsync for better integration with engine threading and priorities
+            await _jobSystem.ForEachAsync(batchedRegions, async batch =>
             {
                 foreach (var (mergedRegion, gameObjects) in batch)
                 {
@@ -129,7 +124,7 @@ namespace Server
 
                     if (_settings.Network.EnableBinarySnapshots)
                     {
-                        await Task.Run(() => _udpServer.SendRegionSnapshot(mergedRegion, gameObjects), token);
+                        await _udpServer.SendRegionSnapshotAsync(mergedRegion, gameObjects);
                     }
                     else
                     {
@@ -144,7 +139,7 @@ namespace Server
                             _snapshotCache[cacheKey] = (aggregateVersion, snapshot);
                         }
 
-                        await Task.Run(() => _udpServer.BroadcastSnapshot(mergedRegion, snapshot), token);
+                        _udpServer.BroadcastSnapshot(mergedRegion, snapshot);
                     }
                 }
             });

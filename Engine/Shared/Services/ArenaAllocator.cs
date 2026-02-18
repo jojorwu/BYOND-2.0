@@ -28,28 +28,36 @@ namespace Shared.Services
             _blocks.Add(new Block(DefaultBlockSize));
         }
 
-        public Memory<byte> Allocate(int size)
+        public Memory<byte> Allocate(int size) => Allocate(size, 1);
+
+        public Memory<byte> Allocate(int size, int alignment)
         {
+            if (alignment < 1) alignment = 1;
+
             var currentBlock = _blocks[_currentBlockIndex];
-            if (currentBlock.Offset + size > currentBlock.Data.Length)
+            int alignedOffset = (currentBlock.Offset + alignment - 1) & ~(alignment - 1);
+
+            if (alignedOffset + size > currentBlock.Data.Length)
             {
                 _currentBlockIndex++;
                 if (_currentBlockIndex >= _blocks.Count)
                 {
-                    _blocks.Add(new Block(Math.Max(DefaultBlockSize, size)));
+                    _blocks.Add(new Block(Math.Max(DefaultBlockSize, size + alignment)));
                 }
                 currentBlock = _blocks[_currentBlockIndex];
+                alignedOffset = (currentBlock.Offset + alignment - 1) & ~(alignment - 1);
 
-                if (size > currentBlock.Data.Length)
+                if (alignedOffset + size > currentBlock.Data.Length)
                 {
-                     var oversized = new Block(size);
+                     var oversized = new Block(size + alignment);
                      _blocks.Insert(_currentBlockIndex, oversized);
                      currentBlock = oversized;
+                     alignedOffset = 0;
                 }
             }
 
-            var memory = new Memory<byte>(currentBlock.Data, currentBlock.Offset, size);
-            currentBlock.Offset += size;
+            var memory = new Memory<byte>(currentBlock.Data, alignedOffset, size);
+            currentBlock.Offset = alignedOffset + size;
             return memory;
         }
 

@@ -338,6 +338,8 @@ namespace Core.VM.Runtime
             table[(byte)Opcode.LocalPushLocalPushAdd] = &HandleLocalPushLocalPushAdd;
             table[(byte)Opcode.LocalAddFloat] = &HandleLocalAddFloat;
             table[(byte)Opcode.LocalMulAdd] = &HandleLocalMulAdd;
+            table[(byte)Opcode.GetBuiltinVar] = &HandleGetBuiltinVar;
+            table[(byte)Opcode.SetBuiltinVar] = &HandleSetBuiltinVar;
 
             return table;
         }
@@ -1685,5 +1687,52 @@ namespace Core.VM.Runtime
             else
                 state.Push(a * b + c);
         }
+
+        private static void HandleGetBuiltinVar(ref InterpreterState state)
+        {
+            var varType = (BuiltinVar)state.ReadByte();
+            var instance = state.Frame.Instance as GameObject;
+            if (instance != null)
+            {
+                switch (varType)
+                {
+                    case BuiltinVar.Icon: state.Push(new DreamValue(instance.Icon)); break;
+                    case BuiltinVar.IconState: state.Push(new DreamValue(instance.IconState)); break;
+                    case BuiltinVar.Dir: state.Push(new DreamValue((float)instance.Dir)); break;
+                    case BuiltinVar.Alpha: state.Push(new DreamValue(instance.Alpha)); break;
+                    case BuiltinVar.Color: state.Push(new DreamValue(instance.Color)); break;
+                    case BuiltinVar.Layer: state.Push(new DreamValue(instance.Layer)); break;
+                    case BuiltinVar.PixelX: state.Push(new DreamValue(instance.PixelX)); break;
+                    case BuiltinVar.PixelY: state.Push(new DreamValue(instance.PixelY)); break;
+                    default: state.Push(DreamValue.Null); break;
+                }
+            }
+            else
+            {
+                state.Push(DreamValue.Null);
+            }
+        }
+
+        private static void HandleSetBuiltinVar(ref InterpreterState state)
+        {
+            var varType = (BuiltinVar)state.ReadByte();
+            var val = state.Stack[--state.StackPtr];
+            var instance = state.Frame.Instance as GameObject;
+            if (instance != null)
+            {
+                switch (varType)
+                {
+                    case BuiltinVar.Icon: val.TryGetValue(out string? s); if (s != null) instance.Icon = s; break;
+                    case BuiltinVar.IconState: val.TryGetValue(out string? s2); if (s2 != null) instance.IconState = s2; break;
+                    case BuiltinVar.Dir: instance.Dir = (int)val.GetValueAsFloat(); break;
+                    case BuiltinVar.Alpha: instance.Alpha = val.GetValueAsFloat(); break;
+                    case BuiltinVar.Color: val.TryGetValue(out string? s3); if (s3 != null) instance.Color = s3; break;
+                    case BuiltinVar.Layer: instance.Layer = val.GetValueAsFloat(); break;
+                    case BuiltinVar.PixelX: instance.PixelX = val.GetValueAsFloat(); break;
+                    case BuiltinVar.PixelY: instance.PixelY = val.GetValueAsFloat(); break;
+                }
+            }
+        }
+
     }
 }

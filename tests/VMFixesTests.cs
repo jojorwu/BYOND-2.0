@@ -10,7 +10,7 @@ using System;
 using System.Linq;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Core.Objects;
+using Shared.Services;
 
 namespace tests
 {

@@ -1,5 +1,5 @@
 using Shared;
-namespace Core.Objects
+namespace Core.Api
 {
     using Shared.Interfaces;
 

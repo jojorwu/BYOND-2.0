@@ -105,7 +105,7 @@ namespace Shared {
         SwitchCase = 0x32,
         [OpcodeMetadata(0, OpcodeArgType.Reference)]
         Mask = 0x33,
-        [OpcodeMetadata(-2, OpcodeArgType.String)]
+        [OpcodeMetadata(-1, OpcodeArgType.String)]
         SetVariable = 0x34,
         [OpcodeMetadata]
         Error = 0x35,
@@ -159,7 +159,7 @@ namespace Shared {
         OutputReference = 0x4E,
         [OpcodeMetadata(-2)]
         Output = 0x4F,
-        [OpcodeMetadata(0, OpcodeArgType.String)]
+        [OpcodeMetadata(1, OpcodeArgType.String)]
         GetVariable = 0x50,
         [OpcodeMetadata(-1)]
         Pop = 0x51,
@@ -301,22 +301,26 @@ namespace Shared {
         PushFloatAssign = 0x9A,
         [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
         NPushFloatAssign = 0x9B,
-        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType)]
         PushLocal = 0x9C,
         [OpcodeMetadata(-2)]
         GetStepTo = 0x9D,
         [OpcodeMetadata(-1)]
         GetDist = 0x9E,
-        [OpcodeMetadata(1, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType)]
         PushArgument = 0x9F,
-        [OpcodeMetadata(-1, OpcodeArgType.Int)]
+        [OpcodeMetadata(0, OpcodeArgType.ArgType)]
         AssignLocal = 0xA0,
-        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
         LocalPushLocalPushAdd = 0xA1,
-        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.Float)]
         LocalAddFloat = 0xA2,
-        [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
+        [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
         LocalMulAdd = 0xA3,
+        [OpcodeMetadata(1, OpcodeArgType.ArgType)]
+        GetBuiltinVar = 0xA4,
+        [OpcodeMetadata(-1, OpcodeArgType.ArgType)]
+        SetBuiltinVar = 0xA5,
     }
 
     public enum OpcodeArgType {
@@ -360,16 +364,29 @@ namespace Shared {
         }
     }
 
-    public struct OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, params OpcodeArgType[] requiredArgs) {
-        public readonly int StackDelta = stackDelta;
-        public readonly List<OpcodeArgType> RequiredArgs = [..requiredArgs];
-        public readonly bool VariableArgs = variableArgs;
+    public struct OpcodeMetadata {
+        public readonly int StackDelta;
+        public readonly List<OpcodeArgType> RequiredArgs;
+        public readonly bool VariableArgs;
+
+        public OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, params OpcodeArgType[] requiredArgs) {
+            StackDelta = stackDelta;
+            VariableArgs = variableArgs;
+            RequiredArgs = new List<OpcodeArgType>(requiredArgs);
+        }
+
+        public OpcodeMetadata() {
+            StackDelta = 0;
+            VariableArgs = false;
+            RequiredArgs = new List<OpcodeArgType>();
+        }
     }
 
     public static class OpcodeMetadataCache {
         private static readonly OpcodeMetadata[] MetadataCache = new OpcodeMetadata[256];
 
         static OpcodeMetadataCache() {
+            for (int i = 0; i < 256; i++) MetadataCache[i] = new OpcodeMetadata();
             foreach (Opcode opcode in Enum.GetValues(typeof(Opcode))) {
                 var field = typeof(Opcode).GetField(opcode.ToString());
                 var attribute = Attribute.GetCustomAttribute(field!, typeof(OpcodeMetadataAttribute));

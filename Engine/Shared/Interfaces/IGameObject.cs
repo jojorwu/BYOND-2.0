@@ -96,6 +96,21 @@ namespace Shared
         T? GetComponent<T>() where T : class, IComponent;
 
         /// <summary>
+        /// Adds a component to this object.
+        /// </summary>
+        void AddComponent(IComponent component);
+
+        /// <summary>
+        /// Removes a component of the specified type.
+        /// </summary>
+        void RemoveComponent<T>() where T : class, IComponent;
+
+        /// <summary>
+        /// Removes a component of the specified type.
+        /// </summary>
+        void RemoveComponent(System.Type componentType);
+
+        /// <summary>
         /// Sends a message to all components attached to this object.
         /// </summary>
         void SendMessage(IComponentMessage message);

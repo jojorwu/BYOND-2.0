@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading;
 using Core;
 using Shared;
+using Shared.Interfaces;
 using LiteNetLib;
 
 namespace Client
@@ -22,8 +23,11 @@ namespace Client
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly string _serverAddress;
+        private readonly IObjectTypeManager _typeManager;
+        private readonly IObjectFactory _objectFactory;
+        private readonly Shared.Services.BinarySnapshotService _binaryService;
 
-        public LogicThread(string serverAddress)
+        public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
         {
             PreviousState = new GameState();
             CurrentState = new GameState();
@@ -31,6 +35,9 @@ namespace Client
             _netManager = new NetManager(_listener);
             _thread = new Thread(GameLoop);
             _serverAddress = serverAddress;
+            _typeManager = typeManager;
+            _objectFactory = objectFactory;
+            _binaryService = new Shared.Services.BinarySnapshotService();
 
             _listener.NetworkReceiveEvent += OnNetworkReceive;
         }
@@ -101,27 +108,10 @@ namespace Client
                 byte[] data = new byte[reader.AvailableBytes];
                 reader.GetBytes(data, reader.AvailableBytes);
 
-                var binaryService = new Shared.Services.BinarySnapshotService();
-                var objects = binaryService.Deserialize(data, null!);
-
                 lock (_lock)
                 {
                     PreviousState = CurrentState; // This is a bit simplified for deltas
-
-                    // Update current state with received objects
-                    foreach(var obj in objects)
-                    {
-                        if (CurrentState.GameObjects.TryGetValue(obj.Id, out var existing))
-                        {
-                            existing.SetPosition(obj.X, obj.Y, obj.Z);
-                            // Copy properties
-                            foreach(var prop in obj.Properties) existing.SetVariable(prop.Key, prop.Value);
-                        }
-                        else
-                        {
-                            CurrentState.AddGameObject(obj);
-                        }
-                    }
+                    _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
                 }
             }
             else if (messageType == SnapshotMessageType.Full)

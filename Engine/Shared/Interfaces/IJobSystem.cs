@@ -23,6 +23,8 @@ namespace Shared.Interfaces
     {
         Task ExecuteAsync();
         JobPriority Priority { get; }
+        int Weight { get; }
+        int PreferredWorkerId => -1;
     }
 
     /// <summary>
@@ -42,12 +44,12 @@ namespace Shared.Interfaces
         /// <summary>
         /// Schedules an action as a job.
         /// </summary>
-        JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal);
+        JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1);
 
         /// <summary>
         /// Schedules an asynchronous action as a job.
         /// </summary>
-        JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal);
+        JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1);
 
         /// <summary>
         /// Combines multiple job handles into one.
@@ -62,7 +64,12 @@ namespace Shared.Interfaces
         /// <summary>
         /// Executes a collection of items in parallel using the job system.
         /// </summary>
-        Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action);
+        Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action, JobPriority priority = JobPriority.Normal);
+
+        /// <summary>
+        /// Executes a collection of items in parallel using the job system.
+        /// </summary>
+        Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal);
 
         /// <summary>
         /// Gets the arena allocator for the current worker thread.

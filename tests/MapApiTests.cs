@@ -3,7 +3,7 @@ using Moq;
 using Shared;
 using Core;
 using Core.Api;
-using Core.Objects;
+using Shared.Services;
 using System.Collections.Generic;
 using System.Linq;
 using Robust.Shared.Maths;

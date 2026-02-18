@@ -14,8 +14,13 @@ namespace Shared.Interfaces
         void RemoveComponent<T>(IGameObject obj) where T : class, IComponent;
 
         /// <summary>
-        /// Plays back all recorded commands and clears the buffer.
+        /// Plays back all recorded commands.
         /// </summary>
         void Playback();
+
+        /// <summary>
+        /// Clears all recorded commands without playing them back.
+        /// </summary>
+        void Clear();
     }
 }

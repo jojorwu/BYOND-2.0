@@ -623,10 +623,28 @@ namespace Core.VM.Runtime
             var typeValue = Pop();
             if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
             {
-                var newObj = new GameObject(type);
+                GameObject newObj;
+                if (Context.ObjectFactory != null)
+                {
+                    newObj = Context.ObjectFactory.Create(type);
+                }
+                else
+                {
+                    newObj = new GameObject(type);
+                }
+
                 Context.GameState?.AddGameObject(newObj);
 
                 Push(new DreamValue(newObj));
+
+                if (argCount > 0)
+                {
+                    var locValue = values[0];
+                    if (locValue.TryGetValueAsGameObject(out var locObj))
+                    {
+                        newObj.Loc = locObj;
+                    }
+                }
 
                 var newProc = newObj.ObjectType?.GetProc("New");
                 if (newProc != null)

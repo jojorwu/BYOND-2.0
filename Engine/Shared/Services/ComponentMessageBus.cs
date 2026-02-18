@@ -1,16 +1,10 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using Shared.Interfaces;
 
 namespace Shared.Services
 {
-    public interface IComponentMessageBus
-    {
-        void SendMessage(IGameObject owner, IComponentMessage message);
-    }
-
     public class ComponentMessageBus : IComponentMessageBus
     {
         private readonly IComponentManager _componentManager;
@@ -20,16 +14,35 @@ namespace Shared.Services
             _componentManager = componentManager;
         }
 
-        public void SendMessage(IGameObject owner, IComponentMessage message)
+        public void SendMessage(IGameObject target, IComponentMessage message)
         {
-            var components = _componentManager.GetAllComponents(owner);
-            foreach (var component in components)
+            // Use the optimized GameObject method which utilizes local component cache
+            if (target is GameObject gameObject)
             {
-                if (component.Enabled)
+                gameObject.SendMessage(message);
+            }
+            else
+            {
+                var components = _componentManager.GetAllComponents(target);
+                foreach (var component in components)
                 {
-                    component.OnMessage(message);
+                    if (component.Enabled)
+                    {
+                        component.OnMessage(message);
+                    }
                 }
             }
+        }
+
+        public void BroadcastMessage(IComponentMessage message)
+        {
+            // Simple broadcast for now
+            if (_componentManager is ComponentManager cm)
+            {
+                cm.ArchetypeManager.Compact();
+            }
+
+            // This is a slow path, architectural improvement would be to use interest groups
         }
     }
 }

@@ -6,7 +6,6 @@ using System.Linq;
 using Core.VM.Procs;
 using Core.VM.Runtime;
 using Shared.Compiler;
-using Core.Objects;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
 using Core.Utils;
@@ -75,7 +74,8 @@ namespace Core
                         procJson.Name,
                         bytecode,
                         arguments,
-                        localCount
+                        localCount,
+                        dreamVM.Strings
                     );
 
                     if (dreamVM is DreamVM vm2)

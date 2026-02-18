@@ -9,6 +9,7 @@ using System.Numerics;
 using Shared;
 using Core.Dmi;
 using Client.Assets;
+using Shared.Interfaces;
 
 namespace Client.Graphics
 {
@@ -19,6 +20,8 @@ namespace Client.Graphics
         private readonly TextureCache _textureCache;
         private readonly DmiCache _dmiCache;
         private readonly IconCache _iconCache;
+        private readonly InstancedSpriteRenderer _instancedRenderer;
+        private readonly List<IGameObject> _renderObjectBuffer = new();
 
         private readonly Dictionary<Vector2i, RenderChunk> _chunks = new();
         private readonly HashSet<Vector2i> _visibleChunks = new();
@@ -28,6 +31,7 @@ namespace Client.Graphics
         public WorldRenderer(GL gl, TextureCache textureCache, DmiCache dmiCache, IconCache iconCache)
         {
             _gl = gl;
+            _instancedRenderer = new InstancedSpriteRenderer(_gl);
 
             string vert = @"#version 330 core
 layout (location = 0) in vec2 aPos;
@@ -61,10 +65,14 @@ void main() {
             _iconCache = iconCache;
         }
 
-        public void Render(GameState state, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
+        public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             ProcessPendingUploads();
             UpdateVisibleChunks(cullRect);
+
+            _chunkShader.Use();
+            _chunkShader.SetUniform("uView", view);
+            _chunkShader.SetUniform("uProjection", projection);
 
             foreach (var coords in _visibleChunks)
             {
@@ -78,19 +86,65 @@ void main() {
                 {
                     _rebuildingChunks.Add(coords);
                     // Offload to background task
-                    var stateClone = state; // GameState is usually immutable or snapshotted
+                    var stateClone = currentState;
                     Task.Run(() => RebuildChunkTask(chunk, stateClone));
                 }
 
-                _chunkShader.Use();
-                _chunkShader.SetUniform("uView", view);
-                _chunkShader.SetUniform("uProjection", projection);
-                // Note: Each chunk might have multiple textures.
-                // For simplified BYOND turfs, we assume they share an atlas or we bind per chunk.
-                // For now, WorldRenderer assumes a single bind for simplicity or we need to bind in Draw.
-
                 chunk.Draw();
             }
+
+            // Render non-turf objects using instancing
+            RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection);
+        }
+
+        private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
+        {
+            _instancedRenderer.Begin();
+            _renderObjectBuffer.Clear();
+
+            currentState.SpatialGrid.QueryBox(new Box2i((int)cullRect.Left, (int)cullRect.Top, (int)cullRect.Right, (int)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
+
+            // Sort by layer for correct transparency
+            _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
+
+            foreach (var obj in _renderObjectBuffer)
+            {
+                var layer = GetLayer(obj);
+                if (layer != 2.0f) // Non-turf layer
+                {
+                    var icon = GetIcon(obj);
+                    if (!string.IsNullOrEmpty(icon))
+                    {
+                        var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
+                        var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                        var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                        if (dmi != null)
+                        {
+                            var dmiState = dmi.Description.GetStateOrDefault(stateName);
+                            if (dmiState != null)
+                            {
+                                var frame = dmiState.GetFrames(AtomDirection.South)[0];
+                                var uv = new Box2(
+                                    (float)frame.X / dmi.Width,
+                                    (float)frame.Y / dmi.Height,
+                                    (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                                    (float)(frame.Y + dmi.Description.Height) / dmi.Height
+                                );
+
+                                Vector2 pos = new Vector2(obj.X, obj.Y);
+                                if (previousState != null && previousState.GameObjects.TryGetValue(obj.Id, out var prevObj))
+                                {
+                                    pos = Vector2.Lerp(new Vector2(prevObj.X, prevObj.Y), pos, alpha);
+                                }
+
+                                _instancedRenderer.Draw(dmi.TextureId, pos * 32, new Vector2(32, 32), uv, Color.White);
+                            }
+                        }
+                    }
+                }
+            }
+
+            _instancedRenderer.Flush(view, projection);
         }
 
         private void ProcessPendingUploads()
@@ -122,40 +176,40 @@ void main() {
         private void RebuildChunkTask(RenderChunk chunk, GameState state)
         {
             var vertices = new List<Vertex>();
+            var objects = new List<IGameObject>();
 
             int startX = chunk.Coords.X * RenderChunk.ChunkSize;
             int startY = chunk.Coords.Y * RenderChunk.ChunkSize;
             int endX = startX + RenderChunk.ChunkSize;
             int endY = startY + RenderChunk.ChunkSize;
 
-            foreach (var obj in state.GameObjects.Values)
-            {
-                if (obj.X >= startX && obj.X < endX && obj.Y >= startY && obj.Y < endY)
-                {
-                    var layer = GetLayer(obj);
-                    if (layer == 2.0f) // Typical turf layer
-                    {
-                        var icon = GetIcon(obj);
-                        if (!string.IsNullOrEmpty(icon))
-                        {
-                            var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                            var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                            var dmi = _dmiCache.GetDmi(dmiPath, texture);
-                            if (dmi != null)
-                            {
-                                var dmiState = dmi.Description.GetStateOrDefault(stateName);
-                                if (dmiState != null)
-                                {
-                                    var frame = dmiState.GetFrames(AtomDirection.South)[0];
-                                    var uv = new Box2(
-                                        (float)frame.X / dmi.Width,
-                                        (float)frame.Y / dmi.Height,
-                                        (float)(frame.X + dmi.Description.Width) / dmi.Width,
-                                        (float)(frame.Y + dmi.Description.Height) / dmi.Height
-                                    );
+            state.SpatialGrid.QueryBox(new Box2i(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
 
-                                    AddQuad(vertices, new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), uv, Color.White);
-                                }
+            foreach (var obj in objects)
+            {
+                var layer = GetLayer(obj);
+                if (layer == 2.0f) // Typical turf layer
+                {
+                    var icon = GetIcon(obj);
+                    if (!string.IsNullOrEmpty(icon))
+                    {
+                        var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
+                        var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                        var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                        if (dmi != null)
+                        {
+                            var dmiState = dmi.Description.GetStateOrDefault(stateName);
+                            if (dmiState != null)
+                            {
+                                var frame = dmiState.GetFrames(AtomDirection.South)[0];
+                                var uv = new Box2(
+                                    (float)frame.X / dmi.Width,
+                                    (float)frame.Y / dmi.Height,
+                                    (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                                    (float)(frame.Y + dmi.Description.Height) / dmi.Height
+                                );
+
+                                AddQuad(vertices, new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), uv, Color.White);
                             }
                         }
                     }
@@ -176,16 +230,24 @@ void main() {
             vertices.Add(new Vertex(pos, new Vector2(uv.Left, uv.Top), color));
         }
 
-        private float GetLayer(GameObject obj)
+        private float GetLayer(IGameObject obj)
         {
-            var layer = obj.GetVariable("layer");
-            return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
+            if (obj is GameObject gameObject)
+            {
+                var layer = gameObject.GetVariable("layer");
+                return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
+            }
+            return 2.0f;
         }
 
-        private string? GetIcon(GameObject obj)
+        private string? GetIcon(IGameObject obj)
         {
-            var icon = obj.GetVariable("Icon");
-            return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
+            if (obj is GameObject gameObject)
+            {
+                var icon = gameObject.GetVariable("Icon");
+                return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
+            }
+            return null;
         }
 
         public void MarkAreaDirty(Box2i area)
@@ -210,6 +272,7 @@ void main() {
         public void Dispose()
         {
             _chunkShader.Dispose();
+            _instancedRenderer.Dispose();
             foreach (var chunk in _chunks.Values)
             {
                 chunk.Dispose();

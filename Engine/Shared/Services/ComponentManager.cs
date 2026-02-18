@@ -9,6 +9,7 @@ namespace Shared.Services
     public class ComponentManager : IComponentManager
     {
         private readonly IArchetypeManager _archetypeManager;
+        public IArchetypeManager ArchetypeManager => _archetypeManager;
 
         public event EventHandler<ComponentEventArgs>? ComponentAdded;
         public event EventHandler<ComponentEventArgs>? ComponentRemoved;
@@ -20,17 +21,27 @@ namespace Shared.Services
 
         public void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent
         {
+            AddComponent(owner, (IComponent)component);
+        }
+
+        public void AddComponent(IGameObject owner, IComponent component)
+        {
             _archetypeManager.AddComponent(owner, component);
-            ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, typeof(T)));
+            ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, component.GetType()));
         }
 
         public void RemoveComponent<T>(IGameObject owner) where T : class, IComponent
         {
-            var component = _archetypeManager.GetComponent<T>(owner.Id);
+            RemoveComponent(owner, typeof(T));
+        }
+
+        public void RemoveComponent(IGameObject owner, Type componentType)
+        {
+            var component = _archetypeManager.GetComponent(owner.Id, componentType);
             if (component != null)
             {
-                _archetypeManager.RemoveComponent<T>(owner);
-                ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, component, typeof(T)));
+                _archetypeManager.RemoveComponent(owner, componentType);
+                ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, component, componentType));
             }
         }
 
@@ -39,9 +50,24 @@ namespace Shared.Services
             return _archetypeManager.GetComponent<T>(owner.Id);
         }
 
+        public IComponent? GetComponent(IGameObject owner, Type componentType)
+        {
+            return _archetypeManager.GetComponent(owner.Id, componentType);
+        }
+
         public IEnumerable<T> GetComponents<T>() where T : class, IComponent
         {
             return _archetypeManager.GetComponents<T>();
+        }
+
+        public IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+        {
+            return _archetypeManager.GetChunks<T>();
+        }
+
+        public IEnumerable<IComponent> GetComponents(Type componentType)
+        {
+            return _archetypeManager.GetComponents(componentType);
         }
 
         public IEnumerable<IComponent> GetAllComponents(IGameObject owner)

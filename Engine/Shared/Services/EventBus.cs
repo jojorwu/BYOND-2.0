@@ -145,5 +145,13 @@ namespace Shared.Services
                 _handlers.Clear();
             }
         }
+
+        public void Clear<T>()
+        {
+            lock (_lock)
+            {
+                _handlers.TryRemove(typeof(T), out _);
+            }
+        }
     }
 }

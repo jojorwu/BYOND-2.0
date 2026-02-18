@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using Shared;
-
+using Shared.Interfaces;
 using System;
 
 namespace Core.VM.Runtime
@@ -21,6 +21,7 @@ namespace Core.VM.Runtime
         public IGameState? GameState { get; set; }
         public IGameApi? GameApi { get; set; }
         public IScriptHost? ScriptHost { get; set; }
+        public IObjectFactory? ObjectFactory { get; set; }
 
         public DreamValue GetGlobal(int index)
         {

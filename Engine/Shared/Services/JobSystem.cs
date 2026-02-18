@@ -13,7 +13,6 @@ namespace Shared.Services
         private const int MaxTrackedJobs = 10000;
         private volatile WorkerThread[] _workers;
         private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
-        private int _nextWorker;
         private readonly int _minWorkers;
         private readonly int _maxWorkers;
         private readonly Timer _maintenanceTimer;
@@ -42,24 +41,24 @@ namespace Shared.Services
         private IJob? TryStealJob(WorkerThread stealer)
         {
             var currentWorkers = _workers;
-            // Simple stealing: find the worker with the most jobs and take one
-            WorkerThread? victim = null;
-            int maxJobs = 0;
+            int count = currentWorkers.Length;
+            if (count <= 1) return null;
 
-            for (int i = 0; i < currentWorkers.Length; i++)
-            {
-                var worker = currentWorkers[i];
-                if (worker == stealer) continue;
+            // Power of Two Choices for stealing: pick two random victims and steal from the one with more jobs.
+            // This is more efficient than a linear search across all workers as the number of workers grows.
+            int i1 = Random.Shared.Next(count);
+            int i2 = Random.Shared.Next(count);
 
-                int jobCount = worker.JobCount;
-                if (jobCount > maxJobs)
-                {
-                    maxJobs = jobCount;
-                    victim = worker;
-                }
-            }
+            var v1 = currentWorkers[i1];
+            var v2 = currentWorkers[i2];
 
-            if (victim != null && victim.TrySteal(out var stolenJob))
+            // Don't steal from self
+            if (v1 == stealer) v1 = currentWorkers[(i1 + 1) % count];
+            if (v2 == stealer) v2 = currentWorkers[(i2 + 1) % count];
+
+            var victim = v1.ApproximateTotalWeight >= v2.ApproximateTotalWeight ? v1 : v2;
+
+            if (victim != stealer && victim.ApproximateJobCount > 0 && victim.TrySteal(out var stolenJob))
             {
                 return stolenJob;
             }
@@ -88,6 +87,12 @@ namespace Shared.Services
             return ScheduleInternal(job, track);
         }
 
+        public JobHandle Schedule(IJob job, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
+        {
+            // Weight is now handled via IJob.Weight, but we can wrap it if needed or use the provided one
+            return ScheduleInternal(job, track);
+        }
+
         private JobHandle ScheduleInternal(IJob job, bool track)
         {
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -101,14 +106,32 @@ namespace Shared.Services
                 _pendingJobTrackers.Add(tcs);
             }
 
-            var finalJob = new TrackingJob(job, tcs);
+            var finalJob = new TrackingJob(job, tcs, track);
 
             var currentWorkers = _workers;
-            // Round-robin distribution
-            int index = Interlocked.Increment(ref _nextWorker) % currentWorkers.Length;
-            if (index < 0) index = Math.Abs(index);
-            currentWorkers[index].Enqueue(finalJob);
+            int count = currentWorkers.Length;
+            int index;
 
+            int preferred = job.PreferredWorkerId;
+            if (preferred >= 0 && preferred < count)
+            {
+                index = preferred;
+            }
+            else if (count > 1)
+            {
+                // Power of Two Choices for better load balancing using Total Weight
+                int i1 = Random.Shared.Next(count);
+                int i2 = Random.Shared.Next(count);
+                if (i1 == i2) i2 = (i1 + 1) % count;
+
+                index = currentWorkers[i1].ApproximateTotalWeight <= currentWorkers[i2].ApproximateTotalWeight ? i1 : i2;
+            }
+            else
+            {
+                index = 0;
+            }
+
+            currentWorkers[index].Enqueue(finalJob);
             return new JobHandle(tcs.Task);
         }
 
@@ -186,14 +209,14 @@ namespace Shared.Services
             }
         }
 
-        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
+        public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new ActionJob(action, priority), dependency, track, priority);
+            return Schedule(new ActionJob(action, priority, weight), dependency, track, priority);
         }
 
-        public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal)
+        public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new AsyncActionJob(action, priority), dependency, track, priority);
+            return Schedule(new AsyncActionJob(action, priority, weight), dependency, track, priority);
         }
 
         public JobHandle CombineDependencies(params JobHandle[] dependencies)
@@ -228,11 +251,58 @@ namespace Shared.Services
             }
         }
 
-        public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action)
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action, JobPriority priority = JobPriority.Normal)
         {
-            foreach (var item in source)
+            const int BatchSize = 32;
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+
+            if (count <= BatchSize)
             {
-                Schedule(() => action(item));
+                foreach (var item in list) Schedule(() => action(item), priority: priority);
+            }
+            else
+            {
+                for (int i = 0; i < count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, count);
+                    Schedule(() =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            action(list[j]);
+                        }
+                    }, priority: priority);
+                }
+            }
+            await CompleteAllAsync();
+        }
+
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
+        {
+            const int BatchSize = 32;
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+
+            if (count <= BatchSize)
+            {
+                foreach (var item in list) Schedule(() => action(item), priority: priority);
+            }
+            else
+            {
+                for (int i = 0; i < count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, count);
+                    Schedule(async () =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            await action(list[j]);
+                        }
+                    }, priority: priority);
+                }
             }
             await CompleteAllAsync();
         }
@@ -260,13 +330,17 @@ namespace Shared.Services
         {
             private readonly IJob _inner;
             private readonly TaskCompletionSource _tcs;
+            private readonly bool _isTracked;
 
             public JobPriority Priority => _inner.Priority;
+            public int Weight => _inner.Weight;
+            public int PreferredWorkerId => _inner.PreferredWorkerId;
 
-            public TrackingJob(IJob inner, TaskCompletionSource tcs)
+            public TrackingJob(IJob inner, TaskCompletionSource tcs, bool isTracked)
             {
                 _inner = inner;
                 _tcs = tcs;
+                _isTracked = isTracked;
             }
 
             public async Task ExecuteAsync()
@@ -279,6 +353,10 @@ namespace Shared.Services
                 catch (Exception ex)
                 {
                     _tcs.TrySetException(ex);
+                    if (!_isTracked)
+                    {
+                        Console.Error.WriteLine($"[JobSystem] Untracked job failed: {ex}");
+                    }
                 }
             }
         }
@@ -287,11 +365,13 @@ namespace Shared.Services
         {
             private readonly Action _action;
             public JobPriority Priority { get; }
+            public int Weight { get; }
 
-            public ActionJob(Action action, JobPriority priority = JobPriority.Normal)
+            public ActionJob(Action action, JobPriority priority = JobPriority.Normal, int weight = 1)
             {
                 _action = action;
                 Priority = priority;
+                Weight = weight;
             }
 
             public Task ExecuteAsync()
@@ -305,11 +385,13 @@ namespace Shared.Services
         {
             private readonly Func<Task> _action;
             public JobPriority Priority { get; }
+            public int Weight { get; }
 
-            public AsyncActionJob(Func<Task> action, JobPriority priority = JobPriority.Normal)
+            public AsyncActionJob(Func<Task> action, JobPriority priority = JobPriority.Normal, int weight = 1)
             {
                 _action = action;
                 Priority = priority;
+                Weight = weight;
             }
 
             public Task ExecuteAsync() => _action();

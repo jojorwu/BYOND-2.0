@@ -2,7 +2,7 @@ using Shared;
 using NUnit.Framework;
 using Core.VM.Runtime;
 using Core.VM.Procs;
-using Core.Objects;
+using Shared.Services;
 using Core.Api;
 using Moq;
 using Microsoft.Extensions.Logging.Abstractions;

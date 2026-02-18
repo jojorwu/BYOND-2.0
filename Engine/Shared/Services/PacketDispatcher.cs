@@ -19,6 +19,7 @@ namespace Shared.Services
     {
         private readonly ConcurrentDictionary<byte, IPacketHandler> _handlers = new();
         private readonly List<IPacketMiddleware> _middleware = new();
+        private volatile IPacketMiddleware[] _middlewareCache = Array.Empty<IPacketMiddleware>();
         private readonly IJobSystem _jobSystem;
 
         public PacketDispatcher(IJobSystem jobSystem)
@@ -41,6 +42,7 @@ namespace Shared.Services
             lock (_middleware)
             {
                 _middleware.Add(middleware);
+                _middlewareCache = _middleware.ToArray();
             }
         }
 
@@ -50,18 +52,16 @@ namespace Shared.Services
 
             // Simple protocol: first byte is the packet type ID
             byte typeId = (byte)data[0];
-            string payload = data.Substring(1);
+
+            // Avoid Substring allocation by using Span/Memory if the downstream supports it.
+            // For now, keeping Substring but noting it as an architectural point.
+            string payload = data.Length > 1 ? data.Substring(1) : string.Empty;
 
             var context = new PacketContext(peer, typeId, payload);
 
-            // Execute middleware pipeline
-            List<IPacketMiddleware> middlewareCopy;
-            lock (_middleware)
-            {
-                middlewareCopy = new List<IPacketMiddleware>(_middleware);
-            }
-
-            foreach (var middleware in middlewareCopy)
+            // Execute middleware pipeline using lock-free cache
+            var middlewareChain = _middlewareCache;
+            foreach (var middleware in middlewareChain)
             {
                 if (!await middleware.ProcessAsync(context))
                     return; // Middleware aborted the pipeline

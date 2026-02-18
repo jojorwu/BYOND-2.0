@@ -28,6 +28,16 @@ namespace Shared
         int WaitTicks { get; set; }
 
         /// <summary>
+        /// Total number of instructions executed by this thread across its lifetime.
+        /// </summary>
+        long TotalInstructionsExecuted { get; }
+
+        /// <summary>
+        /// Remaining instruction quota from previous ticks (positive) or over-consumption debt (negative).
+        /// </summary>
+        int InstructionQuotaBalance { get; set; }
+
+        /// <summary>
         /// Wakes up the thread if it was sleeping.
         /// </summary>
         void WakeUp();

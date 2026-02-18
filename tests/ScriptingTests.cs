@@ -6,7 +6,7 @@ using System.IO;
 using Moq;
 using Core.VM.Runtime;
 using Server;
-using Core.Objects;
+using Shared.Services;
 using Core.Maps;
 using Core.Api;
 using Microsoft.Extensions.DependencyInjection;

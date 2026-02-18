@@ -17,16 +17,16 @@ namespace Shared.Services
         private List<List<ISystem>> _executionLayers;
         private readonly IProfilingService _profilingService;
         private readonly IJobSystem _jobSystem;
-        private readonly System.IServiceProvider _serviceProvider;
+        private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
         private readonly IEnumerable<IShrinkable> _shrinkables;
         private bool _isDirty = true;
 
-        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, System.IServiceProvider serviceProvider, IEnumerable<IShrinkable> shrinkables)
+        public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables)
         {
             _registry = registry;
             _profilingService = profilingService;
             _jobSystem = jobSystem;
-            _serviceProvider = serviceProvider;
+            _ecbPool = ecbPool;
             _shrinkables = shrinkables;
             _executionLayers = new List<List<ISystem>>();
         }
@@ -37,23 +37,41 @@ namespace Shared.Services
         {
             var layers = new List<List<ISystem>>();
             var systemList = systems.ToList();
+            if (systemList.Count == 0) return layers;
+
             var remaining = new HashSet<ISystem>(systemList);
             var completedNames = new HashSet<string>();
             var completedGroups = new HashSet<string>();
 
+            // Pre-calculate group memberships for faster checks
+            var groupSystems = systemList.Where(s => s.Group != null).ToLookup(s => s.Group!);
+
             while (remaining.Count > 0)
             {
                 // Find systems whose dependencies are met (both system-level and group-level)
-                var readySystems = remaining
-                    .Where(s => s.Dependencies.All(d => completedNames.Contains(d) || completedGroups.Contains(d)))
-                    .ToList();
+                var readySystems = new List<ISystem>();
+                foreach (var system in remaining)
+                {
+                    bool dependenciesMet = true;
+                    foreach (var dep in system.Dependencies)
+                    {
+                        if (!completedNames.Contains(dep) && !completedGroups.Contains(dep))
+                        {
+                            dependenciesMet = false;
+                            break;
+                        }
+                    }
+
+                    if (dependenciesMet)
+                    {
+                        readySystems.Add(system);
+                    }
+                }
 
                 if (readySystems.Count == 0)
                 {
-                    // Fallback for circular dependencies
-                    var fallbackLayer = remaining.OrderByDescending(s => s.Priority).ToList();
-                    layers.Add(fallbackLayer);
-                    break;
+                    var names = string.Join(", ", remaining.Select(s => s.Name));
+                    throw new System.InvalidOperationException($"Circular dependency detected among systems: {names}");
                 }
 
                 // Further refine readySystems into sub-layers based on resource conflicts
@@ -68,10 +86,17 @@ namespace Shared.Services
                     // If all systems in a group are completed, mark group as completed
                     if (system.Group != null)
                     {
-                        if (systemList.Where(s => s.Group == system.Group).All(s => completedNames.Contains(s.Name)))
+                        var members = groupSystems[system.Group];
+                        bool allDone = true;
+                        foreach (var member in members)
                         {
-                            completedGroups.Add(system.Group);
+                            if (!completedNames.Contains(member.Name))
+                            {
+                                allDone = false;
+                                break;
+                            }
                         }
+                        if (allDone) completedGroups.Add(system.Group);
                     }
                 }
             }
@@ -81,6 +106,8 @@ namespace Shared.Services
 
         private List<List<ISystem>> ResolveResourceConflicts(List<ISystem> systems)
         {
+            if (systems.Count <= 1) return new List<List<ISystem>> { systems };
+
             var subLayers = new List<List<ISystem>>();
             var remaining = new List<ISystem>(systems);
 
@@ -133,7 +160,7 @@ namespace Shared.Services
                 else
                 {
                     // Should not happen if logic is correct, but safety break
-                    subLayers.Add(remaining.ToList());
+                    subLayers.Add(new List<ISystem>(remaining));
                     remaining.Clear();
                 }
             }
@@ -162,33 +189,48 @@ namespace Shared.Services
                 // Main Tick Phase (Layered)
                 foreach (var layer in _executionLayers)
                 {
-                    var ecbs = new ConcurrentBag<IEntityCommandBuffer>();
-
                     if (layer.Count == 1)
                     {
-                        var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
-                        ecbs.Add(ecb);
-                        ExecuteSystem(layer[0], ecb);
+                        var system = layer[0];
+                        var ecb = _ecbPool.Rent();
+                        try
+                        {
+                            ExecuteSystem(system, ecb);
+
+                            // Await jobs created by this system
+                            await _jobSystem.CompleteAllAsync();
+
+                            using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                            {
+                                ecb.Playback();
+                            }
+                        }
+                        finally
+                        {
+                            _ecbPool.Return(ecb);
+                        }
                     }
                     else
                     {
+                        var ecbs = new ConcurrentBag<EntityCommandBuffer>();
                         await _jobSystem.ForEachAsync(layer, system =>
                         {
-                            var ecb = (IEntityCommandBuffer)_serviceProvider.GetService(typeof(IEntityCommandBuffer))!;
+                            var ecb = _ecbPool.Rent();
                             ecbs.Add(ecb);
                             ExecuteSystem(system, ecb);
                         });
-                    }
 
-                    // Await jobs created by this layer before moving to the next
-                    await _jobSystem.CompleteAllAsync();
+                        // Await jobs created by this layer
+                        await _jobSystem.CompleteAllAsync();
 
-                    // Synchronization Point: Playback all ECBs from this layer
-                    using (_profilingService.Measure("SystemManager.ECBPlayback"))
-                    {
-                        foreach (var ecb in ecbs)
+                        // Synchronization Point: Playback all ECBs from this layer
+                        using (_profilingService.Measure("SystemManager.ECBPlayback"))
                         {
-                            ecb.Playback();
+                            foreach (var ecb in ecbs)
+                            {
+                                ecb.Playback();
+                                _ecbPool.Return(ecb);
+                            }
                         }
                     }
                 }

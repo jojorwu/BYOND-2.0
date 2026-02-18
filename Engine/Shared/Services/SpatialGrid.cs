@@ -13,19 +13,27 @@ namespace Shared
     {
         private class Cell
         {
-            public readonly List<IGameObject> Objects = new();
+            public volatile IGameObject[] Objects = System.Array.Empty<IGameObject>();
             public readonly object Lock = new();
 
             public void Clear()
             {
                 lock (Lock)
                 {
-                    Objects.Clear();
+                    Objects = System.Array.Empty<IGameObject>();
                 }
             }
         }
 
-        public void Shrink() => CleanupEmptyCells();
+        public void Shrink()
+        {
+            CleanupEmptyCells();
+            if (_seenHashSet.IsValueCreated && _seenHashSet.Value!.Count > 1000)
+            {
+                _seenHashSet.Value.Clear();
+                _seenHashSet.Value.TrimExcess();
+            }
+        }
 
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
@@ -37,9 +45,15 @@ namespace Shared
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int GetGridCoord(int val)
+        {
+            return val >= 0 ? val / _cellSize : (val - _cellSize + 1) / _cellSize;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private long GetCellKey(int x, int y)
         {
-            return ((long)(x / _cellSize) << 32) | (uint)(y / _cellSize);
+            return ((long)GetGridCoord(x) << 32) | (uint)GetGridCoord(y);
         }
 
         private Cell GetOrCreateCell(long key)
@@ -63,7 +77,14 @@ namespace Shared
             var cell = GetOrCreateCell(key);
             lock (cell.Lock)
             {
-                cell.Objects.Add(obj);
+                var current = cell.Objects;
+                if (System.Array.IndexOf(current, obj) == -1)
+                {
+                    var updated = new IGameObject[current.Length + 1];
+                    System.Array.Copy(current, updated, current.Length);
+                    updated[current.Length] = obj;
+                    cell.Objects = updated;
+                }
             }
         }
 
@@ -74,12 +95,14 @@ namespace Shared
             {
                 lock (cell.Lock)
                 {
-                    int index = cell.Objects.IndexOf(obj);
+                    var current = cell.Objects;
+                    int index = System.Array.IndexOf(current, obj);
                     if (index != -1)
                     {
-                        int last = cell.Objects.Count - 1;
-                        cell.Objects[index] = cell.Objects[last];
-                        cell.Objects.RemoveAt(last);
+                        var updated = new IGameObject[current.Length - 1];
+                        System.Array.Copy(current, 0, updated, 0, index);
+                        System.Array.Copy(current, index + 1, updated, index, current.Length - index - 1);
+                        cell.Objects = updated;
                     }
                 }
             }
@@ -87,10 +110,10 @@ namespace Shared
 
         public void Update(IGameObject obj, int oldX, int oldY)
         {
-            int oldGX = oldX / _cellSize;
-            int oldGY = oldY / _cellSize;
-            int newGX = obj.X / _cellSize;
-            int newGY = obj.Y / _cellSize;
+            int oldGX = GetGridCoord(oldX);
+            int oldGY = GetGridCoord(oldY);
+            int newGX = GetGridCoord(obj.X);
+            int newGY = GetGridCoord(obj.Y);
 
             if (oldGX != newGX || oldGY != newGY)
             {
@@ -100,12 +123,14 @@ namespace Shared
                 {
                     lock (oldCell.Lock)
                     {
-                        int index = oldCell.Objects.IndexOf(obj);
+                        var current = oldCell.Objects;
+                        int index = System.Array.IndexOf(current, obj);
                         if (index != -1)
                         {
-                            int last = oldCell.Objects.Count - 1;
-                            oldCell.Objects[index] = oldCell.Objects[last];
-                            oldCell.Objects.RemoveAt(last);
+                            var updated = new IGameObject[current.Length - 1];
+                            System.Array.Copy(current, 0, updated, 0, index);
+                            System.Array.Copy(current, index + 1, updated, index, current.Length - index - 1);
+                            oldCell.Objects = updated;
                         }
                     }
                 }
@@ -115,7 +140,14 @@ namespace Shared
                 var newCell = GetOrCreateCell(newKey);
                 lock (newCell.Lock)
                 {
-                    newCell.Objects.Add(obj);
+                    var current = newCell.Objects;
+                    if (System.Array.IndexOf(current, obj) == -1)
+                    {
+                        var updated = new IGameObject[current.Length + 1];
+                        System.Array.Copy(current, updated, current.Length);
+                        updated[current.Length] = obj;
+                        newCell.Objects = updated;
+                    }
                 }
             }
         }
@@ -127,16 +159,136 @@ namespace Shared
             return results;
         }
 
+        public delegate void QueryCallback<TState>(IGameObject obj, ref TState state);
+
+        /// <summary>
+        /// Queries objects in a box without allocating a list, using a callback for each found object.
+        /// </summary>
+        public void QueryBox(Box2i box, Action<IGameObject> callback)
+        {
+            int startGX = GetGridCoord(box.Left);
+            int startGY = GetGridCoord(box.Bottom);
+            int endGX = GetGridCoord(box.Right);
+            int endGY = GetGridCoord(box.Top);
+
+            // Fast path for single-cell queries
+            if (startGX == endGX && startGY == endGY)
+            {
+                long key = ((long)startGX << 32) | (uint)startGY;
+                if (_grid.TryGetValue(key, out var cell))
+                {
+                    var objects = cell.Objects;
+                    for (int i = 0; i < objects.Length; i++)
+                    {
+                        var obj = objects[i];
+                        int ox = obj.X;
+                        int oy = obj.Y;
+                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        {
+                            callback(obj);
+                        }
+                    }
+                }
+                return;
+            }
+
+            var seen = _seenHashSet.Value!;
+            seen.Clear();
+
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
+
+            for (int x = startGX; x <= endGX; x++)
+            {
+                for (int y = startGY; y <= endGY; y++)
+                {
+                    long key = ((long)x << 32) | (uint)y;
+                    if (_grid.TryGetValue(key, out var cell))
+                    {
+                        var objects = cell.Objects;
+                        for (int i = 0; i < objects.Length; i++)
+                        {
+                            var obj = objects[i];
+                            int ox = obj.X;
+                            int oy = obj.Y;
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            {
+                                callback(obj);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Queries objects in a box without allocating a list or closure, passing state to the callback.
+        /// </summary>
+        public void QueryBox<TState>(Box2i box, ref TState state, QueryCallback<TState> callback)
+        {
+            int startGX = GetGridCoord(box.Left);
+            int startGY = GetGridCoord(box.Bottom);
+            int endGX = GetGridCoord(box.Right);
+            int endGY = GetGridCoord(box.Top);
+
+            // Fast path for single-cell queries
+            if (startGX == endGX && startGY == endGY)
+            {
+                long key = ((long)startGX << 32) | (uint)startGY;
+                if (_grid.TryGetValue(key, out var cell))
+                {
+                    var objects = cell.Objects;
+                    for (int i = 0; i < objects.Length; i++)
+                    {
+                        var obj = objects[i];
+                        int ox = obj.X;
+                        int oy = obj.Y;
+                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        {
+                            callback(obj, ref state);
+                        }
+                    }
+                }
+                return;
+            }
+
+            var seen = _seenHashSet.Value!;
+            seen.Clear();
+
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
+
+            for (int x = startGX; x <= endGX; x++)
+            {
+                for (int y = startGY; y <= endGY; y++)
+                {
+                    long key = ((long)x << 32) | (uint)y;
+                    if (_grid.TryGetValue(key, out var cell))
+                    {
+                        var objects = cell.Objects;
+                        for (int i = 0; i < objects.Length; i++)
+                        {
+                            var obj = objects[i];
+                            int ox = obj.X;
+                            int oy = obj.Y;
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            {
+                                callback(obj, ref state);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         public void CleanupEmptyCells()
         {
             foreach (var kvp in _grid)
             {
                 var cell = kvp.Value;
-                if (cell.Objects.Count == 0)
+                if (cell.Objects.Length == 0)
                 {
                     lock (cell.Lock)
                     {
-                        if (cell.Objects.Count == 0)
+                        if (cell.Objects.Length == 0)
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
                             {
@@ -150,38 +302,62 @@ namespace Shared
 
         public void GetObjectsInBox(Box2i box, List<IGameObject> results)
         {
+            int startGX = GetGridCoord(box.Left);
+            int startGY = GetGridCoord(box.Bottom);
+            int endGX = GetGridCoord(box.Right);
+            int endGY = GetGridCoord(box.Top);
+
+            // Fast path for single-cell queries
+            if (startGX == endGX && startGY == endGY)
+            {
+                long key = ((long)startGX << 32) | (uint)startGY;
+                if (_grid.TryGetValue(key, out var cell))
+                {
+                    // Lock-free snapshot read
+                    var objects = cell.Objects;
+                    int count = objects.Length;
+                    for (int i = 0; i < count; i++)
+                    {
+                        var obj = objects[i];
+                        int ox = obj.X;
+                        int oy = obj.Y;
+                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        {
+                            results.Add(obj);
+                        }
+                    }
+                }
+                return;
+            }
+
             var seen = _seenHashSet.Value!;
             seen.Clear();
 
-            int startX = box.Left / _cellSize;
-            int startY = box.Top / _cellSize;
-            int endX = box.Right / _cellSize;
-            int endY = box.Bottom / _cellSize;
-
             // Prevent DoS via huge search area
-            if ((long)(endX - startX + 1) * (endY - startY + 1) > 10000)
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000)
             {
                 return;
             }
 
-            for (int x = startX; x <= endX; x++)
+            for (int x = startGX; x <= endGX; x++)
             {
-                for (int y = startY; y <= endY; y++)
+                for (int y = startGY; y <= endGY; y++)
                 {
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        lock (cell.Lock)
+                        // Lock-free snapshot read
+                        var objects = cell.Objects;
+                        int count = objects.Length;
+                        for (int i = 0; i < count; i++)
                         {
-                            var objects = cell.Objects;
-                            int count = objects.Count;
-                            for (int i = 0; i < count; i++)
+                            var obj = objects[i];
+                            int ox = obj.X;
+                            int oy = obj.Y;
+                            // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
                             {
-                                var obj = objects[i];
-                                if (box.Contains(new Vector2i(obj.X, obj.Y)) && seen.Add(obj.Id))
-                                {
-                                    results.Add(obj);
-                                }
+                                results.Add(obj);
                             }
                         }
                     }

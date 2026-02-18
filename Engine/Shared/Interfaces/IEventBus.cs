@@ -19,5 +19,10 @@ namespace Shared.Messaging
         /// Removes all subscriptions from the event bus.
         /// </summary>
         void Clear();
+
+        /// <summary>
+        /// Removes all subscriptions for a specific event type.
+        /// </summary>
+        void Clear<T>();
     }
 }

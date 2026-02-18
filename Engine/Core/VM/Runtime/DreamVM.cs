@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Interfaces;
 using System.Collections.Generic;
 using System.Linq;
 using Core.VM.Procs;
@@ -23,13 +24,16 @@ namespace Core.VM.Runtime
         private readonly ILogger<DreamVM> _logger;
         private readonly IEnumerable<INativeProcProvider> _nativeProcProviders;
         private readonly IBytecodeInterpreter _interpreter;
+        private readonly IObjectFactory? _objectFactory;
 
-        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IBytecodeInterpreter? interpreter = null)
+        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
         {
             _settings = settings.Value;
             _logger = logger;
             _nativeProcProviders = nativeProcProviders;
+            _objectFactory = objectFactory;
             _interpreter = interpreter ?? new BytecodeInterpreter();
+            Context.ObjectFactory = objectFactory;
         }
 
         public void Initialize()

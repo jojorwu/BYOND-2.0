@@ -12,7 +12,9 @@ namespace Shared.Services
             _jobSystem = jobSystem;
         }
 
-        public Memory<byte> Allocate(int size)
+        public Memory<byte> Allocate(int size) => Allocate(size, 1);
+
+        public Memory<byte> Allocate(int size, int alignment)
         {
             var arena = _jobSystem.GetCurrentArena();
             if (arena == null)
@@ -21,7 +23,7 @@ namespace Shared.Services
                 // In a production engine we'd probably want a separate main-thread arena
                 return new byte[size];
             }
-            return arena.Allocate(size);
+            return arena.Allocate(size, alignment);
         }
 
         public void Reset()

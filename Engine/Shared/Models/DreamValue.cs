@@ -44,6 +44,18 @@ namespace Shared
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
+        private DreamValue(DreamValueType type, float floatValue, object? objectValue)
+        {
+            Type = type;
+            _floatValue = floatValue;
+            _objectValue = objectValue;
+        }
+
+        internal static DreamValue CreateObjectIdReference(int objectId)
+        {
+            return new DreamValue(DreamValueType.DreamObject, objectId, null);
+        }
+
         public DreamValue(DreamObject value)
         {
             Type = DreamValueType.DreamObject;
@@ -172,6 +184,9 @@ namespace Shared
             gameObject = null;
             return false;
         }
+
+        public bool IsObjectIdReference => Type == DreamValueType.DreamObject && _objectValue == null;
+        public int ObjectId => (int)_floatValue;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public float AsFloat()
@@ -359,19 +374,23 @@ namespace Shared
         {
             if (Type != other.Type) return false;
 
-            return Type switch
-            {
-                DreamValueType.Float => _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f,
-                DreamValueType.Null => true,
-                _ => ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false)
-            };
+            if (Type == DreamValueType.Float)
+                return _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+
+            if (Type == DreamValueType.Null) return true;
+
+            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
         }
 
         public override int GetHashCode()
         {
             if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
             if (Type == DreamValueType.Null) return 0;
-            return HashCode.Combine(Type, _objectValue);
+
+            // Manual hash combination for speed
+            int hash = (int)Type;
+            if (_objectValue != null) hash = (hash * 397) ^ _objectValue.GetHashCode();
+            return hash;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -379,15 +398,12 @@ namespace Shared
         {
             if (a.Type == b.Type)
             {
-                switch (a.Type)
-                {
-                    case DreamValueType.Float:
-                        return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
-                    case DreamValueType.Null:
-                        return true;
-                    default:
-                        return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
-                }
+                if (a.Type == DreamValueType.Float)
+                    return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
+
+                if (a.Type == DreamValueType.Null) return true;
+
+                return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
             }
 
             // DM Parity: null == 0
@@ -536,58 +552,169 @@ namespace Shared
             }
         }
 
-        public void WriteTo(System.IO.BinaryWriter writer)
+        public int GetWriteSize()
         {
-            writer.Write((byte)Type);
+            int size = 1; // Type byte
             switch (Type)
             {
                 case DreamValueType.Float:
-                    writer.Write(_floatValue);
+                    size += 4;
                     break;
                 case DreamValueType.String:
-                    writer.Write((string)_objectValue!);
+                    {
+                        int len = System.Text.Encoding.UTF8.GetByteCount((string)_objectValue!);
+                        size += GetVarIntSize(len) + len;
+                    }
                     break;
                 case DreamValueType.Null:
                     break;
+                case DreamValueType.DreamObject:
+                    size += 1; // Boolean flag
+                    if (_objectValue is GameObject) size += 4; // ID
+                    else
+                    {
+                        int len = System.Text.Encoding.UTF8.GetByteCount(ToString());
+                        size += GetVarIntSize(len) + len;
+                    }
+                    break;
+                default:
+                    {
+                        int len = System.Text.Encoding.UTF8.GetByteCount(ToString());
+                        size += GetVarIntSize(len) + len;
+                    }
+                    break;
+            }
+            return size;
+        }
+
+        private static int GetVarIntSize(int value)
+        {
+            uint v = (uint)value;
+            int count = 1;
+            while (v >= 0x80)
+            {
+                v >>= 7;
+                count++;
+            }
+            return count;
+        }
+
+        public int WriteTo(Span<byte> span)
+        {
+            span[0] = (byte)Type;
+            int offset = 1;
+            switch (Type)
+            {
+                case DreamValueType.Float:
+                    System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(span.Slice(offset), _floatValue);
+                    return offset + 4;
+                case DreamValueType.String:
+                    {
+                        var s = (string)_objectValue!;
+                        int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
+                        // VarInt length prefix
+                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        offset += lenBytes;
+                        System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
+                        return offset + bytesWritten;
+                    }
+                case DreamValueType.Null:
+                    return offset;
                 case DreamValueType.DreamObject:
                     if (_objectValue is GameObject g)
                     {
-                        writer.Write(true);
-                        writer.Write(g.Id);
+                        span[offset++] = 1; // Boolean true
+                        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span.Slice(offset), g.Id);
+                        return offset + 4;
                     }
                     else
                     {
-                        writer.Write(false);
-                        writer.Write(ToString());
+                        span[offset++] = 0; // Boolean false
+                        var s = ToString();
+                        int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
+                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        offset += lenBytes;
+                        System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
+                        return offset + bytesWritten;
                     }
-                    break;
                 default:
-                    writer.Write(ToString());
-                    break;
+                    {
+                        var s = ToString();
+                        int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
+                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        offset += lenBytes;
+                        System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
+                        return offset + bytesWritten;
+                    }
             }
         }
 
-        public static DreamValue ReadFrom(System.IO.BinaryReader reader)
+        private static int WriteVarInt(Span<byte> span, int value)
         {
-            var type = (DreamValueType)reader.ReadByte();
+            uint v = (uint)value;
+            int count = 0;
+            while (v >= 0x80)
+            {
+                span[count++] = (byte)(v | 0x80);
+                v >>= 7;
+            }
+            span[count++] = (byte)v;
+            return count;
+        }
+
+        public static DreamValue ReadFrom(ReadOnlySpan<byte> span, out int bytesRead)
+        {
+            var type = (DreamValueType)span[0];
+            int offset = 1;
             switch (type)
             {
                 case DreamValueType.Float:
-                    return new DreamValue(reader.ReadSingle());
+                    bytesRead = offset + 4;
+                    return new DreamValue(System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(span.Slice(offset)));
                 case DreamValueType.String:
-                    return new DreamValue(reader.ReadString());
+                    {
+                        int len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        offset += lenBytes;
+                        bytesRead = offset + len;
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, len)));
+                    }
                 case DreamValueType.Null:
+                    bytesRead = offset;
                     return Null;
                 case DreamValueType.DreamObject:
-                    if (reader.ReadBoolean())
+                    if (span[offset++] != 0)
                     {
-                        // We can't resolve GameObject here easily without a context,
-                        // so we might just store the ID for now or return a placeholder.
-                        return new DreamValue((float)reader.ReadInt32()); // Placeholder for ID
+                        bytesRead = offset + 4;
+                        return CreateObjectIdReference(System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset)));
                     }
-                    return new DreamValue(reader.ReadString());
+                    else
+                    {
+                        int len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        offset += lenBytes;
+                        bytesRead = offset + len;
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, len)));
+                    }
                 default:
-                    return new DreamValue(reader.ReadString());
+                    {
+                        int len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        offset += lenBytes;
+                        bytesRead = offset + len;
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, len)));
+                    }
+            }
+        }
+
+        private static int ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
+        {
+            int result = 0;
+            int shift = 0;
+            bytesRead = 0;
+            while (true)
+            {
+                byte b = span[bytesRead++];
+                result |= (b & 0x7f) << shift;
+                if ((b & 0x80) == 0) return result;
+                shift += 7;
             }
         }
     }

@@ -292,42 +292,58 @@ namespace Shared
             }
         }
 
+        /// <summary>
+        /// Gets the value of a variable by name.
+        /// </summary>
         public override DreamValue GetVariable(string name)
         {
-            // Fast-path for common variables
+            // Fast-path for common single-character built-in variables
             if (name.Length == 1)
             {
-                if (name[0] == 'x') return new DreamValue((float)X);
-                if (name[0] == 'y') return new DreamValue((float)Y);
-                if (name[0] == 'z') return new DreamValue((float)Z);
+                return name[0] switch
+                {
+                    'x' => new DreamValue((float)X),
+                    'y' => new DreamValue((float)Y),
+                    'z' => new DreamValue((float)Z),
+                    _ => base.GetVariable(name)
+                };
             }
 
-            switch (name)
+            return name switch
             {
-                case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
-                case "icon": return new DreamValue(Icon);
-                case "icon_state": return new DreamValue(IconState);
-                case "dir": return new DreamValue((float)Dir);
-                case "alpha": return new DreamValue(Alpha);
-                case "color": return new DreamValue(Color);
-                case "layer": return new DreamValue(Layer);
-                case "pixel_x": return new DreamValue(PixelX);
-                case "pixel_y": return new DreamValue(PixelY);
-                case "name":
-                    var val = base.GetVariable(name);
-                    return !val.IsNull ? val : new DreamValue(ObjectType?.Name ?? "object");
-                default:
-                    return base.GetVariable(name);
-            }
+                "loc" => Loc is DreamObject locObj ? new DreamValue(locObj) : DreamValue.Null,
+                "icon" => new DreamValue(Icon),
+                "icon_state" => new DreamValue(IconState),
+                "dir" => new DreamValue((float)Dir),
+                "alpha" => new DreamValue(Alpha),
+                "color" => new DreamValue(Color),
+                "layer" => new DreamValue(Layer),
+                "pixel_x" => new DreamValue(PixelX),
+                "pixel_y" => new DreamValue(PixelY),
+                "name" => GetNameVariable(),
+                _ => base.GetVariable(name)
+            };
         }
 
+        private DreamValue GetNameVariable()
+        {
+            var val = base.GetVariable("name");
+            return !val.IsNull ? val : new DreamValue(ObjectType?.Name ?? "object");
+        }
+
+        /// <summary>
+        /// Sets the value of a variable by name.
+        /// </summary>
         public override void SetVariable(string name, DreamValue value)
         {
             if (name.Length == 1)
             {
-                if (name[0] == 'x') { X = (int)value.GetValueAsFloat(); return; }
-                if (name[0] == 'y') { Y = (int)value.GetValueAsFloat(); return; }
-                if (name[0] == 'z') { Z = (int)value.GetValueAsFloat(); return; }
+                switch (name[0])
+                {
+                    case 'x': X = (int)value.GetValueAsFloat(); return;
+                    case 'y': Y = (int)value.GetValueAsFloat(); return;
+                    case 'z': Z = (int)value.GetValueAsFloat(); return;
+                }
             }
 
             lock (_stateLock)
@@ -335,10 +351,7 @@ namespace Shared
                 switch (name)
                 {
                     case "loc":
-                        if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                            Loc = loc;
-                        else
-                            Loc = null;
+                        Loc = (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) ? loc : null;
                         break;
                     case "icon":
                     case "icon_state":
@@ -357,6 +370,9 @@ namespace Shared
             }
         }
 
+        /// <summary>
+        /// Sets the value of a variable directly by its index.
+        /// </summary>
         public override void SetVariableDirect(int index, DreamValue value)
         {
             lock (_stateLock)
@@ -365,32 +381,42 @@ namespace Shared
 
                 if (ObjectType != null && index >= 0 && index < ObjectType.VariableNames.Count)
                 {
-                    var name = ObjectType.VariableNames[index];
-                    if (name.Length == 1)
-                    {
-                        if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
-                        if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
-                        if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
-                    }
-
-                    switch (name)
-                    {
-                        case "loc":
-                            if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                                SetLocInternal(loc, false);
-                            else
-                                SetLocInternal(null, false);
-                            break;
-                        case "icon": value.TryGetValue(out _icon); break;
-                        case "icon_state": value.TryGetValue(out _iconState); break;
-                        case "dir": _dir = (int)value.GetValueAsFloat(); break;
-                        case "alpha": _alpha = value.GetValueAsFloat(); break;
-                        case "color": value.TryGetValue(out _color); break;
-                        case "layer": _layer = value.GetValueAsFloat(); break;
-                        case "pixel_x": _pixelX = value.GetValueAsFloat(); break;
-                        case "pixel_y": _pixelY = value.GetValueAsFloat(); break;
-                    }
+                    UpdateBuiltinFromVariable(ObjectType.VariableNames[index], value);
                 }
+            }
+        }
+
+        private void UpdateBuiltinFromVariable(string name, DreamValue value)
+        {
+            if (name.Length == 1)
+            {
+                switch (name[0])
+                {
+                    case 'x': _x = (int)value.GetValueAsFloat(); return;
+                    case 'y': _y = (int)value.GetValueAsFloat(); return;
+                    case 'z': _z = (int)value.GetValueAsFloat(); return;
+                }
+            }
+
+            switch (name)
+            {
+                case "loc":
+                    SetLocInternal((value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) ? loc : null, false);
+                    break;
+                case "icon":
+                    if (value.TryGetValue(out string? icon)) _icon = icon;
+                    break;
+                case "icon_state":
+                    if (value.TryGetValue(out string? iconState)) _iconState = iconState;
+                    break;
+                case "dir": _dir = (int)value.GetValueAsFloat(); break;
+                case "alpha": _alpha = value.GetValueAsFloat(); break;
+                case "color":
+                    if (value.TryGetValue(out string? color)) _color = color;
+                    break;
+                case "layer": _layer = value.GetValueAsFloat(); break;
+                case "pixel_x": _pixelX = value.GetValueAsFloat(); break;
+                case "pixel_y": _pixelY = value.GetValueAsFloat(); break;
             }
         }
 
@@ -627,31 +653,45 @@ namespace Shared
         }
     }
 
+    /// <summary>
+    /// Custom JSON converter for <see cref="GameObject"/> to handle efficient serialization.
+    /// </summary>
     public class GameObjectConverter : JsonConverter<GameObject>
     {
-        public override GameObject Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
+        /// <summary>
+        /// Reads and converts the JSON to type <see cref="GameObject"/>.
+        /// </summary>
+        public override GameObject? Read(ref Utf8JsonReader reader, System.Type typeToConvert, JsonSerializerOptions options)
         {
-            // Minimal implementation for now, primarily used for sending to client
-            return new GameObject();
+            throw new System.NotImplementedException("Deserialization of GameObject via JsonConverter is not supported. Use BinarySnapshotService.");
         }
 
+        /// <summary>
+        /// Writes a <see cref="GameObject"/> value as JSON.
+        /// </summary>
         public override void Write(Utf8JsonWriter writer, GameObject value, JsonSerializerOptions options)
         {
             writer.WriteStartObject();
             writer.WriteNumber("Id", value.Id);
             writer.WriteString("TypeName", value.TypeName);
+
             writer.WriteStartObject("Properties");
-            if (value.ObjectType != null)
+            var type = value.ObjectType;
+            if (type != null)
             {
-                for (int i = 0; i < value.ObjectType.VariableNames.Count; i++)
+                for (int i = 0; i < type.VariableNames.Count; i++)
                 {
-                    var name = value.ObjectType.VariableNames[i];
+                    var name = type.VariableNames[i];
                     var val = value.GetVariable(i);
-                    writer.WritePropertyName(name);
-                    val.WriteTo(writer, options);
+                    if (!val.IsNull)
+                    {
+                        writer.WritePropertyName(name);
+                        val.WriteTo(writer, options);
+                    }
                 }
             }
             writer.WriteEndObject();
+
             writer.WriteEndObject();
         }
     }

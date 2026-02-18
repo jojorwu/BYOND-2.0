@@ -29,14 +29,8 @@ namespace Server.Systems
         public string Execute(string[] args)
         {
             return "Server Status: Running\n" +
-                   $"TPS: {GetLastTps():F1}\n" +
-                   $"Memory: {GC.GetTotalMemory(false) / 1024.0 / 1024.0:F1} MB";
-        }
-
-        private double GetLastTps()
-        {
-            // Simple hack to get TPS if we don't have a better way to query PerformanceMonitor
-            return 60.0; // Default
+                   $"TPS: {_monitor.LastTps:F1}\n" +
+                   $"Memory (GC): {GC.GetTotalMemory(false) / 1024.0 / 1024.0:F1} MB";
         }
 
         public override void Tick(IEntityCommandBuffer ecb) { }

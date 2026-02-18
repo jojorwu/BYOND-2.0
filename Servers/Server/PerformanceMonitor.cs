@@ -20,6 +20,9 @@ namespace Server
         private long _errorCount;
         private long _bytesSent;
         private long _bytesReceived;
+        private double _lastTps;
+
+        public double LastTps => _lastTps;
 
         public PerformanceMonitor(ILogger<PerformanceMonitor> logger, IProfilingService? profilingService = null)
         {
@@ -46,6 +49,7 @@ namespace Server
             var received = Interlocked.Exchange(ref _bytesReceived, 0);
 
             double tps = ticks / 5.0;
+            _lastTps = tps;
             string errorInfo = errors > 0 ? $" | ERRORS: {errors}" : "";
             _logger.LogInformation($"Performance: {tps:F1} TPS{errorInfo} | Sent: {sent / 1024.0:F1} KB/s | Received: {received / 1024.0:F1} KB/s");
 

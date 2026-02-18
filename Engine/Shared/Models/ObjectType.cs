@@ -3,26 +3,64 @@ using System.Text.Json.Serialization;
 
 namespace Shared
 {
+    /// <summary>
+    /// Represents a type definition in the Dream environment.
+    /// Contains information about variables, procedures, and inheritance.
+    /// </summary>
     public class ObjectType
     {
-        public int Id { get; }
-        public string Name { get; set; }
-        public string? ParentName { get; set; }
+        /// <summary>
+        /// Gets the unique identifier for this type.
+        /// </summary>
+        public int Id { get; init; }
 
+        /// <summary>
+        /// Gets the name of the type.
+        /// </summary>
+        public string Name { get; init; }
+
+        /// <summary>
+        /// Gets the name of the parent type.
+        /// </summary>
+        public string? ParentName { get; init; }
+
+        /// <summary>
+        /// Gets the parent type definition.
+        /// </summary>
         [JsonIgnore]
         public ObjectType? Parent { get; set; }
-        public Dictionary<string, object?> DefaultProperties { get; set; }
+
+        /// <summary>
+        /// Gets the default property values for this type.
+        /// </summary>
+        public Dictionary<string, object?> DefaultProperties { get; init; } = new();
+
+        /// <summary>
+        /// Gets the names of all variables defined for this type.
+        /// </summary>
         public List<string> VariableNames { get; } = new();
+
+        /// <summary>
+        /// Gets the default values for all variables, indexed by their position in <see cref="VariableNames"/>.
+        /// </summary>
         public List<object?> FlattenedDefaultValues { get; } = new();
+
+        /// <summary>
+        /// Gets the procedures defined locally in this type.
+        /// </summary>
         public Dictionary<string, IDreamProc> Procs { get; } = new();
+
+        /// <summary>
+        /// Gets all procedures including inherited ones.
+        /// </summary>
         public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
+
         private Dictionary<string, int>? _variableIndices;
 
         public ObjectType(int id, string name)
         {
             Id = id;
             Name = name;
-            DefaultProperties = new Dictionary<string, object?>();
         }
 
         public IDreamProc? GetProc(string name)

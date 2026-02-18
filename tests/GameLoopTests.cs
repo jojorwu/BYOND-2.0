@@ -13,7 +13,6 @@ namespace tests
     [TestFixture]
     public class GameLoopTests
     {
-        private Mock<IGameLoopStrategy> _strategyMock = null!;
         private Mock<ISystemManager> _systemManagerMock = null!;
         private Mock<IRegionManager> _regionManagerMock = null!;
         private Mock<IServerContext> _serverContextMock = null!;
@@ -24,7 +23,6 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _strategyMock = new Mock<IGameLoopStrategy>();
             _systemManagerMock = new Mock<ISystemManager>();
             _regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
@@ -33,7 +31,7 @@ namespace tests
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
             _serverContextMock.Setup(c => c.PerformanceMonitor).Returns(new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object));
 
-            _gameLoop = new GameLoop(_strategyMock.Object, _systemManagerMock.Object, new Mock<Shared.Interfaces.ITimerService>().Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
+            _gameLoop = new GameLoop(_systemManagerMock.Object, new Mock<Shared.Interfaces.ITimerService>().Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 
@@ -46,7 +44,7 @@ namespace tests
         }
 
         [Test]
-        public async Task StartAsync_CallsTickOnStrategy()
+        public async Task StartAsync_CallsTickOnSystemManager()
         {
             // Arrange
             _cancellationTokenSource.CancelAfter(200);
@@ -56,7 +54,7 @@ namespace tests
             await Task.Delay(100, _cancellationTokenSource.Token); // Give it a moment to tick
 
             // Assert
-            _strategyMock.Verify(s => s.TickAsync(It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+            _systemManagerMock.Verify(s => s.TickAsync(), Times.AtLeastOnce);
         }
     }
 }

@@ -7,10 +7,13 @@ using Robust.Shared.Maths;
 using Shared;
 using Microsoft.Extensions.Options;
 using Shared.Interfaces;
+using Shared.Models;
+using Shared.Attributes;
 
 namespace Server
 {
-    public class RegionalGameLoopStrategy : IGameLoopStrategy, IShrinkable
+    [System("RegionalProcessingSystem", Priority = 50)]
+    public class RegionalGameLoopStrategy : BaseSystem, IShrinkable
     {
         private readonly IScriptHost _scriptHost;
         private readonly IRegionManager _regionManager;
@@ -32,6 +35,13 @@ namespace Server
             _gameStateSnapshotter = gameStateSnapshotter;
             _jobSystem = jobSystem;
             _settings = settings.Value;
+        }
+
+        public override bool Enabled => _settings.Performance.EnableRegionalProcessing;
+
+        public override void Tick(IEntityCommandBuffer ecb)
+        {
+            TickAsync(default).GetAwaiter().GetResult();
         }
 
         public async Task TickAsync(CancellationToken cancellationToken)

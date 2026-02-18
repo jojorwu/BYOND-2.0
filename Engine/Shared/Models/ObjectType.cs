@@ -56,6 +56,7 @@ namespace Shared
         public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
 
         private Dictionary<string, int>? _variableIndices;
+        private HashSet<int> _parentTypeIds = new();
 
         public int IndexX { get; private set; } = -1;
         public int IndexY { get; private set; } = -1;
@@ -103,6 +104,14 @@ namespace Shared
 
         public void FinalizeVariables()
         {
+            _parentTypeIds = new HashSet<int>();
+            var current = this;
+            while (current != null)
+            {
+                _parentTypeIds.Add(current.Id);
+                current = current.Parent;
+            }
+
             _variableIndices = new Dictionary<string, int>(VariableNames.Count);
             for (int i = 0; i < VariableNames.Count; i++)
             {
@@ -134,16 +143,22 @@ namespace Shared
 
         public bool IsSubtypeOf(ObjectType other)
         {
-            var current = this;
-            while (current != null)
+            if (_parentTypeIds.Count == 0)
             {
-                if (current == other)
+                lock (_parentTypeIds)
                 {
-                    return true;
+                    if (_parentTypeIds.Count == 0)
+                    {
+                        var current = this;
+                        while (current != null)
+                        {
+                            _parentTypeIds.Add(current.Id);
+                            current = current.Parent;
+                        }
+                    }
                 }
-                current = current.Parent;
             }
-            return false;
+            return _parentTypeIds.Contains(other.Id);
         }
     }
 }

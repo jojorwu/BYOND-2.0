@@ -285,8 +285,13 @@ namespace Shared
 
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
-                var sA = a.ToString();
-                var sB = b.ToString();
+                string sA, sB;
+
+                if (a.Type == DreamValueType.String) sA = (string)a._objectValue!;
+                else sA = a.ToString();
+
+                if (b.Type == DreamValueType.String) sB = (string)b._objectValue!;
+                else sB = b.ToString();
 
                 if ((long)sA.Length + sB.Length > 67108864)
                     throw new System.InvalidOperationException("Maximum string length exceeded during concatenation");

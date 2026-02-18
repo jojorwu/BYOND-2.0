@@ -36,16 +36,13 @@ namespace Server
 
         public ValueTask SendAsync(byte[] data)
         {
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put(data);
-                _peer.Send(writer, DeliveryMethod.Unreliable);
-            }
-            finally
-            {
-                _writerPool.Return(writer);
-            }
+            _peer.Send(data, DeliveryMethod.Unreliable);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask SendAsync(byte[] data, int offset, int length)
+        {
+            _peer.Send(data, offset, length, DeliveryMethod.Unreliable);
             return ValueTask.CompletedTask;
         }
 

@@ -14,6 +14,7 @@ namespace Server
         private readonly ServerSettings _settings;
         private readonly ITimerService _timerService;
         private readonly IJobSystem _jobSystem;
+        private static readonly ThreadLocal<HashSet<int>> _objectIdBuffer = new(() => new HashSet<int>());
 
         public ScriptScheduler(IOptions<ServerSettings> settings, ITimerService timerService, IJobSystem jobSystem)
         {
@@ -26,7 +27,8 @@ namespace Server
         {
             if (objectIds == null)
             {
-                objectIds = new HashSet<int>();
+                objectIds = _objectIdBuffer.Value!;
+                objectIds.Clear();
                 foreach (var obj in objectsToTick)
                 {
                     objectIds.Add(obj.Id);

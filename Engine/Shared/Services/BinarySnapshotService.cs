@@ -23,11 +23,23 @@ namespace Shared.Services
         public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
         {
             var rentedBuffer = ArrayPool<byte>.Shared.Rent(65536);
-            int offset = 0;
-
             try
             {
-                foreach (var obj in objects)
+                int offset = SerializeTo(objects, rentedBuffer, lastVersions);
+                return rentedBuffer.AsSpan(0, offset).ToArray();
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(rentedBuffer);
+            }
+        }
+
+        public int SerializeTo(IEnumerable<IGameObject> objects, byte[] buffer, IDictionary<int, long>? lastVersions = null, int startOffset = 0)
+        {
+            var rentedBuffer = buffer;
+            int offset = startOffset;
+
+            foreach (var obj in objects)
                 {
                     if (obj is not GameObject g) continue;
 
@@ -76,15 +88,10 @@ namespace Shared.Services
                     if (lastVersions != null) lastVersions[g.Id] = g.Version;
                 }
 
-                EnsureBuffer(ref rentedBuffer, offset, 1);
-                offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0); // End of stream marker
+            EnsureBuffer(ref rentedBuffer, offset, 1);
+            offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0); // End of stream marker
 
-                return rentedBuffer.AsSpan(0, offset).ToArray();
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
-            }
+            return offset;
         }
 
         private void EnsureBuffer(ref byte[] buffer, int offset, int required)

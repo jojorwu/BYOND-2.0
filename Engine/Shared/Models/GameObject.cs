@@ -29,7 +29,6 @@ namespace Shared
         private IComponentManager? _componentManager;
         private volatile IComponent[] _componentCache = System.Array.Empty<IComponent>();
         private readonly object _componentCacheLock = new();
-        private readonly object _stateLock = new();
 
         public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
@@ -45,17 +44,12 @@ namespace Shared
         /// </summary>
         public int X
         {
-            get { lock (_stateLock) return _x; }
+            get { lock (_lock) return _x; }
             set
             {
-                lock (_stateLock)
-                {
-                    if (_x != value)
-                    {
-                        _x = value;
-                        SyncVariable("x", value);
-                    }
-                }
+                var ot = ObjectType;
+                if (ot != null && ot.IndexX != -1) SetVariableDirect(ot.IndexX, value);
+                else { lock (_lock) { if (_x != value) { _x = value; SyncVariable("x", value); } } }
             }
         }
 
@@ -71,17 +65,12 @@ namespace Shared
         /// </summary>
         public int Y
         {
-            get { lock (_stateLock) return _y; }
+            get { lock (_lock) return _y; }
             set
             {
-                lock (_stateLock)
-                {
-                    if (_y != value)
-                    {
-                        _y = value;
-                        SyncVariable("y", value);
-                    }
-                }
+                var ot = ObjectType;
+                if (ot != null && ot.IndexY != -1) SetVariableDirect(ot.IndexY, value);
+                else { lock (_lock) { if (_y != value) { _y = value; SyncVariable("y", value); } } }
             }
         }
 
@@ -97,17 +86,12 @@ namespace Shared
         /// </summary>
         public int Z
         {
-            get { lock (_stateLock) return _z; }
+            get { lock (_lock) return _z; }
             set
             {
-                lock (_stateLock)
-                {
-                    if (_z != value)
-                    {
-                        _z = value;
-                        SyncVariable("z", value);
-                    }
-                }
+                var ot = ObjectType;
+                if (ot != null && ot.IndexZ != -1) SetVariableDirect(ot.IndexZ, value);
+                else { lock (_lock) { if (_z != value) { _z = value; SyncVariable("z", value); } } }
             }
         }
 
@@ -120,56 +104,96 @@ namespace Shared
         public string Icon
         {
             get => _icon;
-            set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexIcon != -1) SetVariableDirect(ot.IndexIcon, value);
+                else { lock (_lock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); } } }
+            }
         }
 
         private string _iconState = string.Empty;
         public string IconState
         {
             get => _iconState;
-            set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexIconState != -1) SetVariableDirect(ot.IndexIconState, value);
+                else { lock (_lock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); } } }
+            }
         }
 
         private int _dir = 2;
         public int Dir
         {
             get => _dir;
-            set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexDir != -1) SetVariableDirect(ot.IndexDir, (float)value);
+                else { lock (_lock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); } } }
+            }
         }
 
         private float _alpha = 255.0f;
         public float Alpha
         {
             get => _alpha;
-            set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexAlpha != -1) SetVariableDirect(ot.IndexAlpha, value);
+                else { lock (_lock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); } } }
+            }
         }
 
         private string _color = "#ffffff";
         public string Color
         {
             get => _color;
-            set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexColor != -1) SetVariableDirect(ot.IndexColor, value);
+                else { lock (_lock) { if (_color != value) { _color = value; SyncVariable("color", value); } } }
+            }
         }
 
         private float _layer = 2.0f;
         public float Layer
         {
             get => _layer;
-            set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexLayer != -1) SetVariableDirect(ot.IndexLayer, value);
+                else { lock (_lock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); } } }
+            }
         }
 
         private float _pixelX = 0;
         public float PixelX
         {
             get => _pixelX;
-            set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexPixelX != -1) SetVariableDirect(ot.IndexPixelX, value);
+                else { lock (_lock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); } } }
+            }
         }
 
         private float _pixelY = 0;
         public float PixelY
         {
             get => _pixelY;
-            set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); } } }
+            set
+            {
+                var ot = ObjectType;
+                if (ot != null && ot.IndexPixelY != -1) SetVariableDirect(ot.IndexPixelY, value);
+                else { lock (_lock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); } } }
+            }
         }
 
         /// <summary>
@@ -177,7 +201,7 @@ namespace Shared
         /// </summary>
         public void CommitState()
         {
-            lock (_stateLock)
+            lock (_lock)
             {
                 _committedX = _x;
                 _committedY = _y;
@@ -191,7 +215,7 @@ namespace Shared
         /// </summary>
         public IGameObject? Loc
         {
-            get { lock (_stateLock) return _loc; }
+            get { lock (_lock) return _loc; }
             set => SetLocInternal(value, true);
         }
 
@@ -202,7 +226,7 @@ namespace Shared
 
             lock (_globalHierarchyLock)
             {
-                lock (_stateLock)
+                lock (_lock)
                 {
                     if (_loc == value) return;
 
@@ -346,7 +370,7 @@ namespace Shared
                 }
             }
 
-            lock (_stateLock)
+            lock (_lock)
             {
                 switch (name)
                 {
@@ -375,7 +399,7 @@ namespace Shared
         /// </summary>
         public override void SetVariableDirect(int index, DreamValue value)
         {
-            lock (_stateLock)
+            lock (_lock)
             {
                 base.SetVariableDirect(index, value);
 
@@ -639,7 +663,7 @@ namespace Shared
         public virtual void Reset()
         {
             SetLocInternal(null, false);
-            lock (_stateLock)
+            lock (_lock)
             {
                 _x = 0;
                 _y = 0;

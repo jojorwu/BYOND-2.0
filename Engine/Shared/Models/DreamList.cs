@@ -110,15 +110,9 @@ namespace Shared
         {
             lock (_lock)
             {
-                bool removedAny = false;
-                for (int i = _values.Count - 1; i >= 0; i--)
-                {
-                    if (_values[i] == value)
-                    {
-                        _values.RemoveAt(i);
-                        removedAny = true;
-                    }
-                }
+                int countBefore = _values.Count;
+                _values.RemoveAll(v => v == value);
+                bool removedAny = _values.Count < countBefore;
 
                 if (removedAny)
                 {

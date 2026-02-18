@@ -6,6 +6,7 @@ namespace Shared
     {
         ValueTask SendAsync(string data);
         ValueTask SendAsync(byte[] data);
+        ValueTask SendAsync(byte[] data, int offset, int length);
         System.Collections.Generic.IDictionary<int, long> LastSentVersions { get; }
 
         /// <summary>

@@ -30,11 +30,10 @@ namespace Shared.Services
     public class ArchetypeManager : IArchetypeManager
     {
         private readonly List<Archetype> _archetypes = new();
-        private readonly Dictionary<string, Archetype> _signatureToArchetype = new();
+        private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
         private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
         private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
         private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
-        private readonly ConcurrentDictionary<string, string> _signatureCache = new();
         private readonly object[] _entityLocks = Enumerable.Range(0, 256).Select(_ => new object()).ToArray();
 
         private object GetEntityLock(int entityId) => _entityLocks[(uint)entityId % _entityLocks.Length];
@@ -149,21 +148,19 @@ namespace Shared.Services
             }
 
             // High-performance signature generation
-            var sortedTypes = components.Keys.OrderBy(t => t.FullName!).ToList();
-            var typeIds = string.Join("+", sortedTypes.Select(t => t.FullName));
-            var signatureKey = _signatureCache.GetOrAdd(typeIds, typeIds);
+            var signature = new ComponentSignature(components.Keys);
 
             // Find or create archetype
             Archetype targetArchetype;
             lock (_archetypes)
             {
-                if (!_signatureToArchetype.TryGetValue(signatureKey, out targetArchetype!))
+                if (!_signatureToArchetype.TryGetValue(signature, out targetArchetype!))
                 {
-                    targetArchetype = new Archetype(sortedTypes);
+                    targetArchetype = new Archetype(signature.Types.ToArray());
                     _archetypes.Add(targetArchetype);
-                    _signatureToArchetype[signatureKey] = targetArchetype;
+                    _signatureToArchetype[signature] = targetArchetype;
 
-                    foreach (var type in sortedTypes)
+                    foreach (var type in signature.Types)
                     {
                         _typeToArchetypesCache.AddOrUpdate(type,
                             _ => new[] { targetArchetype },

@@ -1,5 +1,6 @@
 using Shared;
 using System;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
@@ -83,13 +84,20 @@ namespace Server
                 var interestedObjects = _interestManager.GetInterestedObjects(peer);
                 var objectsToSend = interestedObjects.Any() ? interestedObjects : objects;
 
-                byte[] snapshot = _binarySnapshotService.Serialize(objectsToSend, peer.LastSentVersions);
-                if (snapshot.Length > 1) // 1 byte for end marker
+                var buffer = ArrayPool<byte>.Shared.Rent(65536);
+                try
                 {
-                    byte[] message = new byte[snapshot.Length + 1];
-                    message[0] = (byte)SnapshotMessageType.Binary;
-                    Buffer.BlockCopy(snapshot, 0, message, 1, snapshot.Length);
-                    await peer.SendAsync(message);
+                    buffer[0] = (byte)SnapshotMessageType.Binary;
+                    int length = _binarySnapshotService.SerializeTo(objectsToSend, buffer, peer.LastSentVersions, 1);
+
+                    if (length > 2) // 1 for type byte + 1 for end marker
+                    {
+                        await peer.SendAsync(buffer, 0, length);
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
                 }
             });
         }

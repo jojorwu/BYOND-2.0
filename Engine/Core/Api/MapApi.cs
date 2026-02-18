@@ -97,13 +97,20 @@ namespace Core.Api
                 return Enumerable.Empty<IGameObject>();
 
             var box = new Box2i(x - range, y - range, x + range, y + range);
+            var results = new List<IGameObject>();
 
             using (_gameState.ReadLock())
             {
-                return _gameState.SpatialGrid.GetObjectsInBox(box)
-                    .Where(obj => obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
-                    .ToList(); // ToList to execute the query inside the lock
+                _gameState.SpatialGrid.QueryBox(box, ref results, (IGameObject obj, ref List<IGameObject> list) =>
+                {
+                    if (obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
+                    {
+                        list.Add(obj);
+                    }
+                });
             }
+
+            return results;
         }
 
         public IEnumerable<IGameObject> GetObjectsInArea(int x1, int y1, int x2, int y2, int z)
@@ -123,13 +130,20 @@ namespace Core.Api
                 System.Math.Max(x1, x2),
                 System.Math.Max(y1, y2)
             );
+            var results = new List<IGameObject>();
 
             using (_gameState.ReadLock())
             {
-                return _gameState.SpatialGrid.GetObjectsInBox(box)
-                    .Where(obj => obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
-                    .ToList(); // ToList to execute the query inside the lock
+                _gameState.SpatialGrid.QueryBox(box, ref results, (IGameObject obj, ref List<IGameObject> list) =>
+                {
+                    if (obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
+                    {
+                        list.Add(obj);
+                    }
+                });
             }
+
+            return results;
         }
     }
 }

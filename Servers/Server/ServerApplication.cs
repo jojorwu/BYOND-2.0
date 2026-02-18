@@ -20,19 +20,32 @@ namespace Server
     {
         private readonly ILogger<ServerApplication> _logger;
         private readonly List<IEngineService> _services;
+        private readonly List<IEngineModule> _modules;
+        private readonly IServiceProvider _serviceProvider;
 
         public ServerApplication(
             ILogger<ServerApplication> logger,
-            IEnumerable<IEngineService> services)
+            IEnumerable<IEngineService> services,
+            IEnumerable<IEngineModule> modules,
+            IServiceProvider serviceProvider)
         {
             _logger = logger;
             _services = services.ToList();
-            _logger.LogInformation("ServerApplication initialized with {Count} services.", _services.Count);
+            _modules = modules.ToList();
+            _serviceProvider = serviceProvider;
+            _logger.LogInformation("ServerApplication initialized with {ServiceCount} services and {ModuleCount} modules.", _services.Count, _modules.Count);
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Starting Server Application...");
+
+            // Initialize Modules
+            foreach (var module in _modules)
+            {
+                _logger.LogDebug("Initializing module: {ModuleName}", module.Name);
+                await module.InitializeAsync(_serviceProvider);
+            }
 
             // Group by priority and start independent services in parallel
             var priorityGroups = _services
@@ -97,6 +110,13 @@ namespace Server
                         catch (Exception ex) { _logger.LogError(ex, "Error stopping service: {ServiceName}", service.GetType().Name); }
                     }));
                 }
+            }
+
+            // Shutdown Modules
+            foreach (var module in _modules)
+            {
+                _logger.LogDebug("Shutting down module: {ModuleName}", module.Name);
+                await module.ShutdownAsync();
             }
 
             _logger.LogInformation("Server Application stopped.");

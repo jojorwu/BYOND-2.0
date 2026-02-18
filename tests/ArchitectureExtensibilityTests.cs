@@ -1,5 +1,8 @@
 using NUnit.Framework;
+using Moq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Server;
 using Shared.Attributes;
 using Shared.Interfaces;
 using Shared.Models;
@@ -27,9 +30,16 @@ namespace tests
 
         public class TestModule : BaseModule
         {
+            public bool Initialized { get; private set; }
             public override void RegisterServices(IServiceCollection services)
             {
                 services.AddSystem<TestSystem>();
+            }
+
+            public override Task InitializeAsync(IServiceProvider serviceProvider)
+            {
+                Initialized = true;
+                return Task.CompletedTask;
             }
         }
 
@@ -60,6 +70,19 @@ namespace tests
             // Verify Tick
             await systemManager.TickAsync();
             Assert.That(testSystem.Ticked, Is.True);
+
+            // Verify Module Init via ServerApplication (mocking dependencies)
+            var testModule = provider.GetRequiredService<IEngineModule>() as TestModule;
+            Assert.That(testModule, Is.Not.Null);
+
+            var app = new ServerApplication(
+                new Mock<ILogger<ServerApplication>>().Object,
+                Enumerable.Empty<IEngineService>(),
+                new[] { testModule! },
+                provider);
+
+            await app.StartAsync(default);
+            Assert.That(testModule.Initialized, Is.True);
         }
     }
 }

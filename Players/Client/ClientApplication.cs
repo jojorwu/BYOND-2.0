@@ -13,21 +13,32 @@ namespace Client
     {
         private readonly ILogger<ClientApplication> _logger;
         private readonly List<IEngineService> _services;
+        private readonly List<IEngineModule> _modules;
+        private readonly IServiceProvider _serviceProvider;
         private readonly Game _game;
 
         public ClientApplication(
             ILogger<ClientApplication> logger,
             IEnumerable<IEngineService> services,
+            IEnumerable<IEngineModule> modules,
+            IServiceProvider serviceProvider,
             Game game)
         {
             _logger = logger;
             _services = services.ToList();
+            _modules = modules.ToList();
+            _serviceProvider = serviceProvider;
             _game = game;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Starting Client Application...");
+
+            foreach (var module in _modules)
+            {
+                await module.InitializeAsync(_serviceProvider);
+            }
 
             foreach (var service in _services.OrderByDescending(s => s.Priority))
             {
@@ -45,6 +56,11 @@ namespace Client
             foreach (var service in _services.OrderBy(s => s.Priority))
             {
                 await service.StopAsync(cancellationToken);
+            }
+
+            foreach (var module in _modules)
+            {
+                await module.ShutdownAsync();
             }
 
             _logger.LogInformation("Client Application stopped.");

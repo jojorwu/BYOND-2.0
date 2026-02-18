@@ -86,7 +86,9 @@ namespace tests
                     udpServerEngineMock.Object,
                     httpServerMock.Object,
                     gameLoopMock.Object
-                });
+                },
+                Enumerable.Empty<IEngineModule>(),
+                new Mock<IServiceProvider>().Object);
 
             var cts = new CancellationTokenSource();
 

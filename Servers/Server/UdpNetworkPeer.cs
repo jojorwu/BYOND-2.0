@@ -52,10 +52,15 @@ namespace Server
         public void PruneLastSentVersions(IEnumerable<int> activeIds)
         {
             var activeSet = activeIds as HashSet<int> ?? activeIds.ToHashSet();
-            var keysToRemove = LastSentVersions.Keys.Where(k => !activeSet.Contains(k)).ToList();
-            foreach (var key in keysToRemove)
+
+            // Avoid allocating a list for keys to remove by using the dictionary's own collection if possible
+            // or just iterate and remove. ConcurrentDictionary allows removal during iteration.
+            foreach (var key in LastSentVersions.Keys)
             {
-                LastSentVersions.Remove(key);
+                if (!activeSet.Contains(key))
+                {
+                    LastSentVersions.Remove(key);
+                }
             }
         }
     }

@@ -114,8 +114,9 @@ namespace tests
 
             var settings = new ServerSettings { Development = { ScriptReloadDebounceMs = 10 } };
             var loggerMock = new Mock<ILogger<ScriptWatcher>>();
+            var eventBusMock = new Mock<Shared.Messaging.IEventBus>();
 
-            using var watcher = new ScriptWatcher(projectMock.Object, Options.Create(settings), loggerMock.Object);
+            using var watcher = new ScriptWatcher(projectMock.Object, Options.Create(settings), loggerMock.Object, eventBusMock.Object);
             bool reloadRequested = false;
             watcher.OnReloadRequested += () => reloadRequested = true;
 

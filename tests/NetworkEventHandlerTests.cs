@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Moq;
 using Server;
+using Server.Events;
 using Shared;
 using Shared.Interfaces;
 using LiteNetLib;
@@ -10,7 +11,7 @@ namespace tests
     [TestFixture]
     public class NetworkEventHandlerTests
     {
-        private Mock<INetworkService> _networkServiceMock = null!;
+        private Mock<Shared.Messaging.IEventBus> _eventBusMock = null!;
         private Mock<IPlayerManager> _playerManagerMock = null!;
         private Mock<IInterestManager> _interestManagerMock = null!;
         private Mock<IScriptHost> _scriptHostMock = null!;
@@ -21,7 +22,7 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _networkServiceMock = new Mock<INetworkService>();
+            _eventBusMock = new Mock<Shared.Messaging.IEventBus>();
             _playerManagerMock = new Mock<IPlayerManager>();
             _interestManagerMock = new Mock<IInterestManager>();
             _scriptHostMock = new Mock<IScriptHost>();
@@ -31,8 +32,7 @@ namespace tests
             _serverContextMock.Setup(c => c.InterestManager).Returns(_interestManagerMock.Object);
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
 
-            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object);
-            _networkEventHandler.SubscribeToEvents();
+            _networkEventHandler = new NetworkEventHandler(_eventBusMock.Object, _serverContextMock.Object, _scriptHostMock.Object);
         }
 
         [Test]
@@ -40,9 +40,14 @@ namespace tests
         {
             // Arrange
             var peerMock = new Mock<INetworkPeer>();
+            Action<PeerConnectedEvent>? callback = null;
+            _eventBusMock.Setup(eb => eb.Subscribe(It.IsAny<Action<PeerConnectedEvent>>()))
+                .Callback<Action<PeerConnectedEvent>>(a => callback = a);
+
+            _networkEventHandler.SubscribeToEvents();
 
             // Act
-            _networkServiceMock.Raise(ns => ns.PeerConnected += null, peerMock.Object);
+            callback?.Invoke(new PeerConnectedEvent(peerMock.Object));
 
             // Assert
             _playerManagerMock.Verify(pm => pm.AddPlayer(peerMock.Object), Times.Once);
@@ -55,9 +60,14 @@ namespace tests
             // Arrange
             var peerMock = new Mock<INetworkPeer>();
             var disconnectInfo = new DisconnectInfo();
+            Action<PeerDisconnectedEvent>? callback = null;
+            _eventBusMock.Setup(eb => eb.Subscribe(It.IsAny<Action<PeerDisconnectedEvent>>()))
+                .Callback<Action<PeerDisconnectedEvent>>(a => callback = a);
+
+            _networkEventHandler.SubscribeToEvents();
 
             // Act
-            _networkServiceMock.Raise(ns => ns.PeerDisconnected += null, peerMock.Object, disconnectInfo);
+            callback?.Invoke(new PeerDisconnectedEvent(peerMock.Object, disconnectInfo));
 
             // Assert
             _playerManagerMock.Verify(pm => pm.RemovePlayer(peerMock.Object), Times.Once);
@@ -69,9 +79,14 @@ namespace tests
             // Arrange
             var peerMock = new Mock<INetworkPeer>();
             var command = "test_command";
+            Action<CommandReceivedEvent>? callback = null;
+            _eventBusMock.Setup(eb => eb.Subscribe(It.IsAny<Action<CommandReceivedEvent>>()))
+                .Callback<Action<CommandReceivedEvent>>(a => callback = a);
+
+            _networkEventHandler.SubscribeToEvents();
 
             // Act
-            _networkServiceMock.Raise(ns => ns.CommandReceived += null, peerMock.Object, command);
+            callback?.Invoke(new CommandReceivedEvent(peerMock.Object, command));
 
             // Assert
             _scriptHostMock.Verify(sh => sh.EnqueueCommand(command, It.IsAny<Action<string>>()), Times.Once);

@@ -9,6 +9,7 @@ using Core.Regions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Linq;
 
@@ -109,11 +110,12 @@ namespace tests
 
             var udpServer = new UdpServer(
                 new Mock<INetworkService>().Object,
-                new Mock<NetworkEventHandler>(new Mock<INetworkService>().Object, contextMock.Object, new Mock<IScriptHost>().Object).Object,
+                new Mock<NetworkEventHandler>(new Mock<Shared.Messaging.IEventBus>().Object, contextMock.Object, new Mock<IScriptHost>().Object).Object,
                 contextMock.Object,
                 snapshotServiceMock.Object,
                 interestManagerMock.Object,
-                _jobSystemMock.Object);
+                _jobSystemMock.Object,
+                new Mock<ILogger<UdpServer>>().Object);
 
             var region = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
             var mergedRegion = new MergedRegion(new List<Region> { region });
@@ -132,7 +134,7 @@ namespace tests
             // Assert
             _jobSystemMock.Verify(js => js.ForEachAsync(
                 It.Is<IEnumerable<INetworkPeer>>(p => p.Count() == 2),
-                It.IsAny<Action<INetworkPeer>>(),
+                It.IsAny<Func<INetworkPeer, Task>>(),
                 It.IsAny<JobPriority>()), Times.Once);
         }
     }

@@ -2,31 +2,34 @@ using System;
 using System.Text.Json;
 using LiteNetLib;
 using Shared;
+using Server.Events;
+using Shared.Messaging;
 
 namespace Server
 {
     public class NetworkEventHandler
     {
-        private readonly INetworkService _networkService;
+        private readonly IEventBus _eventBus;
         private readonly IServerContext _context;
         private readonly IScriptHost _scriptHost;
 
-        public NetworkEventHandler(INetworkService networkService, IServerContext context, IScriptHost scriptHost)
+        public NetworkEventHandler(IEventBus eventBus, IServerContext context, IScriptHost scriptHost)
         {
-            _networkService = networkService;
+            _eventBus = eventBus;
             _context = context;
             _scriptHost = scriptHost;
         }
 
         public void SubscribeToEvents()
         {
-            _networkService.PeerConnected += OnPeerConnected;
-            _networkService.PeerDisconnected += OnPeerDisconnected;
-            _networkService.CommandReceived += OnCommandReceived;
+            _eventBus.Subscribe<PeerConnectedEvent>(OnPeerConnected);
+            _eventBus.Subscribe<PeerDisconnectedEvent>(OnPeerDisconnected);
+            _eventBus.Subscribe<CommandReceivedEvent>(OnCommandReceived);
         }
 
-        private void OnPeerConnected(INetworkPeer peer)
+        private void OnPeerConnected(PeerConnectedEvent e)
         {
+            var peer = e.Peer;
             _context.PlayerManager.AddPlayer(peer);
 
             var serverInfo = new ServerInfo
@@ -41,24 +44,24 @@ namespace Server
             _ = peer.SendAsync(json);
         }
 
-        private void OnPeerDisconnected(INetworkPeer peer, DisconnectInfo disconnectInfo)
+        private void OnPeerDisconnected(PeerDisconnectedEvent e)
         {
-            _context.PlayerManager.RemovePlayer(peer);
-            _context.InterestManager.ClearPlayerInterest(peer);
+            _context.PlayerManager.RemovePlayer(e.Peer);
+            _context.InterestManager.ClearPlayerInterest(e.Peer);
         }
 
-        private void OnCommandReceived(INetworkPeer peer, string command)
+        private void OnCommandReceived(CommandReceivedEvent e)
         {
-            _scriptHost.EnqueueCommand(command, (result) => {
-                _ = peer.SendAsync(result);
+            _scriptHost.EnqueueCommand(e.Command, (result) => {
+                _ = e.Peer.SendAsync(result);
             });
         }
 
         public void UnsubscribeFromEvents()
         {
-            _networkService.PeerConnected -= OnPeerConnected;
-            _networkService.PeerDisconnected -= OnPeerDisconnected;
-            _networkService.CommandReceived -= OnCommandReceived;
+            _eventBus.Unsubscribe<PeerConnectedEvent>(OnPeerConnected);
+            _eventBus.Unsubscribe<PeerDisconnectedEvent>(OnPeerDisconnected);
+            _eventBus.Unsubscribe<CommandReceivedEvent>(OnCommandReceived);
         }
     }
 }

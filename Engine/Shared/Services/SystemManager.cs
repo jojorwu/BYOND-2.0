@@ -202,7 +202,13 @@ public class SystemManager : ISystemManager
             // Pre-Tick Phase
             using (_profilingService.Measure("SystemManager.PreTick"))
             {
-                await _jobSystem.ForEachAsync(enabledSystems, s => s.PreTick());
+                await _jobSystem.ForEachAsync(enabledSystems, system =>
+                {
+                    using (_profilingService.Measure($"System.{system.Name}.PreTick"))
+                    {
+                        system.PreTick();
+                    }
+                });
             }
 
             // Main Tick Phase (Layered)
@@ -257,7 +263,13 @@ public class SystemManager : ISystemManager
             // Post-Tick Phase
             using (_profilingService.Measure("SystemManager.PostTick"))
             {
-                await _jobSystem.ForEachAsync(enabledSystems, s => s.PostTick());
+                await _jobSystem.ForEachAsync(enabledSystems, system =>
+                {
+                    using (_profilingService.Measure($"System.{system.Name}.PostTick"))
+                    {
+                        system.PostTick();
+                    }
+                });
             }
 
             // Module Post-Tick

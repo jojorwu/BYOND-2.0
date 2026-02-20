@@ -1,7 +1,6 @@
 using System;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Provides high-performance, temporary memory allocation for transient data.
     /// </summary>
@@ -30,4 +29,3 @@ namespace Shared.Interfaces
             return Allocate(size, alignment).Span;
         }
     }
-}

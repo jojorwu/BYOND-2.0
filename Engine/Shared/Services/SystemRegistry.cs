@@ -2,8 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class SystemRegistry : ISystemRegistry
     {
         private readonly ConcurrentDictionary<string, ISystem> _systems = new();
@@ -28,4 +27,3 @@ namespace Shared.Services
             return _systems.TryGetValue(systemName, out var system) ? system : null;
         }
     }
-}

@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Represents a game action that can be executed and potentially undone.
     /// </summary>
@@ -10,4 +9,3 @@ namespace Shared.Interfaces
         string Name { get; }
         Task ExecuteAsync();
     }
-}

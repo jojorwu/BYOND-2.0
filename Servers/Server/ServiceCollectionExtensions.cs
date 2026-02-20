@@ -18,7 +18,92 @@ namespace Server
         /// </summary>
         public static IServiceCollection AddServerHostedServices(this IServiceCollection services)
         {
-            services.AddEngineModule<ServerModule>();
+            return services
+                .AddServerDiagnosticServices()
+                .AddServerCoreServices()
+                .AddServerNetworkingServices()
+                .AddServerGameLoopServices()
+                .AddServerApplicationServices();
+        }
+
+        private static IServiceCollection AddServerDiagnosticServices(this IServiceCollection services)
+        {
+            services.AddSingleton<PerformanceMonitor>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<PerformanceMonitor>());
+            return services;
+        }
+
+        private static IServiceCollection AddServerCoreServices(this IServiceCollection services)
+        {
+            services.AddSingleton<IServerContext, ServerContext>();
+
+            services.AddSingleton<IScriptWatcher, ScriptWatcher>();
+            services.AddSingleton<IScriptEnvironmentManager, ScriptEnvironmentManager>();
+            services.AddSingleton<IScriptScheduler, ScriptScheduler>();
+            services.AddSingleton<IScriptCommandProcessor, ScriptCommandProcessor>();
+
+            services.AddSingleton<ScriptHost>();
+            services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
+
+            services.AddSingleton<ISystemManager, SystemManager>();
+
+            return services;
+        }
+
+        private static IServiceCollection AddServerNetworkingServices(this IServiceCollection services)
+        {
+            services.AddSingleton<NetDataWriterPool>();
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<NetDataWriterPool>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetDataWriterPool>());
+
+            services.AddSingleton<NetworkService>();
+            services.AddSingleton<INetworkService>(p => p.GetRequiredService<NetworkService>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetworkService>());
+
+            services.AddSingleton<NetworkEventHandler>();
+
+            services.AddSingleton<UdpServer>();
+            services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<UdpServer>());
+
+            return services;
+        }
+
+        private static IServiceCollection AddServerGameLoopServices(this IServiceCollection services)
+        {
+            services.AddSingleton<GameStateSnapshotter>();
+            services.AddSingleton<IGameStateSnapshotter>(p => p.GetRequiredService<GameStateSnapshotter>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameStateSnapshotter>());
+
+            services.AddSingleton(provider => new GlobalGameLoopStrategy(
+                provider.GetRequiredService<IScriptHost>(),
+                provider.GetRequiredService<IGameState>(),
+                provider.GetRequiredService<IGameStateSnapshotter>(),
+                provider.GetRequiredService<IUdpServer>()
+            ));
+
+            services.AddSingleton<RegionalGameLoopStrategy>();
+            services.AddSingleton<IShrinkable>(p => p.GetRequiredService<RegionalGameLoopStrategy>());
+
+            services.AddSingleton<IGameLoopStrategy>(provider =>
+            {
+                var settings = provider.GetRequiredService<ServerSettings>();
+                return settings.Performance.EnableRegionalProcessing
+                    ? provider.GetRequiredService<RegionalGameLoopStrategy>()
+                    : (IGameLoopStrategy)provider.GetRequiredService<GlobalGameLoopStrategy>();
+            });
+
+            services.AddSingleton<GameLoop>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameLoop>());
+
+            return services;
+        }
+
+        private static IServiceCollection AddServerApplicationServices(this IServiceCollection services)
+        {
+            services.AddSingleton<HttpServer>();
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<HttpServer>());
 
             services.AddSingleton<ServerApplication>();
             services.AddHostedService(provider => provider.GetRequiredService<ServerApplication>());

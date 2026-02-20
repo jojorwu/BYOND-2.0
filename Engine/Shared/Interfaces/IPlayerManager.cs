@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface IPlayerManager
     {
         void AddPlayer(INetworkPeer peer);
@@ -9,4 +8,3 @@ namespace Shared
         void ForEachPlayerInRegion(Region region, Action<INetworkPeer> action);
         void ForEachPlayerObject(Action<IGameObject> action);
     }
-}

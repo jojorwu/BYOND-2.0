@@ -2,8 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Manages the lifetime of script execution environments, including hot-reloading.
     /// </summary>
@@ -44,4 +43,3 @@ namespace Shared
         /// </summary>
         void AddThread(IScriptThread thread);
     }
-}

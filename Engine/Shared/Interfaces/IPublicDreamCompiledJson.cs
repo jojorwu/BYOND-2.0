@@ -1,6 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public interface IPublicDreamCompiledJson
     {
     }
-}

@@ -1,7 +1,6 @@
 using System;
 
-namespace Shared.Models
-{
+namespace Shared.Models;
     /// <summary>
     /// Managed double-buffer for thread-safe state reading and writing.
     /// </summary>
@@ -45,4 +44,3 @@ namespace Shared.Models
             Swap();
         }
     }
-}

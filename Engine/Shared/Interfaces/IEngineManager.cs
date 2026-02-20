@@ -1,5 +1,4 @@
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     public enum EngineComponent
     {
         Client,
@@ -18,4 +17,3 @@ namespace Shared.Interfaces
         void LoadSettings();
         void SaveSettings();
     }
-}

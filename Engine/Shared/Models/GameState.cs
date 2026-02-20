@@ -5,8 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Collections.Concurrent;
 
-namespace Shared
-{
+namespace Shared;
     public class GameState : IGameState
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
@@ -101,4 +100,3 @@ namespace Shared
             }
         }
     }
-}

@@ -5,8 +5,7 @@ using System.Linq;
 using Shared.Interfaces;
 using Robust.Shared.Maths;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class InterestManager : IInterestManager
     {
         private readonly SpatialGrid _spatialGrid;
@@ -52,4 +51,3 @@ namespace Shared.Services
             _playerStates.TryRemove(peer, out _);
         }
     }
-}

@@ -2,8 +2,7 @@ using System.Threading.Tasks;
 
 using System.Collections.Generic;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Represents a modular logic system that is executed during each frame tick.
     /// </summary>
@@ -13,11 +12,6 @@ namespace Shared.Interfaces
         /// Unique name for the system.
         /// </summary>
         string Name => GetType().Name;
-
-        /// <summary>
-        /// Initializes the system. Called once when the system is registered.
-        /// </summary>
-        void Initialize(Microsoft.Extensions.Logging.ILogger logger) { }
 
         /// <summary>
         /// Executed before the main tick phase.
@@ -73,4 +67,3 @@ namespace Shared.Interfaces
         /// </summary>
         IEnumerable<System.Type> WriteResources => System.Array.Empty<System.Type>();
     }
-}

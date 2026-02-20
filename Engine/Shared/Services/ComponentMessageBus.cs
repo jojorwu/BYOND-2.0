@@ -3,8 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ComponentMessageBus : IComponentMessageBus
     {
         private readonly IComponentManager _componentManager;
@@ -45,4 +44,3 @@ namespace Shared.Services
             // This is a slow path, architectural improvement would be to use interest groups
         }
     }
-}

@@ -3,10 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
-using Shared.Models;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ComponentQueryService : IComponentQueryService
     {
         private class QueryResult
@@ -43,9 +41,9 @@ namespace Shared.Services
         private readonly IComponentManager _componentManager;
         private readonly IGameState? _gameState;
         private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
-        private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
-        private readonly ConcurrentDictionary<ComponentSignature, Type[]> _cacheKeyToTypes = new();
-        private readonly ConcurrentDictionary<Type, List<ComponentSignature>> _typeToCacheKeys = new();
+        private readonly ConcurrentDictionary<string, QueryResult> _queryCache = new();
+        private readonly ConcurrentDictionary<string, Type[]> _cacheKeyToTypes = new();
+        private readonly ConcurrentDictionary<Type, List<string>> _typeToCacheKeys = new();
 
         public ComponentQueryService(IComponentManager componentManager, IGameState? gameState = null)
         {
@@ -71,7 +69,7 @@ namespace Shared.Services
                 return _componentManager.GetComponents(type).Select(c => c.Owner).Where(o => o != null)!;
             }
 
-            var key = new ComponentSignature(componentTypes);
+            var key = GetCacheKey(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
             {
                 return cached.Snapshot;
@@ -87,12 +85,19 @@ namespace Shared.Services
                 _cacheKeyToTypes[key] = componentTypes.ToArray();
                 foreach (var type in componentTypes)
                 {
-                    _typeToCacheKeys.AddOrUpdate(type, _ => new List<ComponentSignature> { key }, (_, list) => { lock (list) { list.Add(key); } return list; });
+                    _typeToCacheKeys.AddOrUpdate(type, _ => new List<string> { key }, (_, list) => { lock (list) { list.Add(key); } return list; });
                 }
                 return queryResult.Snapshot;
             }
 
             return _queryCache[key].Snapshot;
+        }
+
+        private string GetCacheKey(Type[] types)
+        {
+            if (types.Length == 1) return types[0].FullName!;
+            var names = types.Select(t => t.FullName).OrderBy(n => n).ToArray();
+            return string.Join("+", names);
         }
 
         private IEnumerable<IGameObject> PerformFullQuery(Type[] componentTypes)
@@ -171,7 +176,7 @@ namespace Shared.Services
         {
             if (_typeToCacheKeys.TryGetValue(e.ComponentType, out var keys))
             {
-                List<ComponentSignature> keysCopy;
+                List<string> keysCopy;
                 lock (keys) keysCopy = keys.ToList();
 
                 foreach (var key in keysCopy)
@@ -209,7 +214,7 @@ namespace Shared.Services
         {
             if (_typeToCacheKeys.TryGetValue(e.ComponentType, out var keys))
             {
-                List<ComponentSignature> keysCopy;
+                List<string> keysCopy;
                 lock (keys) keysCopy = keys.ToList();
 
                 foreach (var key in keysCopy)
@@ -229,4 +234,3 @@ namespace Shared.Services
             }
         }
     }
-}

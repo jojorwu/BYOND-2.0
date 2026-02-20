@@ -4,32 +4,14 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace Shared
-{
-    /// <summary>
-    /// Represents a dynamic object in the Dream VM.
-    /// Provides thread-safe, lock-free reads for variables using a Copy-on-Write (COW) pattern.
-    /// </summary>
+namespace Shared;
     public class DreamObject : IDisposable
     {
         protected readonly object _lock = new();
-
-        /// <summary>
-        /// Gets the type definition of this object.
-        /// </summary>
-        public ObjectType? ObjectType { get; protected set; }
-
+        public ObjectType? ObjectType { get; set; }
         protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
         private long _version;
-
-        /// <summary>
-        /// Gets or sets the version of the object's state. Incremented on every variable change.
-        /// </summary>
         public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }
-
-        /// <summary>
-        /// Atomically increments the state version.
-        /// </summary>
         protected void IncrementVersion() => Interlocked.Increment(ref _version);
 
         public DreamObject(ObjectType? objectType)
@@ -151,4 +133,3 @@ namespace Shared
             GC.SuppressFinalize(this);
         }
     }
-}

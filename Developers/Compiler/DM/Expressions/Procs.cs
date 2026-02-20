@@ -1,5 +1,6 @@
 using System.Linq;
 using Shared;
+using Shared.Enums;
 using DMCompiler.Compiler;
 
 namespace DMCompiler.DM.Expressions;

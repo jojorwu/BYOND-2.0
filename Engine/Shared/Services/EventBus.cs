@@ -6,8 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Shared.Messaging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class EventBus : IEventBus
     {
         private readonly ConcurrentDictionary<Type, Delegate[]> _handlers = new();
@@ -154,4 +153,3 @@ namespace Shared.Services
             }
         }
     }
-}

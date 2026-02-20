@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public interface IGameStateSnapshotter
     {
         string GetSnapshot(IGameState gameState);
@@ -7,4 +6,3 @@ namespace Shared
         string GetSnapshot(IGameState gameState, MergedRegion mergedRegion);
         byte[] GetBinarySnapshot(IGameState gameState, MergedRegion mergedRegion);
     }
-}

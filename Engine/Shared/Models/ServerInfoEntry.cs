@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Represents a single server entry in the server browser list.
     /// </summary>
@@ -12,4 +11,3 @@ namespace Shared
         public int Ping { get; set; } = -1; // Default to -1 (not yet pinged)
         public bool IsFavorite { get; set; } = false;
     }
-}

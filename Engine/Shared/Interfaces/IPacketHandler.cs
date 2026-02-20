@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Handles a specific type of network packet.
     /// </summary>
@@ -10,4 +9,3 @@ namespace Shared.Interfaces
         byte PacketTypeId { get; }
         Task HandleAsync(INetworkPeer peer, string data);
     }
-}

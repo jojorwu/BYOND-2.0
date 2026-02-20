@@ -5,8 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Shared;
-using Server.Events;
-using Shared.Messaging;
 
 namespace Server
 {
@@ -15,7 +13,6 @@ namespace Server
         private readonly IScriptWatcher _scriptWatcher;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<ScriptEnvironmentManager> _logger;
-        private readonly IEventBus _eventBus;
         private readonly object _scriptLock = new();
         private ScriptingEnvironment? _currentEnvironment;
         private int _isReloading = 0;
@@ -23,31 +20,28 @@ namespace Server
 
         public event Action? OnEnvironmentReloaded;
 
-        public ScriptEnvironmentManager(IScriptWatcher scriptWatcher, IServiceProvider serviceProvider, ILogger<ScriptEnvironmentManager> logger, IEventBus eventBus)
+        public ScriptEnvironmentManager(IScriptWatcher scriptWatcher, IServiceProvider serviceProvider, ILogger<ScriptEnvironmentManager> logger)
         {
             _scriptWatcher = scriptWatcher;
             _serviceProvider = serviceProvider;
             _logger = logger;
-            _eventBus = eventBus;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _eventBus.Subscribe<ReloadScriptsEvent>(OnReloadEvent);
+            _scriptWatcher.OnReloadRequested += ReloadScripts;
             _scriptWatcher.Start();
 
             ReloadScripts(); // Initial load
             return Task.CompletedTask;
         }
 
-        private void OnReloadEvent(ReloadScriptsEvent e) => ReloadScripts();
-
         public void Stop()
         {
             _cancellationTokenSource?.Cancel();
             _scriptWatcher.Stop();
-            _eventBus.Unsubscribe<ReloadScriptsEvent>(OnReloadEvent);
+            _scriptWatcher.OnReloadRequested -= ReloadScripts;
         }
 
         public IScriptManager? GetCurrentScriptManager()

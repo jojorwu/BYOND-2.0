@@ -1,5 +1,4 @@
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     public interface IComponent
     {
         IGameObject? Owner { get; set; }
@@ -17,4 +16,3 @@ namespace Shared.Interfaces
         /// </summary>
         void OnMessage(IComponentMessage message) { }
     }
-}

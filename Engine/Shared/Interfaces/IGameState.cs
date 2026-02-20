@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Maintains the current state of the game world, including the map and active objects.
     /// Provides thread-safe access to world data.
@@ -59,4 +58,3 @@ namespace Shared
         /// </summary>
         void UpdateGameObject(GameObject gameObject, int oldX, int oldY);
     }
-}

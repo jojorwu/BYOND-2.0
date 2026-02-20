@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Manages the Area of Interest (AOI) for players, determining which objects are visible to them.
     /// </summary>
@@ -30,4 +29,3 @@ namespace Shared.Interfaces
         /// <param name="peer">The network peer.</param>
         void ClearPlayerInterest(INetworkPeer peer);
     }
-}

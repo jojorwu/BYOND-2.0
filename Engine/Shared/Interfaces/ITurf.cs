@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface ITurf
     {
         int Id { get; set; }
@@ -9,4 +8,3 @@ namespace Shared
         void AddContent(IGameObject obj);
         void RemoveContent(IGameObject obj);
     }
-}

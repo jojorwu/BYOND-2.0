@@ -2,8 +2,6 @@ using Shared;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Server
 {
@@ -36,29 +34,17 @@ namespace Server
 
         public ValueTask SendAsync(byte[] data)
         {
-            _peer.Send(data, DeliveryMethod.Unreliable);
-            return ValueTask.CompletedTask;
-        }
-
-        public ValueTask SendAsync(byte[] data, int offset, int length)
-        {
-            _peer.Send(data, offset, length, DeliveryMethod.Unreliable);
-            return ValueTask.CompletedTask;
-        }
-
-        public void PruneLastSentVersions(IEnumerable<int> activeIds)
-        {
-            var activeSet = activeIds as HashSet<int> ?? activeIds.ToHashSet();
-
-            // Avoid allocating a list for keys to remove by using the dictionary's own collection if possible
-            // or just iterate and remove. ConcurrentDictionary allows removal during iteration.
-            foreach (var key in LastSentVersions.Keys)
+            var writer = _writerPool.Rent();
+            try
             {
-                if (!activeSet.Contains(key))
-                {
-                    LastSentVersions.Remove(key);
-                }
+                writer.Put(data);
+                _peer.Send(writer, DeliveryMethod.Unreliable);
             }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
+            return ValueTask.CompletedTask;
         }
     }
 }

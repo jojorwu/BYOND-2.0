@@ -5,8 +5,7 @@ using System.Text.Json;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class EngineManager : IEngineManager
     {
         private string _basePath;
@@ -104,4 +103,3 @@ namespace Shared.Services
             _logger?.LogInformation("Requesting installation of component: {Component}", component);
         }
     }
-}

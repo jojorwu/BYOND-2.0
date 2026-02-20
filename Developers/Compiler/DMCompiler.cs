@@ -17,6 +17,7 @@ using DMCompiler.Json;
 using DMCompiler.Optimizer;
 using Shared.Compiler;
 
+using Shared.Enums;
 namespace DMCompiler;
 
 public class DMCompiler {

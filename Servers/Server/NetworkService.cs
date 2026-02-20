@@ -7,8 +7,6 @@ using System.Threading.Tasks;
 using LiteNetLib;
 using Microsoft.Extensions.Logging;
 using Shared;
-using Server.Events;
-using Shared.Messaging;
 using Shared.Services;
 
 namespace Server
@@ -20,7 +18,6 @@ namespace Server
         private readonly EventBasedNetListener _listener;
         private readonly IServerContext _context;
         private readonly ILogger<NetworkService> _logger;
-        private readonly IEventBus _eventBus;
         private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();
         private readonly NetDataWriterPool _writerPool;
         private Task? _networkTask;
@@ -30,12 +27,11 @@ namespace Server
         public event Action<INetworkPeer, DisconnectInfo>? PeerDisconnected;
         public event Action<INetworkPeer, string>? CommandReceived;
 
-        public NetworkService(IServerContext context, ILogger<NetworkService> logger, NetDataWriterPool writerPool, IEventBus eventBus)
+        public NetworkService(IServerContext context, ILogger<NetworkService> logger, NetDataWriterPool writerPool)
         {
             _context = context;
             _logger = logger;
             _writerPool = writerPool;
-            _eventBus = eventBus;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener)
             {
@@ -68,39 +64,11 @@ namespace Server
         private async Task PollEvents(CancellationToken token)
         {
             _logger.LogInformation("Network event polling started.");
-            int pruneCounter = 0;
             while (!token.IsCancellationRequested)
             {
-                try
-                {
-                    _netManager.PollEvents();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error polling network events.");
-                }
-
-                // Prune every ~30 seconds (5ms * 6000 = 30000ms)
-                if (++pruneCounter >= 6000)
-                {
-                    pruneCounter = 0;
-                    PruneAllPeers();
-                }
-
+                _netManager.PollEvents();
                 // Lower delay for better responsiveness, but enough to avoid CPU pinning
                 await Task.Delay(5, token);
-            }
-        }
-
-        private readonly List<int> _pruneIdBuffer = new(4096);
-        private void PruneAllPeers()
-        {
-            _pruneIdBuffer.Clear();
-            _context.GameState.ForEachGameObject(o => _pruneIdBuffer.Add(o.Id));
-
-            foreach (var peer in _peers.Values)
-            {
-                peer.PruneLastSentVersions(_pruneIdBuffer);
             }
         }
 
@@ -138,9 +106,7 @@ namespace Server
             _logger.LogInformation($"Client connected: {peer}");
             var networkPeer = new UdpNetworkPeer(peer, _writerPool);
             _peers[peer] = networkPeer;
-
             PeerConnected?.Invoke(networkPeer);
-            _eventBus.Publish(new PeerConnectedEvent(networkPeer));
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
@@ -153,10 +119,7 @@ namespace Server
                 var command = reader.GetString(MaxCommandLength);
 
                 if(_peers.TryGetValue(peer, out var networkPeer))
-                {
                     CommandReceived?.Invoke(networkPeer, command);
-                    _eventBus.Publish(new CommandReceivedEvent(networkPeer, command));
-                }
             }
             reader.Recycle();
         }
@@ -167,7 +130,6 @@ namespace Server
             if(_peers.TryGetValue(peer, out var networkPeer))
             {
                 PeerDisconnected?.Invoke(networkPeer, disconnectInfo);
-                _eventBus.Publish(new PeerDisconnectedEvent(networkPeer, disconnectInfo));
                 _peers.Remove(peer);
             }
         }

@@ -2,8 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public abstract class EngineService : IEngineService
     {
         public virtual int Priority => 0;
@@ -23,4 +22,3 @@ namespace Shared.Services
             return Task.CompletedTask;
         }
     }
-}

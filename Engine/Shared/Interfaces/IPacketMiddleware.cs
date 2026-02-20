@@ -2,8 +2,7 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Models;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Middleware for processing network packets before they reach their handlers.
     /// </summary>
@@ -16,4 +15,3 @@ namespace Shared.Interfaces
         /// <returns>True if the processing should continue; otherwise, false.</returns>
         Task<bool> ProcessAsync(PacketContext context);
     }
-}

@@ -1,11 +1,11 @@
+using Shared.Enums;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Shared
-{
+namespace Shared;
     [JsonConverter(typeof(DreamValueConverter))]
     public readonly struct DreamValue : IEquatable<DreamValue>
     {
@@ -285,13 +285,8 @@ namespace Shared
 
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
-                string sA, sB;
-
-                if (a.Type == DreamValueType.String) sA = (string)a._objectValue!;
-                else sA = a.ToString();
-
-                if (b.Type == DreamValueType.String) sB = (string)b._objectValue!;
-                else sB = b.ToString();
+                var sA = a.ToString();
+                var sB = b.ToString();
 
                 if ((long)sA.Length + sB.Length > 67108864)
                     throw new System.InvalidOperationException("Maximum string length exceeded during concatenation");
@@ -380,13 +375,7 @@ namespace Shared
             if (Type != other.Type) return false;
 
             if (Type == DreamValueType.Float)
-            {
-                float f1 = _floatValue;
-                float f2 = other._floatValue;
-                // ReSharper disable once CompareOfFloatsByEqualityOperator
-                if (f1 == f2) return true;
-                return MathF.Abs(f1 - f2) < 0.00001f;
-            }
+                return _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
 
             if (Type == DreamValueType.Null) return true;
 
@@ -410,13 +399,7 @@ namespace Shared
             if (a.Type == b.Type)
             {
                 if (a.Type == DreamValueType.Float)
-                {
-                    float f1 = a._floatValue;
-                    float f2 = b._floatValue;
-                    // ReSharper disable once CompareOfFloatsByEqualityOperator
-                    if (f1 == f2) return true;
-                    return MathF.Abs(f1 - f2) < 0.00001f;
-                }
+                    return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
 
                 if (a.Type == DreamValueType.Null) return true;
 
@@ -766,4 +749,3 @@ namespace Shared
             value.WriteTo(writer, options);
         }
     }
-}

@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public interface IObjectApi
     {
         GameObject? CreateObject(int typeId, int x, int y, int z);
@@ -7,4 +6,3 @@ namespace Shared
         void DestroyObject(int id);
         void MoveObject(int id, int x, int y, int z);
     }
-}

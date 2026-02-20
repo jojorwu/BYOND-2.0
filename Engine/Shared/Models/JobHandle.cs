@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Shared.Models
-{
+namespace Shared.Models;
     /// <summary>
     /// A handle to a scheduled job, allowing for dependency tracking.
     /// </summary>
@@ -34,4 +33,3 @@ namespace Shared.Models
         /// </summary>
         public Task CompleteAsync() => Task ?? Task.CompletedTask;
     }
-}

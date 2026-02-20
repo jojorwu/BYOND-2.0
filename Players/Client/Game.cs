@@ -13,6 +13,7 @@ using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Shared;
+using Shared.Enums;
 using Shared.Interfaces;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -136,9 +137,6 @@ namespace Client
         private async void LoadCSharpShader()
         {
             string code = @"
-using System;
-using System.Numerics;
-using Client.Graphics;
 
 public class MyShader : ICSharpShader
 {

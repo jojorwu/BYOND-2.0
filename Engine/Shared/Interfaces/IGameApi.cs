@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     public interface IGameApi
     {
         IMapApi Map { get; }
@@ -10,4 +9,3 @@ namespace Shared
         IScriptApi Scripts { get; }
         IStandardLibraryApi StdLib { get; }
     }
-}

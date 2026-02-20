@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public class Chunk
     {
         public const int ChunkSize = 16;
@@ -70,4 +69,3 @@ namespace Shared
             }
         }
     }
-}

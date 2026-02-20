@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Represents a tile on the game map.
     /// </summary>
@@ -11,4 +10,3 @@ namespace Shared
         {
         }
     }
-}

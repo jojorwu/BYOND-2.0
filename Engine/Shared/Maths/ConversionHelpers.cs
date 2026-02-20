@@ -1,8 +1,7 @@
 using System.Numerics;
 using Robust.Shared.Maths;
 
-namespace Shared.Maths
-{
+namespace Shared.Maths;
     public static class ConversionHelpers
     {
         public static Vector2 ToNumerics(this Vector2d vec)
@@ -15,4 +14,3 @@ namespace Shared.Maths
             return new Vector2d(vec.X, vec.Y);
         }
     }
-}

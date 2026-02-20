@@ -1,8 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Defines a modular extension to the engine that can register services and systems.
     /// </summary>
@@ -13,4 +12,3 @@ namespace Shared.Interfaces
         Task InitializeAsync(IServiceProvider serviceProvider);
         Task ShutdownAsync();
     }
-}

@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
@@ -14,7 +15,6 @@ namespace Server
         private readonly ServerSettings _settings;
         private readonly ITimerService _timerService;
         private readonly IJobSystem _jobSystem;
-        private static readonly ThreadLocal<HashSet<int>> _objectIdBuffer = new(() => new HashSet<int>());
 
         public ScriptScheduler(IOptions<ServerSettings> settings, ITimerService timerService, IJobSystem jobSystem)
         {
@@ -27,8 +27,7 @@ namespace Server
         {
             if (objectIds == null)
             {
-                objectIds = _objectIdBuffer.Value!;
-                objectIds.Clear();
+                objectIds = new HashSet<int>();
                 foreach (var obj in objectsToTick)
                 {
                     objectIds.Add(obj.Id);

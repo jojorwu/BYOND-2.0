@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface IScriptSystem
     {
         /// <summary>
@@ -29,4 +28,3 @@ namespace Shared
         /// </summary>
         string? ExecuteString(string command);
     }
-}

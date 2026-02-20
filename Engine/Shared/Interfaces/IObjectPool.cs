@@ -1,5 +1,4 @@
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Interface for resources that can be reclaimed during cleanup.
     /// </summary>
@@ -27,4 +26,3 @@ namespace Shared.Interfaces
         /// </summary>
         void Return(T obj);
     }
-}

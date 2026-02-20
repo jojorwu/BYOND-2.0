@@ -71,9 +71,9 @@ namespace tests
             var projectMock = new Mock<IProject>();
 
             // Mocking classes with complex constructors
-            var gameLoopMock = new Mock<GameLoop>(new Mock<ISystemManager>().Object, new Mock<ITimerService>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
+            var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, new Mock<ISystemManager>().Object, new Mock<ITimerService>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
             var httpServerMock = new Mock<HttpServer>(Options.Create(settings), projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
-            var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object, null);
+            var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object);
 
             var udpServerEngineMock = udpServerMock.As<IEngineService>();
             var scriptHostEngineMock = scriptHostMock.As<IEngineService>();
@@ -86,9 +86,7 @@ namespace tests
                     udpServerEngineMock.Object,
                     httpServerMock.Object,
                     gameLoopMock.Object
-                },
-                Enumerable.Empty<IEngineModule>(),
-                new Mock<IServiceProvider>().Object);
+                });
 
             var cts = new CancellationTokenSource();
 
@@ -114,9 +112,8 @@ namespace tests
 
             var settings = new ServerSettings { Development = { ScriptReloadDebounceMs = 10 } };
             var loggerMock = new Mock<ILogger<ScriptWatcher>>();
-            var eventBusMock = new Mock<Shared.Messaging.IEventBus>();
 
-            using var watcher = new ScriptWatcher(projectMock.Object, Options.Create(settings), loggerMock.Object, eventBusMock.Object);
+            using var watcher = new ScriptWatcher(projectMock.Object, Options.Create(settings), loggerMock.Object);
             bool reloadRequested = false;
             watcher.OnReloadRequested += () => reloadRequested = true;
 

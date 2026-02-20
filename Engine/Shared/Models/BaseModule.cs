@@ -1,18 +1,13 @@
-using System;
-using System.Threading.Tasks;
+using Shared.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
 
-namespace Shared.Models
+namespace Shared.Models;
+
+public abstract class BaseModule : IEngineModule
 {
-    public abstract class BaseModule : IEngineModule
-    {
-        public virtual string Name => GetType().Name;
-
-        public virtual void RegisterServices(IServiceCollection services) { }
-
-        public virtual Task InitializeAsync(IServiceProvider serviceProvider) => Task.CompletedTask;
-
-        public virtual Task ShutdownAsync() => Task.CompletedTask;
-    }
+    public abstract string Name { get; }
+    public abstract void RegisterServices(IServiceCollection services);
+    public virtual void PreTick() { }
+    public virtual void PostTick() { }
 }

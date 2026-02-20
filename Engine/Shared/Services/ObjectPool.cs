@@ -2,8 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ObjectPool<T> : IObjectPool<T> where T : class
     {
         private readonly ConcurrentStack<T> _pool = new();
@@ -41,4 +40,3 @@ namespace Shared.Services
             }
         }
     }
-}

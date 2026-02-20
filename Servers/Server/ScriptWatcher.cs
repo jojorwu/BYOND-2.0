@@ -4,8 +4,6 @@ using System.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared;
-using Server.Events;
-using Shared.Messaging;
 using Core;
 
 namespace Server
@@ -15,18 +13,16 @@ namespace Server
         private readonly IProject _project;
         private readonly ServerSettings _settings;
         private readonly ILogger<ScriptWatcher> _logger;
-        private readonly IEventBus _eventBus;
         private FileSystemWatcher? _watcher;
         private Timer? _debounceTimer;
 
         public event Action? OnReloadRequested;
 
-        public ScriptWatcher(IProject project, IOptions<ServerSettings> settings, ILogger<ScriptWatcher> logger, IEventBus eventBus)
+        public ScriptWatcher(IProject project, IOptions<ServerSettings> settings, ILogger<ScriptWatcher> logger)
         {
             _project = project;
             _settings = settings.Value;
             _logger = logger;
-            _eventBus = eventBus;
         }
 
         public void Start()
@@ -69,7 +65,6 @@ namespace Server
         private void HandleReload(object? state)
         {
             OnReloadRequested?.Invoke();
-            _eventBus.Publish(new ReloadScriptsEvent());
         }
 
         public void Stop()

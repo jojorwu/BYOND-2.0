@@ -5,8 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ProfilingService : IProfilingService, IShrinkable
     {
         private readonly ConcurrentDictionary<string, MetricData> _metrics = new();
@@ -181,4 +180,3 @@ namespace Shared.Services
             }
         }
     }
-}

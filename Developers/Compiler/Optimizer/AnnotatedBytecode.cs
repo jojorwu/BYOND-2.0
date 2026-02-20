@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Diagnostics.Contracts;
 using Shared;
 using DMCompiler.DM;

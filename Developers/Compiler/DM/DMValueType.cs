@@ -1,3 +1,4 @@
+using Shared.Enums;
 ﻿namespace DMCompiler.DM;
 
 // If you are modifying this, you must also modify OpenDreamShared.Dream.DreamValueType !!

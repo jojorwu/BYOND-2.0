@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Defines a service for discovering game servers.
     /// </summary>
@@ -14,4 +13,3 @@ namespace Shared
         /// <returns>A collection of server information entries.</returns>
         Task<IEnumerable<ServerInfoEntry>> GetServerListAsync();
     }
-}

@@ -7,13 +7,10 @@ using Robust.Shared.Maths;
 using Shared;
 using Microsoft.Extensions.Options;
 using Shared.Interfaces;
-using Shared.Models;
-using Shared.Attributes;
 
-namespace Server.Systems
+namespace Server
 {
-    [System("RegionalProcessingSystem", Priority = 50)]
-    public class RegionalProcessingSystem : BaseSystem, IShrinkable
+    public class RegionalGameLoopStrategy : IGameLoopStrategy, IShrinkable
     {
         private readonly IScriptHost _scriptHost;
         private readonly IRegionManager _regionManager;
@@ -25,7 +22,7 @@ namespace Server.Systems
         private readonly ServerSettings _settings;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<long, (long AggregateVersion, string Snapshot)> _snapshotCache = new();
 
-        public RegionalProcessingSystem(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
+        public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
         {
             _scriptHost = scriptHost;
             _regionManager = regionManager;
@@ -35,13 +32,6 @@ namespace Server.Systems
             _gameStateSnapshotter = gameStateSnapshotter;
             _jobSystem = jobSystem;
             _settings = settings.Value;
-        }
-
-        public override bool Enabled => _settings.Performance.EnableRegionalProcessing;
-
-        public override void Tick(IEntityCommandBuffer ecb)
-        {
-            TickAsync(default).GetAwaiter().GetResult();
         }
 
         public async Task TickAsync(CancellationToken cancellationToken)

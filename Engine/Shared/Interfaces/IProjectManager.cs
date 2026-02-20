@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Defines the contract for a service that manages project-related operations.
     /// </summary>
@@ -15,4 +14,3 @@ namespace Shared
         /// <returns>True if the project was created successfully, false otherwise.</returns>
         Task<bool> CreateProjectAsync(string projectName, string projectPath);
     }
-}

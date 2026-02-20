@@ -6,8 +6,7 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class EngineServiceGroup : IEngineService
     {
         private readonly string _groupName;
@@ -63,4 +62,3 @@ namespace Shared.Services
             }
         }
     }
-}

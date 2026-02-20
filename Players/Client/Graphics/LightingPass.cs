@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Numerics;
 using Silk.NET.OpenGL;
 using Shared;

@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface IScriptApi
     {
         List<string> ListScriptFiles();
@@ -10,4 +9,3 @@ namespace Shared
         void WriteScriptFile(string filename, string content);
         void DeleteScriptFile(string filename);
     }
-}

@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Models;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class EntityCommandBuffer : IEntityCommandBuffer, IPoolable, IDisposable
     {
         private enum CommandType
@@ -103,4 +102,3 @@ namespace Shared.Services
             _localCommands.Dispose();
         }
     }
-}

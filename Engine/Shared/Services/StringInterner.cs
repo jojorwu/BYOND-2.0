@@ -1,8 +1,7 @@
 using System.Collections.Concurrent;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class StringInterner : IShrinkable
     {
         private const int MaxStrings = 10000;
@@ -34,4 +33,3 @@ namespace Shared.Services
             }
         }
     }
-}

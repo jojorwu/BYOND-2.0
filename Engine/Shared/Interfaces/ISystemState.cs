@@ -1,5 +1,4 @@
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Represents a state container that can be committed to a consistent read-only view.
     /// </summary>
@@ -10,4 +9,3 @@ namespace Shared.Interfaces
         /// </summary>
         void Commit();
     }
-}

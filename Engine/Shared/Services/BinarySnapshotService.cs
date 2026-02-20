@@ -5,8 +5,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class BinarySnapshotService
     {
         private readonly StringInterner? _interner;
@@ -16,17 +15,64 @@ namespace Shared.Services
             _interner = interner;
         }
 
-        /// <summary>
-        /// Serializes a collection of game objects into a binary snapshot.
-        /// Only objects with changed versions compared to <paramref name="lastVersions"/> are included.
-        /// </summary>
         public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
         {
             var rentedBuffer = ArrayPool<byte>.Shared.Rent(65536);
+            int offset = 0;
+
             try
             {
-                int offset = SerializeTo(objects, rentedBuffer, lastVersions);
-                return rentedBuffer.AsSpan(0, offset).ToArray();
+                foreach (var obj in objects)
+                {
+                    if (obj is GameObject g)
+                    {
+                        if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
+                        {
+                            continue;
+                        }
+
+                        // Ensure buffer space (conservative estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) + Props...)
+                        EnsureBuffer(ref rentedBuffer, offset, 1024);
+
+                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.Id);
+                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), (int)g.Version);
+                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.ObjectType?.Id ?? -1);
+                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.X);
+                        offset += 4;
+                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.Y);
+                        offset += 4;
+                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.Z);
+                        offset += 4;
+
+                        if (g.ObjectType != null)
+                        {
+                            var varNames = g.ObjectType.VariableNames;
+                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), varNames.Count);
+                            for (int i = 0; i < varNames.Count; i++)
+                            {
+                                var val = g.GetVariableDirect(i);
+                                int needed = 5 + val.GetWriteSize(); // 5 for property index varint max + value size
+                                EnsureBuffer(ref rentedBuffer, offset, needed);
+
+                                offset += WriteVarInt(rentedBuffer.AsSpan(offset), i);
+                                offset += val.WriteTo(rentedBuffer.AsSpan(offset));
+                            }
+                        }
+                        else
+                        {
+                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0);
+                        }
+
+                        if (lastVersions != null) lastVersions[g.Id] = g.Version;
+                    }
+                }
+
+                EnsureBuffer(ref rentedBuffer, offset, 1);
+                offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0); // End of stream marker
+
+                byte[] result = new byte[offset];
+                Buffer.BlockCopy(rentedBuffer, 0, result, 0, offset);
+                return result;
             }
             finally
             {
@@ -34,72 +80,11 @@ namespace Shared.Services
             }
         }
 
-        public int SerializeTo(IEnumerable<IGameObject> objects, byte[] buffer, IDictionary<int, long>? lastVersions = null, int startOffset = 0)
-        {
-            var rentedBuffer = buffer;
-            int offset = startOffset;
-
-            foreach (var obj in objects)
-                {
-                    if (obj is not GameObject g) continue;
-
-                    if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
-                    {
-                        continue;
-                    }
-
-                    // Pre-calculate required space for basic fields
-                    // Max VarInt size for 32-bit int is 5 bytes.
-                    // Basic fields: ID(5), Version(5), Type(5), X(4), Y(4), Z(4) = 27 bytes.
-                    EnsureBuffer(ref rentedBuffer, offset, 32);
-
-                    offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.Id);
-                    offset += WriteVarInt(rentedBuffer.AsSpan(offset), (int)g.Version);
-                    offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.ObjectType?.Id ?? -1);
-
-                    var span = rentedBuffer.AsSpan(offset);
-                    BinaryPrimitives.WriteInt32LittleEndian(span, g.X);
-                    BinaryPrimitives.WriteInt32LittleEndian(span.Slice(4), g.Y);
-                    BinaryPrimitives.WriteInt32LittleEndian(span.Slice(8), g.Z);
-                    offset += 12;
-
-                    if (g.ObjectType != null)
-                    {
-                        var varNames = g.ObjectType.VariableNames;
-                        EnsureBuffer(ref rentedBuffer, offset, 5);
-                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), varNames.Count);
-
-                        for (int i = 0; i < varNames.Count; i++)
-                        {
-                            var val = g.GetVariableDirect(i);
-                            int needed = 5 + val.GetWriteSize(); // 5 for property index varint max + value size
-                            EnsureBuffer(ref rentedBuffer, offset, needed);
-
-                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), i);
-                            offset += val.WriteTo(rentedBuffer.AsSpan(offset));
-                        }
-                    }
-                    else
-                    {
-                        EnsureBuffer(ref rentedBuffer, offset, 1);
-                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0);
-                    }
-
-                    if (lastVersions != null) lastVersions[g.Id] = g.Version;
-                }
-
-            EnsureBuffer(ref rentedBuffer, offset, 1);
-            offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0); // End of stream marker
-
-            return offset;
-        }
-
         private void EnsureBuffer(ref byte[] buffer, int offset, int required)
         {
             if (offset + required > buffer.Length)
             {
-                int newSize = Math.Max(buffer.Length * 2, offset + required);
-                var newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
+                var newBuffer = ArrayPool<byte>.Shared.Rent(buffer.Length * 2);
                 Buffer.BlockCopy(buffer, 0, newBuffer, 0, offset);
                 ArrayPool<byte>.Shared.Return(buffer);
                 buffer = newBuffer;
@@ -133,13 +118,8 @@ namespace Shared.Services
             }
         }
 
-        /// <summary>
-        /// Deserializes a binary snapshot and updates the game world.
-        /// </summary>
         public void Deserialize(byte[] data, IDictionary<int, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
-            if (data == null || data.Length == 0) return;
-
             ReadOnlySpan<byte> span = data;
             int offset = 0;
             var unresolvedReferences = new List<(GameObject target, int propIdx, int refId)>();
@@ -231,4 +211,3 @@ namespace Shared.Services
             }
         }
     }
-}

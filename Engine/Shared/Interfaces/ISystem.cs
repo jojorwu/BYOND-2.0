@@ -14,6 +14,16 @@ namespace Shared.Interfaces;
         string Name => GetType().Name;
 
         /// <summary>
+        /// Called when the system is initialized.
+        /// </summary>
+        void Initialize() { }
+
+        /// <summary>
+        /// Called when the engine is shutting down.
+        /// </summary>
+        void Shutdown() { }
+
+        /// <summary>
         /// Executed before the main tick phase.
         /// </summary>
         void PreTick() { }

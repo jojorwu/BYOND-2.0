@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
@@ -32,7 +33,7 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            var archetypeManager = new ArchetypeManager();
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             _componentManager = new ComponentManager(archetypeManager);
             _queryService = new ComponentQueryService(_componentManager);
             var pool = new SharedPool<GameObject>(() => new GameObject());

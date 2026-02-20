@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 using Shared.Models;
 
@@ -36,6 +37,12 @@ public class ArchetypeManager : IArchetypeManager
     private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
     private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
     private readonly object[] _entityLocks = Enumerable.Range(0, 256).Select(_ => new object()).ToArray();
+    private readonly ILogger<ArchetypeManager> _logger;
+
+    public ArchetypeManager(ILogger<ArchetypeManager> logger)
+    {
+        _logger = logger;
+    }
 
     private object GetEntityLock(int entityId) => _entityLocks[(uint)entityId % _entityLocks.Length];
 

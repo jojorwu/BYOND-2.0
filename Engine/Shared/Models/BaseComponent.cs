@@ -12,7 +12,7 @@ public abstract class BaseComponent : IComponent
     public virtual void Shutdown() { }
     public virtual void OnMessage(IComponentMessage message) { }
 
-    protected void SendMessage(IComponentMessage message)
+    public void SendMessage(IComponentMessage message)
     {
         Owner?.SendMessage(message);
     }

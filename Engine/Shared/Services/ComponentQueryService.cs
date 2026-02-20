@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
+using Shared.Models;
 
 namespace Shared.Services;
     public class ComponentQueryService : IComponentQueryService

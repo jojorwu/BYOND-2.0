@@ -1,0 +1,20 @@
+  Determining projects to restore...
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/tests/tests.csproj]
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/tests/tests.csproj]
+  All projects are up-to-date for restore.
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+  Robust.Shared.Maths -> /app/Engine/Robust.Shared.Maths/bin/Debug/net10.0/Robust.Shared.Maths.dll
+  Shared -> /app/Engine/Shared/bin/Debug/net10.0/Shared.dll
+  Core -> /app/Engine/Core/bin/Debug/net10.0/Core.dll
+  Compiler -> /app/Developers/Compiler/bin/Debug/net10.0/Compiler.dll
+  Client -> /app/Players/Client/bin/Debug/net10.0/Client.dll
+  Server -> /app/Servers/Server/bin/Debug/net10.0/Server.dll
+  tests -> /app/tests/bin/Debug/net10.0/tests.dll
+Test run for /app/tests/bin/Debug/net10.0/tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:   171, Skipped:     0, Total:   171, Duration: 7 s - tests.dll (net10.0)

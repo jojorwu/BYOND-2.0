@@ -38,8 +38,7 @@ public class SystemManager : ISystemManager
 
         foreach (var system in systems)
         {
-            var logger = _loggerFactory.CreateLogger(system.GetType());
-            system.Initialize(logger);
+            system.Initialize();
             _registry.Register(system);
         }
     }

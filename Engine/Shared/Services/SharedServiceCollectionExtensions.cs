@@ -12,11 +12,34 @@ public static class SharedServiceCollectionExtensions
 {
     public static IServiceCollection AddSharedEngineServices(this IServiceCollection services)
     {
+        services.AddCoreServices();
+        services.AddEcsServices();
+        services.AddNetworkingServices();
+        services.AddJobSystem();
+
+        return services;
+    }
+
+    public static IServiceCollection AddCoreServices(this IServiceCollection services)
+    {
         services.AddSingleton<IEngineManager, EngineManager>();
         services.AddSingleton<IEventBus, EventBus>();
-        services.AddSingleton<IComputeService, ComputeService>();
-        services.AddSingleton<IJobSystem, JobSystem>();
         services.AddSingleton<ITimerService, TimerService>();
+        services.AddSingleton<ProfilingService>();
+        services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
+        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
+        services.AddSingleton<ObjectTypeManager>();
+        services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
+        services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
+        services.AddSingleton<StringInterner>();
+        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
+        services.AddSingleton<IObjectFactory, ObjectFactory>();
+        services.AddSingleton<IArenaAllocator, ArenaProxy>();
+        return services;
+    }
+
+    public static IServiceCollection AddEcsServices(this IServiceCollection services)
+    {
         services.AddSingleton<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()));
         services.AddSingleton<IObjectPool<GameObject>>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
@@ -27,32 +50,33 @@ public static class SharedServiceCollectionExtensions
 
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
         services.AddSingleton<ISystemManager, SystemManager>();
-        services.AddSingleton<ICommandRegistry, CommandRegistry>();
-        services.AddSingleton<IPluginManager, PluginManager>();
-        services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
-        services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
-        services.AddSingleton<ProfilingService>();
-        services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
-        services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
-        services.AddSingleton<BinarySnapshotService>();
-        services.AddSingleton<ObjectTypeManager>();
-        services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
-        services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
-        services.AddSingleton<SpatialGrid>();
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
-        services.AddSingleton<StringInterner>();
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
         services.AddSingleton<IArchetypeManager, ArchetypeManager>();
         services.AddSingleton<ComponentManager>();
         services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
         services.AddSingleton<IComponentQueryService>(sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetService<IGameState>()));
         services.AddSingleton<IComponentMessageBus, ComponentMessageBus>();
-        services.AddSingleton<IObjectFactory, ObjectFactory>();
-        services.AddSingleton<IInterestManager, InterestManager>();
         services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
-        services.AddSingleton<IArenaAllocator, ArenaProxy>();
+        return services;
+    }
+
+    public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
+    {
+        services.AddSingleton<IPluginManager, PluginManager>();
+        services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
+        services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
+        services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
+        services.AddSingleton<BinarySnapshotService>();
+        services.AddSingleton<SpatialGrid>();
+        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
+        services.AddSingleton<IInterestManager, InterestManager>();
+        return services;
+    }
+
+    public static IServiceCollection AddJobSystem(this IServiceCollection services)
+    {
+        services.AddSingleton<IComputeService, ComputeService>();
+        services.AddSingleton<IJobSystem, JobSystem>();
         return services;
     }
 

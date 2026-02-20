@@ -1,0 +1,12 @@
+        public JobSystem()
+        {
+            _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
+            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 4);
+
+            int initialCount = Math.Max(1, Environment.ProcessorCount);
+        public SpatialGrid(int cellSize = 16)
+        {
+            _cellSize = cellSize;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]

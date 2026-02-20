@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Shared;
     public class GameState : IGameState
@@ -19,7 +20,7 @@ namespace Shared;
             SpatialGrid = spatialGrid;
         }
 
-        public GameState() : this(new SpatialGrid()) { } // For tests
+        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
 
         IDictionary<int, GameObject> IGameState.GameObjects => GameObjects;
 

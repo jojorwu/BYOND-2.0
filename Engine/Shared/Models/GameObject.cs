@@ -369,11 +369,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     switch (builtin)
                     {
-                        case BuiltinVar.Icon: value.TryGetValue(out _icon); break;
-                        case BuiltinVar.IconState: value.TryGetValue(out _iconState); break;
+                        case BuiltinVar.Icon: _icon = value.TryGetValue(out string? s1) ? s1 ?? string.Empty : string.Empty; break;
+                        case BuiltinVar.IconState: _iconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; break;
                         case BuiltinVar.Dir: _dir = (int)value.GetValueAsFloat(); break;
                         case BuiltinVar.Alpha: _alpha = value.GetValueAsFloat(); break;
-                        case BuiltinVar.Color: value.TryGetValue(out _color); break;
+                        case BuiltinVar.Color: _color = value.TryGetValue(out string? s3) ? s3 ?? "#ffffff" : "#ffffff"; break;
                         case BuiltinVar.Layer: _layer = value.GetValueAsFloat(); break;
                         case BuiltinVar.PixelX: _pixelX = value.GetValueAsFloat(); break;
                         case BuiltinVar.PixelY: _pixelY = value.GetValueAsFloat(); break;

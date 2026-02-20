@@ -45,7 +45,7 @@ namespace tests
             _project = new Project(projectPath);
             _gameState = new GameState();
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            var jobSystem = new Shared.Services.JobSystem();
+            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
             _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);

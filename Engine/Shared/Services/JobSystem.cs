@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
     public class JobSystem : IJobSystem, IDisposable
@@ -16,9 +17,11 @@ namespace Shared.Services;
         private readonly int _maxWorkers;
         private readonly Timer _maintenanceTimer;
         private readonly object _workerLock = new();
+        private readonly ILogger<JobSystem> _logger;
 
-        public JobSystem()
+        public JobSystem(ILogger<JobSystem> logger)
         {
+            _logger = logger;
             _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
             _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 4);
 

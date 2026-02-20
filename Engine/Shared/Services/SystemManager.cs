@@ -1,9 +1,12 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Shared.Attributes;
 using Shared.Interfaces;
+using Shared.Models;
 using Shared.Enums;
 
 namespace Shared.Services;
@@ -23,9 +26,10 @@ public class SystemManager : ISystemManager
     private readonly IEnumerable<IShrinkable> _shrinkables;
     private readonly IEnumerable<IEngineModule> _modules;
     private readonly ILoggerFactory _loggerFactory;
+    private readonly IComponentQueryService _queryService;
     private bool _isDirty = true;
 
-    public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables, IEnumerable<IEngineModule> modules, IEnumerable<ISystem> systems, ILoggerFactory loggerFactory)
+    public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables, IEnumerable<IEngineModule> modules, IEnumerable<ISystem> systems, ILoggerFactory loggerFactory, IComponentQueryService queryService)
     {
         _registry = registry;
         _profilingService = profilingService;
@@ -34,12 +38,51 @@ public class SystemManager : ISystemManager
         _shrinkables = shrinkables;
         _modules = modules;
         _loggerFactory = loggerFactory;
+        _queryService = queryService;
 
         foreach (var system in systems)
         {
+            InitializeSystemQueries(system);
             system.Initialize();
             _registry.Register(system);
         }
+    }
+
+    private void InitializeSystemQueries(ISystem system)
+    {
+        var type = system.GetType();
+        var fields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        foreach (var field in fields)
+        {
+            if (field.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(field.FieldType))
+            {
+                var query = CreateEntityQuery(field.FieldType);
+                field.SetValue(system, query);
+            }
+        }
+
+        var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        foreach (var prop in properties)
+        {
+            if (prop.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(prop.PropertyType) && prop.CanWrite)
+            {
+                var query = CreateEntityQuery(prop.PropertyType);
+                prop.SetValue(system, query);
+            }
+        }
+    }
+
+    private EntityQuery CreateEntityQuery(Type queryType)
+    {
+        if (queryType.IsGenericType)
+        {
+            var genericArgs = queryType.GetGenericArguments();
+            return (EntityQuery)Activator.CreateInstance(queryType, _queryService)!;
+        }
+
+        // For non-generic EntityQuery, it needs types passed to constructor which we don't know from attribute alone
+        // unless we add them to attribute. But generic is preferred.
+        return (EntityQuery)Activator.CreateInstance(queryType, _queryService, System.Array.Empty<Type>())!;
     }
 
     public void MarkDirty() => _isDirty = true;

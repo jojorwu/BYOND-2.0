@@ -119,4 +119,20 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<ISystem, T>();
         return services;
     }
+
+    /// <summary>
+    /// Scans the given assembly for types implementing ISystem and registers them.
+    /// </summary>
+    public static IServiceCollection AddSystemsFromAssembly(this IServiceCollection services, Assembly assembly)
+    {
+        var systemTypes = assembly.GetTypes()
+            .Where(t => typeof(ISystem).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+        foreach (var type in systemTypes)
+        {
+            services.AddSingleton(typeof(ISystem), type);
+        }
+
+        return services;
+    }
 }

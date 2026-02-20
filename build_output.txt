@@ -2,26 +2,17 @@
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
   All projects are up-to-date for restore.
+  Robust.Shared.Maths -> /app/Engine/Robust.Shared.Maths/bin/Debug/net10.0/Robust.Shared.Maths.dll
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
-  Robust.Shared.Maths -> /app/Engine/Robust.Shared.Maths/bin/Debug/net10.0/Robust.Shared.Maths.dll
   Shared -> /app/Engine/Shared/bin/Debug/net10.0/Shared.dll
+  Compiler -> /app/Developers/Compiler/bin/Debug/net10.0/Compiler.dll
   Launcher.Developer -> /app/Launchers/Launcher.Developer/bin/Debug/net10.0/Launcher.Developer.dll
   Launcher -> /app/Launchers/Launcher.Player/bin/Debug/net10.0/Launcher.Player.dll
   Core -> /app/Engine/Core/bin/Debug/net10.0/Core.dll
-  Compiler -> /app/Developers/Compiler/bin/Debug/net10.0/Compiler.dll
-  Client -> /app/Players/Client/bin/Debug/net10.0/Client.dll
-/app/Developers/Editor/History/ChangePropertyCommand.cs(12,60): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/History/DeleteObjectCommand.cs(11,41): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/History/MoveObjectCommand.cs(11,39): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/EditorSettingsManager.cs(15,16): warning CS8618: Non-nullable property 'Settings' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/EditorSettingsManager.cs(45,39): warning CS8604: Possible null reference argument for parameter 'path' in 'DirectoryInfo Directory.CreateDirectory(string path)'. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/InspectorPanel.cs(72,49): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/InspectorPanel.cs(87,45): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/SceneHierarchyPanel.cs(32,36): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/SceneHierarchyPanel.cs(75,80): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-  Editor -> /app/Developers/Editor/bin/Debug/net10.0/Editor.dll
   Server -> /app/Servers/Server/bin/Debug/net10.0/Server.dll
+  Client -> /app/Players/Client/bin/Debug/net10.0/Client.dll
+  Editor -> /app/Developers/Editor/bin/Debug/net10.0/Editor.dll
 /app/tests/Performance/BuiltinPropertyTests.cs(38,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
 /app/tests/Performance/BuiltinPropertyTests.cs(47,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
   tests -> /app/tests/bin/Debug/net10.0/tests.dll
@@ -32,18 +23,9 @@ Build succeeded.
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
 /app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
-/app/Developers/Editor/History/ChangePropertyCommand.cs(12,60): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/History/DeleteObjectCommand.cs(11,41): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/History/MoveObjectCommand.cs(11,39): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/EditorSettingsManager.cs(15,16): warning CS8618: Non-nullable property 'Settings' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/EditorSettingsManager.cs(45,39): warning CS8604: Possible null reference argument for parameter 'path' in 'DirectoryInfo Directory.CreateDirectory(string path)'. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/InspectorPanel.cs(72,49): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/InspectorPanel.cs(87,45): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/SceneHierarchyPanel.cs(32,36): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
-/app/Developers/Editor/UI/SceneHierarchyPanel.cs(75,80): warning CS8602: Dereference of a possibly null reference. [/app/Developers/Editor/Editor.csproj]
 /app/tests/Performance/BuiltinPropertyTests.cs(38,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
 /app/tests/Performance/BuiltinPropertyTests.cs(47,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
-    15 Warning(s)
+    6 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:26.24
+Time Elapsed 00:00:04.35

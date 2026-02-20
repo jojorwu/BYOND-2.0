@@ -2,6 +2,8 @@ using NUnit.Framework;
 using Shared.Interfaces;
 using Shared.Services;
 using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace tests
 {
@@ -30,19 +32,19 @@ namespace tests
         [Test]
         public void SetBaseEnginePath_SavesToSettings()
         {
-            var manager = new EngineManager();
+            var manager = new EngineManager(Enumerable.Empty<IAsyncInitializable>());
             manager.SetBaseEnginePath(_testDir);
 
             Assert.That(File.Exists(_settingsFile), Is.True);
 
-            var newManager = new EngineManager();
+            var newManager = new EngineManager(Enumerable.Empty<IAsyncInitializable>());
             Assert.That(newManager.GetBaseEnginePath(), Is.EqualTo(_testDir));
         }
 
         [Test]
         public void GetExecutablePath_ReturnsCorrectPath()
         {
-            var manager = new EngineManager();
+            var manager = new EngineManager(Enumerable.Empty<IAsyncInitializable>());
             manager.SetBaseEnginePath(_testDir);
 
             string expectedName = "Client";

@@ -23,7 +23,7 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton<IEngineManager, EngineManager>();
-        services.AddSingleton<IEventBus, EventBus>();
+        services.AddSingleton<IEventBus, FastEventBus>();
         services.AddSingleton<ITimerService, TimerService>();
         services.AddSingleton<ProfilingService>();
         services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());

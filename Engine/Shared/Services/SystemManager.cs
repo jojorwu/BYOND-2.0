@@ -16,7 +16,7 @@ public interface ISystemManager
 public class SystemManager : ISystemManager
 {
     private readonly ISystemRegistry _registry;
-    private List<List<ISystem>> _executionLayers;
+    private Dictionary<ExecutionPhase, List<List<ISystem>>> _phaseExecutionLayers = new();
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
     private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
@@ -34,7 +34,6 @@ public class SystemManager : ISystemManager
         _shrinkables = shrinkables;
         _modules = modules;
         _loggerFactory = loggerFactory;
-        _executionLayers = new List<List<ISystem>>();
 
         foreach (var system in systems)
         {
@@ -44,6 +43,22 @@ public class SystemManager : ISystemManager
     }
 
     public void MarkDirty() => _isDirty = true;
+
+    private void RebuildExecutionLayers()
+    {
+        _phaseExecutionLayers.Clear();
+        var allSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
+
+        foreach (ExecutionPhase phase in System.Enum.GetValues(typeof(ExecutionPhase)))
+        {
+            var systemsInPhase = allSystems.Where(s => s.Phase == phase).ToList();
+            if (systemsInPhase.Count > 0)
+            {
+                _phaseExecutionLayers[phase] = CalculateExecutionLayers(systemsInPhase);
+            }
+        }
+        _isDirty = false;
+    }
 
     private List<List<ISystem>> CalculateExecutionLayers(IEnumerable<ISystem> systems)
     {
@@ -67,10 +82,15 @@ public class SystemManager : ISystemManager
                 bool dependenciesMet = true;
                 foreach (var dep in system.Dependencies)
                 {
-                    if (!completedNames.Contains(dep) && !completedGroups.Contains(dep))
+                    // Dependencies are only tracked WITHIN the same phase for now.
+                    // If a dependency is in a previous phase, it is guaranteed to be finished.
+                    if (systemList.Any(s => s.Name == dep || s.Group == dep))
                     {
-                        dependenciesMet = false;
-                        break;
+                        if (!completedNames.Contains(dep) && !completedGroups.Contains(dep))
+                        {
+                            dependenciesMet = false;
+                            break;
+                        }
                     }
                 }
 
@@ -83,7 +103,7 @@ public class SystemManager : ISystemManager
             if (readySystems.Count == 0)
             {
                 var names = string.Join(", ", remaining.Select(s => s.Name));
-                throw new System.InvalidOperationException($"Circular dependency detected among systems: {names}");
+                throw new System.InvalidOperationException($"Circular dependency detected among systems in phase: {names}");
             }
 
             // Further refine readySystems into sub-layers based on resource conflicts
@@ -171,7 +191,6 @@ public class SystemManager : ISystemManager
             }
             else
             {
-                // Should not happen if logic is correct, but safety break
                 subLayers.Add(new List<ISystem>(remaining));
                 remaining.Clear();
             }
@@ -184,8 +203,7 @@ public class SystemManager : ISystemManager
     {
         if (_isDirty)
         {
-            _executionLayers = CalculateExecutionLayers(_registry.GetSystems().Where(s => s.Enabled));
-            _isDirty = false;
+            RebuildExecutionLayers();
         }
 
         var enabledSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
@@ -198,77 +216,56 @@ public class SystemManager : ISystemManager
                 module.PreTick();
             }
 
-            // Pre-Tick Phase
-            using (_profilingService.Measure("SystemManager.PreTick"))
+            // Execute Phases
+            foreach (ExecutionPhase phase in System.Enum.GetValues(typeof(ExecutionPhase)))
             {
-                await _jobSystem.ForEachAsync(enabledSystems, system =>
+                if (!_phaseExecutionLayers.TryGetValue(phase, out var layers)) continue;
+
+                using (_profilingService.Measure($"SystemManager.Phase.{phase}"))
                 {
-                    using (_profilingService.Measure($"System.{system.Name}.PreTick"))
+                    foreach (var layer in layers)
                     {
-                        system.PreTick();
-                    }
-                });
-            }
-
-            // Main Tick Phase (Layered)
-            foreach (var layer in _executionLayers)
-            {
-                if (layer.Count == 1)
-                {
-                    var system = layer[0];
-                    var ecb = _ecbPool.Rent();
-                    try
-                    {
-                        ExecuteSystem(system, ecb);
-
-                        // Await jobs created by this system
-                        await _jobSystem.CompleteAllAsync();
-
-                        using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                        if (layer.Count == 1)
                         {
-                            ecb.Playback();
+                            var system = layer[0];
+                            var ecb = _ecbPool.Rent();
+                            try
+                            {
+                                ExecuteSystem(system, ecb);
+                                await _jobSystem.CompleteAllAsync();
+                                using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                                {
+                                    ecb.Playback();
+                                }
+                            }
+                            finally
+                            {
+                                _ecbPool.Return(ecb);
+                            }
                         }
-                    }
-                    finally
-                    {
-                        _ecbPool.Return(ecb);
-                    }
-                }
-                else
-                {
-                    var ecbs = new ConcurrentBag<EntityCommandBuffer>();
-                    await _jobSystem.ForEachAsync(layer, system =>
-                    {
-                        var ecb = _ecbPool.Rent();
-                        ecbs.Add(ecb);
-                        ExecuteSystem(system, ecb);
-                    });
-
-                    // Await jobs created by this layer
-                    await _jobSystem.CompleteAllAsync();
-
-                    // Synchronization Point: Playback all ECBs from this layer
-                    using (_profilingService.Measure("SystemManager.ECBPlayback"))
-                    {
-                        foreach (var ecb in ecbs)
+                        else
                         {
-                            ecb.Playback();
-                            _ecbPool.Return(ecb);
+                            var ecbs = new ConcurrentBag<EntityCommandBuffer>();
+                            await _jobSystem.ForEachAsync(layer, system =>
+                            {
+                                var ecb = _ecbPool.Rent();
+                                ecbs.Add(ecb);
+                                ExecuteSystem(system, ecb);
+                            });
+
+                            await _jobSystem.CompleteAllAsync();
+
+                            using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                            {
+                                foreach (var ecb in ecbs)
+                                {
+                                    ecb.Playback();
+                                    _ecbPool.Return(ecb);
+                                }
+                            }
                         }
                     }
                 }
-            }
-
-            // Post-Tick Phase
-            using (_profilingService.Measure("SystemManager.PostTick"))
-            {
-                await _jobSystem.ForEachAsync(enabledSystems, system =>
-                {
-                    using (_profilingService.Measure($"System.{system.Name}.PostTick"))
-                    {
-                        system.PostTick();
-                    }
-                });
             }
 
             // Module Post-Tick
@@ -294,7 +291,9 @@ public class SystemManager : ISystemManager
     {
         using (_profilingService.Measure($"System.{system.Name}"))
         {
+            system.PreTick();
             system.Tick(ecb);
+            system.PostTick();
 
             var jobs = system.CreateJobs();
             foreach (var job in jobs)

@@ -2,8 +2,22 @@ using System;
 
 namespace Shared.Attributes;
 
-[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+public enum ResourceAccess
+{
+    Read,
+    Write,
+    ReadWrite
+}
+
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public class ResourceAttribute : Attribute
 {
-    public bool ReadOnly { get; set; } = true;
+    public Type ResourceType { get; }
+    public ResourceAccess Access { get; }
+
+    public ResourceAttribute(Type resourceType, ResourceAccess access = ResourceAccess.ReadWrite)
+    {
+        ResourceType = resourceType;
+        Access = access;
+    }
 }

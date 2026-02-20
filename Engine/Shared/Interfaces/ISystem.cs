@@ -45,7 +45,12 @@ namespace Shared.Interfaces;
         IEnumerable<IJob> CreateJobs() => System.Array.Empty<IJob>();
 
         /// <summary>
-        /// Gets the execution priority of the system.
+        /// Gets the execution phase of the system.
+        /// </summary>
+        Enums.ExecutionPhase Phase => Enums.ExecutionPhase.Simulation;
+
+        /// <summary>
+        /// Gets the execution priority of the system within its phase.
         /// Systems with the same priority are executed in parallel.
         /// </summary>
         int Priority => 0;

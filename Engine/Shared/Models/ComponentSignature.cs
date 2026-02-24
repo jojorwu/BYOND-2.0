@@ -29,24 +29,31 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 
     public ComponentSignature With(Type type)
     {
-        if (Types.Contains(type)) return this;
-
-        var newTypes = new Type[Types.Length + 1];
-        int i = 0;
-        bool inserted = false;
         long targetHandle = type.TypeHandle.Value.ToInt64();
+        int low = 0;
+        int high = Types.Length - 1;
+        int insertPos = Types.Length;
 
-        foreach (var existing in Types)
+        while (low <= high)
         {
-            if (!inserted && existing.TypeHandle.Value.ToInt64() > targetHandle)
+            int mid = low + (high - low) / 2;
+            long midHandle = Types[mid].TypeHandle.Value.ToInt64();
+            if (midHandle == targetHandle) return this;
+            if (midHandle > targetHandle)
             {
-                newTypes[i++] = type;
-                inserted = true;
+                insertPos = mid;
+                high = mid - 1;
             }
-            newTypes[i++] = existing;
+            else
+            {
+                low = mid + 1;
+            }
         }
 
-        if (!inserted) newTypes[Types.Length] = type;
+        var newTypes = new Type[Types.Length + 1];
+        if (insertPos > 0) Array.Copy(Types, 0, newTypes, 0, insertPos);
+        newTypes[insertPos] = type;
+        if (insertPos < Types.Length) Array.Copy(Types, insertPos, newTypes, insertPos + 1, Types.Length - insertPos);
 
         var hash = new HashCode();
         foreach (var t in newTypes) hash.Add(t);
@@ -55,15 +62,28 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 
     public ComponentSignature Without(Type type)
     {
-        if (!Types.Contains(type)) return this;
+        long targetHandle = type.TypeHandle.Value.ToInt64();
+        int low = 0, high = Types.Length - 1;
+        int removeIdx = -1;
+
+        while (low <= high)
+        {
+            int mid = low + (high - low) / 2;
+            long midHandle = Types[mid].TypeHandle.Value.ToInt64();
+            if (midHandle == targetHandle)
+            {
+                removeIdx = mid;
+                break;
+            }
+            if (midHandle > targetHandle) high = mid - 1;
+            else low = mid + 1;
+        }
+
+        if (removeIdx == -1) return this;
 
         var newTypes = new Type[Types.Length - 1];
-        int i = 0;
-        foreach (var existing in Types)
-        {
-            if (existing == type) continue;
-            newTypes[i++] = existing;
-        }
+        if (removeIdx > 0) Array.Copy(Types, 0, newTypes, 0, removeIdx);
+        if (removeIdx < Types.Length - 1) Array.Copy(Types, removeIdx + 1, newTypes, removeIdx, Types.Length - removeIdx - 1);
 
         var hash = new HashCode();
         foreach (var t in newTypes) hash.Add(t);

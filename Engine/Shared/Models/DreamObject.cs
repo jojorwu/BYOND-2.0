@@ -57,10 +57,12 @@ namespace Shared;
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            // Lock-free read via volatile array
-            var values = _variableValues;
-            if (index < values.Length) return values[index];
-            return DreamValue.Null;
+            lock (_lock)
+            {
+                var values = _variableValues;
+                if (index < values.Length) return values[index];
+                return DreamValue.Null;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -77,21 +79,25 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            // Lock-free read via volatile array
-            var values = _variableValues;
-            if (index >= 0 && index < values.Length)
-                return values[index];
-            return DreamValue.Null;
+            lock (_lock)
+            {
+                var values = _variableValues;
+                if (index >= 0 && index < values.Length)
+                    return values[index];
+                return DreamValue.Null;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariableDirect(int index)
         {
-            // Lock-free read via volatile array
-            var values = _variableValues;
-            if (index >= 0 && index < values.Length)
-                return values[index];
-            return DreamValue.Null;
+            lock (_lock)
+            {
+                var values = _variableValues;
+                if (index >= 0 && index < values.Length)
+                    return values[index];
+                return DreamValue.Null;
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -113,15 +119,13 @@ namespace Shared;
                     var newValues = new DreamValue[index + 1];
                     System.Array.Copy(currentValues, newValues, currentValues.Length);
                     newValues[index] = value;
-                    _variableValues = newValues; // Volatile swap
+                    _variableValues = newValues;
                     IncrementVersion();
                 }
                 else if (!currentValues[index].Equals(value))
                 {
-                    // Copy-on-Write to avoid tearing and ensure consistency for concurrent readers
-                    var newValues = (DreamValue[])currentValues.Clone();
-                    newValues[index] = value;
-                    _variableValues = newValues; // Volatile swap
+                    // In-place update within lock to avoid tearing and expensive cloning
+                    currentValues[index] = value;
                     IncrementVersion();
                 }
             }

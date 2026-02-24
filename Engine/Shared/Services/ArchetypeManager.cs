@@ -89,7 +89,7 @@ public class ArchetypeManager : IArchetypeManager
 
             if (currentArchetype != null)
             {
-                if (currentArchetype.Signature.Types.Contains(componentType))
+                if (currentArchetype.GetComponentsInternal(componentType) != null)
                 {
                     currentArchetype.SetComponentInternal(entity.ArchetypeIndex, componentType, component);
                     return;

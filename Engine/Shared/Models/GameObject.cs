@@ -565,12 +565,30 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (Archetype is Archetype arch)
         {
-            foreach (var array in arch._componentArrays.Values)
+            var targets = message.TargetComponentTypes;
+            if (targets != null && targets.Length > 0)
             {
-                var component = array.Get(ArchetypeIndex);
-                if (component != null && component.Enabled)
+                foreach (var type in targets)
                 {
-                    component.OnMessage(message);
+                    if (arch._componentArrays.TryGetValue(type, out var array))
+                    {
+                        var component = array.Get(ArchetypeIndex);
+                        if (component != null && component.Enabled)
+                        {
+                            component.OnMessage(message);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (var array in arch._componentArrays.Values)
+                {
+                    var component = array.Get(ArchetypeIndex);
+                    if (component != null && component.Enabled)
+                    {
+                        component.OnMessage(message);
+                    }
                 }
             }
         }

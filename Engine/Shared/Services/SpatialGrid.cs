@@ -18,19 +18,16 @@ namespace Shared;
 
             public void Clear()
             {
-                lock (Lock)
+                var current = Head;
+                while (current != null)
                 {
-                    var current = Head;
-                    while (current != null)
-                    {
-                        var next = current.NextInGridCell;
-                        current.NextInGridCell = null;
-                        current.PrevInGridCell = null;
-                        current.CurrentGridCellKey = null;
-                        current = next;
-                    }
-                    Head = null;
+                    var next = current.NextInGridCell;
+                    current.NextInGridCell = null;
+                    current.PrevInGridCell = null;
+                    current.CurrentGridCellKey = null;
+                    current = next;
                 }
+                Head = null;
             }
         }
 
@@ -40,6 +37,7 @@ namespace Shared;
         }
 
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
+        private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
 
@@ -65,7 +63,10 @@ namespace Shared;
         {
             while (true)
             {
-                var cell = _grid.GetOrAdd(key, _ => new Cell());
+                var cell = _grid.GetOrAdd(key, _ => {
+                    if (!_cellPool.TryPop(out var pooled)) pooled = new Cell();
+                    return pooled;
+                });
                 lock (cell.Lock)
                 {
                     if (_grid.TryGetValue(key, out var current) && current == cell)
@@ -312,7 +313,11 @@ namespace Shared;
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
                             {
-                                _grid.TryRemove(kvp.Key, out _);
+                                if (_grid.TryRemove(kvp.Key, out var removed))
+                                {
+                                    removed.Clear();
+                                    _cellPool.Push(removed);
+                                }
                             }
                         }
                     }
@@ -388,6 +393,7 @@ namespace Shared;
         public void Dispose()
         {
             _grid.Clear();
+            _cellPool.Clear();
             GC.SuppressFinalize(this);
         }
 

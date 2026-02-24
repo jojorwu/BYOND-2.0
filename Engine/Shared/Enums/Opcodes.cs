@@ -22,7 +22,7 @@ public enum Opcode : byte {
     Add = 0x8,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     Assign = 0x9,
-    [OpcodeMetadata(0, OpcodeArgType.Reference, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.StackDelta)]
+    [OpcodeMetadata(0, true, OpcodeArgType.Reference, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.StackDelta)]
     Call = 0xA,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     MultiplyReference = 0xB,
@@ -34,7 +34,7 @@ public enum Opcode : byte {
     Jump = 0xE,
     [OpcodeMetadata(-1)]
     CompareEquals = 0xF,
-    [OpcodeMetadata(-1)]
+    [OpcodeMetadata(-1, true)]
     Return = 0x10,
     [OpcodeMetadata(1)]
     PushNull = 0x11,
@@ -72,7 +72,7 @@ public enum Opcode : byte {
     PushResource = 0x21,
     [OpcodeMetadata(0, OpcodeArgType.ListSize)]
     CreateList = 0x22,
-    [OpcodeMetadata(0, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    [OpcodeMetadata(0, true, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
     CallStatement = 0x23,
     [OpcodeMetadata(-1)]
     BitAnd = 0x24,
@@ -94,7 +94,7 @@ public enum Opcode : byte {
     BitNot = 0x2C,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     Combine = 0x2D,
-    [OpcodeMetadata(0, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    [OpcodeMetadata(0, true, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
     CreateObject = 0x2E,
     [OpcodeMetadata(-1, OpcodeArgType.Label)]
     BooleanOr = 0x2F,
@@ -180,7 +180,7 @@ public enum Opcode : byte {
     CompareEquivalent = 0x58,
     [OpcodeMetadata(-1)]
     CompareNotEquivalent = 0x59,
-    [OpcodeMetadata]
+    [OpcodeMetadata(0, true)]
     Throw = 0x5A,
     [OpcodeMetadata(-2)]
     IsInRange = 0x5B,
@@ -206,7 +206,7 @@ public enum Opcode : byte {
     DereferenceField = 0x68,
     [OpcodeMetadata(-1)]
     DereferenceIndex = 0x69,
-    [OpcodeMetadata(0, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    [OpcodeMetadata(0, true, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
     DereferenceCall = 0x6A,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     PopReference = 0x6B,
@@ -292,9 +292,9 @@ public enum Opcode : byte {
     IsTypeDirect = 0x95,
     [OpcodeMetadata(0, OpcodeArgType.Reference)]
     NullRef = 0x96,
-    [OpcodeMetadata(0, OpcodeArgType.Reference)]
+    [OpcodeMetadata(0, true, OpcodeArgType.Reference)]
     ReturnReferenceValue = 0x97,
-    [OpcodeMetadata(0, OpcodeArgType.Float)]
+    [OpcodeMetadata(0, true, OpcodeArgType.Float)]
     ReturnFloat = 0x98,
     [OpcodeMetadata(1, OpcodeArgType.Reference, OpcodeArgType.String)]
     IndexRefWithString = 0x99,
@@ -322,7 +322,7 @@ public enum Opcode : byte {
     GetBuiltinVar = 0xA4,
     [OpcodeMetadata(-1, OpcodeArgType.ArgType)]
     SetBuiltinVar = 0xA5,
-    [OpcodeMetadata(0, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(0, true, OpcodeArgType.ArgType)]
     LocalPushReturn = 0xA6,
     [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
     LocalCompareEquals = 0xA7,
@@ -364,12 +364,21 @@ public sealed class OpcodeMetadataAttribute : Attribute {
     public OpcodeMetadata Metadata;
 
     public OpcodeMetadataAttribute(int stackDelta = 0, params OpcodeArgType[] requiredArgs) {
-        Metadata = new OpcodeMetadata(stackDelta, false, requiredArgs);
+        Metadata = new OpcodeMetadata(stackDelta, false, false, requiredArgs);
+    }
+
+    public OpcodeMetadataAttribute(int stackDelta, bool canModifyCallStack, params OpcodeArgType[] requiredArgs) {
+        Metadata = new OpcodeMetadata(stackDelta, false, canModifyCallStack, requiredArgs);
     }
 
     public OpcodeMetadataAttribute(bool variableArgs, int stackDelta,
         params OpcodeArgType[] requiredArgs) {
-        Metadata = new OpcodeMetadata(stackDelta, variableArgs, requiredArgs);
+        Metadata = new OpcodeMetadata(stackDelta, variableArgs, false, requiredArgs);
+    }
+
+    public OpcodeMetadataAttribute(bool variableArgs, int stackDelta, bool canModifyCallStack,
+        params OpcodeArgType[] requiredArgs) {
+        Metadata = new OpcodeMetadata(stackDelta, variableArgs, canModifyCallStack, requiredArgs);
     }
 }
 
@@ -377,22 +386,26 @@ public struct OpcodeMetadata {
     public readonly int StackDelta;
     public readonly List<OpcodeArgType> RequiredArgs;
     public readonly bool VariableArgs;
+    public readonly bool CanModifyCallStack;
 
-    public OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, params OpcodeArgType[] requiredArgs) {
+    public OpcodeMetadata(int stackDelta = 0, bool variableArgs = false, bool canModifyCallStack = false, params OpcodeArgType[] requiredArgs) {
         StackDelta = stackDelta;
         VariableArgs = variableArgs;
+        CanModifyCallStack = canModifyCallStack;
         RequiredArgs = new List<OpcodeArgType>(requiredArgs);
     }
 
     public OpcodeMetadata() {
         StackDelta = 0;
         VariableArgs = false;
+        CanModifyCallStack = false;
         RequiredArgs = new List<OpcodeArgType>();
     }
 }
 
 public static class OpcodeMetadataCache {
     private static readonly OpcodeMetadata[] MetadataCache = new OpcodeMetadata[256];
+    private static readonly bool[] CanModifyCallStackCache = new bool[256];
 
     static OpcodeMetadataCache() {
         for (int i = 0; i < 256; i++) MetadataCache[i] = new OpcodeMetadata();
@@ -401,10 +414,15 @@ public static class OpcodeMetadataCache {
             var attribute = Attribute.GetCustomAttribute(field!, typeof(OpcodeMetadataAttribute));
             var metadataAttribute = (OpcodeMetadataAttribute?)attribute;
             MetadataCache[(byte)opcode] = metadataAttribute?.Metadata ?? new OpcodeMetadata();
+            CanModifyCallStackCache[(byte)opcode] = MetadataCache[(byte)opcode].CanModifyCallStack;
         }
     }
 
     public static OpcodeMetadata GetMetadata(Opcode opcode) {
         return MetadataCache[(byte)opcode];
+    }
+
+    public static bool CanModifyCallStack(Opcode opcode) {
+        return CanModifyCallStackCache[(byte)opcode];
     }
 }

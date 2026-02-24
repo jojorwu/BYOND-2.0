@@ -34,9 +34,28 @@ public partial class DreamThread : IScriptThread, IDisposable
     internal int _stackPtr = 0;
     internal CallFrame[] _callStack = new CallFrame[64];
     internal int _callStackPtr = 0;
-    public Stack<TryBlock> TryStack { get; } = new();
-    public Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators { get; } = new();
-    public Dictionary<int, DreamList> EnumeratorLists { get; } = new();
+    private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(16);
+    private int _tryStackPtr = 0;
+
+    internal void PushTryBlock(TryBlock tryBlock)
+    {
+        if (_tryStackPtr >= _tryStack.Length)
+        {
+            var newStack = ArrayPool<TryBlock>.Shared.Rent(_tryStack.Length * 2);
+            Array.Copy(_tryStack, newStack, _tryStack.Length);
+            ArrayPool<TryBlock>.Shared.Return(_tryStack);
+            _tryStack = newStack;
+        }
+        _tryStack[_tryStackPtr++] = tryBlock;
+    }
+
+    internal void PopTryBlock()
+    {
+        if (_tryStackPtr > 0) _tryStackPtr--;
+    }
+
+    public readonly Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators = new();
+    public readonly Dictionary<int, DreamList> EnumeratorLists = new();
     public int StackCount => _stackPtr;
     public int CallStackCount => _callStackPtr;
 
@@ -200,9 +219,9 @@ public partial class DreamThread : IScriptThread, IDisposable
 
     internal bool HandleException(ScriptRuntimeException e)
     {
-        if (TryStack.Count > 0)
+        if (_tryStackPtr > 0)
         {
-            var tryBlock = TryStack.Pop();
+            var tryBlock = _tryStack[--_tryStackPtr];
 
             // Unwind CallStack
             Array.Clear(_callStack, tryBlock.CallStackDepth, _callStackPtr - tryBlock.CallStackDepth);
@@ -238,29 +257,26 @@ public partial class DreamThread : IScriptThread, IDisposable
     public DMReference ReadReference(ReadOnlySpan<byte> bytecode, ref int pc)
     {
         var refType = (DMReference.Type)bytecode[pc++];
-        switch (refType)
+        if (refType == DMReference.Type.Local || refType == DMReference.Type.Argument)
         {
-            case DMReference.Type.Argument:
-            case DMReference.Type.Local:
-                return new DMReference { RefType = refType, Index = bytecode[pc++] };
-            case DMReference.Type.Global:
-            case DMReference.Type.GlobalProc:
-                {
-                    var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
-                    pc += 4;
-                    return new DMReference { RefType = refType, Index = globalIdx };
-                }
-            case DMReference.Type.Field:
-            case DMReference.Type.SrcProc:
-            case DMReference.Type.SrcField:
-                {
-                    var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
-                    pc += 4;
-                    return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
-                }
-            default:
-                return new DMReference { RefType = refType };
+            return new DMReference { RefType = refType, Index = bytecode[pc++] };
         }
+
+        if (refType >= DMReference.Type.Global && refType <= DMReference.Type.GlobalProc)
+        {
+            var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+            pc += 4;
+            return new DMReference { RefType = refType, Index = globalIdx };
+        }
+
+        if (refType >= DMReference.Type.Field && refType <= DMReference.Type.SrcField)
+        {
+            var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+            pc += 4;
+            return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
+        }
+
+        return new DMReference { RefType = refType };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -304,10 +320,10 @@ public partial class DreamThread : IScriptThread, IDisposable
                 return Context.GetGlobal(reference.Index);
             case DMReference.Type.Argument:
                 if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
-                return _stack[frame.StackBase + reference.Index];
+                return _stack[frame.ArgumentBase + reference.Index];
             case DMReference.Type.Local:
                 if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
-                return _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index];
+                return _stack[frame.LocalBase + reference.Index];
             case DMReference.Type.SrcField:
                 {
                     if (frame.Instance == null) return DreamValue.Null;
@@ -359,11 +375,11 @@ public partial class DreamThread : IScriptThread, IDisposable
                 break;
             case DMReference.Type.Argument:
                 if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
-                _stack[frame.StackBase + reference.Index] = value;
+                _stack[frame.ArgumentBase + reference.Index] = value;
                 break;
             case DMReference.Type.Local:
                 if (reference.Index < 0 || reference.Index >= frame.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", frame.Proc, 0, this);
-                _stack[frame.StackBase + frame.Proc.Arguments.Length + reference.Index] = value;
+                _stack[frame.LocalBase + reference.Index] = value;
                 break;
             case DMReference.Type.SrcField:
                 if (frame.Instance != null)
@@ -419,6 +435,12 @@ public partial class DreamThread : IScriptThread, IDisposable
 
     public void Dispose()
     {
+        if (_tryStack != null)
+        {
+            ArrayPool<TryBlock>.Shared.Return(_tryStack);
+            _tryStack = null!;
+        }
+
         foreach (var enumerator in ActiveEnumerators.Values)
         {
             enumerator.Dispose();

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
@@ -274,7 +275,7 @@ namespace Shared.Services;
 
             if (count <= 1)
             {
-                for (int i = 0; i < count; i++) action(list[i], i);
+                for (int i = 0; i < count; i++) action(list[i]);
                 return;
             }
 
@@ -308,7 +309,7 @@ namespace Shared.Services;
 
             if (count <= 1)
             {
-                foreach (var item in list) action(item);
+                for (int i = 0; i < count; i++) action(list[i], i);
                 return;
             }
 

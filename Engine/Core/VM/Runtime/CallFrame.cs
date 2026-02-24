@@ -8,6 +8,8 @@ namespace Core.VM.Runtime
         public DreamProc Proc { get; }
         public int PC { get; set; }
         public int StackBase { get; }
+        public int ArgumentBase { get; }
+        public int LocalBase { get; }
         public DreamObject? Instance { get; }
         public bool DiscardReturnValue { get; }
 
@@ -16,6 +18,8 @@ namespace Core.VM.Runtime
             Proc = proc;
             PC = pc;
             StackBase = stackBase;
+            ArgumentBase = stackBase;
+            LocalBase = stackBase + proc.Arguments.Length;
             Instance = instance;
             DiscardReturnValue = discardReturnValue;
         }

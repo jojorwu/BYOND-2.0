@@ -6,9 +6,9 @@ using Robust.Shared.Maths;
 using System.Collections.Concurrent;
 using System.Buffers;
 using Shared.Interfaces;
+using Microsoft.Extensions.Logging;
 
-namespace Shared
-{
+namespace Shared;
     public class SpatialGrid : IDisposable, IShrinkable
     {
         private class Cell
@@ -38,9 +38,11 @@ namespace Shared
         private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
         private readonly int _cellSize;
+        private readonly ILogger<SpatialGrid> _logger;
 
-        public SpatialGrid(int cellSize = 16)
+        public SpatialGrid(ILogger<SpatialGrid> logger, int cellSize = 16)
         {
+            _logger = logger;
             _cellSize = cellSize;
         }
 
@@ -376,4 +378,3 @@ namespace Shared
             Dispose();
         }
     }
-}

@@ -1,7 +1,6 @@
 using Shared.Interfaces;
 
-namespace Shared.Models
-{
+namespace Shared.Models;
     /// <summary>
     /// Context for a network packet being processed by the middleware pipeline.
     /// </summary>
@@ -18,4 +17,3 @@ namespace Shared.Models
             Payload = payload;
         }
     }
-}

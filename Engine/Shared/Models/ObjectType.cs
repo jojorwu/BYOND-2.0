@@ -1,81 +1,112 @@
+using Shared.Enums;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace Shared
+namespace Shared;
+
+public class ObjectType
 {
-    public class ObjectType
+    public int Id { get; }
+    public string Name { get; set; }
+    public string? ParentName { get; set; }
+
+    [JsonIgnore]
+    public ObjectType? Parent { get; set; }
+    public Dictionary<string, object?> DefaultProperties { get; set; }
+    public List<string> VariableNames { get; } = new();
+    public List<object?> FlattenedDefaultValues { get; } = new();
+    public Dictionary<string, IDreamProc> Procs { get; } = new();
+    public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
+    private Dictionary<string, int>? _variableIndices;
+    private HashSet<int>? _parentIds;
+    public BuiltinVar[]? VariableToBuiltin { get; private set; }
+
+    public ObjectType(int id, string name)
     {
-        public int Id { get; }
-        public string Name { get; set; }
-        public string? ParentName { get; set; }
+        Id = id;
+        Name = name;
+        DefaultProperties = new Dictionary<string, object?>();
+    }
 
-        [JsonIgnore]
-        public ObjectType? Parent { get; set; }
-        public Dictionary<string, object?> DefaultProperties { get; set; }
-        public List<string> VariableNames { get; } = new();
-        public List<object?> FlattenedDefaultValues { get; } = new();
-        public Dictionary<string, IDreamProc> Procs { get; } = new();
-        public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
-        private Dictionary<string, int>? _variableIndices;
-
-        public ObjectType(int id, string name)
+    public IDreamProc? GetProc(string name)
+    {
+        if (Procs.TryGetValue(name, out var proc))
         {
-            Id = id;
-            Name = name;
-            DefaultProperties = new Dictionary<string, object?>();
+            return proc;
         }
 
-        public IDreamProc? GetProc(string name)
+        if (FlattenedProcs.TryGetValue(name, out proc))
         {
-            if (Procs.TryGetValue(name, out var proc))
+            return proc;
+        }
+
+        return null;
+    }
+
+    public int GetVariableIndex(string name)
+    {
+        if (_variableIndices != null)
+        {
+            return _variableIndices.TryGetValue(name, out int index) ? index : -1;
+        }
+
+        return VariableNames.IndexOf(name);
+    }
+
+    public void FinalizeVariables()
+    {
+        _variableIndices = new Dictionary<string, int>(VariableNames.Count);
+        VariableToBuiltin = new BuiltinVar[VariableNames.Count];
+        for (int i = 0; i < VariableNames.Count; i++)
+        {
+            var name = VariableNames[i];
+            _variableIndices[name] = i;
+
+            VariableToBuiltin[i] = name switch
             {
-                return proc;
-            }
-
-            if (FlattenedProcs.TryGetValue(name, out proc))
-            {
-                return proc;
-            }
-
-            return null;
+                "icon" => BuiltinVar.Icon,
+                "icon_state" => BuiltinVar.IconState,
+                "dir" => BuiltinVar.Dir,
+                "alpha" => BuiltinVar.Alpha,
+                "color" => BuiltinVar.Color,
+                "layer" => BuiltinVar.Layer,
+                "pixel_x" => BuiltinVar.PixelX,
+                "pixel_y" => BuiltinVar.PixelY,
+                _ => (BuiltinVar)255
+            };
         }
 
-        public int GetVariableIndex(string name)
+        _parentIds = new HashSet<int>();
+        var current = this;
+        while (current != null)
         {
-            if (_variableIndices != null)
-            {
-                return _variableIndices.TryGetValue(name, out int index) ? index : -1;
-            }
-
-            return VariableNames.IndexOf(name);
+            _parentIds.Add(current.Id);
+            current = current.Parent;
         }
+    }
 
-        public void FinalizeVariables()
+    public void ClearCache()
+    {
+        _variableIndices = null;
+        _parentIds = null;
+    }
+
+    public bool IsSubtypeOf(ObjectType other)
+    {
+        if (_parentIds != null)
         {
-            _variableIndices = new Dictionary<string, int>(VariableNames.Count);
-            for (int i = 0; i < VariableNames.Count; i++)
-            {
-                _variableIndices[VariableNames[i]] = i;
-            }
+            return _parentIds.Contains(other.Id);
         }
 
-        public void ClearCache()
+        var current = this;
+        while (current != null)
         {
-            _variableIndices = null;
-        }
-
-        public bool IsSubtypeOf(ObjectType other)
-        {
-            var current = this;
-            while (current != null)
+            if (current == other)
             {
-                if (current == other)
-                {
-                    return true;
-                }
-                current = current.Parent;
+                return true;
             }
-            return false;
+            current = current.Parent;
         }
+        return false;
     }
 }

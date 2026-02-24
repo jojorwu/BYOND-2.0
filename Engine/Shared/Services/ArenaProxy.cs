@@ -1,8 +1,7 @@
 using System;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ArenaProxy : IArenaAllocator
     {
         private readonly IJobSystem _jobSystem;
@@ -31,4 +30,3 @@ namespace Shared.Services
             _jobSystem.GetCurrentArena()?.Reset();
         }
     }
-}

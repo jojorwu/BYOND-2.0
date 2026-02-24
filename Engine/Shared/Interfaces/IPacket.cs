@@ -1,5 +1,4 @@
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Represents a data packet in the network protocol.
     /// </summary>
@@ -9,4 +8,3 @@ namespace Shared.Interfaces
         void Deserialize(string data);
         string Serialize();
     }
-}

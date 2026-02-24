@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
@@ -15,7 +16,7 @@ namespace tests
         [Test]
         public void ArchetypeManager_Lookup_IsFastAndCorrect()
         {
-            var manager = new ArchetypeManager();
+            var manager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var objects = new List<GameObject>();
 
             // Create objects with different component combinations

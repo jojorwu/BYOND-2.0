@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using Moq;
 using Shared;
@@ -28,7 +29,7 @@ namespace tests
             _mapLoaderMock = new Mock<IMapLoader>();
             _projectMock = new Mock<IProject>();
             _objectTypeManagerMock = new Mock<IObjectTypeManager>();
-            _spatialGrid = new SpatialGrid(); // Initialize the real instance
+            _spatialGrid = new SpatialGrid(NullLogger<SpatialGrid>.Instance); // Initialize the real instance
 
             _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(_spatialGrid); // Return the real instance
             _gameStateMock.Setup(gs => gs.ReadLock()).Returns(new Mock<IDisposable>().Object);

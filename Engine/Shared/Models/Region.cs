@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Robust.Shared.Maths;
 
-namespace Shared
-{
+namespace Shared;
     public class Region
     {
         public Vector2i Coords { get; }
@@ -46,4 +45,3 @@ namespace Shared
             return results;
         }
     }
-}

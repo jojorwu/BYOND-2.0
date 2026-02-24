@@ -1,8 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     public enum ServiceStatus
     {
         Stopped,
@@ -33,4 +32,3 @@ namespace Shared.Interfaces
         /// </summary>
         ServiceStatus Status => ServiceStatus.Stopped;
     }
-}

@@ -1,5 +1,6 @@
-namespace Shared.Interfaces
-{
+using System.Threading.Tasks;
+
+namespace Shared.Interfaces;
     public enum EngineComponent
     {
         Client,
@@ -17,5 +18,6 @@ namespace Shared.Interfaces
         void SetBaseEnginePath(string path);
         void LoadSettings();
         void SaveSettings();
+        Task InitializeAsync();
+        Task ShutdownAsync();
     }
-}

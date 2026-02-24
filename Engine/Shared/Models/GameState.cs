@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Shared
-{
+namespace Shared;
     public class GameState : IGameState
     {
         private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
@@ -20,7 +20,7 @@ namespace Shared
             SpatialGrid = spatialGrid;
         }
 
-        public GameState() : this(new SpatialGrid()) { } // For tests
+        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
 
         IDictionary<int, GameObject> IGameState.GameObjects => GameObjects;
 
@@ -101,4 +101,3 @@ namespace Shared
             }
         }
     }
-}

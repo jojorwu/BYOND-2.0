@@ -1,8 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     public enum ComputeDevice
     {
         Cpu,
@@ -19,4 +18,3 @@ namespace Shared.Interfaces
         // Foundation for future heavy computations
         Task<T[]> DispatchAsync<T>(string kernelName, T[] data) where T : struct;
     }
-}

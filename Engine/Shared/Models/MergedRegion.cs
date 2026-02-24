@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Shared
-{
+namespace Shared;
     public class MergedRegion
     {
         public List<Region> Regions { get; }
@@ -27,4 +26,3 @@ namespace Shared
             return results;
         }
     }
-}

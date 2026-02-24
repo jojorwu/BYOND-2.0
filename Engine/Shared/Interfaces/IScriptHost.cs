@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Manages the execution of script threads and coordinates game logic ticks.
     /// </summary>
@@ -49,4 +48,3 @@ namespace Shared
         /// <returns>A collection of threads that are still active after execution.</returns>
         System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
     }
-}

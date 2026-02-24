@@ -1,0 +1,31 @@
+  Determining projects to restore...
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
+  All projects are up-to-date for restore.
+  Robust.Shared.Maths -> /app/Engine/Robust.Shared.Maths/bin/Debug/net10.0/Robust.Shared.Maths.dll
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+  Shared -> /app/Engine/Shared/bin/Debug/net10.0/Shared.dll
+  Compiler -> /app/Developers/Compiler/bin/Debug/net10.0/Compiler.dll
+  Launcher.Developer -> /app/Launchers/Launcher.Developer/bin/Debug/net10.0/Launcher.Developer.dll
+  Launcher -> /app/Launchers/Launcher.Player/bin/Debug/net10.0/Launcher.Player.dll
+  Core -> /app/Engine/Core/bin/Debug/net10.0/Core.dll
+  Server -> /app/Servers/Server/bin/Debug/net10.0/Server.dll
+  Client -> /app/Players/Client/bin/Debug/net10.0/Client.dll
+  Editor -> /app/Developers/Editor/bin/Debug/net10.0/Editor.dll
+/app/tests/Performance/BuiltinPropertyTests.cs(38,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
+/app/tests/Performance/BuiltinPropertyTests.cs(47,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
+  tests -> /app/tests/bin/Debug/net10.0/tests.dll
+
+Build succeeded.
+
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [/app/BYOND2.0.sln]
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.DependencyInjection will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+/app/Servers/Server/Server.csproj : warning NU1510: PackageReference Microsoft.Extensions.Hosting will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.
+/app/tests/Performance/BuiltinPropertyTests.cs(38,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
+/app/tests/Performance/BuiltinPropertyTests.cs(47,13): warning NUnit1033: The Write methods are wrappers on TestContext.Out (https://github.com/nunit/nunit.analyzers/tree/master/documentation/NUnit1033.md) [/app/tests/tests.csproj]
+    6 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.35

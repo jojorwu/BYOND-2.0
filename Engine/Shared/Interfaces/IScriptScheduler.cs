@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Handles the execution of script threads with time budgeting and object filtering.
     /// </summary>
@@ -17,4 +16,3 @@ namespace Shared
         /// <returns>A collection of threads that are still active (running or sleeping).</returns>
         System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null);
     }
-}

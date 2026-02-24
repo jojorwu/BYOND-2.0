@@ -1,4 +1,5 @@
-namespace Shared;
+using Shared.Enums;
+namespace Shared.Enums;
 
 public enum DreamValueType {
     Float,

@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ArenaAllocator : IArenaAllocator
     {
         private const int DefaultBlockSize = 64 * 1024; // 64KB
@@ -76,4 +75,3 @@ namespace Shared.Services
             _currentBlockIndex = 0;
         }
     }
-}

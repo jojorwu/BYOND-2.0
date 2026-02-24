@@ -1,8 +1,7 @@
 using System;
 using Shared.Interfaces;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Records structural changes to game objects and components to be applied at a safe synchronization point.
     /// </summary>
@@ -23,4 +22,3 @@ namespace Shared.Interfaces
         /// </summary>
         void Clear();
     }
-}

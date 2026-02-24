@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ObjectTypeManager : EngineService, IObjectTypeManager
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
@@ -101,4 +100,3 @@ namespace Shared.Services
             _unlinkedChildren.Clear();
         }
     }
-}

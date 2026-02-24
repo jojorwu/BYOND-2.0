@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     public interface IScriptManager
     {
         Task InitializeAsync();
@@ -11,4 +10,3 @@ namespace Shared
         string? ExecuteCommand(string command);
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
     }
-}

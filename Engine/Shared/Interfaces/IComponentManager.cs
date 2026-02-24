@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     public class ComponentEventArgs : EventArgs
     {
         public IGameObject Owner { get; }
@@ -38,4 +37,3 @@ namespace Shared.Interfaces
         /// </summary>
         void Compact();
     }
-}

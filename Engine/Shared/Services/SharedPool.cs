@@ -3,8 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     /// <summary>
     /// A high-performance object pool that uses thread-local caches to minimize lock contention.
     /// </summary>
@@ -81,4 +80,3 @@ namespace Shared.Services
             }
         }
     }
-}

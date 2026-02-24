@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     public interface IMapApi
     {
         IMap? GetMap();
@@ -32,4 +31,3 @@ namespace Shared
         /// </summary>
         IEnumerable<IGameObject> GetObjectsInArea(int x1, int y1, int x2, int y2, int z, string typePath);
     }
-}

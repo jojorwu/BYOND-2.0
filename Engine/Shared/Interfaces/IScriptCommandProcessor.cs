@@ -1,7 +1,6 @@
 using System;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Manages the queue of script commands and their execution results.
     /// </summary>
@@ -17,4 +16,3 @@ namespace Shared
         /// </summary>
         void ProcessCommands(IScriptManager scriptManager);
     }
-}

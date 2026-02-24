@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Enums;
 using System.Diagnostics.CodeAnalysis;
 using DMCompiler.Compiler;
 using DMCompiler.Json;

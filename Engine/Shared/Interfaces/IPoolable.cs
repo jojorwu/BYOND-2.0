@@ -1,5 +1,4 @@
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Represents an object that can be reset and reused in an object pool.
     /// </summary>
@@ -10,4 +9,3 @@ namespace Shared.Interfaces
         /// </summary>
         void Reset();
     }
-}

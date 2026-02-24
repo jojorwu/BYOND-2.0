@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace Shared
-{
+namespace Shared;
     public class DreamList : DreamObject
     {
         private const int MaxListSize = 1000000;
@@ -262,4 +261,3 @@ namespace Shared
             return true;
         }
     }
-}

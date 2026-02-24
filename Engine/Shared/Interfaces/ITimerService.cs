@@ -1,8 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Manages timed events and callbacks for efficient resource management.
     /// </summary>
@@ -23,4 +22,3 @@ namespace Shared.Interfaces
         /// </summary>
         void Tick();
     }
-}

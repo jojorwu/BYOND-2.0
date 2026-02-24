@@ -1,8 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace Shared.Messaging
-{
+namespace Shared.Messaging;
     /// <summary>
     /// A simple, thread-safe event bus for decoupled communication.
     /// </summary>
@@ -25,4 +24,3 @@ namespace Shared.Messaging
         /// </summary>
         void Clear<T>();
     }
-}

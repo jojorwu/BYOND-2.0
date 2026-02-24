@@ -1,11 +1,11 @@
+using Shared.Enums;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Shared
-{
+namespace Shared;
     [JsonConverter(typeof(DreamValueConverter))]
     public readonly struct DreamValue : IEquatable<DreamValue>
     {
@@ -749,4 +749,3 @@ namespace Shared
             value.WriteTo(writer, options);
         }
     }
-}

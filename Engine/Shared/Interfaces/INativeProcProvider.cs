@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Contributes native procedures to the VM.
     /// </summary>
@@ -12,4 +11,3 @@ namespace Shared
         /// </summary>
         IDictionary<string, IDreamProc> GetNativeProcs();
     }
-}

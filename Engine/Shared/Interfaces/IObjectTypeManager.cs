@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Manages the registration and lookup of object types within the engine.
     /// </summary>
@@ -37,4 +36,3 @@ namespace Shared
         /// </summary>
         void Clear();
     }
-}

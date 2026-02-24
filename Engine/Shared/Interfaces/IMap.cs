@@ -1,8 +1,7 @@
 using Robust.Shared.Maths;
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface IMap
     {
         ITurf? GetTurf(int x, int y, int z);
@@ -16,4 +15,3 @@ namespace Shared
         void AddObjectToTurf(GameObject gameObject);
         void RemoveObjectFromTurf(GameObject gameObject);
     }
-}

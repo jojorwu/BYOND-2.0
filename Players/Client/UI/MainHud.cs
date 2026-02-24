@@ -1,3 +1,4 @@
+using Shared.Enums;
 using ImGuiNET;
 using System.Collections.Generic;
 using System.Numerics;

@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Security.Cryptography;
 using System.Text;
 

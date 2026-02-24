@@ -1,8 +1,7 @@
 using Shared.Interfaces;
 using Shared.Models;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ObjectFactory : IObjectFactory
     {
         private readonly IObjectPool<GameObject> _pool;
@@ -27,4 +26,3 @@ namespace Shared.Services
             _pool.Return(obj);
         }
     }
-}

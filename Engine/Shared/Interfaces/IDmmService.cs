@@ -1,9 +1,7 @@
 using System.Threading.Tasks;
 
-namespace Shared
-{
+namespace Shared;
     public interface IDmmService
     {
         Task<IMap?> LoadMapAsync(string path);
     }
-}

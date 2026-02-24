@@ -2,8 +2,7 @@ using Robust.Shared.Maths;
 using System;
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public class Map : IMap
     {
         private const int MaxCoordinate = 100000;
@@ -155,4 +154,3 @@ namespace Shared
             turf?.RemoveContent(gameObject);
         }
     }
-}

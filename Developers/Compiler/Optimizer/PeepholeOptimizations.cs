@@ -1,3 +1,4 @@
+using Shared.Enums;
 using Shared;
 
 // ReSharper disable UnusedType.Global

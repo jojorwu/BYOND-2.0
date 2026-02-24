@@ -1,9 +1,7 @@
 using Shared.Compiler;
 
-namespace Shared
-{
+namespace Shared;
     public interface IDreamMakerLoader
     {
         void Load(ICompiledJson compiledJson);
     }
-}

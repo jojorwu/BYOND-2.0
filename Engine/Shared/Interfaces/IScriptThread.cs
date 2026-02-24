@@ -1,7 +1,7 @@
+using Shared.Enums;
 using System;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Represents an independently executing sequence of script instructions.
     /// </summary>
@@ -42,4 +42,3 @@ namespace Shared
         /// </summary>
         void WakeUp();
     }
-}

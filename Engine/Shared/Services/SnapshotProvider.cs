@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public interface IGameStateSnapshot
     {
         IEnumerable<IGameObject> GetObjects();
@@ -54,4 +53,3 @@ namespace Shared.Services
             public IGameObject? GetObject(int id) => _objects.TryGetValue(id, out var obj) ? obj : null;
         }
     }
-}

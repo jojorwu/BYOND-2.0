@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ComponentManager : IComponentManager
     {
         private readonly IArchetypeManager _archetypeManager;
@@ -82,4 +81,3 @@ namespace Shared.Services
 
         public void Shrink() => Compact();
     }
-}

@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Represents a primary entity within the game world.
     /// </summary>
@@ -115,4 +114,3 @@ namespace Shared
         /// </summary>
         void SendMessage(IComponentMessage message);
     }
-}

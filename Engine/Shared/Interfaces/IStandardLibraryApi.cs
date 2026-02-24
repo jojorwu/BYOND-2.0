@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface IStandardLibraryApi
     {
         GameObject? Locate(string typePath, List<GameObject> container);
@@ -11,4 +10,3 @@ namespace Shared
         int Step(GameObject obj, int dir, int speed);
         int StepTo(GameObject obj, GameObject target, int minDist, int speed);
     }
-}

@@ -5,8 +5,7 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Models;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public interface IPacketDispatcher
     {
         void RegisterHandler(IPacketHandler handler);
@@ -78,4 +77,3 @@ namespace Shared.Services
             }
         }
     }
-}

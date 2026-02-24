@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Runtime.CompilerServices;
 using Shared;
 using DMCompiler.Compiler;

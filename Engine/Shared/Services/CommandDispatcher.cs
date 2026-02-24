@@ -4,8 +4,7 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class CommandDispatcher : ICommandDispatcher, IDisposable
     {
         private readonly Channel<ICommand> _commandChannel;
@@ -64,4 +63,3 @@ namespace Shared.Services
             _processorTask.Wait(TimeSpan.FromSeconds(5));
         }
     }
-}

@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class TimerService : ITimerService
     {
         private readonly PriorityQueue<Action, DateTime> _timers = new();
@@ -54,4 +53,3 @@ namespace Shared.Services
             }
         }
     }
-}

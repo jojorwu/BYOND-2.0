@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public class ClientSettings
     {
         public int ResolutionWidth { get; set; } = 1280;
@@ -8,4 +7,3 @@ namespace Shared
         public bool VSync { get; set; } = true;
         public bool RemoveBackground { get; set; } = false;
     }
-}

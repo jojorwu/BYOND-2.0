@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     /// <summary>
     /// A dedicated background thread for executing jobs with minimal overhead.
     /// </summary>
@@ -155,4 +154,3 @@ namespace Shared.Services
             _wakeEvent.Dispose();
         }
     }
-}

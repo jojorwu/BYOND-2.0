@@ -1,3 +1,4 @@
+using Shared.Enums;
 ﻿namespace DMCompiler.DM;
 
 /// <summary>

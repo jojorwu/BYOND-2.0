@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Linq;
 using Shared;
 using DMCompiler.DM.Expressions;

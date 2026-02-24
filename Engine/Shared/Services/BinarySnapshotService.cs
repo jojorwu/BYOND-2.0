@@ -5,8 +5,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class BinarySnapshotService
     {
         private readonly StringInterner? _interner;
@@ -212,4 +211,3 @@ namespace Shared.Services
             }
         }
     }
-}

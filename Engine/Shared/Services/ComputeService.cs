@@ -6,8 +6,7 @@ using Microsoft.Extensions.Logging;
 
 using System.Numerics;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class ComputeService : IComputeService, IAsyncInitializable
     {
         private readonly ILogger<ComputeService>? _logger;
@@ -94,4 +93,3 @@ namespace Shared.Services
             return Task.FromResult(data);
         }
     }
-}

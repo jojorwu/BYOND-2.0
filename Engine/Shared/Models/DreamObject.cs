@@ -4,8 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace Shared
-{
+namespace Shared;
     public class DreamObject : IDisposable
     {
         protected readonly object _lock = new();
@@ -134,4 +133,3 @@ namespace Shared
             GC.SuppressFinalize(this);
         }
     }
-}

@@ -1,20 +1,24 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public class EngineManager : IEngineManager
     {
         private string _basePath;
         private const string SettingsFileName = "launcher_settings.json";
         private readonly ILogger<EngineManager>? _logger;
+        private readonly IEnumerable<IAsyncInitializable> _initializableServices;
 
-        public EngineManager(ILogger<EngineManager>? logger = null, string? basePath = null)
+        public EngineManager(IEnumerable<IAsyncInitializable> initializableServices, ILogger<EngineManager>? logger = null, string? basePath = null)
         {
+            _initializableServices = initializableServices;
             _logger = logger;
             _basePath = basePath ?? AppDomain.CurrentDomain.BaseDirectory;
             LoadSettings();
@@ -103,5 +107,24 @@ namespace Shared.Services
         {
             _logger?.LogInformation("Requesting installation of component: {Component}", component);
         }
+
+        public async Task InitializeAsync()
+        {
+            _logger?.LogInformation("Initializing engine services...");
+            foreach (var service in _initializableServices)
+            {
+                _logger?.LogDebug("Initializing service: {ServiceType}", service.GetType().Name);
+                await service.InitializeAsync();
+            }
+            _logger?.LogInformation("Engine initialization complete.");
+        }
+
+        public async Task ShutdownAsync()
+        {
+            _logger?.LogInformation("Shutting down engine services...");
+            // We might want to shutdown in reverse order, but IAsyncInitializable doesn't have ShutdownAsync yet.
+            // If we add IAsyncShutdownable, we can use it here.
+            await Task.CompletedTask;
+            _logger?.LogInformation("Engine shutdown complete.");
+        }
     }
-}

@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Shared.Models;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Defines the priority of a job.
     /// </summary>
@@ -81,4 +80,3 @@ namespace Shared.Interfaces
         /// </summary>
         Task ResetAllArenasAsync();
     }
-}

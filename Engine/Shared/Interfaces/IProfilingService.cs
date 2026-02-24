@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     public interface IProfilingService
     {
         void RecordMetric(string name, double value);
@@ -11,4 +10,3 @@ namespace Shared.Interfaces
     }
 
     public record MetricSummary(double Average, double Min, double Max, long Count);
-}

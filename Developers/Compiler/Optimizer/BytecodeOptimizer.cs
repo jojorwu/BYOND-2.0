@@ -1,3 +1,4 @@
+using Shared.Enums;
 using System.Diagnostics.CodeAnalysis;
 
 namespace DMCompiler.Optimizer;

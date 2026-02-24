@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     /// <summary>
     /// Represents a compiled DM procedure or a native procedure callable from the VM.
     /// </summary>
@@ -10,4 +9,3 @@ namespace Shared
         /// </summary>
         string Name { get; }
     }
-}

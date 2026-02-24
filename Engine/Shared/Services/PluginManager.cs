@@ -4,8 +4,7 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
-namespace Shared.Services
-{
+namespace Shared.Services;
     public interface IPluginManager
     {
         IReadOnlyList<IPlugin> LoadedPlugins { get; }
@@ -55,4 +54,3 @@ namespace Shared.Services
             }
         }
     }
-}

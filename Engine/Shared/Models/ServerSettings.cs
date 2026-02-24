@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public class ServerSettings
     {
         public string ServerName { get; set; } = "BYOND 2.0 Server";
@@ -87,4 +86,3 @@ namespace Shared
     {
         public int ScriptReloadDebounceMs { get; set; } = 200;
     }
-}

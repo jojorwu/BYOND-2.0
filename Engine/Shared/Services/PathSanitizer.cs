@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public static class PathSanitizer
     {
         public static string Sanitize(IProject project, string userProvidedPath, string expectedRootFolder)
@@ -24,4 +23,3 @@ namespace Shared
             return fullUserPath;
         }
     }
-}

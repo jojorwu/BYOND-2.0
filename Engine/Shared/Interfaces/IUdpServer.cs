@@ -1,5 +1,4 @@
-namespace Shared
-{
+namespace Shared;
     public interface IUdpServer
     {
         void BroadcastSnapshot(string snapshot);
@@ -7,4 +6,3 @@ namespace Shared
         void BroadcastSnapshot(MergedRegion region, byte[] snapshot);
         System.Threading.Tasks.Task SendRegionSnapshotAsync(MergedRegion region, System.Collections.Generic.IEnumerable<IGameObject> objects);
     }
-}

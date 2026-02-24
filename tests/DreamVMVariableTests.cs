@@ -1,3 +1,4 @@
+using Shared.Enums;
 using NUnit.Framework;
 using Shared;
 using Core.VM;

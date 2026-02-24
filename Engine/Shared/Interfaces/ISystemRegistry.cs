@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared.Interfaces
-{
+namespace Shared.Interfaces;
     /// <summary>
     /// Central registry for managing the lifecycle and discovery of engine systems.
     /// </summary>
@@ -27,4 +26,3 @@ namespace Shared.Interfaces
         /// </summary>
         ISystem? GetSystem(string systemName);
     }
-}

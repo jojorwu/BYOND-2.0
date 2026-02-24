@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 
-namespace Shared
-{
+namespace Shared;
     public interface IDreamVM
     {
         List<string> Strings { get; }
@@ -14,4 +13,3 @@ namespace Shared
         void Initialize();
         IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null);
     }
-}

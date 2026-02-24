@@ -1,9 +1,9 @@
-namespace Shared
+using Shared.Enums;
+namespace Shared.Enums;
+
+public enum ScriptThreadPriority
 {
-    public enum ScriptThreadPriority
-    {
-        Low = 0,
-        Normal = 1,
-        High = 2
-    }
+    Low,
+    Normal,
+    High
 }

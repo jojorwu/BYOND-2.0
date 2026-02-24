@@ -80,17 +80,47 @@ namespace Shared;
         {
             var key = GetCellKey(obj.X, obj.Y);
             var cell = GetOrCreateCell(key);
-            lock (cell.Lock)
-            {
-                if (obj.CurrentGridCellKey == key) return;
-                if (obj.CurrentGridCellKey != null) RemoveInternal(obj);
 
-                obj.NextInGridCell = cell.Head;
-                obj.PrevInGridCell = null;
-                if (cell.Head != null) cell.Head.PrevInGridCell = obj;
-                cell.Head = obj;
-                obj.CurrentGridCellKey = key;
+            if (obj.CurrentGridCellKey != null)
+            {
+                long oldKey = obj.CurrentGridCellKey.Value;
+                if (oldKey == key) return;
+
+                var oldCell = GetOrCreateCell(oldKey);
+                // Consistent lock ordering to avoid deadlocks
+                if (oldKey < key)
+                {
+                    lock (oldCell.Lock) lock (cell.Lock)
+                    {
+                        RemoveInternal(obj);
+                        AddInternal(obj, cell, key);
+                    }
+                }
+                else
+                {
+                    lock (cell.Lock) lock (oldCell.Lock)
+                    {
+                        RemoveInternal(obj);
+                        AddInternal(obj, cell, key);
+                    }
+                }
             }
+            else
+            {
+                lock (cell.Lock)
+                {
+                    AddInternal(obj, cell, key);
+                }
+            }
+        }
+
+        private void AddInternal(IGameObject obj, Cell cell, long key)
+        {
+            obj.NextInGridCell = cell.Head;
+            obj.PrevInGridCell = null;
+            if (cell.Head != null) cell.Head.PrevInGridCell = obj;
+            cell.Head = obj;
+            obj.CurrentGridCellKey = key;
         }
 
         public void Remove(IGameObject obj)

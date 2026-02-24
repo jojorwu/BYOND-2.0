@@ -21,6 +21,55 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         _hashCode = hash.ToHashCode();
     }
 
+    private ComponentSignature(Type[] types, int hashCode)
+    {
+        Types = types;
+        _hashCode = hashCode;
+    }
+
+    public ComponentSignature With(Type type)
+    {
+        if (Types.Contains(type)) return this;
+
+        var newTypes = new Type[Types.Length + 1];
+        int i = 0;
+        bool inserted = false;
+        long targetHandle = type.TypeHandle.Value.ToInt64();
+
+        foreach (var existing in Types)
+        {
+            if (!inserted && existing.TypeHandle.Value.ToInt64() > targetHandle)
+            {
+                newTypes[i++] = type;
+                inserted = true;
+            }
+            newTypes[i++] = existing;
+        }
+
+        if (!inserted) newTypes[Types.Length] = type;
+
+        var hash = new HashCode();
+        foreach (var t in newTypes) hash.Add(t);
+        return new ComponentSignature(newTypes, hash.ToHashCode());
+    }
+
+    public ComponentSignature Without(Type type)
+    {
+        if (!Types.Contains(type)) return this;
+
+        var newTypes = new Type[Types.Length - 1];
+        int i = 0;
+        foreach (var existing in Types)
+        {
+            if (existing == type) continue;
+            newTypes[i++] = existing;
+        }
+
+        var hash = new HashCode();
+        foreach (var t in newTypes) hash.Add(t);
+        return new ComponentSignature(newTypes, hash.ToHashCode());
+    }
+
     public bool Equals(ComponentSignature other)
     {
         if (Types.Length != other.Types.Length) return false;

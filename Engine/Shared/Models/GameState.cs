@@ -63,6 +63,7 @@ namespace Shared;
         public void AddGameObject(GameObject gameObject)
         {
             GameObjects.TryAdd(gameObject.Id, gameObject);
+            gameObject.PositionChanged += OnObjectPositionChanged;
             using (WriteLock())
             {
                 SpatialGrid.Add(gameObject);
@@ -72,6 +73,7 @@ namespace Shared;
         public void RemoveGameObject(GameObject gameObject)
         {
             GameObjects.TryRemove(gameObject.Id, out _);
+            gameObject.PositionChanged -= OnObjectPositionChanged;
             using (WriteLock())
             {
                 SpatialGrid.Remove(gameObject);
@@ -84,6 +86,11 @@ namespace Shared;
             {
                 SpatialGrid.Update(gameObject, oldX, oldY);
             }
+        }
+
+        private void OnObjectPositionChanged(GameObject obj, int oldX, int oldY, int oldZ)
+        {
+            UpdateGameObject(obj, oldX, oldY);
         }
 
         private sealed class DisposableAction : IDisposable

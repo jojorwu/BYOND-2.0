@@ -12,6 +12,7 @@ namespace Shared.Services;
         void UnregisterHandler(byte packetTypeId);
         void AddMiddleware(IPacketMiddleware middleware);
         Task DispatchAsync(INetworkPeer peer, string data);
+        Task DispatchAsync(INetworkPeer peer, ReadOnlyMemory<byte> data);
     }
 
     public class PacketDispatcher : IPacketDispatcher
@@ -48,13 +49,20 @@ namespace Shared.Services;
         public async Task DispatchAsync(INetworkPeer peer, string data)
         {
             if (string.IsNullOrEmpty(data)) return;
+            await DispatchAsync(peer, System.Text.Encoding.UTF8.GetBytes(data).AsMemory());
+        }
+
+        public async Task DispatchAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
+        {
+            if (data.IsEmpty) return;
 
             // Simple protocol: first byte is the packet type ID
-            byte typeId = (byte)data[0];
+            byte typeId = data.Span[0];
+            var payload = data.Slice(1);
 
-            // Avoid Substring allocation by using Span/Memory if the downstream supports it.
-            // For now, keeping Substring but noting it as an architectural point.
-            string payload = data.Length > 1 ? data.Substring(1) : string.Empty;
+            // Note: PacketContext might need to be updated to support binary payloads.
+            // For now, if we have handlers that expect string, we convert.
+            // Architectural goal: move all handlers to binary.
 
             var context = new PacketContext(peer, typeId, payload);
 
@@ -68,11 +76,12 @@ namespace Shared.Services;
 
             if (_handlers.TryGetValue(context.TypeId, out var handler))
             {
-                // Offload packet handling to the JobSystem for parallel processing
-                // Use track: false to prevent memory leaks as we don't await these jobs in the game loop
+                // Offload packet handling to the JobSystem for parallel processing.
+                // We copy the payload because the underlying network buffer might be reused.
+                var payloadCopy = context.Payload.ToArray().AsMemory();
                 _jobSystem.Schedule(async () =>
                 {
-                    await handler.HandleAsync(context.Peer, context.Payload);
+                    await handler.HandleAsync(context.Peer, payloadCopy);
                 }, track: false);
             }
         }

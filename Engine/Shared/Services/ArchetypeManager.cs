@@ -101,7 +101,7 @@ public class ArchetypeManager : IArchetypeManager
                 }
             }
 
-            MoveToArchetypeInternal(entity);
+            MoveToArchetypeInternal(entity, componentType, true);
 
             // Build transition edge
             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
@@ -138,7 +138,7 @@ public class ArchetypeManager : IArchetypeManager
                     else
                     {
                         var oldArchetype = currentArchetype;
-                        MoveToArchetypeInternal(entity);
+                        MoveToArchetypeInternal(entity, componentType, false);
                         // Build transition edge
                         if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
                         {
@@ -151,7 +151,7 @@ public class ArchetypeManager : IArchetypeManager
         }
     }
 
-    private void MoveToArchetypeInternal(IGameObject entity)
+    private void MoveToArchetypeInternal(IGameObject entity, Type? componentType = null, bool added = true)
     {
         int entityId = entity.Id;
         if (!_entityComponents.TryGetValue(entityId, out var components)) return;
@@ -166,8 +166,16 @@ public class ArchetypeManager : IArchetypeManager
             return;
         }
 
-        // High-performance signature generation
-        var signature = new ComponentSignature(components.Keys);
+        _entityToArchetype.TryGetValue(entityId, out var oldArchetype);
+        ComponentSignature signature;
+        if (oldArchetype != null && componentType != null)
+        {
+            signature = added ? oldArchetype.Signature.With(componentType) : oldArchetype.Signature.Without(componentType);
+        }
+        else
+        {
+            signature = new ComponentSignature(components.Keys);
+        }
 
         // Find or create archetype
         Archetype targetArchetype;
@@ -195,7 +203,7 @@ public class ArchetypeManager : IArchetypeManager
         }
 
         // Remove from old
-        if (_entityToArchetype.TryGetValue(entityId, out var oldArchetype))
+        if (oldArchetype != null)
         {
             if (oldArchetype == targetArchetype) return;
             oldArchetype.RemoveEntity(entityId);

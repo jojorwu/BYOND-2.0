@@ -1,5 +1,8 @@
 using System.Threading.Tasks;
 
+using System;
+using System.Threading.Tasks;
+
 namespace Shared.Interfaces;
     /// <summary>
     /// Handles a specific type of network packet.
@@ -8,4 +11,5 @@ namespace Shared.Interfaces;
     {
         byte PacketTypeId { get; }
         Task HandleAsync(INetworkPeer peer, string data);
+        Task HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data);
     }

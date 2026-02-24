@@ -41,6 +41,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
+    internal event Action<GameObject, int, int, int>? PositionChanged;
+
     public IGameObject? NextInGridCell { get; set; }
     public IGameObject? PrevInGridCell { get; set; }
     public long? CurrentGridCellKey { get; set; }
@@ -55,14 +57,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         get { lock (_stateLock) return _x; }
         set
         {
+            int oldX, oldY, oldZ;
             lock (_stateLock)
             {
-                if (_x != value)
-                {
-                    _x = value;
-                    SyncVariable("x", value);
-                }
+                if (_x == value) return;
+                oldX = _x; oldY = _y; oldZ = _z;
+                _x = value;
+                SyncVariable("x", value);
             }
+            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
         }
     }
 
@@ -81,14 +84,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         get { lock (_stateLock) return _y; }
         set
         {
+            int oldX, oldY, oldZ;
             lock (_stateLock)
             {
-                if (_y != value)
-                {
-                    _y = value;
-                    SyncVariable("y", value);
-                }
+                if (_y == value) return;
+                oldX = _x; oldY = _y; oldZ = _z;
+                _y = value;
+                SyncVariable("y", value);
             }
+            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
         }
     }
 
@@ -107,14 +111,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         get { lock (_stateLock) return _z; }
         set
         {
+            int oldX, oldY, oldZ;
             lock (_stateLock)
             {
-                if (_z != value)
-                {
-                    _z = value;
-                    SyncVariable("z", value);
-                }
+                if (_z == value) return;
+                oldX = _x; oldY = _y; oldZ = _z;
+                _z = value;
+                SyncVariable("z", value);
             }
+            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
         }
     }
 

@@ -47,7 +47,7 @@ namespace tests
             _vm.Strings.Add("myVar");
             var type = new ObjectType(0, "/");
             type.VariableNames.Add("myVar");
-            type.FlattenedDefaultValues.Add(null);
+            type.FlattenedDefaultValues.Add(DreamValue.Null);
 
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);

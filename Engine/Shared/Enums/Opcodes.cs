@@ -326,6 +326,10 @@ public enum Opcode : byte {
     LocalPushReturn = 0xA6,
     [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
     LocalCompareEquals = 0xA7,
+    [OpcodeMetadata(0, OpcodeArgType.ArgType, OpcodeArgType.Label)]
+    LocalJumpIfFalse = 0xA8,
+    [OpcodeMetadata(0, OpcodeArgType.ArgType, OpcodeArgType.Label)]
+    LocalJumpIfTrue = 0xA9,
 }
 
 public enum OpcodeArgType {

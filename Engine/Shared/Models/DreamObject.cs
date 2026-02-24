@@ -35,9 +35,13 @@ namespace Shared;
                 }
 
                 int defaultCount = objectType.FlattenedDefaultValues.Count;
-                for (int i = 0; i < defaultCount && i < _variableValues.Length; i++)
+                if (defaultCount > 0 && _variableValues.Length >= defaultCount)
                 {
-                    _variableValues[i] = DreamValue.FromObject(objectType.FlattenedDefaultValues[i]);
+                    var defaults = objectType.FlattenedDefaultValues;
+                    for (int i = 0; i < defaultCount; i++)
+                    {
+                        _variableValues[i] = defaults[i];
+                    }
                 }
             }
             else

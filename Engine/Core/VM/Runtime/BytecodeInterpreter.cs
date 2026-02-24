@@ -343,6 +343,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.SetBuiltinVar] = &HandleSetBuiltinVar;
         table[(byte)Opcode.LocalPushReturn] = &HandleLocalPushReturn;
         table[(byte)Opcode.LocalCompareEquals] = &HandleLocalCompareEquals;
+        table[(byte)Opcode.LocalJumpIfFalse] = &HandleLocalJumpIfFalse;
+        table[(byte)Opcode.LocalJumpIfTrue] = &HandleLocalJumpIfTrue;
 
         return table;
     }
@@ -1086,7 +1088,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             {
                 int index = obj.ObjectType.GetVariableIndex(varName);
                 if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
-                    result = DreamValue.FromObject(obj.ObjectType.FlattenedDefaultValues[index]);
+                    result = obj.ObjectType.FlattenedDefaultValues[index];
             }
         }
         state.Push(result);
@@ -1759,5 +1761,23 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var a = state.Stack[state.LocalBase + idx1];
         var b = state.Stack[state.LocalBase + idx2];
         state.Push(a == b ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadByte();
+        int address = state.ReadInt32();
+        if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+        var val = state.Stack[state.LocalBase + idx];
+        if (val.IsFalse()) state.PC = address;
+    }
+
+    private static void HandleLocalJumpIfTrue(ref InterpreterState state)
+    {
+        int idx = state.ReadByte();
+        int address = state.ReadInt32();
+        if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+        var val = state.Stack[state.LocalBase + idx];
+        if (!val.IsFalse()) state.PC = address;
     }
 }

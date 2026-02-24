@@ -69,7 +69,7 @@ namespace tests
             type.FlattenedDefaultValues.Add(0f);
             type.FlattenedDefaultValues.Add(0f);
             type.FlattenedDefaultValues.Add(0f);
-            type.FlattenedDefaultValues.Add(null);
+            type.FlattenedDefaultValues.Add(DreamValue.Null);
 
             var obj = new GameObject(type);
             obj.SetVariable(0, 100f); // x

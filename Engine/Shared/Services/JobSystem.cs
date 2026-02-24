@@ -272,6 +272,12 @@ namespace Shared.Services;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 
+            if (count <= 1)
+            {
+                for (int i = 0; i < count; i++) action(list[i], i);
+                return;
+            }
+
             if (count <= BatchSize)
             {
                 foreach (var item in list) Schedule(() => action(item), priority: priority);
@@ -299,6 +305,12 @@ namespace Shared.Services;
             const int BatchSize = 32;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
+
+            if (count <= 1)
+            {
+                foreach (var item in list) action(item);
+                return;
+            }
 
             if (count <= BatchSize)
             {

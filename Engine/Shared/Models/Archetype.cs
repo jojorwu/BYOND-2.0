@@ -174,6 +174,17 @@ public class Archetype
         }
     }
 
+    internal void SetComponentInternal(int index, Type type, IComponent component)
+    {
+        if (_componentArrays.TryGetValue(type, out var array))
+        {
+            lock (_lock)
+            {
+                array.Set(index, component);
+            }
+        }
+    }
+
     public void ForEachEntity(Action<IGameObject> action)
     {
         lock (_lock)

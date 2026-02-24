@@ -123,6 +123,18 @@ namespace Core.VM.Utils
 
                     // Peek for next instruction
                     int postPushPc = pc + 3;
+                    if (postPushPc + 4 < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(postPushPc, 5))
+                    {
+                        MarkPcMap(pc, postPushPc + 5, optimized.Count);
+                        optimized.Add((byte)Opcode.LocalJumpIfFalse);
+                        optimized.Add(idx);
+                        _labelLocations.Add(optimized.Count);
+                        optimized.AddRange(bytecode.AsSpan(postPushPc + 1, 4));
+                        pc = postPushPc + 5;
+                        continue;
+                    }
+
+
                     if (postPushPc < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.Return && !IsJumpTarget(postPushPc, 1))
                     {
                         MarkPcMap(pc, postPushPc + 1, optimized.Count);

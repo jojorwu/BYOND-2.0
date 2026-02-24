@@ -14,7 +14,7 @@ public class ObjectType
     public ObjectType? Parent { get; set; }
     public Dictionary<string, object?> DefaultProperties { get; set; }
     public List<string> VariableNames { get; } = new();
-    public List<object?> FlattenedDefaultValues { get; } = new();
+    public List<DreamValue> FlattenedDefaultValues { get; } = new();
     public Dictionary<string, IDreamProc> Procs { get; } = new();
     public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
     private Dictionary<string, int>? _variableIndices;

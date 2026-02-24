@@ -44,7 +44,7 @@ namespace tests
             objectType.VariableNames.Add("SpritePath");
             objectType.FlattenedDefaultValues.Add("default.png");
             objectType.VariableNames.Add("InstanceProp");
-            objectType.FlattenedDefaultValues.Add(null);
+            objectType.FlattenedDefaultValues.Add(DreamValue.Null);
 
             _objectTypeManager.RegisterObjectType(objectType);
 

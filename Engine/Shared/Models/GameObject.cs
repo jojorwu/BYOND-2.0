@@ -536,7 +536,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (Archetype is Archetype arch)
         {
-            return arch.GetComponentsInternal<T>()[ArchetypeIndex];
+            var components = arch.GetComponentsInternal<T>();
+            if (ArchetypeIndex >= 0 && ArchetypeIndex < components.Length)
+            {
+                return components[ArchetypeIndex];
+            }
+            return null;
         }
         return _componentManager?.GetComponent<T>(this);
     }

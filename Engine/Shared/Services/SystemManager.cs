@@ -16,10 +16,11 @@ public interface ISystemManager
     Task TickAsync();
 }
 
-public class SystemManager : ISystemManager
+public class SystemManager : ISystemManager, IAsyncDisposable
 {
+    private static readonly ExecutionPhase[] Phases = System.Enum.GetValues<ExecutionPhase>();
     private readonly ISystemRegistry _registry;
-    private Dictionary<ExecutionPhase, List<List<ISystem>>> _phaseExecutionLayers = new();
+    private readonly List<List<ISystem>>?[] _phaseExecutionLayers = new List<List<ISystem>>[Phases.Length];
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
     private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
@@ -89,15 +90,16 @@ public class SystemManager : ISystemManager
 
     private void RebuildExecutionLayers()
     {
-        _phaseExecutionLayers.Clear();
+        System.Array.Clear(_phaseExecutionLayers);
         var allSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
 
-        foreach (ExecutionPhase phase in System.Enum.GetValues(typeof(ExecutionPhase)))
+        for (int i = 0; i < Phases.Length; i++)
         {
+            var phase = Phases[i];
             var systemsInPhase = allSystems.Where(s => s.Phase == phase).ToList();
             if (systemsInPhase.Count > 0)
             {
-                _phaseExecutionLayers[phase] = CalculateExecutionLayers(systemsInPhase);
+                _phaseExecutionLayers[i] = CalculateExecutionLayers(systemsInPhase);
             }
         }
         _isDirty = false;
@@ -249,8 +251,6 @@ public class SystemManager : ISystemManager
             RebuildExecutionLayers();
         }
 
-        var enabledSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
-
         using (_profilingService.Measure("SystemManager.Tick"))
         {
             // Module Pre-Tick
@@ -260,11 +260,12 @@ public class SystemManager : ISystemManager
             }
 
             // Execute Phases
-            foreach (ExecutionPhase phase in System.Enum.GetValues(typeof(ExecutionPhase)))
+            for (int i = 0; i < Phases.Length; i++)
             {
-                if (!_phaseExecutionLayers.TryGetValue(phase, out var layers)) continue;
+                var layers = _phaseExecutionLayers[i];
+                if (layers == null) continue;
 
-                using (_profilingService.Measure($"SystemManager.Phase.{phase}"))
+                using (_profilingService.Measure($"SystemManager.Phase.{Phases[i]}"))
                 {
                     foreach (var layer in layers)
                     {
@@ -288,11 +289,11 @@ public class SystemManager : ISystemManager
                         }
                         else
                         {
-                            var ecbs = new ConcurrentBag<EntityCommandBuffer>();
-                            await _jobSystem.ForEachAsync(layer, system =>
+                            var ecbArray = new EntityCommandBuffer[layer.Count];
+                            await _jobSystem.ForEachAsync(layer, (system, index) =>
                             {
                                 var ecb = _ecbPool.Rent();
-                                ecbs.Add(ecb);
+                                ecbArray[index] = ecb;
                                 ExecuteSystem(system, ecb);
                             });
 
@@ -300,8 +301,9 @@ public class SystemManager : ISystemManager
 
                             using (_profilingService.Measure("SystemManager.ECBPlayback"))
                             {
-                                foreach (var ecb in ecbs)
+                                for (int j = 0; j < ecbArray.Length; j++)
                                 {
+                                    var ecb = ecbArray[j];
                                     ecb.Playback();
                                     _ecbPool.Return(ecb);
                                 }
@@ -344,5 +346,14 @@ public class SystemManager : ISystemManager
                 _jobSystem.Schedule(job);
             }
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var system in _registry.GetSystems())
+        {
+            await system.ShutdownAsync();
+        }
+        GC.SuppressFinalize(this);
     }
 }

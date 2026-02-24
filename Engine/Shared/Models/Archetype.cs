@@ -174,6 +174,19 @@ public class Archetype
         }
     }
 
+    public void ForEachEntity(Action<IGameObject> action)
+    {
+        lock (_lock)
+        {
+            var entities = _entities;
+            int count = _count;
+            for (int i = 0; i < count; i++)
+            {
+                action(entities[i]);
+            }
+        }
+    }
+
     public IEnumerable<T> GetComponents<T>() where T : class, IComponent
     {
         T[] data;

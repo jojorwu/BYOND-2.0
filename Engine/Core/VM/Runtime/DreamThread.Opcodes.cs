@@ -504,20 +504,30 @@ public partial class DreamThread
         }
 
         int baseIdx = _stackPtr - count;
-        var strings = new string[count];
-        long totalLength = 0;
-        for (int i = 0; i < count; i++)
+        var strings = System.Buffers.ArrayPool<string>.Shared.Rent(count);
+        try
         {
-            strings[i] = _stack[baseIdx + i].ToString();
-            totalLength += strings[i].Length;
+            long totalLength = 0;
+            for (int i = 0; i < count; i++)
+            {
+                strings[i] = _stack[baseIdx + i].ToString();
+                totalLength += strings[i].Length;
+            }
+
+            if (totalLength > 67108864)
+                throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, this);
+
+            _stackPtr -= count;
+            Push(new DreamValue(string.Concat(strings.AsSpan(0, count))));
         }
-
-        if (totalLength > 67108864)
-            throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, this);
-
-        _stackPtr -= count;
-        Push(new DreamValue(string.Concat(strings)));
+        finally
+        {
+            System.Array.Clear(strings, 0, count);
+            System.Buffers.ArrayPool<string>.Shared.Return(strings);
+        }
     }
+
+    private static readonly ThreadLocal<System.Text.StringBuilder> _formatStringBuilder = new(() => new System.Text.StringBuilder(256));
 
     internal void Opcode_FormatString(DreamProc proc, ref int pc)
     {
@@ -529,13 +539,12 @@ public partial class DreamThread
             throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, this);
         var formatString = Context.Strings[stringId];
 
-        var values = new DreamValue[formatCount];
-        for (int i = formatCount - 1; i >= 0; i--)
-        {
-            values[i] = Pop();
-        }
+        var values = _stack.AsSpan(_stackPtr - formatCount, formatCount);
 
-        var result = new System.Text.StringBuilder(formatString.Length + formatCount * 8);
+        var result = _formatStringBuilder.Value!;
+        result.Clear();
+        if (result.Capacity < formatString.Length + formatCount * 8) result.Capacity = formatString.Length + formatCount * 8;
+
         int valueIndex = 0;
 
         for (int i = 0; i < formatString.Length; i++)
@@ -547,13 +556,11 @@ public partial class DreamThread
                 {
                     if (valueIndex < values.Length)
                     {
-                        // Basic interpolation for now
                         result.Append(values[valueIndex++].ToString());
                         if (result.Length > 67108864)
                             throw new ScriptRuntimeException("Maximum string length exceeded during formatting", proc, pc, this);
                     }
                 }
-                // Handle other macros if needed (The, the, etc.)
             }
             else
             {
@@ -561,6 +568,7 @@ public partial class DreamThread
             }
         }
 
+        _stackPtr -= formatCount;
         Push(new DreamValue(result.ToString()));
     }
 
@@ -603,13 +611,10 @@ public partial class DreamThread
             throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, this);
 
         var argCount = argStackDelta - 1;
-        var values = new DreamValue[argCount];
-        for (int i = argCount - 1; i >= 0; i--)
-        {
-            values[i] = Pop();
-        }
+        // Use span to avoid allocation
+        var values = _stack.AsSpan(_stackPtr - argCount, argCount);
+        var typeValue = _stack[_stackPtr - argStackDelta];
 
-        var typeValue = Pop();
         if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
         {
             GameObject newObj;
@@ -624,10 +629,14 @@ public partial class DreamThread
 
             Context.GameState?.AddGameObject(newObj);
 
+            // Pop type and args
+            _stackPtr -= argStackDelta;
+
             Push(new DreamValue(newObj));
 
             if (argCount > 0)
             {
+                // In DM, the first argument to the constructor is often the location
                 var locValue = values[0];
                 if (locValue.TryGetValueAsGameObject(out var locObj))
                 {
@@ -638,7 +647,9 @@ public partial class DreamThread
             var newProc = newObj.ObjectType?.GetProc("New");
             if (newProc != null)
             {
-                // Push arguments for New
+                // Push arguments back for New call
+                // values are in reverse order of pushing (top-to-bottom)
+                // We need to push them such that the first arg is at the bottom of the new call's stack.
                 for (int i = 0; i < argCount; i++)
                 {
                     Push(values[i]);
@@ -649,6 +660,7 @@ public partial class DreamThread
         }
         else
         {
+            _stackPtr -= argStackDelta;
             Push(DreamValue.Null);
         }
     }

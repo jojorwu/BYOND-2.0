@@ -78,10 +78,20 @@ namespace Shared.Services;
             {
                 // Offload packet handling to the JobSystem for parallel processing.
                 // We copy the payload because the underlying network buffer might be reused.
-                var payloadCopy = context.Payload.ToArray().AsMemory();
+                var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(context.Payload.Length);
+                context.Payload.CopyTo(buffer);
+                var payloadCopy = new ReadOnlyMemory<byte>(buffer, 0, context.Payload.Length);
+
                 _jobSystem.Schedule(async () =>
                 {
-                    await handler.HandleAsync(context.Peer, payloadCopy);
+                    try
+                    {
+                        await handler.HandleAsync(context.Peer, payloadCopy);
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                    }
                 }, track: false);
             }
         }

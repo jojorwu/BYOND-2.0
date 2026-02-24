@@ -26,6 +26,7 @@ public interface IArchetypeManager
     IEnumerable<IComponent> GetAllComponents(int entityId);
     IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes);
     void ForEach<T>(Action<T, int> action) where T : class, IComponent;
+    void ForEachEntity(Action<IGameObject> action);
     void Compact();
 }
 
@@ -108,6 +109,17 @@ public class ArchetypeManager : IArchetypeManager
             {
                 currentArchetype.AddTransitions.TryAdd(componentType, newArchetype);
                 newArchetype.RemoveTransitions.TryAdd(componentType, currentArchetype);
+            }
+        }
+    }
+
+    public void ForEachEntity(Action<IGameObject> action)
+    {
+        lock (_archetypes)
+        {
+            foreach (var archetype in _archetypes)
+            {
+                archetype.ForEachEntity(action);
             }
         }
     }

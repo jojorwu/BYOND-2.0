@@ -68,6 +68,11 @@ namespace Shared.Interfaces;
         /// <summary>
         /// Executes a collection of items in parallel using the job system.
         /// </summary>
+        Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal);
+
+        /// <summary>
+        /// Executes a collection of items in parallel using the job system.
+        /// </summary>
         Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal);
 
         /// <summary>

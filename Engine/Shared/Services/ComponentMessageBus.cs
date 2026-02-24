@@ -35,12 +35,12 @@ namespace Shared.Services;
 
         public void BroadcastMessage(IComponentMessage message)
         {
-            // Simple broadcast for now
             if (_componentManager is ComponentManager cm)
             {
-                cm.ArchetypeManager.Compact();
+                cm.ArchetypeManager.ForEachEntity(entity =>
+                {
+                    entity.SendMessage(message);
+                });
             }
-
-            // This is a slow path, architectural improvement would be to use interest groups
         }
     }

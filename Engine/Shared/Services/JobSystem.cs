@@ -8,7 +8,7 @@ using Shared.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class JobSystem : IJobSystem, IDisposable
+    public class JobSystem : IJobSystem, IDisposable, IAsyncDisposable
     {
         private const int MaxTrackedJobs = 10000;
         private volatile WorkerThread[] _workers;
@@ -294,6 +294,38 @@ namespace Shared.Services;
             await CompleteAllAsync();
         }
 
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
+        {
+            const int BatchSize = 32;
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+
+            if (count <= BatchSize)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    int index = i;
+                    Schedule(() => action(list[index], index), priority: priority);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, count);
+                    Schedule(() =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            action(list[j], j);
+                        }
+                    }, priority: priority);
+                }
+            }
+            await CompleteAllAsync();
+        }
+
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
         {
             const int BatchSize = 32;
@@ -339,6 +371,20 @@ namespace Shared.Services;
             {
                 worker.Dispose();
             }
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _maintenanceTimer.Dispose();
+            foreach (var worker in _workers)
+            {
+                // Each worker disposal involves joining its thread, so we can do this in parallel
+                _ = Task.Run(() => worker.Dispose());
+            }
+            // Wait a bit for workers to finish current jobs if any
+            await Task.Delay(100);
+            GC.SuppressFinalize(this);
         }
 
         private class TrackingJob : IJob

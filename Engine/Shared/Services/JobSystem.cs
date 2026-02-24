@@ -112,7 +112,7 @@ namespace Shared.Services;
 
             var currentWorkers = _workers;
             int count = currentWorkers.Length;
-            int index;
+            int index = 0;
 
             int preferred = job.PreferredWorkerId;
             if (preferred >= 0 && preferred < count)
@@ -121,6 +121,21 @@ namespace Shared.Services;
             }
             else if (count > 1)
             {
+                // Heuristic: Prefer current worker if it's not overloaded, to improve cache locality
+                var currentWorker = WorkerThread.Current;
+                if (currentWorker != null && currentWorker.ApproximateJobCount < 10)
+                {
+                    // Find index of current worker
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (currentWorkers[i] == currentWorker)
+                        {
+                            index = i;
+                            goto Enqueue;
+                        }
+                    }
+                }
+
                 // Power of Two Choices for better load balancing using Total Weight
                 int i1 = Random.Shared.Next(count);
                 int i2 = Random.Shared.Next(count);
@@ -128,10 +143,8 @@ namespace Shared.Services;
 
                 index = currentWorkers[i1].ApproximateTotalWeight <= currentWorkers[i2].ApproximateTotalWeight ? i1 : i2;
             }
-            else
-            {
-                index = 0;
-            }
+
+        Enqueue:
 
             currentWorkers[index].Enqueue(finalJob);
             return new JobHandle(tcs.Task);

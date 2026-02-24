@@ -8,11 +8,13 @@ using Shared.Models;
 namespace Shared.Services;
     public class ComponentQueryService : IComponentQueryService
     {
-        private class QueryResult
+        private class QueryResult : IEntityQuery
         {
             public readonly HashSet<IGameObject> Set = new();
-            public volatile IGameObject[] Snapshot = System.Array.Empty<IGameObject>();
+            public volatile IGameObject[] SnapshotArray = System.Array.Empty<IGameObject>();
             public readonly object Lock = new();
+
+            public IReadOnlyList<IGameObject> Snapshot => SnapshotArray;
 
             public void Update(IGameObject obj, bool add)
             {
@@ -20,11 +22,11 @@ namespace Shared.Services;
                 {
                     if (add)
                     {
-                        if (Set.Add(obj)) Snapshot = Set.ToArray();
+                        if (Set.Add(obj)) SnapshotArray = Set.ToArray();
                     }
                     else
                     {
-                        if (Set.Remove(obj)) Snapshot = Set.ToArray();
+                        if (Set.Remove(obj)) SnapshotArray = Set.ToArray();
                     }
                 }
             }
@@ -34,9 +36,17 @@ namespace Shared.Services;
                 lock (Lock)
                 {
                     foreach (var obj in objects) Set.Add(obj);
-                    Snapshot = Set.ToArray();
+                    SnapshotArray = Set.ToArray();
                 }
             }
+
+            public IEnumerator<IGameObject> GetEnumerator()
+            {
+                var snapshot = SnapshotArray;
+                for (int i = 0; i < snapshot.Length; i++) yield return snapshot[i];
+            }
+
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
         private readonly IComponentManager _componentManager;
@@ -61,19 +71,18 @@ namespace Shared.Services;
 
         public IEnumerable<IGameObject> Query(params Type[] componentTypes)
         {
-            if (componentTypes == null || componentTypes.Length == 0)
-                return Enumerable.Empty<IGameObject>();
+            return GetQuery(componentTypes);
+        }
 
-            if (componentTypes.Length == 1)
-            {
-                var type = componentTypes[0];
-                return _componentManager.GetComponents(type).Select(c => c.Owner).Where(o => o != null)!;
-            }
+        public IEntityQuery GetQuery(params Type[] componentTypes)
+        {
+            if (componentTypes == null || componentTypes.Length == 0)
+                return new QueryResult(); // Empty
 
             var key = new ComponentSignature(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
             {
-                return cached.Snapshot;
+                return cached;
             }
 
             // Perform full query and cache result
@@ -88,10 +97,10 @@ namespace Shared.Services;
                 {
                     _typeToCacheKeys.AddOrUpdate(type, _ => new List<ComponentSignature> { key }, (_, list) => { lock (list) { list.Add(key); } return list; });
                 }
-                return queryResult.Snapshot;
+                return queryResult;
             }
 
-            return _queryCache[key].Snapshot;
+            return _queryCache[key];
         }
 
         private IEnumerable<IGameObject> PerformFullQuery(Type[] componentTypes)

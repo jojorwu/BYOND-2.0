@@ -9,6 +9,7 @@ public class EntityQuery : IEnumerable<IGameObject>
 {
     private readonly IComponentQueryService _queryService;
     private readonly Type[] _componentTypes;
+    private IEntityQuery? _cachedQuery;
 
     public EntityQuery(IComponentQueryService queryService, params Type[] componentTypes)
     {
@@ -16,8 +17,12 @@ public class EntityQuery : IEnumerable<IGameObject>
         _componentTypes = componentTypes;
     }
 
-    public IEnumerator<IGameObject> GetEnumerator() => _queryService.Query(_componentTypes).GetEnumerator();
+    private IEntityQuery Query => _cachedQuery ??= _queryService.GetQuery(_componentTypes);
+
+    public IEnumerator<IGameObject> GetEnumerator() => Query.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public IReadOnlyList<IGameObject> Snapshot => Query.Snapshot;
 }
 
 public class EntityQuery<T1> : EntityQuery where T1 : class, IComponent

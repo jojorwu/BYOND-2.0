@@ -67,6 +67,16 @@ namespace Core.VM.Utils
                     if (IsPushLocal(bytecode, nextPc, out byte idx2) && !IsJumpTarget(nextPc, 3))
                     {
                         int nextNextPc = nextPc + 3;
+                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.CompareEquals && !IsJumpTarget(nextNextPc, 1))
+                        {
+                            MarkPcMap(pc, nextNextPc + 1, optimized.Count);
+                            optimized.Add((byte)Opcode.LocalCompareEquals);
+                            optimized.Add(idx);
+                            optimized.Add(idx2);
+                            pc = nextNextPc + 1;
+                            continue;
+                        }
+
                         if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Add && !IsJumpTarget(nextNextPc, 1))
                         {
                             MarkPcMap(pc, nextNextPc + 1, optimized.Count);
@@ -109,6 +119,17 @@ namespace Core.VM.Utils
                             pc = addPc + 1;
                             continue;
                         }
+                    }
+
+                    // Peek for next instruction
+                    int postPushPc = pc + 3;
+                    if (postPushPc < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.Return && !IsJumpTarget(postPushPc, 1))
+                    {
+                        MarkPcMap(pc, postPushPc + 1, optimized.Count);
+                        optimized.Add((byte)Opcode.LocalPushReturn);
+                        optimized.Add(idx);
+                        pc = postPushPc + 1;
+                        continue;
                     }
 
                     // Otherwise just optimize to PushLocal

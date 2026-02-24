@@ -12,6 +12,7 @@ namespace Shared.Services;
 
 public interface IArchetypeManager
 {
+    event EventHandler<Archetype>? ArchetypeCreated;
     void AddEntity(IGameObject entity);
     void RemoveEntity(int entityId);
     void AddComponent<T>(IGameObject entity, T component) where T : class, IComponent;
@@ -32,6 +33,7 @@ public interface IArchetypeManager
 
 public class ArchetypeManager : IArchetypeManager
 {
+    public event EventHandler<Archetype>? ArchetypeCreated;
     private readonly List<Archetype> _archetypes = new();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
@@ -198,6 +200,8 @@ public class ArchetypeManager : IArchetypeManager
                 targetArchetype = new Archetype(signature);
                 _archetypes.Add(targetArchetype);
                 _signatureToArchetype[signature] = targetArchetype;
+
+                ArchetypeCreated?.Invoke(this, targetArchetype);
 
                 foreach (var type in signature.Types)
                 {

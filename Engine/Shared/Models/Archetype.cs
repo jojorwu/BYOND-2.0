@@ -293,4 +293,15 @@ public class Archetype
             return snapshot;
         }
     }
+
+    public IGameObject[] GetEntitiesSnapshot()
+    {
+        lock (_lock)
+        {
+            int count = _count;
+            IGameObject[] snapshot = new IGameObject[count];
+            Array.Copy(_entities, snapshot, count);
+            return snapshot;
+        }
+    }
 }

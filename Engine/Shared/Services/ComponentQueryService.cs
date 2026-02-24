@@ -10,40 +10,50 @@ namespace Shared.Services;
     {
         private class QueryResult : IEntityQuery
         {
-            public readonly HashSet<IGameObject> Set = new();
-            public volatile IGameObject[] SnapshotArray = System.Array.Empty<IGameObject>();
+            public readonly List<Archetype> Archetypes = new();
             public readonly object Lock = new();
+            private readonly IGameState? _gameState;
 
-            public IReadOnlyList<IGameObject> Snapshot => SnapshotArray;
+            public QueryResult(IGameState? gameState)
+            {
+                _gameState = gameState;
+            }
 
-            public void Update(IGameObject obj, bool add)
+            public IReadOnlyList<IGameObject> Snapshot => BuildSnapshot();
+
+            public IEnumerable<Archetype> GetMatchingArchetypes()
             {
                 lock (Lock)
                 {
-                    if (add)
-                    {
-                        if (Set.Add(obj)) SnapshotArray = Set.ToArray();
-                    }
-                    else
-                    {
-                        if (Set.Remove(obj)) SnapshotArray = Set.ToArray();
-                    }
+                    return Archetypes.ToList();
                 }
             }
 
-            public void Initialize(IEnumerable<IGameObject> objects)
+            private IReadOnlyList<IGameObject> BuildSnapshot()
             {
+                var results = new List<IGameObject>();
                 lock (Lock)
                 {
-                    foreach (var obj in objects) Set.Add(obj);
-                    SnapshotArray = Set.ToArray();
+                    foreach (var arch in Archetypes)
+                    {
+                        results.AddRange(arch.GetEntitiesSnapshot());
+                    }
                 }
+                return results;
             }
 
             public IEnumerator<IGameObject> GetEnumerator()
             {
-                var snapshot = SnapshotArray;
-                for (int i = 0; i < snapshot.Length; i++) yield return snapshot[i];
+                List<Archetype> archetypesCopy;
+                lock (Lock) archetypesCopy = Archetypes.ToList();
+
+                foreach (var arch in archetypesCopy)
+                {
+                    foreach (var entity in arch.GetEntitiesSnapshot())
+                    {
+                        yield return entity;
+                    }
+                }
             }
 
             System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
@@ -54,14 +64,16 @@ namespace Shared.Services;
         private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
         private readonly ConcurrentDictionary<ComponentSignature, Type[]> _cacheKeyToTypes = new();
-        private readonly ConcurrentDictionary<Type, List<ComponentSignature>> _typeToCacheKeys = new();
 
         public ComponentQueryService(IComponentManager componentManager, IGameState? gameState = null)
         {
             _componentManager = componentManager;
             _gameState = gameState;
-            _componentManager.ComponentAdded += OnComponentAdded;
-            _componentManager.ComponentRemoved += OnComponentRemoved;
+
+            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
+            {
+                am.ArchetypeCreated += OnArchetypeCreated;
+            }
         }
 
         public IEnumerable<IGameObject> Query<T>() where T : class, IComponent
@@ -77,7 +89,7 @@ namespace Shared.Services;
         public IEntityQuery GetQuery(params Type[] componentTypes)
         {
             if (componentTypes == null || componentTypes.Length == 0)
-                return new QueryResult(); // Empty
+                return new QueryResult(_gameState); // Empty
 
             var key = new ComponentSignature(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
@@ -85,60 +97,53 @@ namespace Shared.Services;
                 return cached;
             }
 
-            // Perform full query and cache result
-            var results = PerformFullQuery(componentTypes);
-            var queryResult = new QueryResult();
-            queryResult.Initialize(results);
+            var queryResult = new QueryResult(_gameState);
+            _cacheKeyToTypes[key] = componentTypes.ToArray();
+
+            // Initial population
+            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
+            {
+                var matchingArchetypes = am.GetArchetypesWithComponents(componentTypes);
+                lock (queryResult.Lock)
+                {
+                    queryResult.Archetypes.AddRange(matchingArchetypes);
+                }
+            }
 
             if (_queryCache.TryAdd(key, queryResult))
             {
-                _cacheKeyToTypes[key] = componentTypes.ToArray();
-                foreach (var type in componentTypes)
-                {
-                    _typeToCacheKeys.AddOrUpdate(type, _ => new List<ComponentSignature> { key }, (_, list) => { lock (list) { list.Add(key); } return list; });
-                }
                 return queryResult;
             }
 
             return _queryCache[key];
         }
 
-        private IEnumerable<IGameObject> PerformFullQuery(Type[] componentTypes)
+        private void OnArchetypeCreated(object? sender, Archetype archetype)
         {
-            // High-performance archetype-based intersection
-            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am && _gameState != null)
+            foreach (var kvp in _queryCache)
             {
-                var archetypes = am.GetArchetypesWithComponents(componentTypes);
-                var results = new List<IGameObject>();
-                foreach (var arch in archetypes)
+                var key = kvp.Key;
+                var queryResult = kvp.Value;
+                var requiredTypes = _cacheKeyToTypes[key];
+
+                bool matches = true;
+                foreach (var type in requiredTypes)
                 {
-                    var ids = arch.GetEntityIdsSnapshot();
-                    foreach (int id in ids)
+                    if (!archetype.Signature.Types.Contains(type))
                     {
-                        if (_gameState.GameObjects.TryGetValue(id, out var obj))
-                        {
-                            results.Add(obj);
-                        }
+                        matches = false;
+                        break;
                     }
                 }
-                return results;
+
+                if (matches)
+                {
+                    lock (queryResult.Lock)
+                    {
+                        queryResult.Archetypes.Add(archetype);
+                    }
+                }
             }
-
-            // Fallback for missing GameState
-            var smallestSet = componentTypes
-                .Select(t => (Type: t, Count: GetCount(t)))
-                .OrderBy(x => x.Count)
-                .First();
-
-            var candidates = GetOwners(smallestSet.Type);
-
-            foreach (var type in componentTypes.Where(t => t != smallestSet.Type))
-            {
-                var ownersOfType = new HashSet<int>(GetOwners(type).Select(o => o.Id));
-                candidates = candidates.Where(o => ownersOfType.Contains(o.Id));
-            }
-
-            return candidates;
         }
 
         private int GetCount(Type t)
@@ -177,34 +182,6 @@ namespace Shared.Services;
 
         private void OnComponentAdded(object? sender, ComponentEventArgs e)
         {
-            if (_typeToCacheKeys.TryGetValue(e.ComponentType, out var keys))
-            {
-                List<ComponentSignature> keysCopy;
-                lock (keys) keysCopy = keys.ToList();
-
-                foreach (var key in keysCopy)
-                {
-                    if (_queryCache.TryGetValue(key, out var result) && _cacheKeyToTypes.TryGetValue(key, out var types))
-                    {
-                        // Check if entity now has all components for this query
-                        bool hasAll = true;
-                        foreach (var t in types)
-                        {
-                            if (_componentManager.GetComponent(e.Owner, t) == null)
-                            {
-                                hasAll = false;
-                                break;
-                            }
-                        }
-
-                        if (hasAll)
-                        {
-                            result.Update(e.Owner, true);
-                        }
-                    }
-                }
-            }
-
             if (_subscriptions.TryGetValue(e.ComponentType, out var list))
             {
                 List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;
@@ -215,20 +192,6 @@ namespace Shared.Services;
 
         private void OnComponentRemoved(object? sender, ComponentEventArgs e)
         {
-            if (_typeToCacheKeys.TryGetValue(e.ComponentType, out var keys))
-            {
-                List<ComponentSignature> keysCopy;
-                lock (keys) keysCopy = keys.ToList();
-
-                foreach (var key in keysCopy)
-                {
-                    if (_queryCache.TryGetValue(key, out var result))
-                    {
-                        result.Update(e.Owner, false);
-                    }
-                }
-            }
-
             if (_subscriptions.TryGetValue(e.ComponentType, out var list))
             {
                 List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;

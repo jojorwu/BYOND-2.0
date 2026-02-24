@@ -341,6 +341,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.LocalMulAdd] = &HandleLocalMulAdd;
         table[(byte)Opcode.GetBuiltinVar] = &HandleGetBuiltinVar;
         table[(byte)Opcode.SetBuiltinVar] = &HandleSetBuiltinVar;
+        table[(byte)Opcode.LocalPushReturn] = &HandleLocalPushReturn;
+        table[(byte)Opcode.LocalCompareEquals] = &HandleLocalCompareEquals;
 
         return table;
     }
@@ -1733,5 +1735,29 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 case BuiltinVar.PixelY: instance.PixelY = val.GetValueAsFloat(); break;
             }
         }
+    }
+
+    private static void HandleLocalPushReturn(ref InterpreterState state)
+    {
+        int idx = state.ReadByte();
+        if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+        state.Push(state.Stack[state.LocalBase + idx]);
+        state.Thread._stackPtr = state.StackPtr;
+        state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
+        state.Stack = state.Thread._stack;
+        state.StackPtr = state.Thread._stackPtr;
+        state.PotentiallyChangedStack = true;
+    }
+
+    private static void HandleLocalCompareEquals(ref InterpreterState state)
+    {
+        int idx1 = state.ReadByte();
+        int idx2 = state.ReadByte();
+        if (idx1 < 0 || idx1 >= state.Proc.LocalVariableCount || idx2 < 0 || idx2 >= state.Proc.LocalVariableCount)
+            throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+
+        var a = state.Stack[state.LocalBase + idx1];
+        var b = state.Stack[state.LocalBase + idx2];
+        state.Push(a == b ? DreamValue.True : DreamValue.False);
     }
 }

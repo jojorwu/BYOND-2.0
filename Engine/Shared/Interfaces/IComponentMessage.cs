@@ -4,4 +4,9 @@ namespace Shared.Interfaces;
     /// </summary>
     public interface IComponentMessage
     {
+        /// <summary>
+        /// Optional list of component types that should receive this message.
+        /// If null or empty, the message is broadcast to all components.
+        /// </summary>
+        System.Type[]? TargetComponentTypes => null;
     }

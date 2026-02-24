@@ -322,6 +322,10 @@ public enum Opcode : byte {
     GetBuiltinVar = 0xA4,
     [OpcodeMetadata(-1, OpcodeArgType.ArgType)]
     SetBuiltinVar = 0xA5,
+    [OpcodeMetadata(0, OpcodeArgType.ArgType)]
+    LocalPushReturn = 0xA6,
+    [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
+    LocalCompareEquals = 0xA7,
 }
 
 public enum OpcodeArgType {

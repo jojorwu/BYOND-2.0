@@ -23,6 +23,8 @@ public class EntityQuery : IEnumerable<IGameObject>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
     public IReadOnlyList<IGameObject> Snapshot => Query.Snapshot;
+
+    public IEnumerable<Archetype> GetMatchingArchetypes() => Query.GetMatchingArchetypes();
 }
 
 public class EntityQuery<T1> : EntityQuery where T1 : class, IComponent

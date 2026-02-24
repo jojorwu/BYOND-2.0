@@ -8,7 +8,7 @@ namespace Shared;
     public class DreamObject : IDisposable
     {
         protected readonly object _lock = new();
-        public ObjectType? ObjectType { get; set; }
+        public virtual ObjectType? ObjectType { get; set; }
         protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
         private long _version;
         public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }

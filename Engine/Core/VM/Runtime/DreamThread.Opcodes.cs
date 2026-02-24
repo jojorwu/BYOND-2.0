@@ -745,25 +745,33 @@ public partial class DreamThread
         if (argCount < 0 || (argType == DMCallArgumentsType.FromStackKeyed ? argCount * 2 : argCount) > _stackPtr)
             throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", proc, pc, this);
 
-        var values = new (string? Name, float? Value)[argCount];
-        if (argType == DMCallArgumentsType.FromStackKeyed)
+        var rented = System.Buffers.ArrayPool<(string? Name, float? Value)>.Shared.Rent(argCount);
+        try
         {
-            for (int i = argCount - 1; i >= 0; i--)
+            var values = rented.AsSpan(0, argCount);
+            if (argType == DMCallArgumentsType.FromStackKeyed)
             {
-                var value = Pop();
-                var name = Pop().ToString();
-                values[i] = (name, value.GetValueAsFloat());
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    var value = Pop();
+                    var name = Pop().ToString();
+                    values[i] = (name, value.GetValueAsFloat());
+                }
             }
-        }
-        else
-        {
-            for (int i = argCount - 1; i >= 0; i--)
+            else
             {
-                values[i] = (null, Pop().GetValueAsFloat());
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    values[i] = (null, Pop().GetValueAsFloat());
+                }
             }
-        }
 
-        Push(new DreamValue(SharedOperations.ParseRgb(values)));
+            Push(new DreamValue(SharedOperations.ParseRgb(values)));
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<(string? Name, float? Value)>.Shared.Return(rented, true);
+        }
     }
 
     internal void Opcode_Gradient(DreamProc proc, ref int pc)

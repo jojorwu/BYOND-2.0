@@ -375,29 +375,42 @@ namespace Shared;
             if (Type != other.Type) return false;
 
             if (Type == DreamValueType.Float)
-                return _floatValue == other._floatValue || MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+            {
+                // Re-ordered for common exact-match case
+                if (_floatValue == other._floatValue) return true;
+                return MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+            }
 
             if (Type == DreamValueType.Null) return true;
 
-            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
+            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue != null && _objectValue.Equals(other._objectValue));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
-            if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
+            // Use bit-level representation for floats to avoid fuzzy hash issues in collections
+            // while maintaining speed.
+            if (Type == DreamValueType.Float) return BitConverter.SingleToInt32Bits(_floatValue);
             if (Type == DreamValueType.Null) return 0;
 
-            // Manual hash combination for speed
-            int hash = (int)Type;
-            if (_objectValue != null) hash = (hash * 397) ^ _objectValue.GetHashCode();
-            return hash;
+            return HashCode.Combine(Type, _objectValue);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            if (a.Type == b.Type) return a.Equals(b);
+            // Hot path: exact same type and value
+            if (a.Type == b.Type)
+            {
+                if (a.Type == DreamValueType.Float)
+                {
+                    if (a._floatValue == b._floatValue) return true;
+                    return MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
+                }
+                if (a.Type == DreamValueType.Null) return true;
+                return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue != null && a._objectValue.Equals(b._objectValue));
+            }
 
             // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)

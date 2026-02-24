@@ -101,49 +101,48 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         while (thread.State == DreamThreadState.Running)
         {
-            fixed (byte* bytecodePtr = state.BytecodeArray)
+            try
             {
-                state.BytecodePtr = bytecodePtr;
-                while (thread.State == DreamThreadState.Running)
+                fixed (byte* bytecodePtr = state.BytecodeArray)
                 {
-                    if (instructionsExecutedThisTick++ >= instructionBudget) break;
-
-                    if (thread._totalInstructionsExecuted++ > thread._maxInstructions)
+                    state.BytecodePtr = bytecodePtr;
+                    while (thread.State == DreamThreadState.Running)
                     {
-                        thread.State = DreamThreadState.Error;
-                        Console.Error.WriteLine("Error: Total instruction limit exceeded for thread.");
-                        break;
-                    }
+                        if (instructionsExecutedThisTick++ >= instructionBudget) break;
 
-                    if (state.PC >= state.BytecodeArray.Length)
-                    {
-                        thread._stackPtr = state.StackPtr;
-                        thread.Push(DreamValue.Null);
-                        thread.Opcode_Return(ref state.Proc, ref state.PC);
-                        state.Stack = thread._stack;
-                        state.StackPtr = thread._stackPtr;
-                        if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
+                        if (thread._totalInstructionsExecuted++ > thread._maxInstructions)
                         {
-                            state.Frame = thread._callStack[thread._callStackPtr - 1];
-                            state.Proc = state.Frame.Proc;
-                            state.PC = state.Frame.PC;
-                            if (state.Proc.Bytecode != state.BytecodeArray)
+                            thread.State = DreamThreadState.Error;
+                            break;
+                        }
+
+                        if (state.PC >= state.BytecodeArray.Length)
+                        {
+                            thread._stackPtr = state.StackPtr;
+                            thread.Push(DreamValue.Null);
+                            thread.Opcode_Return(ref state.Proc, ref state.PC);
+                            state.Stack = thread._stack;
+                            state.StackPtr = thread._stackPtr;
+                            if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
                             {
-                                state.BytecodeArray = state.Proc.Bytecode;
+                                state.Frame = thread._callStack[thread._callStackPtr - 1];
+                                state.Proc = state.Frame.Proc;
+                                state.PC = state.Frame.PC;
+                                if (state.Proc.Bytecode != state.BytecodeArray)
+                                {
+                                    state.BytecodeArray = state.Proc.Bytecode;
+                                    state.LocalBase = state.Frame.LocalBase;
+                                    state.ArgumentBase = state.Frame.ArgumentBase;
+                                    break; // Exit fixed to re-pin
+                                }
                                 state.LocalBase = state.Frame.LocalBase;
                                 state.ArgumentBase = state.Frame.ArgumentBase;
-                                break; // Exit fixed to re-pin
+                                continue;
                             }
-                            state.LocalBase = state.Frame.LocalBase;
-                            state.ArgumentBase = state.Frame.ArgumentBase;
+                            break;
                         }
-                        continue;
-                    }
 
-                    try
-                    {
                         var opcode = (Opcode)state.BytecodePtr[state.PC++];
-
                         _dispatchTable[(byte)opcode](ref state);
 
                         if (OpcodeMetadataCache.CanModifyCallStack(opcode))
@@ -167,54 +166,26 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                             }
                         }
                     }
-                    catch (Exception e) when (e is not ScriptRuntimeException)
-                    {
-                        thread._stackPtr = state.StackPtr;
-                        if (!thread.HandleException(new ScriptRuntimeException("Unexpected internal error", state.Proc, state.PC, thread, e)))
-                            break;
+                }
+            }
+            catch (Exception e)
+            {
+                thread._stackPtr = state.StackPtr;
+                var runtimeException = e as ScriptRuntimeException ?? new ScriptRuntimeException("Unexpected internal error", state.Proc, state.PC, thread, e);
 
-                        if (thread._callStackPtr > 0)
-                        {
-                            state.Frame = thread._callStack[thread._callStackPtr - 1];
-                            state.Proc = state.Frame.Proc;
-                            state.PC = state.Frame.PC;
-                            state.Stack = thread._stack;
-                            state.StackPtr = thread._stackPtr;
-                            if (state.Proc.Bytecode != state.BytecodeArray)
-                            {
-                                state.BytecodeArray = state.Proc.Bytecode;
-                                state.LocalBase = state.Frame.LocalBase;
-                                state.ArgumentBase = state.Frame.ArgumentBase;
-                                break;
-                            }
-                            state.LocalBase = state.Frame.LocalBase;
-                            state.ArgumentBase = state.Frame.ArgumentBase;
-                        }
-                    }
-                    catch (ScriptRuntimeException e)
-                    {
-                        thread._stackPtr = state.StackPtr;
-                        if (!thread.HandleException(e))
-                            break;
+                if (!thread.HandleException(runtimeException))
+                    break;
 
-                        if (thread._callStackPtr > 0)
-                        {
-                            state.Frame = thread._callStack[thread._callStackPtr - 1];
-                            state.Proc = state.Frame.Proc;
-                            state.PC = state.Frame.PC;
-                            state.Stack = thread._stack;
-                            state.StackPtr = thread._stackPtr;
-                            if (state.Proc.Bytecode != state.BytecodeArray)
-                            {
-                                state.BytecodeArray = state.Proc.Bytecode;
-                                state.LocalBase = state.Frame.LocalBase;
-                                state.ArgumentBase = state.Frame.ArgumentBase;
-                                break;
-                            }
-                            state.LocalBase = state.Frame.LocalBase;
-                            state.ArgumentBase = state.Frame.ArgumentBase;
-                        }
-                    }
+                if (thread._callStackPtr > 0)
+                {
+                    state.Frame = thread._callStack[thread._callStackPtr - 1];
+                    state.Proc = state.Frame.Proc;
+                    state.PC = state.Frame.PC;
+                    state.BytecodeArray = state.Proc.Bytecode;
+                    state.Stack = thread._stack;
+                    state.StackPtr = thread._stackPtr;
+                    state.LocalBase = state.Frame.LocalBase;
+                    state.ArgumentBase = state.Frame.ArgumentBase;
                 }
             }
         }

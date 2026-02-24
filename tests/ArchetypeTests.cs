@@ -26,14 +26,24 @@ namespace tests
             public void SendMessage(IComponentMessage message) { }
         }
 
+        private Mock<IGameObject> CreateMockEntity(int id)
+        {
+            var mock = new Mock<IGameObject>();
+            mock.SetupGet(x => x.Id).Returns(id);
+            mock.SetupProperty(x => x.Archetype);
+            mock.SetupProperty(x => x.ArchetypeIndex);
+            return mock;
+        }
+
         [Test]
         public void Archetype_AddEntity_AddsToIndex()
         {
             var signature = new[] { typeof(TestComponent1) };
             var archetype = new Archetype(signature);
-            var components = new Dictionary<Type, IComponent> { { typeof(TestComponent1), new TestComponent1() } };
+            var entity = CreateMockEntity(1);
+            var components = new Dictionary<Type, IComponent> { { typeof(TestComponent1), new TestComponent1() { Owner = entity.Object } } };
 
-            archetype.AddEntity(1, components);
+            archetype.AddEntity(entity.Object, components);
 
             Assert.That(archetype.EntityCount, Is.EqualTo(1));
             Assert.That(archetype.ContainsEntity(1), Is.True);
@@ -45,9 +55,10 @@ namespace tests
         {
             var signature = new[] { typeof(TestComponent1) };
             var archetype = new Archetype(signature);
-            var components = new Dictionary<Type, IComponent> { { typeof(TestComponent1), new TestComponent1() } };
+            var entity = CreateMockEntity(1);
+            var components = new Dictionary<Type, IComponent> { { typeof(TestComponent1), new TestComponent1() { Owner = entity.Object } } };
 
-            archetype.AddEntity(1, components);
+            archetype.AddEntity(entity.Object, components);
             archetype.RemoveEntity(1);
 
             Assert.That(archetype.EntityCount, Is.EqualTo(0));
@@ -60,13 +71,17 @@ namespace tests
             var signature = new[] { typeof(TestComponent1) };
             var archetype = new Archetype(signature);
 
-            var comp1 = new TestComponent1();
-            var comp2 = new TestComponent1();
-            var comp3 = new TestComponent1();
+            var entity1 = CreateMockEntity(1);
+            var entity2 = CreateMockEntity(2);
+            var entity3 = CreateMockEntity(3);
 
-            archetype.AddEntity(1, new Dictionary<Type, IComponent> { { typeof(TestComponent1), comp1 } });
-            archetype.AddEntity(2, new Dictionary<Type, IComponent> { { typeof(TestComponent1), comp2 } });
-            archetype.AddEntity(3, new Dictionary<Type, IComponent> { { typeof(TestComponent1), comp3 } });
+            var comp1 = new TestComponent1() { Owner = entity1.Object };
+            var comp2 = new TestComponent1() { Owner = entity2.Object };
+            var comp3 = new TestComponent1() { Owner = entity3.Object };
+
+            archetype.AddEntity(entity1.Object, new Dictionary<Type, IComponent> { { typeof(TestComponent1), comp1 } });
+            archetype.AddEntity(entity2.Object, new Dictionary<Type, IComponent> { { typeof(TestComponent1), comp2 } });
+            archetype.AddEntity(entity3.Object, new Dictionary<Type, IComponent> { { typeof(TestComponent1), comp3 } });
 
             // Remove middle entity
             archetype.RemoveEntity(2);
@@ -89,7 +104,8 @@ namespace tests
 
             for (int i = 0; i < 100; i++)
             {
-                archetype.AddEntity(i, new Dictionary<Type, IComponent> { { typeof(TestComponent1), new TestComponent1() } });
+                var entity = CreateMockEntity(i);
+                archetype.AddEntity(entity.Object, new Dictionary<Type, IComponent> { { typeof(TestComponent1), new TestComponent1() { Owner = entity.Object } } });
             }
 
             for (int i = 0; i < 90; i++)

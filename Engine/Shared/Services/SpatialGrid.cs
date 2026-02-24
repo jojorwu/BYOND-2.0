@@ -13,14 +13,23 @@ namespace Shared;
     {
         private class Cell
         {
-            public volatile IGameObject[] Objects = System.Array.Empty<IGameObject>();
+            public IGameObject? Head;
             public readonly object Lock = new();
 
             public void Clear()
             {
                 lock (Lock)
                 {
-                    Objects = System.Array.Empty<IGameObject>();
+                    var current = Head;
+                    while (current != null)
+                    {
+                        var next = current.NextInGridCell;
+                        current.NextInGridCell = null;
+                        current.PrevInGridCell = null;
+                        current.CurrentGridCellKey = null;
+                        current = next;
+                    }
+                    Head = null;
                 }
             }
         }
@@ -28,14 +37,8 @@ namespace Shared;
         public void Shrink()
         {
             CleanupEmptyCells();
-            if (_seenHashSet.IsValueCreated && _seenHashSet.Value!.Count > 1000)
-            {
-                _seenHashSet.Value.Clear();
-                _seenHashSet.Value.TrimExcess();
-            }
         }
 
-        private static readonly ThreadLocal<HashSet<int>> _seenHashSet = new(() => new HashSet<int>());
         private readonly ConcurrentDictionary<long, Cell> _grid = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
@@ -79,78 +82,53 @@ namespace Shared;
             var cell = GetOrCreateCell(key);
             lock (cell.Lock)
             {
-                var current = cell.Objects;
-                if (System.Array.IndexOf(current, obj) == -1)
-                {
-                    var updated = new IGameObject[current.Length + 1];
-                    System.Array.Copy(current, updated, current.Length);
-                    updated[current.Length] = obj;
-                    cell.Objects = updated;
-                }
+                if (obj.CurrentGridCellKey == key) return;
+                if (obj.CurrentGridCellKey != null) RemoveInternal(obj);
+
+                obj.NextInGridCell = cell.Head;
+                obj.PrevInGridCell = null;
+                if (cell.Head != null) cell.Head.PrevInGridCell = obj;
+                cell.Head = obj;
+                obj.CurrentGridCellKey = key;
             }
         }
 
         public void Remove(IGameObject obj)
         {
-            var key = GetCellKey(obj.X, obj.Y);
-            if (_grid.TryGetValue(key, out var cell))
+            if (obj.CurrentGridCellKey == null) return;
+            if (_grid.TryGetValue(obj.CurrentGridCellKey.Value, out var cell))
             {
                 lock (cell.Lock)
                 {
-                    var current = cell.Objects;
-                    int index = System.Array.IndexOf(current, obj);
-                    if (index != -1)
-                    {
-                        var updated = new IGameObject[current.Length - 1];
-                        System.Array.Copy(current, 0, updated, 0, index);
-                        System.Array.Copy(current, index + 1, updated, index, current.Length - index - 1);
-                        cell.Objects = updated;
-                    }
+                    RemoveInternal(obj);
                 }
             }
         }
 
+        private void RemoveInternal(IGameObject obj)
+        {
+            if (obj.CurrentGridCellKey == null) return;
+            if (!_grid.TryGetValue(obj.CurrentGridCellKey.Value, out var cell)) return;
+
+            if (cell.Head == obj) cell.Head = obj.NextInGridCell;
+            if (obj.PrevInGridCell != null) obj.PrevInGridCell.NextInGridCell = obj.NextInGridCell;
+            if (obj.NextInGridCell != null) obj.NextInGridCell.PrevInGridCell = obj.PrevInGridCell;
+
+            obj.NextInGridCell = null;
+            obj.PrevInGridCell = null;
+            obj.CurrentGridCellKey = null;
+        }
+
         public void Update(IGameObject obj, int oldX, int oldY)
         {
-            int oldGX = GetGridCoord(oldX);
-            int oldGY = GetGridCoord(oldY);
             int newGX = GetGridCoord(obj.X);
             int newGY = GetGridCoord(obj.Y);
+            long newKey = ((long)newGX << 32) | (uint)newGY;
 
-            if (oldGX != newGX || oldGY != newGY)
+            if (obj.CurrentGridCellKey != newKey)
             {
-                // Remove from old
-                long oldKey = ((long)oldGX << 32) | (uint)oldGY;
-                if (_grid.TryGetValue(oldKey, out var oldCell))
-                {
-                    lock (oldCell.Lock)
-                    {
-                        var current = oldCell.Objects;
-                        int index = System.Array.IndexOf(current, obj);
-                        if (index != -1)
-                        {
-                            var updated = new IGameObject[current.Length - 1];
-                            System.Array.Copy(current, 0, updated, 0, index);
-                            System.Array.Copy(current, index + 1, updated, index, current.Length - index - 1);
-                            oldCell.Objects = updated;
-                        }
-                    }
-                }
-
-                // Add to new
-                long newKey = ((long)newGX << 32) | (uint)newGY;
-                var newCell = GetOrCreateCell(newKey);
-                lock (newCell.Lock)
-                {
-                    var current = newCell.Objects;
-                    if (System.Array.IndexOf(current, obj) == -1)
-                    {
-                        var updated = new IGameObject[current.Length + 1];
-                        System.Array.Copy(current, updated, current.Length);
-                        updated[current.Length] = obj;
-                        newCell.Objects = updated;
-                    }
-                }
+                Remove(obj);
+                Add(obj);
             }
         }
 
@@ -179,23 +157,24 @@ namespace Shared;
                 long key = ((long)startGX << 32) | (uint)startGY;
                 if (_grid.TryGetValue(key, out var cell))
                 {
-                    var objects = cell.Objects;
-                    for (int i = 0; i < objects.Length; i++)
+                    lock (cell.Lock)
                     {
-                        var obj = objects[i];
-                        int ox = obj.X;
-                        int oy = obj.Y;
-                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        var current = cell.Head;
+                        while (current != null)
                         {
-                            callback(obj);
+                            var next = current.NextInGridCell;
+                            int ox = current.X;
+                            int oy = current.Y;
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                            {
+                                callback(current);
+                            }
+                            current = next;
                         }
                     }
                 }
                 return;
             }
-
-            var seen = _seenHashSet.Value!;
-            seen.Clear();
 
             if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
 
@@ -206,15 +185,19 @@ namespace Shared;
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        var objects = cell.Objects;
-                        for (int i = 0; i < objects.Length; i++)
+                        lock (cell.Lock)
                         {
-                            var obj = objects[i];
-                            int ox = obj.X;
-                            int oy = obj.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            var current = cell.Head;
+                            while (current != null)
                             {
-                                callback(obj);
+                            var next = current.NextInGridCell;
+                                int ox = current.X;
+                                int oy = current.Y;
+                                if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                                {
+                                    callback(current);
+                                }
+                            current = next;
                             }
                         }
                     }
@@ -238,23 +221,24 @@ namespace Shared;
                 long key = ((long)startGX << 32) | (uint)startGY;
                 if (_grid.TryGetValue(key, out var cell))
                 {
-                    var objects = cell.Objects;
-                    for (int i = 0; i < objects.Length; i++)
+                    lock (cell.Lock)
                     {
-                        var obj = objects[i];
-                        int ox = obj.X;
-                        int oy = obj.Y;
-                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        var current = cell.Head;
+                        while (current != null)
                         {
-                            callback(obj, ref state);
+                            var next = current.NextInGridCell;
+                            int ox = current.X;
+                            int oy = current.Y;
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                            {
+                                callback(current, ref state);
+                            }
+                            current = next;
                         }
                     }
                 }
                 return;
             }
-
-            var seen = _seenHashSet.Value!;
-            seen.Clear();
 
             if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
 
@@ -265,15 +249,19 @@ namespace Shared;
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        var objects = cell.Objects;
-                        for (int i = 0; i < objects.Length; i++)
+                        lock (cell.Lock)
                         {
-                            var obj = objects[i];
-                            int ox = obj.X;
-                            int oy = obj.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            var current = cell.Head;
+                            while (current != null)
                             {
-                                callback(obj, ref state);
+                            var next = current.NextInGridCell;
+                                int ox = current.X;
+                                int oy = current.Y;
+                                if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                                {
+                                    callback(current, ref state);
+                                }
+                            current = next;
                             }
                         }
                     }
@@ -286,11 +274,11 @@ namespace Shared;
             foreach (var kvp in _grid)
             {
                 var cell = kvp.Value;
-                if (cell.Objects.Length == 0)
+                if (cell.Head == null)
                 {
                     lock (cell.Lock)
                     {
-                        if (cell.Objects.Length == 0)
+                        if (cell.Head == null)
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
                             {
@@ -315,25 +303,24 @@ namespace Shared;
                 long key = ((long)startGX << 32) | (uint)startGY;
                 if (_grid.TryGetValue(key, out var cell))
                 {
-                    // Lock-free snapshot read
-                    var objects = cell.Objects;
-                    int count = objects.Length;
-                    for (int i = 0; i < count; i++)
+                    lock (cell.Lock)
                     {
-                        var obj = objects[i];
-                        int ox = obj.X;
-                        int oy = obj.Y;
-                        if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                        var current = cell.Head;
+                        while (current != null)
                         {
-                            results.Add(obj);
+                            var next = current.NextInGridCell;
+                            int ox = current.X;
+                            int oy = current.Y;
+                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                            {
+                                results.Add(current);
+                            }
+                            current = next;
                         }
                     }
                 }
                 return;
             }
-
-            var seen = _seenHashSet.Value!;
-            seen.Clear();
 
             // Prevent DoS via huge search area
             if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000)
@@ -348,18 +335,19 @@ namespace Shared;
                     long key = ((long)x << 32) | (uint)y;
                     if (_grid.TryGetValue(key, out var cell))
                     {
-                        // Lock-free snapshot read
-                        var objects = cell.Objects;
-                        int count = objects.Length;
-                        for (int i = 0; i < count; i++)
+                        lock (cell.Lock)
                         {
-                            var obj = objects[i];
-                            int ox = obj.X;
-                            int oy = obj.Y;
-                            // We use seen.Add to avoid duplicates if an object spans multiple cells (though currently they only reside in one)
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top && seen.Add(obj.Id))
+                            var current = cell.Head;
+                            while (current != null)
                             {
-                                results.Add(obj);
+                            var next = current.NextInGridCell;
+                                int ox = current.X;
+                                int oy = current.Y;
+                                if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                                {
+                                    results.Add(current);
+                                }
+                            current = next;
                             }
                         }
                     }

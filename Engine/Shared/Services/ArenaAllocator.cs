@@ -1,9 +1,10 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class ArenaAllocator : IArenaAllocator
+    public class ArenaAllocator : IArenaAllocator, IDisposable
     {
         private const int DefaultBlockSize = 64 * 1024; // 64KB
 
@@ -11,11 +12,18 @@ namespace Shared.Services;
         {
             public readonly byte[] Data;
             public int Offset;
+            public readonly bool FromPool;
 
-            public Block(int size)
+            public Block(int size, bool fromPool)
             {
-                Data = new byte[size];
+                Data = fromPool ? ArrayPool<byte>.Shared.Rent(size) : new byte[size];
                 Offset = 0;
+                FromPool = fromPool;
+            }
+
+            public void Return()
+            {
+                if (FromPool) ArrayPool<byte>.Shared.Return(Data);
             }
         }
 
@@ -24,7 +32,7 @@ namespace Shared.Services;
 
         public ArenaAllocator()
         {
-            _blocks.Add(new Block(DefaultBlockSize));
+            _blocks.Add(new Block(DefaultBlockSize, true));
         }
 
         public Memory<byte> Allocate(int size) => Allocate(size, 1);
@@ -41,14 +49,14 @@ namespace Shared.Services;
                 _currentBlockIndex++;
                 if (_currentBlockIndex >= _blocks.Count)
                 {
-                    _blocks.Add(new Block(Math.Max(DefaultBlockSize, size + alignment)));
+                    _blocks.Add(new Block(Math.Max(DefaultBlockSize, size + alignment), true));
                 }
                 currentBlock = _blocks[_currentBlockIndex];
                 alignedOffset = (currentBlock.Offset + alignment - 1) & ~(alignment - 1);
 
                 if (alignedOffset + size > currentBlock.Data.Length)
                 {
-                     var oversized = new Block(size + alignment);
+                     var oversized = new Block(size + alignment, false);
                      _blocks.Insert(_currentBlockIndex, oversized);
                      currentBlock = oversized;
                      alignedOffset = 0;
@@ -65,6 +73,10 @@ namespace Shared.Services;
             // If we have many blocks, prune them to reclaim memory
             if (_blocks.Count > 8)
             {
+                for (int i = 8; i < _blocks.Count; i++)
+                {
+                    _blocks[i].Return();
+                }
                 _blocks.RemoveRange(8, _blocks.Count - 8);
             }
 
@@ -73,5 +85,14 @@ namespace Shared.Services;
                 block.Offset = 0;
             }
             _currentBlockIndex = 0;
+        }
+
+        public void Dispose()
+        {
+            foreach (var block in _blocks)
+            {
+                block.Return();
+            }
+            _blocks.Clear();
         }
     }

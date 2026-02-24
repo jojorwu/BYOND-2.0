@@ -382,6 +382,7 @@ namespace Shared;
             return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue?.Equals(other._objectValue) ?? false);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
             if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
@@ -396,15 +397,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            if (a.Type == b.Type)
-            {
-                if (a.Type == DreamValueType.Float)
-                    return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
-
-                if (a.Type == DreamValueType.Null) return true;
-
-                return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue?.Equals(b._objectValue) ?? false);
-            }
+            if (a.Type == b.Type) return a.Equals(b);
 
             // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)

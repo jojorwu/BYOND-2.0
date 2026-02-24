@@ -48,6 +48,31 @@ namespace Shared;
         long Version { get; }
 
         /// <summary>
+        /// Internal ECS metadata: the archetype this object belongs to.
+        /// </summary>
+        object? Archetype { get; set; }
+
+        /// <summary>
+        /// Internal ECS metadata: the index of this object within its archetype.
+        /// </summary>
+        int ArchetypeIndex { get; set; }
+
+        /// <summary>
+        /// Internal SpatialGrid metadata: next object in the same grid cell.
+        /// </summary>
+        IGameObject? NextInGridCell { get; set; }
+
+        /// <summary>
+        /// Internal SpatialGrid metadata: previous object in the same grid cell.
+        /// </summary>
+        IGameObject? PrevInGridCell { get; set; }
+
+        /// <summary>
+        /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
+        /// </summary>
+        long? CurrentGridCellKey { get; set; }
+
+        /// <summary>
         /// Committed coordinates for thread-safe reading.
         /// </summary>
         int CommittedX { get; }

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Linq;
 using Shared.Interfaces;
 using Shared.Enums;
+using Shared.Models;
 
 namespace Shared;
 
@@ -28,8 +29,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     }
 
     private IComponentManager? _componentManager;
-    private volatile IComponent[] _componentCache = System.Array.Empty<IComponent>();
-    private readonly object _componentCacheLock = new();
     private readonly object _stateLock = new();
 
     public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
@@ -38,6 +37,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// Gets the unique identifier for the game object.
     /// </summary>
     public int Id { get; set; }
+
+    public object? Archetype { get; set; }
+    public int ArchetypeIndex { get; set; }
+
+    public IGameObject? NextInGridCell { get; set; }
+    public IGameObject? PrevInGridCell { get; set; }
+    public long? CurrentGridCellKey { get; set; }
 
     private int _x;
     private int _committedX;
@@ -500,33 +506,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void AddComponent(IComponent component)
     {
         if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
-
         _componentManager.AddComponent(this, component);
-        lock (_componentCacheLock)
-        {
-            var type = component.GetType();
-            var current = _componentCache;
-            bool found = false;
-            for (int i = 0; i < current.Length; i++)
-            {
-                if (current[i].GetType() == type)
-                {
-                    var updated = (IComponent[])current.Clone();
-                    updated[i] = component;
-                    _componentCache = updated;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                var updated = new IComponent[current.Length + 1];
-                System.Array.Copy(current, updated, current.Length);
-                updated[current.Length] = component;
-                _componentCache = updated;
-            }
-        }
         IncrementVersion();
     }
 
@@ -543,53 +523,55 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void RemoveComponent(System.Type componentType)
     {
         if (_componentManager == null) return;
-
         _componentManager.RemoveComponent(this, componentType);
-
-        lock (_componentCacheLock)
-        {
-            var current = _componentCache;
-            for (int i = 0; i < current.Length; i++)
-            {
-                if (current[i].GetType() == componentType)
-                {
-                    var updated = new IComponent[current.Length - 1];
-                    System.Array.Copy(current, 0, updated, 0, i);
-                    System.Array.Copy(current, i + 1, updated, i, current.Length - i - 1);
-                    _componentCache = updated;
-                    break;
-                }
-            }
-        }
         IncrementVersion();
     }
 
     public T? GetComponent<T>() where T : class, IComponent
     {
-        // Lock-free fast path for already cached components
-        var current = _componentCache;
-        for (int i = 0; i < current.Length; i++)
+        if (Archetype is Archetype arch)
         {
-            if (current[i] is T component) return component;
+            return arch.GetComponentsInternal<T>()[ArchetypeIndex];
         }
         return _componentManager?.GetComponent<T>(this);
     }
 
     public IEnumerable<IComponent> GetComponents()
     {
-        return _componentCache;
+        if (Archetype is Archetype arch)
+        {
+            var components = new List<IComponent>();
+            foreach (var array in arch._componentArrays.Values)
+            {
+                var comp = array.Get(ArchetypeIndex);
+                if (comp != null) components.Add(comp);
+            }
+            return components;
+        }
+        return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
     }
 
     public void SendMessage(IComponentMessage message)
     {
-        // Lock-free snapshot read
-        var components = _componentCache;
-        for (int i = 0; i < components.Length; i++)
+        if (Archetype is Archetype arch)
         {
-            var component = components[i];
-            if (component.Enabled)
+            foreach (var array in arch._componentArrays.Values)
             {
-                component.OnMessage(message);
+                var component = array.Get(ArchetypeIndex);
+                if (component != null && component.Enabled)
+                {
+                    component.OnMessage(message);
+                }
+            }
+        }
+        else if (_componentManager != null)
+        {
+            foreach (var component in _componentManager.GetAllComponents(this))
+            {
+                if (component.Enabled)
+                {
+                    component.OnMessage(message);
+                }
             }
         }
     }
@@ -607,20 +589,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedZ = 0;
         }
         Version = 0;
+        Archetype = null;
+        ArchetypeIndex = -1;
+        NextInGridCell = null;
+        PrevInGridCell = null;
+        CurrentGridCellKey = null;
 
         if (_componentManager != null)
         {
             // We need to notify manager about component removals during reset
-            var toRemove = _componentCache;
+            var toRemove = GetComponents().ToList();
             foreach (var component in toRemove)
             {
                 _componentManager.RemoveComponent(this, component.GetType());
             }
-        }
-
-        lock (_componentCacheLock)
-        {
-            _componentCache = System.Array.Empty<IComponent>();
         }
 
         lock (_contentsLock)

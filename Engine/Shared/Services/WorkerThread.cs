@@ -151,6 +151,7 @@ namespace Shared.Services;
             _disposed = true;
             _wakeEvent.Set();
             _thread.Join(1000);
+            Arena.Dispose();
             _wakeEvent.Dispose();
         }
     }

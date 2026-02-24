@@ -51,7 +51,7 @@ public class ArchetypeManager : IArchetypeManager
         lock (GetEntityLock(entity.Id))
         {
             _entityComponents[entity.Id] = new Dictionary<Type, IComponent>();
-            MoveToArchetypeInternal(entity.Id);
+            MoveToArchetypeInternal(entity);
         }
     }
 
@@ -82,22 +82,32 @@ public class ArchetypeManager : IArchetypeManager
             component.Owner = entity;
             component.Initialize();
 
-            if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) &&
-                currentArchetype.AddTransitions.TryGetValue(componentType, out var targetArchetype))
+            _entityToArchetype.TryGetValue(entity.Id, out var currentArchetype);
+
+            if (currentArchetype != null)
             {
-                currentArchetype.RemoveEntity(entity.Id);
-                targetArchetype.AddEntity(entity.Id, components);
-                _entityToArchetype[entity.Id] = targetArchetype;
-            }
-            else
-            {
-                MoveToArchetypeInternal(entity.Id);
-                // Build transition edge
-                if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
+                if (currentArchetype.Signature.Types.Contains(componentType))
                 {
-                    currentArchetype.AddTransitions.TryAdd(componentType, newArchetype);
-                    newArchetype.RemoveTransitions.TryAdd(componentType, currentArchetype);
+                    currentArchetype.SetComponent(entity.Id, component);
+                    return;
                 }
+
+                if (currentArchetype.AddTransitions.TryGetValue(componentType, out var targetArchetype))
+                {
+                    currentArchetype.RemoveEntity(entity.Id);
+                    targetArchetype.AddEntity(entity, components);
+                    _entityToArchetype[entity.Id] = targetArchetype;
+                    return;
+                }
+            }
+
+            MoveToArchetypeInternal(entity);
+
+            // Build transition edge
+            if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
+            {
+                currentArchetype.AddTransitions.TryAdd(componentType, newArchetype);
+                newArchetype.RemoveTransitions.TryAdd(componentType, currentArchetype);
             }
         }
     }
@@ -122,13 +132,13 @@ public class ArchetypeManager : IArchetypeManager
                         currentArchetype.RemoveTransitions.TryGetValue(componentType, out var targetArchetype))
                     {
                         currentArchetype.RemoveEntity(entity.Id);
-                        targetArchetype.AddEntity(entity.Id, components);
+                        targetArchetype.AddEntity(entity, components);
                         _entityToArchetype[entity.Id] = targetArchetype;
                     }
                     else
                     {
                         var oldArchetype = currentArchetype;
-                        MoveToArchetypeInternal(entity.Id);
+                        MoveToArchetypeInternal(entity);
                         // Build transition edge
                         if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
                         {
@@ -141,8 +151,9 @@ public class ArchetypeManager : IArchetypeManager
         }
     }
 
-    private void MoveToArchetypeInternal(int entityId)
+    private void MoveToArchetypeInternal(IGameObject entity)
     {
+        int entityId = entity.Id;
         if (!_entityComponents.TryGetValue(entityId, out var components)) return;
 
         if (components.Count == 0)
@@ -191,7 +202,7 @@ public class ArchetypeManager : IArchetypeManager
         }
 
         // Add to new
-        targetArchetype.AddEntity(entityId, components);
+        targetArchetype.AddEntity(entity, components);
         _entityToArchetype[entityId] = targetArchetype;
     }
 

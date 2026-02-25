@@ -17,13 +17,13 @@ public interface IBytecodeInterpreter
 internal unsafe ref struct InterpreterState
 {
     public DreamThread Thread;
-    public CallFrame Frame;
+    public ref CallFrame Frame;
     public DreamProc Proc;
     public int PC;
     public DreamValue[] Stack;
     public int StackPtr;
-    public bool PotentiallyChangedStack;
-    public ReadOnlySpan<byte> Bytecode;
+    public byte[] BytecodeArray;
+    public byte* BytecodePtr;
     public int LocalBase;
     public int ArgumentBase;
 
@@ -54,13 +54,15 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public byte ReadByte()
     {
-        return Bytecode[PC++];
+        if (PC >= BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
+        return BytecodePtr[PC++];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ReadInt32()
     {
-        var value = BinaryPrimitives.ReadInt32LittleEndian(Bytecode.Slice(PC));
+        if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
+        var value = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(BytecodePtr + PC, 4));
         PC += 4;
         return value;
     }
@@ -68,7 +70,8 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float ReadSingle()
     {
-        var value = BinaryPrimitives.ReadSingleLittleEndian(Bytecode.Slice(PC));
+        if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
+        var value = BinaryPrimitives.ReadSingleLittleEndian(new ReadOnlySpan<byte>(BytecodePtr + PC, 4));
         PC += 4;
         return value;
     }
@@ -83,113 +86,127 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (thread.State != DreamThreadState.Running)
             return thread.State;
 
-        var frame = thread._callStack[thread._callStackPtr - 1];
         var state = new InterpreterState
         {
             Thread = thread,
-            Frame = frame,
-            Proc = frame.Proc,
-            PC = frame.PC,
+            Frame = ref thread._callStack[thread._callStackPtr - 1],
+            Proc = thread._callStack[thread._callStackPtr - 1].Proc,
+            PC = thread._callStack[thread._callStackPtr - 1].PC,
             Stack = thread._stack,
             StackPtr = thread._stackPtr,
-            Bytecode = frame.Proc.Bytecode,
-            PotentiallyChangedStack = false,
-            LocalBase = frame.StackBase + frame.Proc.Arguments.Length,
-            ArgumentBase = frame.StackBase
+            BytecodeArray = thread._callStack[thread._callStackPtr - 1].Proc.Bytecode,
+            LocalBase = thread._callStack[thread._callStackPtr - 1].LocalBase,
+            ArgumentBase = thread._callStack[thread._callStackPtr - 1].ArgumentBase
         };
 
         int instructionsExecutedThisTick = 0;
+        long totalInstructionsExecuted = thread._totalInstructionsExecuted;
+        long maxInstructions = thread._maxInstructions;
 
         while (thread.State == DreamThreadState.Running)
         {
-            if (instructionsExecutedThisTick++ >= instructionBudget) break;
-
-            if (thread._totalInstructionsExecuted++ > thread._maxInstructions)
-            {
-                thread.State = DreamThreadState.Error;
-                Console.Error.WriteLine("Error: Total instruction limit exceeded for thread.");
-                break;
-            }
-
-            if (state.PC >= state.Bytecode.Length)
-            {
-                thread._stackPtr = state.StackPtr;
-                thread.Push(DreamValue.Null);
-                thread.Opcode_Return(ref state.Proc, ref state.PC);
-                state.Stack = thread._stack;
-                state.StackPtr = thread._stackPtr;
-                if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
-                {
-                    state.Frame = thread._callStack[thread._callStackPtr - 1];
-                    state.Proc = state.Frame.Proc;
-                    state.PC = state.Frame.PC;
-                    state.Bytecode = state.Proc.Bytecode;
-                    state.LocalBase = state.Frame.StackBase + state.Proc.Arguments.Length;
-                    state.ArgumentBase = state.Frame.StackBase;
-                }
-                continue;
-            }
-
             try
             {
-                var opcode = (Opcode)state.Bytecode[state.PC++];
-                state.PotentiallyChangedStack = false;
-
-                _dispatchTable[(byte)opcode](ref state);
-
-                if (state.PotentiallyChangedStack)
+                fixed (byte* bytecodePtr = state.BytecodeArray)
                 {
-                    if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
+                    state.BytecodePtr = bytecodePtr;
+                    while (thread.State == DreamThreadState.Running)
                     {
-                        state.Frame = thread._callStack[thread._callStackPtr - 1];
-                        state.Proc = state.Frame.Proc;
-                        state.PC = state.Frame.PC;
-                        state.Bytecode = state.Proc.Bytecode;
-                        state.Stack = thread._stack;
-                        state.StackPtr = thread._stackPtr;
-                        state.LocalBase = state.Frame.StackBase + state.Proc.Arguments.Length;
-                        state.ArgumentBase = state.Frame.StackBase;
+                        if (instructionsExecutedThisTick >= instructionBudget) goto Done;
+
+                        if (totalInstructionsExecuted > maxInstructions)
+                        {
+                            thread.State = DreamThreadState.Error;
+                            goto Done;
+                        }
+
+                        // Dispatch block to reduce check overhead
+                        for (int i = 0; i < 4; i++)
+                        {
+                            if (thread.State != DreamThreadState.Running) break;
+                            if (state.PC >= state.BytecodeArray.Length)
+                            {
+                                thread._stackPtr = state.StackPtr;
+                                thread.Push(DreamValue.Null);
+                                thread.Opcode_Return(ref state.Proc, ref state.PC);
+                                state.Stack = thread._stack;
+                                state.StackPtr = thread._stackPtr;
+                                if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
+                                {
+                                    state.Frame = ref thread._callStack[thread._callStackPtr - 1];
+                                    state.Proc = state.Frame.Proc;
+                                    state.PC = state.Frame.PC;
+                                    if (state.Proc.Bytecode != state.BytecodeArray)
+                                    {
+                                        state.BytecodeArray = state.Proc.Bytecode;
+                                        state.LocalBase = state.Frame.LocalBase;
+                                        state.ArgumentBase = state.Frame.ArgumentBase;
+                                        goto RePin;
+                                    }
+                                    state.LocalBase = state.Frame.LocalBase;
+                                    state.ArgumentBase = state.Frame.ArgumentBase;
+                                    break; // Break for loop to re-check budget and bytecode
+                                }
+                                goto Done;
+                            }
+
+                            instructionsExecutedThisTick++;
+                            totalInstructionsExecuted++;
+
+                            var opcode = (Opcode)state.BytecodePtr[state.PC++];
+                            _dispatchTable[(byte)opcode](ref state);
+
+                            if (OpcodeMetadataCache.CanModifyCallStack(opcode))
+                            {
+                                if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
+                                {
+                                    state.Frame = ref thread._callStack[thread._callStackPtr - 1];
+                                    state.Proc = state.Frame.Proc;
+                                    state.PC = state.Frame.PC;
+                                    state.Stack = thread._stack;
+                                    state.StackPtr = thread._stackPtr;
+                                    if (state.Proc.Bytecode != state.BytecodeArray)
+                                    {
+                                        state.BytecodeArray = state.Proc.Bytecode;
+                                        state.LocalBase = state.Frame.LocalBase;
+                                        state.ArgumentBase = state.Frame.ArgumentBase;
+                                        goto RePin;
+                                    }
+                                    state.LocalBase = state.Frame.LocalBase;
+                                    state.ArgumentBase = state.Frame.ArgumentBase;
+                                }
+                                if (thread.State != DreamThreadState.Running) break;
+                                break; // Break for loop to re-check budget after call/return
+                            }
+                        }
                     }
+                RePin:;
                 }
             }
-            catch (Exception e) when (e is not ScriptRuntimeException)
+            catch (Exception e)
             {
                 thread._stackPtr = state.StackPtr;
-                if (!thread.HandleException(new ScriptRuntimeException("Unexpected internal error", state.Proc, state.PC, thread, e)))
+                var runtimeException = e as ScriptRuntimeException ?? new ScriptRuntimeException("Unexpected internal error", state.Proc, state.PC, thread, e);
+
+                if (!thread.HandleException(runtimeException))
                     break;
 
                 if (thread._callStackPtr > 0)
                 {
-                    state.Frame = thread._callStack[thread._callStackPtr - 1];
+                    state.Frame = ref thread._callStack[thread._callStackPtr - 1];
                     state.Proc = state.Frame.Proc;
                     state.PC = state.Frame.PC;
-                    state.Bytecode = state.Proc.Bytecode;
+                    state.BytecodeArray = state.Proc.Bytecode;
                     state.Stack = thread._stack;
                     state.StackPtr = thread._stackPtr;
-                    state.LocalBase = state.Frame.StackBase + state.Proc.Arguments.Length;
-                    state.ArgumentBase = state.Frame.StackBase;
-                }
-            }
-            catch (ScriptRuntimeException e)
-            {
-                thread._stackPtr = state.StackPtr;
-                if (!thread.HandleException(e))
-                    break;
-
-                if (thread._callStackPtr > 0)
-                {
-                    state.Frame = thread._callStack[thread._callStackPtr - 1];
-                    state.Proc = state.Frame.Proc;
-                    state.PC = state.Frame.PC;
-                    state.Bytecode = state.Proc.Bytecode;
-                    state.Stack = thread._stack;
-                    state.StackPtr = thread._stackPtr;
-                    state.LocalBase = state.Frame.StackBase + state.Proc.Arguments.Length;
-                    state.ArgumentBase = state.Frame.StackBase;
+                    state.LocalBase = state.Frame.LocalBase;
+                    state.ArgumentBase = state.Frame.ArgumentBase;
                 }
             }
         }
 
+    Done:
+        thread._totalInstructionsExecuted = totalInstructionsExecuted;
         if (thread._callStackPtr > 0)
         {
             thread.SavePC(state.PC);
@@ -341,13 +358,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.LocalMulAdd] = &HandleLocalMulAdd;
         table[(byte)Opcode.GetBuiltinVar] = &HandleGetBuiltinVar;
         table[(byte)Opcode.SetBuiltinVar] = &HandleSetBuiltinVar;
+        table[(byte)Opcode.LocalPushReturn] = &HandleLocalPushReturn;
+        table[(byte)Opcode.LocalCompareEquals] = &HandleLocalCompareEquals;
+        table[(byte)Opcode.LocalJumpIfFalse] = &HandleLocalJumpIfFalse;
+        table[(byte)Opcode.LocalJumpIfTrue] = &HandleLocalJumpIfTrue;
 
         return table;
     }
 
     private static void HandleUnknownOpcode(ref InterpreterState state)
     {
-        throw new ScriptRuntimeException($"Unknown opcode: 0x{(byte)state.Bytecode[state.PC - 1]:X2}", state.Proc, state.PC - 1, state.Thread);
+        throw new ScriptRuntimeException($"Unknown opcode: 0x{(byte)state.BytecodePtr[state.PC - 1]:X2}", state.Proc, state.PC - 1, state.Thread);
     }
 
     private static void HandlePushString(ref InterpreterState state)
@@ -490,7 +511,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleCall(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var argType = (DMCallArgumentsType)state.ReadByte();
         var argStackDelta = state.ReadInt32();
         var unusedStackDelta = state.ReadInt32();
@@ -498,7 +519,6 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.SavePC(state.PC);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.PerformCall(reference, argType, argStackDelta);
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandleCallStatement(ref InterpreterState state)
@@ -543,7 +563,6 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             state.StackPtr -= argStackDelta;
             state.Push(DreamValue.Null);
         }
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandlePushProc(ref InterpreterState state)
@@ -572,24 +591,70 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfTrueReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        var address = state.ReadInt32();
-        state.Thread._stackPtr = state.StackPtr;
-        var val = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
-        if (!val.IsFalse()) state.PC = address;
+        var refType = (DMReference.Type)state.ReadByte();
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
+                    if (!state.Stack[state.LocalBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
+                    if (!state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var address = state.ReadInt32();
+                    state.Thread._stackPtr = state.StackPtr;
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    if (!val.IsFalse()) state.PC = address;
+                }
+                break;
+        }
     }
 
     private static void HandleJumpIfFalseReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        var address = state.ReadInt32();
-        state.Thread._stackPtr = state.StackPtr;
-        var val = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
-        if (val.IsFalse()) state.PC = address;
+        var refType = (DMReference.Type)state.ReadByte();
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
+                    if (state.Stack[state.LocalBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
+                    if (state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var address = state.ReadInt32();
+                    state.Thread._stackPtr = state.StackPtr;
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    if (val.IsFalse()) state.PC = address;
+                }
+                break;
+        }
     }
 
     private static void HandleOutput(ref InterpreterState state)
@@ -603,7 +668,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandleOutputReference(ref InterpreterState state)
     {
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_OutputReference(state.Proc, state.Frame, ref state.PC);
+        state.Thread.Opcode_OutputReference(state.Proc, ref state.Frame, ref state.PC);
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -613,7 +678,6 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
         state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandleBitAnd(ref InterpreterState state)
@@ -639,11 +703,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitXorReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, refValue ^ value, 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue ^ value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
@@ -663,11 +727,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitShiftLeftReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, refValue << value, 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue << value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
@@ -681,11 +745,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitShiftRightReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, refValue >> value, 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue >> value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
@@ -719,25 +783,26 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePushReferenceValue(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.Bytecode[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.Bytecode[state.PC++];
-                    if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+                    int idx = state.ReadByte();
                     state.Push(state.Stack[state.LocalBase + idx]);
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.Bytecode[state.PC++];
-                    if (idx < 0 || idx >= state.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC, state.Thread);
+                    int idx = state.ReadByte();
                     state.Push(state.Stack[state.ArgumentBase + idx]);
                 }
                 break;
             case DMReference.Type.Global:
-                state.Push(state.Thread.Context.GetGlobal(state.ReadInt32()));
+                {
+                    var globalIdx = state.ReadInt32();
+                    state.Push(state.Thread.Context.GetGlobal(globalIdx));
+                }
                 break;
             case DMReference.Type.Src:
                 state.Push(state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null);
@@ -748,9 +813,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
                     state.Thread._stackPtr = state.StackPtr;
-                    var val = state.Thread.GetReferenceValue(reference, state.Frame, 0);
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                     state.Push(val);
@@ -761,34 +826,35 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAssign(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.Bytecode[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[state.StackPtr - 1]; // peek
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.Bytecode[state.PC++];
-                    if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+                    int idx = state.ReadByte();
                     state.Stack[state.LocalBase + idx] = value;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.Bytecode[state.PC++];
-                    if (idx < 0 || idx >= state.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC, state.Thread);
+                    int idx = state.ReadByte();
                     state.Stack[state.ArgumentBase + idx] = value;
                 }
                 break;
             case DMReference.Type.Global:
-                state.Thread.Context.SetGlobal(state.ReadInt32(), value);
+                {
+                    var globalIdx = state.ReadInt32();
+                    state.Thread.Context.SetGlobal(globalIdx, value);
+                }
                 break;
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
                     var val = state.Pop();
                     state.Thread._stackPtr = state.StackPtr;
-                    state.Thread.SetReferenceValue(reference, state.Frame, val, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, val, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                     state.Push(val);
@@ -870,72 +936,127 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIncrement(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        state.Thread._stackPtr = state.StackPtr;
-        var value = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        var newValue = value + 1;
-        state.Thread.SetReferenceValue(reference, state.Frame, newValue, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
-        state.Push(newValue);
+        var refType = (DMReference.Type)state.ReadByte();
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    var val = state.Stack[state.LocalBase + idx];
+                    var newVal = val + 1;
+                    state.Stack[state.LocalBase + idx] = newVal;
+                    state.Push(newVal);
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    var val = state.Stack[state.ArgumentBase + idx];
+                    var newVal = val + 1;
+                    state.Stack[state.ArgumentBase + idx] = newVal;
+                    state.Push(newVal);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var value = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    var newValue = value + 1;
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, newValue, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    state.Push(newValue);
+                }
+                break;
+        }
     }
 
     private static void HandleDecrement(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        state.Thread._stackPtr = state.StackPtr;
-        var value = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        var newValue = value - 1;
-        state.Thread.SetReferenceValue(reference, state.Frame, newValue, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
-        state.Push(newValue);
+        var refType = (DMReference.Type)state.ReadByte();
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    var val = state.Stack[state.LocalBase + idx];
+                    var newVal = val - 1;
+                    state.Stack[state.LocalBase + idx] = newVal;
+                    state.Push(newVal);
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    var val = state.Stack[state.ArgumentBase + idx];
+                    var newVal = val - 1;
+                    state.Stack[state.ArgumentBase + idx] = newVal;
+                    state.Push(newVal);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var value = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    var newValue = value - 1;
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, newValue, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    state.Push(newValue);
+                }
+                break;
+        }
     }
 
     private static void HandleModulus(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Modulus();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Modulus", state.Proc, state.PC, state.Thread);
+        var b = state.Stack[--state.StackPtr];
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = a % b;
     }
 
     private static void HandleAssignInto(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.SetReferenceValue(reference, state.Frame, value, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.Thread.Push(value);
-        state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
+        state.Push(value);
     }
 
     private static void HandleModulusReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, refValue % value, 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue % value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleModulusModulus(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ModulusModulus();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during ModulusModulus", state.Proc, state.PC, state.Thread);
+        var b = state.Stack[--state.StackPtr];
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Modulo(a.GetValueAsFloat(), b.GetValueAsFloat()));
     }
 
     private static void HandleModulusModulusReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
@@ -966,15 +1087,22 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIsInList(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_IsInList();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during IsInList", state.Proc, state.PC, state.Thread);
+        var listValue = state.Stack[--state.StackPtr];
+        var value = state.Stack[state.StackPtr - 1];
+
+        bool result = false;
+        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+        {
+            result = list.Contains(value);
+        }
+        state.Stack[state.StackPtr - 1] = result ? DreamValue.True : DreamValue.False;
     }
 
     private static void HandleInput(ref InterpreterState state)
     {
-        var ref1 = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        var ref2 = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var ref1 = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var ref2 = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         state.StackPtr -= 4;
         state.Push(DreamValue.Null);
     }
@@ -1028,7 +1156,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePopReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
@@ -1063,13 +1191,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 state.StackPtr--;
                 state.Thread._stackPtr = state.StackPtr;
                 state.Thread.PerformCall(targetProc, obj, argCount, argCount);
-                state.PotentiallyChangedStack = true;
                 return;
             }
         }
         state.StackPtr -= argStackDelta;
         state.Push(DreamValue.Null);
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandleInitial(ref InterpreterState state)
@@ -1084,7 +1210,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             {
                 int index = obj.ObjectType.GetVariableIndex(varName);
                 if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
-                    result = DreamValue.FromObject(obj.ObjectType.FlattenedDefaultValues[index]);
+                    result = obj.ObjectType.FlattenedDefaultValues[index];
             }
         }
         state.Push(result);
@@ -1130,14 +1256,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandleEnumerate(ref InterpreterState state)
     {
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Enumerate(state.Proc, state.Frame, ref state.PC);
+        state.Thread.Opcode_Enumerate(state.Proc, ref state.Frame, ref state.PC);
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleEnumerateAssoc(ref InterpreterState state)
     {
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_EnumerateAssoc(state.Proc, state.Frame, ref state.PC);
+        state.Thread.Opcode_EnumerateAssoc(state.Proc, ref state.Frame, ref state.PC);
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -1151,14 +1277,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandleAppend(ref InterpreterState state)
     {
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Append(state.Proc, state.Frame, ref state.PC);
+        state.Thread.Opcode_Append(state.Proc, ref state.Frame, ref state.PC);
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleRemove(ref InterpreterState state)
     {
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Remove(state.Proc, state.Frame, ref state.PC);
+        state.Thread.Opcode_Remove(state.Proc, ref state.Frame, ref state.PC);
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -1224,94 +1350,96 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePower(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Power();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Power", state.Proc, state.PC, state.Thread);
+        var b = state.Stack[--state.StackPtr];
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(MathF.Pow(a.GetValueAsFloat(), b.GetValueAsFloat()));
     }
 
     private static void HandleSqrt(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Sqrt();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Sqrt", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Sqrt(a.GetValueAsFloat()));
     }
 
     private static void HandleAbs(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Abs();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Abs", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Abs(a.GetValueAsFloat()));
     }
 
     private static void HandleMultiplyReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, refValue * value, 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue * value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleSin(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Sin();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Sin", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Sin(a.GetValueAsFloat()));
     }
 
     private static void HandleDivideReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, state.Frame, refValue / value, 0);
+        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue / value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleCos(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Cos();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Cos", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Cos(a.GetValueAsFloat()));
     }
 
     private static void HandleTan(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Tan();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Tan", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Tan(a.GetValueAsFloat()));
     }
 
     private static void HandleArcSin(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcSin();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during ArcSin", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcSin(a.GetValueAsFloat()));
     }
 
     private static void HandleArcCos(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcCos();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during ArcCos", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcCos(a.GetValueAsFloat()));
     }
 
     private static void HandleArcTan(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcTan();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during ArcTan", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcTan(a.GetValueAsFloat()));
     }
 
     private static void HandleArcTan2(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcTan2();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during ArcTan2", state.Proc, state.PC, state.Thread);
+        var y = state.Stack[--state.StackPtr];
+        var x = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcTan(x.GetValueAsFloat(), y.GetValueAsFloat()));
     }
 
     private static void HandleLog(ref InterpreterState state)
@@ -1339,7 +1467,6 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.Opcode_CreateObject(state.Proc, ref state.PC);
         state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandleLocateCoord(ref InterpreterState state)
@@ -1383,25 +1510,24 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.HandleException(e);
         state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandleTry(ref InterpreterState state)
     {
         var catchAddress = state.ReadInt32();
-        var catchRef = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        state.Thread.TryStack.Push(new TryBlock { CatchAddress = catchAddress, CallStackDepth = state.Thread.CallStackCount, StackPointer = state.StackPtr, CatchReference = catchRef });
+        var catchRef = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        state.Thread.PushTryBlock(new TryBlock { CatchAddress = catchAddress, CallStackDepth = state.Thread.CallStackCount, StackPointer = state.StackPtr, CatchReference = catchRef });
     }
 
     private static void HandleTryNoValue(ref InterpreterState state)
     {
         var catchAddress = state.ReadInt32();
-        state.Thread.TryStack.Push(new TryBlock { CatchAddress = catchAddress, CallStackDepth = state.Thread.CallStackCount, StackPointer = state.StackPtr, CatchReference = null });
+        state.Thread.PushTryBlock(new TryBlock { CatchAddress = catchAddress, CallStackDepth = state.Thread.CallStackCount, StackPointer = state.StackPtr, CatchReference = null });
     }
 
     private static void HandleEndTry(ref InterpreterState state)
     {
-        if (state.Thread.TryStack.Count > 0) state.Thread.TryStack.Pop();
+        state.Thread.PopTryBlock();
     }
 
     private static void HandleSpawn(ref InterpreterState state)
@@ -1434,10 +1560,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAppendNoPush(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Pop();
         state.Thread._stackPtr = state.StackPtr;
-        var listValue = state.Thread.GetReferenceValue(reference, state.Frame);
+        var listValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
         if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) list.AddValue(value);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
@@ -1445,21 +1571,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAssignNoPush(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var value = state.Pop();
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.SetReferenceValue(reference, state.Frame, value);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, value);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandlePushRefAndDereferenceField(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var fieldNameId = state.ReadInt32();
         var fieldName = state.Thread.Context.Strings[fieldNameId];
         state.Thread._stackPtr = state.StackPtr;
-        var objValue = state.Thread.GetReferenceValue(reference, state.Frame);
+        var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
         DreamValue val = DreamValue.Null;
         if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null) val = obj.GetVariable(fieldName);
         state.StackPtr = state.Thread._stackPtr;
@@ -1472,8 +1598,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread._stackPtr = state.StackPtr;
         for (int i = 0; i < count; i++)
         {
-            var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-            var val = state.Thread.GetReferenceValue(reference, state.Frame);
+            var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+            var val = state.Thread.GetReferenceValue(reference, ref state.Frame);
             state.Thread.Push(val);
         }
         state.Stack = state.Thread._stack;
@@ -1520,13 +1646,36 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfReferenceFalse(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-        var address = state.ReadInt32();
-        state.Thread._stackPtr = state.StackPtr;
-        var val = state.Thread.GetReferenceValue(reference, state.Frame, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
-        if (val.IsFalse()) state.PC = address;
+        var refType = (DMReference.Type)state.ReadByte();
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
+                    if (state.Stack[state.LocalBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
+                    if (state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var address = state.ReadInt32();
+                    state.Thread._stackPtr = state.StackPtr;
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    if (val.IsFalse()) state.PC = address;
+                }
+                break;
+        }
     }
 
     private static void HandleReturnFloat(ref InterpreterState state)
@@ -1536,7 +1685,6 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
         state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandleNPushFloatAssign(ref InterpreterState state)
@@ -1544,14 +1692,42 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int n = state.ReadInt32();
         float value = state.ReadSingle();
         var dv = new DreamValue(value);
-        state.Thread._stackPtr = state.StackPtr;
+
         for (int i = 0; i < n; i++)
         {
-            var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
-            state.Thread.SetReferenceValue(reference, state.Frame, dv, 0);
-            state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+            var refType = (DMReference.Type)state.ReadByte();
+            switch (refType)
+            {
+                case DMReference.Type.Local:
+                    {
+                        int idx = state.ReadByte();
+                        state.Stack[state.LocalBase + idx] = dv;
+                    }
+                    break;
+                case DMReference.Type.Argument:
+                    {
+                        int idx = state.ReadByte();
+                        state.Stack[state.ArgumentBase + idx] = dv;
+                    }
+                    break;
+                case DMReference.Type.Global:
+                    {
+                        var globalIdx = state.ReadInt32();
+                        state.Thread.Context.SetGlobal(globalIdx, dv);
+                    }
+                    break;
+                default:
+                    {
+                        state.PC--;
+                        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                        state.Thread._stackPtr = state.StackPtr;
+                        state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
+                        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                        state.StackPtr = state.Thread._stackPtr;
+                    }
+                    break;
+            }
         }
-        state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleIsTypeDirect(ref InterpreterState state)
@@ -1573,20 +1749,20 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleNullRef(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.SetReferenceValue(reference, state.Frame, DreamValue.Null, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, DreamValue.Null, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleIndexRefWithString(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var stringId = state.ReadInt32();
         var stringValue = new DreamValue(state.Thread.Context.Strings[stringId]);
         state.Thread._stackPtr = state.StackPtr;
-        var objValue = state.Thread.GetReferenceValue(reference, state.Frame, 0);
+        var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         DreamValue result = DreamValue.Null;
         if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) result = list.GetValue(stringValue);
@@ -1597,24 +1773,23 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleReturnReferenceValue(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         state.Thread._stackPtr = state.StackPtr;
-        var val = state.Thread.GetReferenceValue(reference, state.Frame, 0);
+        var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.Thread.Push(val);
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
         state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
-        state.PotentiallyChangedStack = true;
     }
 
     private static void HandlePushFloatAssign(ref InterpreterState state)
     {
         var value = state.ReadSingle();
-        var reference = state.Thread.ReadReference(state.Bytecode, ref state.PC);
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
         var dv = new DreamValue(value);
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.SetReferenceValue(reference, state.Frame, dv, 0);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.Thread.Push(dv);
         state.Stack = state.Thread._stack;
@@ -1733,5 +1908,46 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 case BuiltinVar.PixelY: instance.PixelY = val.GetValueAsFloat(); break;
             }
         }
+    }
+
+    private static void HandleLocalPushReturn(ref InterpreterState state)
+    {
+        int idx = state.ReadByte();
+        if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+        state.Push(state.Stack[state.LocalBase + idx]);
+        state.Thread._stackPtr = state.StackPtr;
+        state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
+        state.Stack = state.Thread._stack;
+        state.StackPtr = state.Thread._stackPtr;
+    }
+
+    private static void HandleLocalCompareEquals(ref InterpreterState state)
+    {
+        int idx1 = state.ReadByte();
+        int idx2 = state.ReadByte();
+        if (idx1 < 0 || idx1 >= state.Proc.LocalVariableCount || idx2 < 0 || idx2 >= state.Proc.LocalVariableCount)
+            throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+
+        var a = state.Stack[state.LocalBase + idx1];
+        var b = state.Stack[state.LocalBase + idx2];
+        state.Push(a == b ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadByte();
+        int address = state.ReadInt32();
+        if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+        var val = state.Stack[state.LocalBase + idx];
+        if (val.IsFalse()) state.PC = address;
+    }
+
+    private static void HandleLocalJumpIfTrue(ref InterpreterState state)
+    {
+        int idx = state.ReadByte();
+        int address = state.ReadInt32();
+        if (idx < 0 || idx >= state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
+        var val = state.Stack[state.LocalBase + idx];
+        if (!val.IsFalse()) state.PC = address;
     }
 }

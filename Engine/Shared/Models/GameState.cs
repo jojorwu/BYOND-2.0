@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shared.Interfaces;
 
 namespace Shared;
     public class GameState : IGameState
@@ -14,10 +15,13 @@ namespace Shared;
         public IMap? Map { get; set; }
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
+        private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
+        private readonly IObjectFactory? _objectFactory;
 
-        public GameState(SpatialGrid spatialGrid)
+        public GameState(SpatialGrid spatialGrid, IObjectFactory? objectFactory = null)
         {
             SpatialGrid = spatialGrid;
+            _objectFactory = objectFactory;
         }
 
         public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
@@ -63,27 +67,45 @@ namespace Shared;
         public void AddGameObject(GameObject gameObject)
         {
             GameObjects.TryAdd(gameObject.Id, gameObject);
-            using (WriteLock())
-            {
-                SpatialGrid.Add(gameObject);
-            }
+            gameObject.PositionChanged += OnObjectPositionChanged;
+            gameObject.StateChanged += OnObjectStateChanged;
+            SpatialGrid.Add(gameObject);
+            _dirtyObjects.Enqueue(gameObject);
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
             GameObjects.TryRemove(gameObject.Id, out _);
-            using (WriteLock())
-            {
-                SpatialGrid.Remove(gameObject);
-            }
+            gameObject.PositionChanged -= OnObjectPositionChanged;
+            gameObject.StateChanged -= OnObjectStateChanged;
+            SpatialGrid.Remove(gameObject);
+
+            _objectFactory?.Destroy(gameObject);
         }
 
         public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)
         {
-            using (WriteLock())
+            SpatialGrid.Update(gameObject, oldX, oldY);
+        }
+
+        private void OnObjectPositionChanged(GameObject obj, int oldX, int oldY, int oldZ)
+        {
+            UpdateGameObject(obj, oldX, oldY);
+        }
+
+        private void OnObjectStateChanged(IGameObject obj)
+        {
+            _dirtyObjects.Enqueue(obj);
+        }
+
+        public IEnumerable<IGameObject> GetDirtyObjects()
+        {
+            var list = new List<IGameObject>();
+            while (_dirtyObjects.TryDequeue(out var obj))
             {
-                SpatialGrid.Update(gameObject, oldX, oldY);
+                list.Add(obj);
             }
+            return list;
         }
 
         private sealed class DisposableAction : IDisposable

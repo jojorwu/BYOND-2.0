@@ -69,15 +69,16 @@ namespace Core
 
             foreach (var (name, value) in type.DefaultProperties)
             {
+                var dreamValue = DreamValue.FromObject(value);
                 int index = type.VariableNames.IndexOf(name);
                 if (index != -1)
                 {
-                    type.FlattenedDefaultValues[index] = value;
+                    type.FlattenedDefaultValues[index] = dreamValue;
                 }
                 else
                 {
                     type.VariableNames.Add(name);
-                    type.FlattenedDefaultValues.Add(value);
+                    type.FlattenedDefaultValues.Add(dreamValue);
                 }
             }
         }

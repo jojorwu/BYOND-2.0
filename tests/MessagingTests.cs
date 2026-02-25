@@ -49,8 +49,8 @@ namespace tests
         [Test]
         public void GameObject_SendMessage_DispatchesToAllComponents()
         {
-            var archetypeManagerMock = new Mock<IArchetypeManager>();
-            var componentManager = new ComponentManager(archetypeManagerMock.Object);
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
 
@@ -70,8 +70,8 @@ namespace tests
         [Test]
         public void GameObject_SendMessage_RespectsEnabledFlag()
         {
-            var archetypeManagerMock = new Mock<IArchetypeManager>();
-            var componentManager = new ComponentManager(archetypeManagerMock.Object);
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
 
@@ -86,8 +86,8 @@ namespace tests
         [Test]
         public void GameObject_RemoveComponent_UpdatesCache()
         {
-            var archetypeManagerMock = new Mock<IArchetypeManager>();
-            var componentManager = new ComponentManager(archetypeManagerMock.Object);
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
 
@@ -105,8 +105,8 @@ namespace tests
         [Test]
         public void GameObject_Reset_ClearsCache()
         {
-            var archetypeManagerMock = new Mock<IArchetypeManager>();
-            var componentManager = new ComponentManager(archetypeManagerMock.Object);
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
 
@@ -121,8 +121,8 @@ namespace tests
         [Test]
         public void GameObject_AddComponent_ReplacesExistingOfType()
         {
-            var archetypeManagerMock = new Mock<IArchetypeManager>();
-            var componentManager = new ComponentManager(archetypeManagerMock.Object);
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
 

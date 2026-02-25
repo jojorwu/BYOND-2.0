@@ -82,12 +82,17 @@ namespace Shared.Services;
             while (!_disposed)
             {
                 IJob? job = null;
-                lock (_lock)
+
+                // Fast-path: check approximate count before locking
+                if (_approximateCount > 0)
                 {
-                    if (_jobQueue.TryDequeue(out job, out _))
+                    lock (_lock)
                     {
-                        _approximateCount--;
-                        _totalWeight -= Math.Max(1, job!.Weight);
+                        if (_jobQueue.TryDequeue(out job, out _))
+                        {
+                            _approximateCount--;
+                            _totalWeight -= Math.Max(1, job!.Weight);
+                        }
                     }
                 }
 
@@ -106,7 +111,8 @@ namespace Shared.Services;
                     // Spin-wait before full wait to reduce latency
                     if (SpinWait()) continue;
 
-                    _wakeEvent.Wait(10); // Wait up to 10ms if no work found
+                    // Wait with a small timeout to allow periodic stealing attempts and sizing updates
+                    _wakeEvent.Wait(5);
                     _wakeEvent.Reset();
                 }
             }
@@ -114,16 +120,22 @@ namespace Shared.Services;
 
         private bool SpinWait()
         {
-            for (int i = 0; i < 1000; i++)
+            // Exponential backoff spin-wait
+            for (int i = 0; i < 10; i++)
             {
                 if (_disposed) return false;
-
-                // Peek if any work arrived (volatile read)
                 if (_approximateCount > 0) return true;
-
-                // Brief yield
-                if (i % 10 == 0) Thread.Yield();
+                Thread.SpinWait(1 << i);
             }
+
+            // Yield-based wait
+            for (int i = 0; i < 10; i++)
+            {
+                if (_disposed) return false;
+                if (_approximateCount > 0) return true;
+                Thread.Yield();
+            }
+
             return false;
         }
 
@@ -151,6 +163,7 @@ namespace Shared.Services;
             _disposed = true;
             _wakeEvent.Set();
             _thread.Join(1000);
+            Arena.Dispose();
             _wakeEvent.Dispose();
         }
     }

@@ -1,6 +1,8 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using Shared.Interfaces;
 using Shared.Models;
 
@@ -25,16 +27,54 @@ namespace Shared.Services;
             public int X, Y, Z;
         }
 
+        private class CommandList : IDisposable
+        {
+            public Command[] Commands;
+            public int Count;
+
+            public CommandList()
+            {
+                Commands = ArrayPool<Command>.Shared.Rent(128);
+                Count = 0;
+            }
+
+            public void Add(Command cmd)
+            {
+                if (Count == Commands.Length)
+                {
+                    var newArr = ArrayPool<Command>.Shared.Rent(Commands.Length * 2);
+                    Array.Copy(Commands, newArr, Commands.Length);
+                    ArrayPool<Command>.Shared.Return(Commands);
+                    Commands = newArr;
+                }
+                Commands[Count++] = cmd;
+            }
+
+            public void Clear()
+            {
+                Count = 0;
+            }
+
+            public void Dispose()
+            {
+                if (Commands != null)
+                {
+                    ArrayPool<Command>.Shared.Return(Commands);
+                    Commands = null!;
+                }
+            }
+        }
+
         private readonly IObjectFactory _objectFactory;
-        private readonly ConcurrentBag<List<Command>> _commandLists = new();
-        private readonly ThreadLocal<List<Command>> _localCommands;
+        private readonly ConcurrentBag<CommandList> _commandLists = new();
+        private readonly ThreadLocal<CommandList> _localCommands;
 
         public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager)
         {
             _objectFactory = objectFactory;
-            _localCommands = new ThreadLocal<List<Command>>(() =>
+            _localCommands = new ThreadLocal<CommandList>(() =>
             {
-                var list = new List<Command>();
+                var list = new CommandList();
                 _commandLists.Add(list);
                 return list;
             });
@@ -65,8 +105,9 @@ namespace Shared.Services;
             // Structural changes are played back from a single thread during synchronization points
             foreach (var list in _commandLists)
             {
-                foreach (var command in list)
+                for (int i = 0; i < list.Count; i++)
                 {
+                    var command = list.Commands[i];
                     switch (command.Type)
                     {
                     case CommandType.Create:
@@ -100,5 +141,9 @@ namespace Shared.Services;
         public void Dispose()
         {
             _localCommands.Dispose();
+            foreach (var list in _commandLists)
+            {
+                list.Dispose();
+            }
         }
     }

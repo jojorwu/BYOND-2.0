@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
@@ -8,7 +9,7 @@ using Shared.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class JobSystem : IJobSystem, IDisposable
+    public class JobSystem : IJobSystem, IDisposable, IAsyncDisposable
     {
         private const int MaxTrackedJobs = 10000;
         private volatile WorkerThread[] _workers;
@@ -112,7 +113,7 @@ namespace Shared.Services;
 
             var currentWorkers = _workers;
             int count = currentWorkers.Length;
-            int index;
+            int index = 0;
 
             int preferred = job.PreferredWorkerId;
             if (preferred >= 0 && preferred < count)
@@ -121,6 +122,21 @@ namespace Shared.Services;
             }
             else if (count > 1)
             {
+                // Heuristic: Prefer current worker if it's not overloaded, to improve cache locality
+                var currentWorker = WorkerThread.Current;
+                if (currentWorker != null && currentWorker.ApproximateJobCount < 10)
+                {
+                    // Find index of current worker
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (currentWorkers[i] == currentWorker)
+                        {
+                            index = i;
+                            goto Enqueue;
+                        }
+                    }
+                }
+
                 // Power of Two Choices for better load balancing using Total Weight
                 int i1 = Random.Shared.Next(count);
                 int i2 = Random.Shared.Next(count);
@@ -128,10 +144,8 @@ namespace Shared.Services;
 
                 index = currentWorkers[i1].ApproximateTotalWeight <= currentWorkers[i2].ApproximateTotalWeight ? i1 : i2;
             }
-            else
-            {
-                index = 0;
-            }
+
+        Enqueue:
 
             currentWorkers[index].Enqueue(finalJob);
             return new JobHandle(tcs.Task);
@@ -241,14 +255,15 @@ namespace Shared.Services;
 
         public async Task CompleteAllAsync()
         {
-            var tasks = new List<Task>();
-            while (_pendingJobTrackers.TryTake(out var tcs))
+            while (true)
             {
-                tasks.Add(tcs.Task);
-            }
+                var tasks = new List<Task>();
+                while (_pendingJobTrackers.TryTake(out var tcs))
+                {
+                    tasks.Add(tcs.Task);
+                }
 
-            if (tasks.Count > 0)
-            {
+                if (tasks.Count == 0) break;
                 await Task.WhenAll(tasks);
             }
         }
@@ -259,9 +274,16 @@ namespace Shared.Services;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 
+            if (count <= 1)
+            {
+                for (int i = 0; i < count; i++) action(list[i]);
+                return;
+            }
+
+            var handles = new List<Task>();
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item), priority: priority);
+                foreach (var item in list) handles.Add(Schedule(() => action(item), priority: priority, track: false).Task!);
             }
             else
             {
@@ -269,16 +291,55 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(() =>
+                    handles.Add(Schedule(() =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             action(list[j]);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false).Task!);
                 }
             }
-            await CompleteAllAsync();
+            await Task.WhenAll(handles);
+        }
+
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
+        {
+            const int BatchSize = 32;
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+
+            if (count <= 1)
+            {
+                for (int i = 0; i < count; i++) action(list[i], i);
+                return;
+            }
+
+            var handles = new List<Task>();
+            if (count <= BatchSize)
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    int index = i;
+                    handles.Add(Schedule(() => action(list[index], index), priority: priority, track: false).Task!);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, count);
+                    handles.Add(Schedule(() =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            action(list[j], j);
+                        }
+                    }, priority: priority, track: false).Task!);
+                }
+            }
+            await Task.WhenAll(handles);
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
@@ -287,9 +348,10 @@ namespace Shared.Services;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 
+            var handles = new List<Task>();
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item), priority: priority);
+                foreach (var item in list) handles.Add(Schedule(() => action(item), priority: priority, track: false).Task!);
             }
             else
             {
@@ -297,16 +359,16 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(async () =>
+                    handles.Add(Schedule(async () =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             await action(list[j]);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false).Task!);
                 }
             }
-            await CompleteAllAsync();
+            await Task.WhenAll(handles);
         }
 
         public IArenaAllocator? GetCurrentArena()
@@ -326,6 +388,20 @@ namespace Shared.Services;
             {
                 worker.Dispose();
             }
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _maintenanceTimer.Dispose();
+            foreach (var worker in _workers)
+            {
+                // Each worker disposal involves joining its thread, so we can do this in parallel
+                _ = Task.Run(() => worker.Dispose());
+            }
+            // Wait a bit for workers to finish current jobs if any
+            await Task.Delay(100);
+            GC.SuppressFinalize(this);
         }
 
         private class TrackingJob : IJob

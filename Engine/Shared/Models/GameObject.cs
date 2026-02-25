@@ -1,10 +1,12 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
 using Shared.Interfaces;
 using Shared.Enums;
+using Shared.Models;
 
 namespace Shared;
 
@@ -28,9 +30,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     }
 
     private IComponentManager? _componentManager;
-    private volatile IComponent[] _componentCache = System.Array.Empty<IComponent>();
-    private readonly object _componentCacheLock = new();
-    private readonly object _stateLock = new();
 
     public void SetComponentManager(IComponentManager manager) => _componentManager = manager;
 
@@ -39,6 +38,52 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int Id { get; set; }
 
+    public object? Archetype { get; set; }
+    public int ArchetypeIndex { get; set; }
+
+    public event Action<IGameObject>? StateChanged;
+    internal event Action<GameObject, int, int, int>? PositionChanged;
+
+    private int _isDirty;
+    protected override void IncrementVersion()
+    {
+        base.IncrementVersion();
+        if (Interlocked.CompareExchange(ref _isDirty, 1, 0) == 0)
+        {
+            StateChanged?.Invoke(this);
+        }
+    }
+
+    public void ClearDirty()
+    {
+        Interlocked.Exchange(ref _isDirty, 0);
+    }
+
+    public IGameObject? NextInGridCell { get; set; }
+    public IGameObject? PrevInGridCell { get; set; }
+    public long? CurrentGridCellKey { get; set; }
+
+    private int _xIndex = -1, _yIndex = -1, _zIndex = -1, _locIndex = -1;
+    private int _iconIndex = -1, _iconStateIndex = -1, _dirIndex = -1, _alphaIndex = -1;
+    private int _colorIndex = -1, _layerIndex = -1, _pixelXIndex = -1, _pixelYIndex = -1;
+
+    private void InitializeBuiltinIndices()
+    {
+        if (ObjectType == null) return;
+        _xIndex = ObjectType.XIndex;
+        _yIndex = ObjectType.YIndex;
+        _zIndex = ObjectType.ZIndex;
+        _locIndex = ObjectType.LocIndex;
+        _iconIndex = ObjectType.IconIndex;
+        _iconStateIndex = ObjectType.IconStateIndex;
+        _dirIndex = ObjectType.DirIndex;
+        _alphaIndex = ObjectType.AlphaIndex;
+        _colorIndex = ObjectType.ColorIndex;
+        _layerIndex = ObjectType.LayerIndex;
+        _pixelXIndex = ObjectType.PixelXIndex;
+        _pixelYIndex = ObjectType.PixelYIndex;
+    }
+
     private int _x;
     private int _committedX;
     /// <summary>
@@ -46,17 +91,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int X
     {
-        get { lock (_stateLock) return _x; }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { lock (_lock) return _x; }
         set
         {
-            lock (_stateLock)
+            int oldX, oldY, oldZ;
+            lock (_lock)
             {
-                if (_x != value)
-                {
-                    _x = value;
-                    SyncVariable("x", value);
-                }
+                oldX = _x;
+                if (oldX == value) return;
+                oldY = _y; oldZ = _z;
+                _x = value;
+                if (_xIndex != -1) _variableValues[_xIndex] = new DreamValue((float)value);
+                IncrementVersion();
             }
+            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
         }
     }
 
@@ -72,17 +121,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int Y
     {
-        get { lock (_stateLock) return _y; }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { lock (_lock) return _y; }
         set
         {
-            lock (_stateLock)
+            int oldX, oldY, oldZ;
+            lock (_lock)
             {
-                if (_y != value)
-                {
-                    _y = value;
-                    SyncVariable("y", value);
-                }
+                oldY = _y;
+                if (oldY == value) return;
+                oldX = _x; oldZ = _z;
+                _y = value;
+                if (_yIndex != -1) _variableValues[_yIndex] = new DreamValue((float)value);
+                IncrementVersion();
             }
+            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
         }
     }
 
@@ -98,17 +151,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int Z
     {
-        get { lock (_stateLock) return _z; }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { lock (_lock) return _z; }
         set
         {
-            lock (_stateLock)
+            int oldX, oldY, oldZ;
+            lock (_lock)
             {
-                if (_z != value)
-                {
-                    _z = value;
-                    SyncVariable("z", value);
-                }
+                oldZ = _z;
+                if (oldZ == value) return;
+                oldX = _x; oldY = _y;
+                _z = value;
+                if (_zIndex != -1) _variableValues[_zIndex] = new DreamValue((float)value);
+                IncrementVersion();
             }
+            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
         }
     }
 
@@ -120,57 +177,57 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     private string _icon = string.Empty;
     public string Icon
     {
-        get { lock (_stateLock) return _icon; }
-        set { lock (_stateLock) { if (_icon != value) { _icon = value; SyncVariable("icon", value); } } }
+        get { lock (_lock) return _icon; }
+        set { lock (_lock) { if (_icon != value) { _icon = value; if (_iconIndex != -1) _variableValues[_iconIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _iconState = string.Empty;
     public string IconState
     {
-        get { lock (_stateLock) return _iconState; }
-        set { lock (_stateLock) { if (_iconState != value) { _iconState = value; SyncVariable("icon_state", value); } } }
+        get { lock (_lock) return _iconState; }
+        set { lock (_lock) { if (_iconState != value) { _iconState = value; if (_iconStateIndex != -1) _variableValues[_iconStateIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private int _dir = 2;
     public int Dir
     {
-        get { lock (_stateLock) return _dir; }
-        set { lock (_stateLock) { if (_dir != value) { _dir = value; SyncVariable("dir", (float)value); } } }
+        get { lock (_lock) return _dir; }
+        set { lock (_lock) { if (_dir != value) { _dir = value; if (_dirIndex != -1) _variableValues[_dirIndex] = new DreamValue((float)value); IncrementVersion(); } } }
     }
 
     private float _alpha = 255.0f;
     public float Alpha
     {
-        get { lock (_stateLock) return _alpha; }
-        set { lock (_stateLock) { if (_alpha != value) { _alpha = value; SyncVariable("alpha", value); } } }
+        get { lock (_lock) return _alpha; }
+        set { lock (_lock) { if (_alpha != value) { _alpha = value; if (_alphaIndex != -1) _variableValues[_alphaIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _color = "#ffffff";
     public string Color
     {
-        get { lock (_stateLock) return _color; }
-        set { lock (_stateLock) { if (_color != value) { _color = value; SyncVariable("color", value); } } }
+        get { lock (_lock) return _color; }
+        set { lock (_lock) { if (_color != value) { _color = value; if (_colorIndex != -1) _variableValues[_colorIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private float _layer = 2.0f;
     public float Layer
     {
-        get { lock (_stateLock) return _layer; }
-        set { lock (_stateLock) { if (_layer != value) { _layer = value; SyncVariable("layer", value); } } }
+        get { lock (_lock) return _layer; }
+        set { lock (_lock) { if (_layer != value) { _layer = value; if (_layerIndex != -1) _variableValues[_layerIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private float _pixelX = 0;
     public float PixelX
     {
-        get { lock (_stateLock) return _pixelX; }
-        set { lock (_stateLock) { if (_pixelX != value) { _pixelX = value; SyncVariable("pixel_x", value); } } }
+        get { lock (_lock) return _pixelX; }
+        set { lock (_lock) { if (_pixelX != value) { _pixelX = value; if (_pixelXIndex != -1) _variableValues[_pixelXIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private float _pixelY = 0;
     public float PixelY
     {
-        get { lock (_stateLock) return _pixelY; }
-        set { lock (_stateLock) { if (_pixelY != value) { _pixelY = value; SyncVariable("pixel_y", value); } } }
+        get { lock (_lock) return _pixelY; }
+        set { lock (_lock) { if (_pixelY != value) { _pixelY = value; if (_pixelYIndex != -1) _variableValues[_pixelYIndex] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     /// <summary>
@@ -178,7 +235,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public void CommitState()
     {
-        lock (_stateLock)
+        lock (_lock)
         {
             _committedX = _x;
             _committedY = _y;
@@ -192,7 +249,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public IGameObject? Loc
     {
-        get { lock (_stateLock) return _loc; }
+        get { lock (_lock) return _loc; }
         set => SetLocInternal(value, true);
     }
 
@@ -203,7 +260,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
         lock (_globalHierarchyLock)
         {
-            lock (_stateLock)
+            lock (_lock)
             {
                 if (_loc == value) return;
 
@@ -213,8 +270,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
                 if (syncVariable)
                 {
-                    // Syncing "loc" variable which might be tracked for snapshots
-                    SyncVariable("loc", value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+                    if (_locIndex != -1)
+                        _variableValues[_locIndex] = value != null ? new DreamValue((DreamObject)value) : DreamValue.Null;
+                    IncrementVersion();
                 }
             }
 
@@ -295,76 +353,79 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public override DreamValue GetVariable(string name)
     {
-        // Fast-path for common variables
-        if (name.Length == 1)
+        // Fast-path for high-frequency built-in variables to avoid lock and dictionary lookup
+        if (name.Length <= 10) // Optimization: only check short names
         {
-            if (name[0] == 'x') return new DreamValue((float)X);
-            if (name[0] == 'y') return new DreamValue((float)Y);
-            if (name[0] == 'z') return new DreamValue((float)Z);
+            switch (name)
+            {
+                case "x": return new DreamValue((float)_x);
+                case "y": return new DreamValue((float)_y);
+                case "z": return new DreamValue((float)_z);
+                case "icon": return new DreamValue(_icon);
+                case "icon_state": return new DreamValue(_iconState);
+                case "dir": return new DreamValue((float)_dir);
+                case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
+                case "name":
+                    var n = base.GetVariable(name);
+                    return !n.IsNull ? n : new DreamValue(ObjectType?.Name ?? "object");
+            }
         }
 
-        switch (name)
+        if (ObjectType != null)
         {
-            case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
-            case "icon": return new DreamValue(Icon);
-            case "icon_state": return new DreamValue(IconState);
-            case "dir": return new DreamValue((float)Dir);
-            case "alpha": return new DreamValue(Alpha);
-            case "color": return new DreamValue(Color);
-            case "layer": return new DreamValue(Layer);
-            case "pixel_x": return new DreamValue(PixelX);
-            case "pixel_y": return new DreamValue(PixelY);
-            case "name":
-                var val = base.GetVariable(name);
-                return !val.IsNull ? val : new DreamValue(ObjectType?.Name ?? "object");
-            default:
-                return base.GetVariable(name);
+            int index = ObjectType.GetVariableIndex(name);
+            if (index != -1) return GetVariable(index);
         }
+
+        return base.GetVariable(name);
     }
 
     public override void SetVariable(string name, DreamValue value)
     {
-        if (name.Length == 1)
-        {
-            if (name[0] == 'x') { X = (int)value.GetValueAsFloat(); return; }
-            if (name[0] == 'y') { Y = (int)value.GetValueAsFloat(); return; }
-            if (name[0] == 'z') { Z = (int)value.GetValueAsFloat(); return; }
-        }
-
-        lock (_stateLock)
+        // Fast-path for high-frequency built-in variables to avoid dictionary lookups
+        if (name.Length <= 10)
         {
             switch (name)
             {
+                case "x": X = (int)value.GetValueAsFloat(); return;
+                case "y": Y = (int)value.GetValueAsFloat(); return;
+                case "z": Z = (int)value.GetValueAsFloat(); return;
+                case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
+                case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
+                case "dir": Dir = (int)value.GetValueAsFloat(); return;
                 case "loc":
-                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                        Loc = loc;
-                    else
-                        Loc = null;
-                    break;
-                case "icon": Icon = value.TryGetValue(out string? s) ? s ?? "" : ""; break;
-                case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? "" : ""; break;
-                case "dir": Dir = (int)value.GetValueAsFloat(); break;
-                case "alpha": Alpha = value.GetValueAsFloat(); break;
-                case "color": Color = value.TryGetValue(out string? s3) ? s3 ?? "#ffffff" : "#ffffff"; break;
-                case "layer": Layer = value.GetValueAsFloat(); break;
-                case "pixel_x": PixelX = value.GetValueAsFloat(); break;
-                case "pixel_y": PixelY = value.GetValueAsFloat(); break;
-                default:
-                    base.SetVariable(name, value);
-                    break;
+                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
+                    else Loc = null;
+                    return;
             }
         }
+
+        if (ObjectType != null)
+        {
+            int index = ObjectType.GetVariableIndex(name);
+            if (index != -1)
+            {
+                SetVariableDirect(index, value);
+                return;
+            }
+        }
+
+        base.SetVariable(name, value);
     }
 
     public override void SetVariableDirect(int index, DreamValue value)
     {
-        lock (_stateLock)
+        if (index < 0) return;
+
+        lock (_lock)
         {
             base.SetVariableDirect(index, value);
 
-            if (ObjectType != null && index >= 0 && index < ObjectType.VariableToBuiltin?.Length)
+            // Use the pre-calculated VariableToBuiltin map for O(1) side-effect dispatch
+            var builtinMap = ObjectType?.VariableToBuiltin;
+            if (builtinMap != null && index < builtinMap.Length)
             {
-                var builtin = ObjectType.VariableToBuiltin[index];
+                var builtin = builtinMap[index];
                 if (builtin != (BuiltinVar)255)
                 {
                     switch (builtin)
@@ -380,29 +441,36 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     }
                     return;
                 }
+            }
 
-                var name = ObjectType.VariableNames[index];
-                if (name.Length == 1)
-                {
-                    if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
-                    if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
-                    if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
-                }
-
-                if (name == "loc")
-                {
-                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                        SetLocInternal(loc, false);
-                    else
-                        SetLocInternal(null, false);
-                }
+            // Fallback to manual index checks (for unfinalized types or coordinates/loc)
+            if (index == _xIndex) { X = (int)value.GetValueAsFloat(); }
+            else if (index == _yIndex) { Y = (int)value.GetValueAsFloat(); }
+            else if (index == _zIndex) { Z = (int)value.GetValueAsFloat(); }
+            else if (index == _locIndex)
+            {
+                if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                    Loc = loc;
+                else
+                    Loc = null;
             }
         }
     }
 
-    private void SyncVariable(string name, DreamValue value)
+    /// <summary>
+    /// Gets or sets the ObjectType of the game object.
+    /// </summary>
+    public override ObjectType? ObjectType
     {
-        base.SetVariable(name, value);
+        get => base.ObjectType;
+        set
+        {
+            lock (_lock)
+            {
+                base.ObjectType = value;
+                InitializeBuiltinIndices();
+            }
+        }
     }
 
     /// <summary>
@@ -446,6 +514,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public GameObject(ObjectType objectType) : base(objectType)
     {
         Id = Interlocked.Increment(ref nextId);
+        InitializeBuiltinIndices();
     }
 
     public void Initialize(ObjectType objectType, int x, int y, int z)
@@ -455,6 +524,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         _y = y;
         _z = z;
         Id = Interlocked.Increment(ref nextId);
+        InitializeBuiltinIndices();
     }
 
     /// <summary>
@@ -500,33 +570,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void AddComponent(IComponent component)
     {
         if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
-
         _componentManager.AddComponent(this, component);
-        lock (_componentCacheLock)
-        {
-            var type = component.GetType();
-            var current = _componentCache;
-            bool found = false;
-            for (int i = 0; i < current.Length; i++)
-            {
-                if (current[i].GetType() == type)
-                {
-                    var updated = (IComponent[])current.Clone();
-                    updated[i] = component;
-                    _componentCache = updated;
-                    found = true;
-                    break;
-                }
-            }
-
-            if (!found)
-            {
-                var updated = new IComponent[current.Length + 1];
-                System.Array.Copy(current, updated, current.Length);
-                updated[current.Length] = component;
-                _componentCache = updated;
-            }
-        }
         IncrementVersion();
     }
 
@@ -543,53 +587,82 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void RemoveComponent(System.Type componentType)
     {
         if (_componentManager == null) return;
-
         _componentManager.RemoveComponent(this, componentType);
-
-        lock (_componentCacheLock)
-        {
-            var current = _componentCache;
-            for (int i = 0; i < current.Length; i++)
-            {
-                if (current[i].GetType() == componentType)
-                {
-                    var updated = new IComponent[current.Length - 1];
-                    System.Array.Copy(current, 0, updated, 0, i);
-                    System.Array.Copy(current, i + 1, updated, i, current.Length - i - 1);
-                    _componentCache = updated;
-                    break;
-                }
-            }
-        }
         IncrementVersion();
     }
 
     public T? GetComponent<T>() where T : class, IComponent
     {
-        // Lock-free fast path for already cached components
-        var current = _componentCache;
-        for (int i = 0; i < current.Length; i++)
+        if (Archetype is Archetype arch)
         {
-            if (current[i] is T component) return component;
+            var components = arch.GetComponentsInternal<T>();
+            if (ArchetypeIndex >= 0 && ArchetypeIndex < components.Length)
+            {
+                return components[ArchetypeIndex];
+            }
+            return null;
         }
         return _componentManager?.GetComponent<T>(this);
     }
 
     public IEnumerable<IComponent> GetComponents()
     {
-        return _componentCache;
+        if (Archetype is Archetype arch)
+        {
+            // Count components first to avoid over-allocation
+            int count = arch._componentArrays.Count;
+            var components = new IComponent[count];
+            int i = 0;
+            foreach (var array in arch._componentArrays.Values)
+            {
+                var comp = array.Get(ArchetypeIndex);
+                if (comp != null) components[i++] = comp;
+            }
+            if (i < count) System.Array.Resize(ref components, i);
+            return components;
+        }
+        return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
     }
 
     public void SendMessage(IComponentMessage message)
     {
-        // Lock-free snapshot read
-        var components = _componentCache;
-        for (int i = 0; i < components.Length; i++)
+        if (Archetype is Archetype arch)
         {
-            var component = components[i];
-            if (component.Enabled)
+            var targets = message.TargetComponentTypes;
+            if (targets != null && targets.Length > 0)
             {
-                component.OnMessage(message);
+                foreach (var type in targets)
+                {
+                    if (arch._componentArrays.TryGetValue(type, out var array))
+                    {
+                        var component = array.Get(ArchetypeIndex);
+                        if (component != null && component.Enabled)
+                        {
+                            component.OnMessage(message);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                foreach (var array in arch._componentArrays.Values)
+                {
+                    var component = array.Get(ArchetypeIndex);
+                    if (component != null && component.Enabled)
+                    {
+                        component.OnMessage(message);
+                    }
+                }
+            }
+        }
+        else if (_componentManager != null)
+        {
+            foreach (var component in _componentManager.GetAllComponents(this))
+            {
+                if (component.Enabled)
+                {
+                    component.OnMessage(message);
+                }
             }
         }
     }
@@ -597,7 +670,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public virtual void Reset()
     {
         SetLocInternal(null, false);
-        lock (_stateLock)
+        lock (_lock)
         {
             _x = 0;
             _y = 0;
@@ -605,28 +678,40 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedX = 0;
             _committedY = 0;
             _committedZ = 0;
+            _icon = string.Empty;
+            _iconState = string.Empty;
+            _dir = 2;
+            _alpha = 255.0f;
+            _color = "#ffffff";
+            _layer = 2.0f;
+            _pixelX = 0;
+            _pixelY = 0;
+            _isDirty = 0;
         }
         Version = 0;
+        Archetype = null;
+        ArchetypeIndex = -1;
+        NextInGridCell = null;
+        PrevInGridCell = null;
+        CurrentGridCellKey = null;
 
         if (_componentManager != null)
         {
             // We need to notify manager about component removals during reset
-            var toRemove = _componentCache;
+            var toRemove = GetComponents().ToList();
             foreach (var component in toRemove)
             {
                 _componentManager.RemoveComponent(this, component.GetType());
             }
         }
 
-        lock (_componentCacheLock)
-        {
-            _componentCache = System.Array.Empty<IComponent>();
-        }
-
         lock (_contentsLock)
         {
             _contents = System.Array.Empty<IGameObject>();
         }
+
+        StateChanged = null;
+        PositionChanged = null;
 
         // We don't reset Id as it should be unique for the lifetime of its registration
         // but we could if we manage IDs in the pool.

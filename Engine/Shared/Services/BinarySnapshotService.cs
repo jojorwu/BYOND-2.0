@@ -15,81 +15,103 @@ namespace Shared.Services;
             _interner = interner;
         }
 
-        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
+        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions, out bool truncated)
         {
-            var rentedBuffer = ArrayPool<byte>.Shared.Rent(65536);
             int offset = 0;
+            truncated = false;
 
-            try
+            foreach (var obj in objects)
             {
-                foreach (var obj in objects)
+                if (lastVersions != null && lastVersions.TryGetValue(obj.Id, out long lastVersion) && lastVersion == obj.Version)
                 {
-                    if (obj is GameObject g)
-                    {
-                        if (lastVersions != null && lastVersions.TryGetValue(g.Id, out long lastVersion) && lastVersion == g.Version)
-                        {
-                            continue;
-                        }
-
-                        // Ensure buffer space (conservative estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) + Props...)
-                        EnsureBuffer(ref rentedBuffer, offset, 1024);
-
-                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.Id);
-                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), (int)g.Version);
-                        offset += WriteVarInt(rentedBuffer.AsSpan(offset), g.ObjectType?.Id ?? -1);
-                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.X);
-                        offset += 4;
-                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.Y);
-                        offset += 4;
-                        BinaryPrimitives.WriteInt32LittleEndian(rentedBuffer.AsSpan(offset), g.Z);
-                        offset += 4;
-
-                        if (g.ObjectType != null)
-                        {
-                            var varNames = g.ObjectType.VariableNames;
-                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), varNames.Count);
-                            for (int i = 0; i < varNames.Count; i++)
-                            {
-                                var val = g.GetVariableDirect(i);
-                                int needed = 5 + val.GetWriteSize(); // 5 for property index varint max + value size
-                                EnsureBuffer(ref rentedBuffer, offset, needed);
-
-                                offset += WriteVarInt(rentedBuffer.AsSpan(offset), i);
-                                offset += val.WriteTo(rentedBuffer.AsSpan(offset));
-                            }
-                        }
-                        else
-                        {
-                            offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0);
-                        }
-
-                        if (lastVersions != null) lastVersions[g.Id] = g.Version;
-                    }
+                    continue;
                 }
 
-                EnsureBuffer(ref rentedBuffer, offset, 1);
-                offset += WriteVarInt(rentedBuffer.AsSpan(offset), 0); // End of stream marker
+                // Check if we have enough space for the basic object data
+                // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
+                if (offset + 32 > destination.Length)
+                {
+                    truncated = true;
+                    break;
+                }
 
-                byte[] result = new byte[offset];
-                Buffer.BlockCopy(rentedBuffer, 0, result, 0, offset);
-                return result;
+                int startOffset = offset;
+                offset += WriteVarInt(destination.Slice(offset), obj.Id);
+                offset += WriteVarInt(destination.Slice(offset), (int)obj.Version);
+                offset += WriteVarInt(destination.Slice(offset), obj.ObjectType?.Id ?? -1);
+                BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.X);
+                offset += 4;
+                BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.Y);
+                offset += 4;
+                BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.Z);
+                offset += 4;
+
+                if (obj.ObjectType != null)
+                {
+                    var varNames = obj.ObjectType.VariableNames;
+                    offset += WriteVarInt(destination.Slice(offset), varNames.Count);
+                    for (int i = 0; i < varNames.Count; i++)
+                    {
+                        var val = obj.GetVariable(i);
+                        int valueSize = val.GetWriteSize();
+                        // 5 for property index varint max + value size
+                        if (offset + 5 + valueSize > destination.Length)
+                        {
+                            // Roll back to start of object and mark as truncated
+                            offset = startOffset;
+                            truncated = true;
+                            goto Done;
+                        }
+
+                        offset += WriteVarInt(destination.Slice(offset), i);
+                        offset += val.WriteTo(destination.Slice(offset));
+                    }
+                }
+                else
+                {
+                    offset += WriteVarInt(destination.Slice(offset), 0);
+                }
+
+                if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             }
-            finally
+
+        Done:
+            if (offset < destination.Length)
             {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
+                offset += WriteVarInt(destination.Slice(offset), 0); // End of stream marker
             }
+
+            return offset;
         }
 
-        private void EnsureBuffer(ref byte[] buffer, int offset, int required)
+        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
         {
-            if (offset + required > buffer.Length)
+            int bufferSize = 65536;
+            while (true)
             {
-                var newBuffer = ArrayPool<byte>.Shared.Rent(buffer.Length * 2);
-                Buffer.BlockCopy(buffer, 0, newBuffer, 0, offset);
-                ArrayPool<byte>.Shared.Return(buffer);
-                buffer = newBuffer;
+                var rentedBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                try
+                {
+                    int bytesWritten = SerializeTo(rentedBuffer, objects, lastVersions, out bool truncated);
+                    if (!truncated)
+                    {
+                        byte[] result = new byte[bytesWritten];
+                        rentedBuffer.AsSpan(0, bytesWritten).CopyTo(result);
+                        return result;
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rentedBuffer);
+                }
+
+                if (bufferSize >= 1024 * 1024 * 32) // 32MB safety limit
+                    throw new Exception("World state too large to serialize into a single snapshot");
+
+                bufferSize *= 2;
             }
         }
+
 
         private int WriteVarInt(Span<byte> span, int value)
         {

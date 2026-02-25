@@ -96,65 +96,67 @@ public static class SharedOperations {
         HSL = 2
     }
 
-    public static string ParseRgb((string? Name, float? Value)[] arguments) {
+    public static string ParseRgb(ReadOnlySpan<(string? Name, float? Value)> arguments) {
         if (arguments.Length == 0)
             throw new Exception("Expected at least 3 arguments for rgb()");
 
-        string result;
         float? color1 = null;
         float? color2 = null;
         float? color3 = null;
-        float? a = null;
+        float? alpha = null;
         ColorSpace space = ColorSpace.RGB;
 
         if (arguments[0].Name is null) {
-            if (arguments.Length is < 3 or > 5)
-                throw new Exception("Expected 3 to 5 arguments for rgb()");
+            if (arguments.Length < 3)
+                throw new Exception("Expected at least 3 arguments for rgb()");
 
             color1 = arguments[0].Value;
-            color2 = arguments[1].Value;
-            color3 = arguments[2].Value;
-            a = (arguments.Length >= 4) ? arguments[3].Value : null;
-            if (arguments.Length == 5)
+            color2 = arguments.Length > 1 ? arguments[1].Value : null;
+            color3 = arguments.Length > 2 ? arguments[2].Value : null;
+            alpha = arguments.Length > 3 ? arguments[3].Value : null;
+
+            if (arguments.Length > 4)
                 space = arguments[4].Value is null ? ColorSpace.RGB : (ColorSpace)(int)arguments[4].Value!;
         } else {
             foreach (var arg in arguments) {
-                var name = arg.Name ?? string.Empty;
+                var name = arg.Name;
+                if (name == null) continue;
 
-                if (name.StartsWith("r", StringComparison.InvariantCultureIgnoreCase) && color1 is null) {
+                if (name.StartsWith("r", StringComparison.OrdinalIgnoreCase) && color1 is null) {
                     color1 = arg.Value;
                     space = ColorSpace.RGB;
-                } else if (name.StartsWith("g", StringComparison.InvariantCultureIgnoreCase) && color2 is null) {
+                } else if (name.StartsWith("g", StringComparison.OrdinalIgnoreCase) && color2 is null) {
                     color2 = arg.Value;
                     space = ColorSpace.RGB;
-                } else if (name.StartsWith("b", StringComparison.InvariantCultureIgnoreCase) && color3 is null) {
+                } else if (name.StartsWith("b", StringComparison.OrdinalIgnoreCase) && color3 is null) {
                     color3 = arg.Value;
                     space = ColorSpace.RGB;
-                } else if (name.StartsWith("h", StringComparison.InvariantCultureIgnoreCase) && color1 is null) {
+                } else if (name.StartsWith("h", StringComparison.OrdinalIgnoreCase) && color1 is null) {
                     color1 = arg.Value;
                     space = ColorSpace.HSV;
-                } else if (name.StartsWith("s", StringComparison.InvariantCultureIgnoreCase) && color2 is null) {
+                } else if (name.StartsWith("s", StringComparison.OrdinalIgnoreCase) && color2 is null) {
                     color2 = arg.Value;
                     space = ColorSpace.HSV;
-                } else if (name.StartsWith("v", StringComparison.InvariantCultureIgnoreCase) && color3 is null) {
+                } else if (name.StartsWith("v", StringComparison.OrdinalIgnoreCase) && color3 is null) {
                     color3 = arg.Value;
                     space = ColorSpace.HSV;
-                } else if (name.StartsWith("l", StringComparison.InvariantCultureIgnoreCase) && color3 is null) {
+                } else if (name.StartsWith("l", StringComparison.OrdinalIgnoreCase) && color3 is null) {
                     color3 = arg.Value;
                     space = ColorSpace.HSL;
-                } else if (name.StartsWith("a", StringComparison.InvariantCultureIgnoreCase) && a is null)
-                    a = arg.Value;
-                else if (name == "space" && space == default)
-                    space = (ColorSpace)(int)arg.Value!;
-                else
+                } else if (name.StartsWith("a", StringComparison.OrdinalIgnoreCase) && alpha is null) {
+                    alpha = arg.Value;
+                } else if (name.Equals("space", StringComparison.OrdinalIgnoreCase)) {
+                    space = (ColorSpace)(int)(arg.Value ?? 0);
+                } else {
                     throw new Exception($"Invalid or double arg \"{name}\"");
+                }
             }
         }
 
         color1 ??= 0;
         color2 ??= 0;
         color3 ??= 0;
-        byte aValue = a is null ? (byte)255 : (byte)Math.Clamp((int)a, 0, 255);
+        byte aValue = alpha is null ? (byte)255 : (byte)Math.Clamp((int)alpha, 0, 255);
         Color color;
 
         switch (space) {
@@ -167,7 +169,6 @@ public static class SharedOperations {
                 break;
             }
             case ColorSpace.HSV: {
-                // TODO: Going beyond the max defined in the docs returns a different value. Don't know why.
                 float h = Math.Clamp(color1.Value, 0, 360) / 360f;
                 float s = Math.Clamp(color2.Value, 0, 100) / 100f;
                 float v = Math.Clamp(color3.Value, 0, 100) / 100f;
@@ -184,16 +185,13 @@ public static class SharedOperations {
                 break;
             }
             default:
-                throw new Exception($"Unimplemented color space {space}");
+                throw new NotSupportedException($"Unimplemented color space {space}");
         }
 
-        // TODO: There is a difference between passing null and not passing a fourth arg at all
-        if (a is null) {
-            result = $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}".ToLower();
+        if (alpha is null) {
+            return $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}".ToLowerInvariant();
         } else {
-            result = $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}{color.AByte:X2}".ToLower();
+            return $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}{color.AByte:X2}".ToLowerInvariant();
         }
-
-        return result;
     }
 }

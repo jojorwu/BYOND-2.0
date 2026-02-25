@@ -35,6 +35,7 @@ public abstract class BaseSystem : ISystem
 
     public virtual void Initialize() { }
     public virtual void Shutdown() { }
+    public virtual Task ShutdownAsync() => Task.CompletedTask;
     public virtual void PreTick() { }
     public abstract void Tick(IEntityCommandBuffer ecb);
     public virtual void PostTick() { }

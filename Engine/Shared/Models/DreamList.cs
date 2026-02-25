@@ -38,22 +38,28 @@ namespace Shared;
 
         public void Populate(ReadOnlySpan<DreamValue> initialValues)
         {
+            if (initialValues.Length > MaxListSize)
+                throw new System.InvalidOperationException("Maximum list size exceeded");
+
             lock (_lock)
             {
                 _values.Clear();
                 _valueCounts?.Clear();
                 _associativeValues?.Clear();
 
-                if (initialValues.Length > MaxListSize)
-                    throw new System.InvalidOperationException("Maximum list size exceeded");
+                if (initialValues.IsEmpty) return;
 
                 if (initialValues.Length >= DictionaryThreshold)
                 {
                     _valueCounts ??= new Dictionary<DreamValue, int>(initialValues.Length);
                 }
 
-                foreach (var val in initialValues)
+                if (_values.Capacity < initialValues.Length)
+                    _values.Capacity = initialValues.Length;
+
+                for (int i = 0; i < initialValues.Length; i++)
                 {
+                    var val = initialValues[i];
                     _values.Add(val);
                     AddCount(val);
                 }
@@ -132,12 +138,18 @@ namespace Shared;
             lock (_lock)
             {
                 var clone = new DreamList(ObjectType);
-                clone._values.AddRange(_values);
-                if (_valueCounts != null)
+                if (_values.Count > 0)
+                {
+                    clone._values.Capacity = _values.Count;
+                    clone._values.AddRange(_values);
+                }
+
+                if (_valueCounts != null && _valueCounts.Count > 0)
                 {
                     clone._valueCounts = new Dictionary<DreamValue, int>(_valueCounts);
                 }
-                if (_associativeValues != null)
+
+                if (_associativeValues != null && _associativeValues.Count > 0)
                 {
                     clone._associativeValues = new Dictionary<DreamValue, DreamValue>(_associativeValues);
                 }
@@ -184,7 +196,8 @@ namespace Shared;
             var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
             for (int i = 0; i < span.Length; i++)
             {
-                if (span[i] == value) return true;
+                // Optimization: avoid full == check if bitwise identical (fast for floats/nulls/refs)
+                if (span[i].Equals(value)) return true;
             }
             return false;
         }
@@ -210,8 +223,10 @@ namespace Shared;
                 if (_values.Count >= DictionaryThreshold)
                 {
                     _valueCounts = new Dictionary<DreamValue, int>(_values.Count);
-                    foreach (var v in _values)
+                    var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
+                    for (int i = 0; i < span.Length; i++)
                     {
+                        var v = span[i];
                         if (_valueCounts.TryGetValue(v, out int c)) _valueCounts[v] = c + 1;
                         else _valueCounts[v] = 1;
                     }
@@ -238,7 +253,7 @@ namespace Shared;
                     var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
                     for (int i = 0; i < span.Length; i++)
                     {
-                        if (span[i] == value) return false;
+                        if (span[i].Equals(value)) return false;
                     }
                     return true;
                 }

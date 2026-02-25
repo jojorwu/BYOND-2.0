@@ -14,7 +14,8 @@ namespace Core.VM.Runtime
     {
         public IDreamProc Proc { get; }
         public int PC { get; }
-        public IReadOnlyList<CallFrame> CallStack { get; }
+        private readonly CallFrame[] _capturedStack;
+        private readonly int _stackDepth;
         public DreamValue? ThrownValue { get; set; }
 
         public ScriptRuntimeException(string message, IDreamProc proc, int pc, DreamThread thread)
@@ -22,9 +23,9 @@ namespace Core.VM.Runtime
         {
             Proc = proc;
             PC = pc;
-            var list = new List<CallFrame>(thread._callStackPtr);
-            for (int i = 0; i < thread._callStackPtr; i++) list.Add(thread._callStack[i]);
-            CallStack = list.AsReadOnly();
+            _stackDepth = thread._callStackPtr;
+            _capturedStack = new CallFrame[_stackDepth];
+            Array.Copy(thread._callStack, _capturedStack, _stackDepth);
         }
 
         public ScriptRuntimeException(string message, IDreamProc proc, int pc, DreamThread thread, Exception innerException)
@@ -32,10 +33,12 @@ namespace Core.VM.Runtime
         {
             Proc = proc;
             PC = pc;
-            var list = new List<CallFrame>(thread._callStackPtr);
-            for (int i = 0; i < thread._callStackPtr; i++) list.Add(thread._callStack[i]);
-            CallStack = list.AsReadOnly();
+            _stackDepth = thread._callStackPtr;
+            _capturedStack = new CallFrame[_stackDepth];
+            Array.Copy(thread._callStack, _capturedStack, _stackDepth);
         }
+
+        public IEnumerable<CallFrame> CallStack => _capturedStack.Take(_stackDepth).Reverse();
 
         private static string FormatMessage(string message, IDreamProc proc, int pc)
         {
@@ -47,8 +50,9 @@ namespace Core.VM.Runtime
             var sb = new StringBuilder();
             sb.AppendLine(Message);
             sb.AppendLine("Script stack trace:");
-            foreach (var frame in CallStack)
+            for (int i = _stackDepth - 1; i >= 0; i--)
             {
+                var frame = _capturedStack[i];
                 sb.AppendLine($"  at {frame.Proc.Name} (PC: {frame.PC})");
             }
             if (InnerException != null)

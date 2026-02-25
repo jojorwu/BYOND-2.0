@@ -122,9 +122,29 @@ namespace Shared.Services;
         public async Task ShutdownAsync()
         {
             _logger?.LogInformation("Shutting down engine services...");
-            // We might want to shutdown in reverse order, but IAsyncInitializable doesn't have ShutdownAsync yet.
-            // If we add IAsyncShutdownable, we can use it here.
-            await Task.CompletedTask;
+
+            // Reverse order for shutdown to satisfy dependencies
+            var reversedServices = _initializableServices.Reverse();
+
+            foreach (var service in reversedServices)
+            {
+                try
+                {
+                    if (service is IAsyncDisposable asyncDisposable)
+                    {
+                        await asyncDisposable.DisposeAsync();
+                    }
+                    else if (service is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger?.LogError(e, "Error during shutdown of service {ServiceType}", service.GetType().Name);
+                }
+            }
+
             _logger?.LogInformation("Engine shutdown complete.");
         }
     }

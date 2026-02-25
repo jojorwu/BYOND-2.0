@@ -50,6 +50,14 @@ namespace Core
             }
         }
 
+        public byte[] GetBinarySnapshot(IGameState gameState)
+        {
+            using (gameState.ReadLock())
+            {
+                return _binarySnapshotService.Serialize(gameState.GameObjects.Values);
+            }
+        }
+
         public byte[] GetBinarySnapshot(IGameState gameState, MergedRegion mergedRegion)
         {
             using (gameState.ReadLock())

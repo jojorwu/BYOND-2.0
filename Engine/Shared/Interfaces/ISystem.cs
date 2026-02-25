@@ -24,6 +24,11 @@ namespace Shared.Interfaces;
         void Shutdown() { }
 
         /// <summary>
+        /// Asynchronous version of Shutdown.
+        /// </summary>
+        Task ShutdownAsync() => Task.CompletedTask;
+
+        /// <summary>
         /// Executed before the main tick phase.
         /// </summary>
         void PreTick() { }

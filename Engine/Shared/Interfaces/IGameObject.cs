@@ -8,6 +8,11 @@ namespace Shared;
     public interface IGameObject
     {
         /// <summary>
+        /// Occurs when the object's state changes.
+        /// </summary>
+        event System.Action<IGameObject>? StateChanged;
+
+        /// <summary>
         /// Unique identifier for this object.
         /// </summary>
         int Id { get; }
@@ -48,6 +53,31 @@ namespace Shared;
         long Version { get; }
 
         /// <summary>
+        /// Internal ECS metadata: the archetype this object belongs to.
+        /// </summary>
+        object? Archetype { get; set; }
+
+        /// <summary>
+        /// Internal ECS metadata: the index of this object within its archetype.
+        /// </summary>
+        int ArchetypeIndex { get; set; }
+
+        /// <summary>
+        /// Internal SpatialGrid metadata: next object in the same grid cell.
+        /// </summary>
+        IGameObject? NextInGridCell { get; set; }
+
+        /// <summary>
+        /// Internal SpatialGrid metadata: previous object in the same grid cell.
+        /// </summary>
+        IGameObject? PrevInGridCell { get; set; }
+
+        /// <summary>
+        /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
+        /// </summary>
+        long? CurrentGridCellKey { get; set; }
+
+        /// <summary>
         /// Committed coordinates for thread-safe reading.
         /// </summary>
         int CommittedX { get; }
@@ -58,6 +88,11 @@ namespace Shared;
         /// Commits the current state to the read-only buffer.
         /// </summary>
         void CommitState();
+
+        /// <summary>
+        /// Clears the dirty flag on this object.
+        /// </summary>
+        void ClearDirty();
 
         /// <summary>
         /// Updates the object's 3D position in the world.

@@ -50,11 +50,25 @@ public class FastEventBus : IEventBus
             {
                 if (handler is Action<T> action)
                 {
-                    _actions = _actions.Where(a => a != action).ToArray();
+                    var index = Array.IndexOf(_actions, action);
+                    if (index != -1)
+                    {
+                        var updated = new Action<T>[_actions.Length - 1];
+                        if (index > 0) Array.Copy(_actions, 0, updated, 0, index);
+                        if (index < _actions.Length - 1) Array.Copy(_actions, index + 1, updated, index, _actions.Length - index - 1);
+                        _actions = updated;
+                    }
                 }
                 else if (handler is Func<T, Task> asyncAction)
                 {
-                    _asyncActions = _asyncActions.Where(a => a != asyncAction).ToArray();
+                    var index = Array.IndexOf(_asyncActions, asyncAction);
+                    if (index != -1)
+                    {
+                        var updated = new Func<T, Task>[_asyncActions.Length - 1];
+                        if (index > 0) Array.Copy(_asyncActions, 0, updated, 0, index);
+                        if (index < _asyncActions.Length - 1) Array.Copy(_asyncActions, index + 1, updated, index, _asyncActions.Length - index - 1);
+                        _asyncActions = updated;
+                    }
                 }
             }
         }

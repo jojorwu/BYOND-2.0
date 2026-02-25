@@ -28,8 +28,9 @@ public struct ArchetypeChunk<T> where T : class, IComponent
 public class Archetype
 {
     private int[] _entityIds = System.Array.Empty<int>();
+    private IGameObject[] _entities = System.Array.Empty<IGameObject>();
     private readonly ConcurrentDictionary<int, int> _entityIdToIndex = new();
-    private readonly Dictionary<Type, IComponentArray> _componentArrays = new();
+    internal readonly Dictionary<Type, IComponentArray> _componentArrays = new();
     private readonly object _lock = new();
     private int _count = 0;
     private int _capacity = 0;
@@ -61,25 +62,29 @@ public class Archetype
         while (_capacity < required) _capacity *= 2;
 
         System.Array.Resize(ref _entityIds, _capacity);
+        System.Array.Resize(ref _entities, _capacity);
         foreach (var array in _componentArrays.Values)
         {
             array.Resize(_capacity);
         }
     }
 
-    public void AddEntity(int entityId, IDictionary<Type, IComponent> components)
+    public void AddEntity(IGameObject entity, IDictionary<Type, IComponent> components)
     {
         lock (_lock)
         {
             EnsureCapacity(_count + 1);
             int index = _count++;
 
-            _entityIds[index] = entityId;
-            _entityIdToIndex[entityId] = index;
+            _entityIds[index] = entity.Id;
+            _entities[index] = entity;
+            _entityIdToIndex[entity.Id] = index;
             foreach (var type in Signature.Types)
             {
                 _componentArrays[type].Set(index, components[type]);
             }
+            entity.Archetype = this;
+            entity.ArchetypeIndex = index;
         }
     }
 
@@ -89,19 +94,29 @@ public class Archetype
         {
             if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
+            IGameObject entity = _entities[index];
+            entity.Archetype = null;
+            entity.ArchetypeIndex = -1;
+
             int lastIndex = _count - 1;
             if (index != lastIndex)
             {
                 int lastEntityId = _entityIds[lastIndex];
+                IGameObject lastEntity = _entities[lastIndex];
+
                 _entityIds[index] = lastEntityId;
+                _entities[index] = lastEntity;
                 _entityIdToIndex[lastEntityId] = index;
 
                 foreach (var array in _componentArrays.Values)
                 {
                     array.Copy(lastIndex, index);
                 }
+
+                lastEntity.ArchetypeIndex = index;
             }
 
+            _entities[lastIndex] = null!;
             _entityIdToIndex.TryRemove(entityId, out _);
             foreach (var array in _componentArrays.Values)
             {
@@ -159,6 +174,30 @@ public class Archetype
         }
     }
 
+    internal void SetComponentInternal(int index, Type type, IComponent component)
+    {
+        if (_componentArrays.TryGetValue(type, out var array))
+        {
+            lock (_lock)
+            {
+                array.Set(index, component);
+            }
+        }
+    }
+
+    public void ForEachEntity(Action<IGameObject> action)
+    {
+        lock (_lock)
+        {
+            var entities = _entities;
+            int count = _count;
+            for (int i = 0; i < count; i++)
+            {
+                action(entities[i]);
+            }
+        }
+    }
+
     public IEnumerable<T> GetComponents<T>() where T : class, IComponent
     {
         T[] data;
@@ -172,6 +211,20 @@ public class Archetype
             System.Array.Copy(originalData, data, count);
         }
         return data;
+    }
+
+    public int GetComponents(Type type, IComponent[] destination)
+    {
+        if (_componentArrays.TryGetValue(type, out var array))
+        {
+            lock (_lock)
+            {
+                int count = Math.Min(_count, destination.Length);
+                for (int i = 0; i < count; i++) destination[i] = array.Get(i);
+                return count;
+            }
+        }
+        return 0;
     }
 
     public IEnumerable<IComponent> GetComponents(Type type)
@@ -191,6 +244,21 @@ public class Archetype
     }
 
     public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);
+
+    public void SetComponent(int entityId, IComponent component)
+    {
+        lock (_lock)
+        {
+            if (_entityIdToIndex.TryGetValue(entityId, out int index))
+            {
+                var type = component.GetType();
+                if (_componentArrays.TryGetValue(type, out var array))
+                {
+                    array.Set(index, component);
+                }
+            }
+        }
+    }
 
     public IComponent? GetComponent(int entityId, Type type)
     {
@@ -247,6 +315,17 @@ public class Archetype
             int count = _count;
             int[] snapshot = new int[count];
             Array.Copy(_entityIds, snapshot, count);
+            return snapshot;
+        }
+    }
+
+    public IGameObject[] GetEntitiesSnapshot()
+    {
+        lock (_lock)
+        {
+            int count = _count;
+            IGameObject[] snapshot = new IGameObject[count];
+            Array.Copy(_entities, snapshot, count);
             return snapshot;
         }
     }

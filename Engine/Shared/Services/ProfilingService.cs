@@ -154,9 +154,23 @@ namespace Shared.Services;
 
                 _service.RecordMetricInternal(Metric, duration);
 
-                if (_scopeStack != null && _scopeStack.Count > 0 && _scopeStack.Peek() == this)
+                if (_scopeStack != null && _scopeStack.Count > 0)
                 {
-                    _scopeStack.Pop();
+                    if (_scopeStack.Peek() == this)
+                    {
+                        _scopeStack.Pop();
+                    }
+                    else
+                    {
+                        // Defensive: handle out-of-order disposal by searching and removing if needed,
+                        // though it usually indicates a bug in the calling code.
+                        var list = new List<MeasureScope>(_scopeStack);
+                        if (list.Remove(this))
+                        {
+                            _scopeStack.Clear();
+                            for (int i = list.Count - 1; i >= 0; i--) _scopeStack.Push(list[i]);
+                        }
+                    }
                 }
 
                 _service.ReturnScope(this);

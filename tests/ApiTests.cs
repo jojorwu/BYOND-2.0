@@ -28,12 +28,16 @@ namespace Core.Tests
             Directory.CreateDirectory(_projectPath);
             _project = new Project(_projectPath);
 
-            _gameState = new GameState();
+            var pool = new Shared.Services.SharedPool<GameObject>(() => new GameObject());
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
+            var objectFactory = new Shared.Services.ObjectFactory(pool, componentManager);
+
+            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance), objectFactory);
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
-            _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
+            _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var pool = new Shared.Services.SharedPool<GameObject>(() => new GameObject());
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool);
             _scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, _mapApi);

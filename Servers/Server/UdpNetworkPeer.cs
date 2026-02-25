@@ -32,6 +32,28 @@ namespace Server
             return ValueTask.CompletedTask;
         }
 
+        public ValueTask SendAsync(System.ReadOnlyMemory<byte> data)
+        {
+            var writer = _writerPool.Rent();
+            try
+            {
+                if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray(data, out var segment))
+                {
+                    writer.Put(segment.Array, segment.Offset, segment.Count);
+                }
+                else
+                {
+                    writer.Put(data.ToArray());
+                }
+                _peer.Send(writer, DeliveryMethod.Unreliable);
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
+            return ValueTask.CompletedTask;
+        }
+
         public ValueTask SendAsync(byte[] data)
         {
             var writer = _writerPool.Rent();

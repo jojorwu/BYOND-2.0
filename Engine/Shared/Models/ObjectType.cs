@@ -14,12 +14,15 @@ public class ObjectType
     public ObjectType? Parent { get; set; }
     public Dictionary<string, object?> DefaultProperties { get; set; }
     public List<string> VariableNames { get; } = new();
-    public List<object?> FlattenedDefaultValues { get; } = new();
+    public List<DreamValue> FlattenedDefaultValues { get; } = new();
     public Dictionary<string, IDreamProc> Procs { get; } = new();
     public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
     private Dictionary<string, int>? _variableIndices;
     private HashSet<int>? _parentIds;
     public BuiltinVar[]? VariableToBuiltin { get; private set; }
+    public int XIndex = -1, YIndex = -1, ZIndex = -1, LocIndex = -1;
+    public int IconIndex = -1, IconStateIndex = -1, DirIndex = -1, AlphaIndex = -1;
+    public int ColorIndex = -1, LayerIndex = -1, PixelXIndex = -1, PixelYIndex = -1;
 
     public ObjectType(int id, string name)
     {
@@ -74,6 +77,22 @@ public class ObjectType
                 "pixel_y" => BuiltinVar.PixelY,
                 _ => (BuiltinVar)255
             };
+
+            switch (name)
+            {
+                case "x": XIndex = i; break;
+                case "y": YIndex = i; break;
+                case "z": ZIndex = i; break;
+                case "loc": LocIndex = i; break;
+                case "icon": IconIndex = i; break;
+                case "icon_state": IconStateIndex = i; break;
+                case "dir": DirIndex = i; break;
+                case "alpha": AlphaIndex = i; break;
+                case "color": ColorIndex = i; break;
+                case "layer": LayerIndex = i; break;
+                case "pixel_x": PixelXIndex = i; break;
+                case "pixel_y": PixelYIndex = i; break;
+            }
         }
 
         _parentIds = new HashSet<int>();

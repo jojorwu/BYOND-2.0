@@ -57,4 +57,9 @@ namespace Shared;
         /// Updates an object's spatial registration after movement.
         /// </summary>
         void UpdateGameObject(GameObject gameObject, int oldX, int oldY);
+
+        /// <summary>
+        /// Retrieves all objects that have been modified since the last clear.
+        /// </summary>
+        IEnumerable<IGameObject> GetDirtyObjects();
     }

@@ -21,7 +21,11 @@ namespace tests
         {
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
-            _mapLoader = new MapLoader(_objectTypeManager, jobSystem, NullLogger<MapLoader>.Instance);
+            var pool = new SharedPool<GameObject>(() => new GameObject());
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var componentManager = new ComponentManager(archetypeManager);
+            var objectFactory = new Shared.Services.ObjectFactory(pool, componentManager);
+            _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
         }
 
         [TearDown]

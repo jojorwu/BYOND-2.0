@@ -15,9 +15,10 @@ namespace Shared.Services;
             _interner = interner;
         }
 
-        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
+        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions, out bool truncated)
         {
             int offset = 0;
+            truncated = false;
 
             foreach (var obj in objects)
             {
@@ -28,8 +29,13 @@ namespace Shared.Services;
 
                 // Check if we have enough space for the basic object data
                 // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
-                if (offset + 32 > destination.Length) break;
+                if (offset + 32 > destination.Length)
+                {
+                    truncated = true;
+                    break;
+                }
 
+                int startOffset = offset;
                 offset += WriteVarInt(destination.Slice(offset), obj.Id);
                 offset += WriteVarInt(destination.Slice(offset), (int)obj.Version);
                 offset += WriteVarInt(destination.Slice(offset), obj.ObjectType?.Id ?? -1);
@@ -49,7 +55,13 @@ namespace Shared.Services;
                         var val = obj.GetVariable(i);
                         int valueSize = val.GetWriteSize();
                         // 5 for property index varint max + value size
-                        if (offset + 5 + valueSize > destination.Length) break;
+                        if (offset + 5 + valueSize > destination.Length)
+                        {
+                            // Roll back to start of object and mark as truncated
+                            offset = startOffset;
+                            truncated = true;
+                            goto Done;
+                        }
 
                         offset += WriteVarInt(destination.Slice(offset), i);
                         offset += val.WriteTo(destination.Slice(offset));
@@ -63,6 +75,7 @@ namespace Shared.Services;
                 if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             }
 
+        Done:
             if (offset < destination.Length)
             {
                 offset += WriteVarInt(destination.Slice(offset), 0); // End of stream marker
@@ -73,17 +86,29 @@ namespace Shared.Services;
 
         public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
         {
-            var rentedBuffer = ArrayPool<byte>.Shared.Rent(65536);
-            try
+            int bufferSize = 65536;
+            while (true)
             {
-                int bytesWritten = SerializeTo(rentedBuffer, objects, lastVersions);
-                byte[] result = new byte[bytesWritten];
-                rentedBuffer.AsSpan(0, bytesWritten).CopyTo(result);
-                return result;
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
+                var rentedBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                try
+                {
+                    int bytesWritten = SerializeTo(rentedBuffer, objects, lastVersions, out bool truncated);
+                    if (!truncated)
+                    {
+                        byte[] result = new byte[bytesWritten];
+                        rentedBuffer.AsSpan(0, bytesWritten).CopyTo(result);
+                        return result;
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rentedBuffer);
+                }
+
+                if (bufferSize >= 1024 * 1024 * 32) // 32MB safety limit
+                    throw new Exception("World state too large to serialize into a single snapshot");
+
+                bufferSize *= 2;
             }
         }
 

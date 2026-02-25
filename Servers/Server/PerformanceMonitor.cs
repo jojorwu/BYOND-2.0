@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
+using Shared.Interfaces;
 
 namespace Server
 {
@@ -13,6 +14,7 @@ namespace Server
         public override int Priority => 100; // High priority
 
         private readonly ILogger<PerformanceMonitor> _logger;
+        private readonly IProfilingService? _profilingService;
         private Timer? _timer;
         private readonly Stopwatch _stopwatch = new();
         private long _tickCount;
@@ -23,9 +25,10 @@ namespace Server
         public double LastTps { get; private set; }
         public long CumulativeErrors => Interlocked.Read(ref _errorCount);
 
-        public PerformanceMonitor(ILogger<PerformanceMonitor> logger)
+        public PerformanceMonitor(ILogger<PerformanceMonitor> logger, IProfilingService? profilingService = null)
         {
             _logger = logger;
+            _profilingService = profilingService;
         }
 
         public void RecordTick() => Interlocked.Increment(ref _tickCount);
@@ -54,6 +57,19 @@ namespace Server
 
             var workingSet = Process.GetCurrentProcess().WorkingSet64;
             _logger.LogInformation($"Memory: {workingSet / 1024.0 / 1024.0:F1} MB | GC0: {GC.CollectionCount(0)} | GC1: {GC.CollectionCount(1)} | GC2: {GC.CollectionCount(2)}");
+
+            if (_profilingService != null)
+            {
+                var summaries = _profilingService.GetSummaries();
+                var phaseKeys = new[] { "SystemManager.Phase.Input", "SystemManager.Phase.Simulation", "SystemManager.Phase.LateUpdate", "SystemManager.Phase.Render", "SystemManager.Phase.Cleanup" };
+                foreach (var key in phaseKeys)
+                {
+                    if (summaries.TryGetValue(key, out var summary))
+                    {
+                        _logger.LogInformation($"Phase {key.Split('.').Last()}: Avg {summary.Average:F2}ms | Max {summary.Max:F2}ms");
+                    }
+                }
+            }
 
             if (CumulativeErrors > 0)
             {

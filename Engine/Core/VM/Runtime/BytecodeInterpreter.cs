@@ -54,12 +54,14 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public byte ReadByte()
     {
+        if (PC >= BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
         return BytecodePtr[PC++];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ReadInt32()
     {
+        if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
         var value = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(BytecodePtr + PC, 4));
         PC += 4;
         return value;
@@ -68,6 +70,7 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float ReadSingle()
     {
+        if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
         var value = BinaryPrimitives.ReadSingleLittleEndian(new ReadOnlySpan<byte>(BytecodePtr + PC, 4));
         PC += 4;
         return value;
@@ -588,22 +591,20 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfTrueReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
-                    int address = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
                     if (!state.Stack[state.LocalBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
-                    int address = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
                     if (!state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
@@ -624,22 +625,20 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfFalseReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
-                    int address = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
                     if (state.Stack[state.LocalBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
-                    int address = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
                     if (state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
@@ -784,25 +783,24 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePushReferenceValue(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     state.Push(state.Stack[state.LocalBase + idx]);
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     state.Push(state.Stack[state.ArgumentBase + idx]);
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    var globalIdx = state.ReadInt32();
                     state.Push(state.Thread.Context.GetGlobal(globalIdx));
                 }
                 break;
@@ -828,26 +826,25 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAssign(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[state.StackPtr - 1]; // peek
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     state.Stack[state.LocalBase + idx] = value;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     state.Stack[state.ArgumentBase + idx] = value;
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    var globalIdx = state.ReadInt32();
                     state.Thread.Context.SetGlobal(globalIdx, value);
                 }
                 break;
@@ -939,12 +936,12 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIncrement(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     var val = state.Stack[state.LocalBase + idx];
                     var newVal = val + 1;
                     state.Stack[state.LocalBase + idx] = newVal;
@@ -953,7 +950,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     var val = state.Stack[state.ArgumentBase + idx];
                     var newVal = val + 1;
                     state.Stack[state.ArgumentBase + idx] = newVal;
@@ -978,12 +975,12 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleDecrement(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     var val = state.Stack[state.LocalBase + idx];
                     var newVal = val - 1;
                     state.Stack[state.LocalBase + idx] = newVal;
@@ -992,7 +989,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
+                    int idx = state.ReadByte();
                     var val = state.Stack[state.ArgumentBase + idx];
                     var newVal = val - 1;
                     state.Stack[state.ArgumentBase + idx] = newVal;
@@ -1649,22 +1646,20 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfReferenceFalse(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        var refType = (DMReference.Type)state.ReadByte();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
-                    int address = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
                     if (state.Stack[state.LocalBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.BytecodePtr[state.PC++];
-                    int address = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                    state.PC += 4;
+                    int idx = state.ReadByte();
+                    int address = state.ReadInt32();
                     if (state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
@@ -1694,33 +1689,30 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleNPushFloatAssign(ref InterpreterState state)
     {
-        int n = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-        state.PC += 4;
-        float value = BinaryPrimitives.ReadSingleLittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-        state.PC += 4;
+        int n = state.ReadInt32();
+        float value = state.ReadSingle();
         var dv = new DreamValue(value);
 
         for (int i = 0; i < n; i++)
         {
-            var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+            var refType = (DMReference.Type)state.ReadByte();
             switch (refType)
             {
                 case DMReference.Type.Local:
                     {
-                        int idx = state.BytecodePtr[state.PC++];
+                        int idx = state.ReadByte();
                         state.Stack[state.LocalBase + idx] = dv;
                     }
                     break;
                 case DMReference.Type.Argument:
                     {
-                        int idx = state.BytecodePtr[state.PC++];
+                        int idx = state.ReadByte();
                         state.Stack[state.ArgumentBase + idx] = dv;
                     }
                     break;
                 case DMReference.Type.Global:
                     {
-                        var globalIdx = BinaryPrimitives.ReadInt32LittleEndian(new ReadOnlySpan<byte>(state.BytecodePtr + state.PC, 4));
-                        state.PC += 4;
+                        var globalIdx = state.ReadInt32();
                         state.Thread.Context.SetGlobal(globalIdx, dv);
                     }
                     break;

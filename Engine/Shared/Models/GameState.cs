@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Abstractions;
+using Shared.Interfaces;
 
 namespace Shared;
     public class GameState : IGameState
@@ -15,10 +16,12 @@ namespace Shared;
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
         private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
+        private readonly IObjectFactory? _objectFactory;
 
-        public GameState(SpatialGrid spatialGrid)
+        public GameState(SpatialGrid spatialGrid, IObjectFactory? objectFactory = null)
         {
             SpatialGrid = spatialGrid;
+            _objectFactory = objectFactory;
         }
 
         public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
@@ -76,6 +79,8 @@ namespace Shared;
             gameObject.PositionChanged -= OnObjectPositionChanged;
             gameObject.StateChanged -= OnObjectStateChanged;
             SpatialGrid.Remove(gameObject);
+
+            _objectFactory?.Destroy(gameObject);
         }
 
         public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)

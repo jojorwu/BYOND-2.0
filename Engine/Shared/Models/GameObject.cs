@@ -70,18 +70,18 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     private void InitializeBuiltinIndices()
     {
         if (ObjectType == null) return;
-        _xIndex = ObjectType.GetVariableIndex("x");
-        _yIndex = ObjectType.GetVariableIndex("y");
-        _zIndex = ObjectType.GetVariableIndex("z");
-        _locIndex = ObjectType.GetVariableIndex("loc");
-        _iconIndex = ObjectType.GetVariableIndex("icon");
-        _iconStateIndex = ObjectType.GetVariableIndex("icon_state");
-        _dirIndex = ObjectType.GetVariableIndex("dir");
-        _alphaIndex = ObjectType.GetVariableIndex("alpha");
-        _colorIndex = ObjectType.GetVariableIndex("color");
-        _layerIndex = ObjectType.GetVariableIndex("layer");
-        _pixelXIndex = ObjectType.GetVariableIndex("pixel_x");
-        _pixelYIndex = ObjectType.GetVariableIndex("pixel_y");
+        _xIndex = ObjectType.XIndex;
+        _yIndex = ObjectType.YIndex;
+        _zIndex = ObjectType.ZIndex;
+        _locIndex = ObjectType.LocIndex;
+        _iconIndex = ObjectType.IconIndex;
+        _iconStateIndex = ObjectType.IconStateIndex;
+        _dirIndex = ObjectType.DirIndex;
+        _alphaIndex = ObjectType.AlphaIndex;
+        _colorIndex = ObjectType.ColorIndex;
+        _layerIndex = ObjectType.LayerIndex;
+        _pixelXIndex = ObjectType.PixelXIndex;
+        _pixelYIndex = ObjectType.PixelYIndex;
     }
 
     private int _x;
@@ -678,6 +678,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedX = 0;
             _committedY = 0;
             _committedZ = 0;
+            _icon = string.Empty;
+            _iconState = string.Empty;
+            _dir = 2;
+            _alpha = 255.0f;
+            _color = "#ffffff";
+            _layer = 2.0f;
+            _pixelX = 0;
+            _pixelY = 0;
+            _isDirty = 0;
         }
         Version = 0;
         Archetype = null;
@@ -700,6 +709,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             _contents = System.Array.Empty<IGameObject>();
         }
+
+        StateChanged = null;
+        PositionChanged = null;
 
         // We don't reset Id as it should be unique for the lifetime of its registration
         // but we could if we manage IDs in the pool.

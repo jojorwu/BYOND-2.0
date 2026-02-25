@@ -15,12 +15,14 @@ namespace Core.Maps
     public class MapLoader : EngineService, IMapLoader
     {
         private readonly IObjectTypeManager _objectTypeManager;
+        private readonly IObjectFactory _objectFactory;
         private readonly IJobSystem _jobSystem;
         private readonly ILogger<MapLoader> _logger;
 
-        public MapLoader(IObjectTypeManager typeManager, IJobSystem jobSystem, ILogger<MapLoader> logger)
+        public MapLoader(IObjectTypeManager typeManager, IObjectFactory objectFactory, IJobSystem jobSystem, ILogger<MapLoader> logger)
         {
             _objectTypeManager = typeManager;
+            _objectFactory = objectFactory;
             _jobSystem = jobSystem;
             _logger = logger;
         }
@@ -73,7 +75,7 @@ namespace Core.Maps
                         var objectType = _objectTypeManager.GetObjectType(objData.TypeName);
                         if (objectType != null)
                         {
-                            var gameObject = new GameObject(objectType, turfData.X, turfData.Y, turfData.Z);
+                            var gameObject = _objectFactory.Create(objectType, turfData.X, turfData.Y, turfData.Z);
                             foreach (var prop in objData.Properties)
                             {
                                 if (prop.Value is JsonElement element)

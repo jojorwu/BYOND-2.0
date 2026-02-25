@@ -107,14 +107,15 @@ public static class SharedOperations {
         ColorSpace space = ColorSpace.RGB;
 
         if (arguments[0].Name is null) {
-            if (arguments.Length is < 3 or > 5)
-                throw new Exception("Expected 3 to 5 arguments for rgb()");
+            if (arguments.Length < 3)
+                throw new Exception("Expected at least 3 arguments for rgb()");
 
             color1 = arguments[0].Value;
-            color2 = arguments[1].Value;
-            color3 = arguments[2].Value;
-            alpha = (arguments.Length >= 4) ? arguments[3].Value : null;
-            if (arguments.Length == 5)
+            color2 = arguments.Length > 1 ? arguments[1].Value : null;
+            color3 = arguments.Length > 2 ? arguments[2].Value : null;
+            alpha = arguments.Length > 3 ? arguments[3].Value : null;
+
+            if (arguments.Length > 4)
                 space = arguments[4].Value is null ? ColorSpace.RGB : (ColorSpace)(int)arguments[4].Value!;
         } else {
             foreach (var arg in arguments) {

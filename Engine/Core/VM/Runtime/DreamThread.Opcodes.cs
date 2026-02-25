@@ -77,7 +77,7 @@ public partial class DreamThread
                     newProc = Context.AllProcs[reference.Index];
                 break;
             case DMReference.Type.SrcProc:
-                var frame = _callStack[_callStackPtr - 1];
+                ref var frame = ref _callStack[_callStackPtr - 1];
                 instance = frame.Instance;
                 if (instance != null)
                 {
@@ -90,7 +90,7 @@ public partial class DreamThread
                 break;
             default:
                 {
-                    var value = GetReferenceValue(reference, _callStack[_callStackPtr - 1]);
+                    var value = GetReferenceValue(reference, ref _callStack[_callStackPtr - 1]);
                     if (value.TryGetValue(out IDreamProc? proc))
                     {
                         newProc = proc;
@@ -108,11 +108,11 @@ public partial class DreamThread
         PerformCall(newProc, instance, stackDelta, stackDelta, discardReturnValue);
     }
 
-    internal void Opcode_OutputReference(DreamProc proc, CallFrame frame, ref int pc)
+    internal void Opcode_OutputReference(DreamProc proc, ref CallFrame frame, ref int pc)
     {
         var reference = ReadReference(proc.Bytecode, ref pc);
         var message = Pop();
-        var target = GetReferenceValue(reference, frame, 0);
+        var target = GetReferenceValue(reference, ref frame, 0);
         PopCount(GetReferenceStackSize(reference));
 
         if (!message.IsNull)
@@ -385,7 +385,7 @@ public partial class DreamThread
         }
     }
 
-    internal void Opcode_Enumerate(DreamProc proc, CallFrame frame, ref int pc)
+    internal void Opcode_Enumerate(DreamProc proc, ref CallFrame frame, ref int pc)
     {
         var enumeratorId = ReadInt32(proc, ref pc);
         var reference = ReadReference(proc.Bytecode, ref pc);
@@ -395,7 +395,7 @@ public partial class DreamThread
         {
             if (enumerator.MoveNext())
             {
-                SetReferenceValue(reference, frame, enumerator.Current);
+                SetReferenceValue(reference, ref frame, enumerator.Current);
             }
             else
             {
@@ -408,7 +408,7 @@ public partial class DreamThread
         }
     }
 
-    internal void Opcode_EnumerateAssoc(DreamProc proc, CallFrame frame, ref int pc)
+    internal void Opcode_EnumerateAssoc(DreamProc proc, ref CallFrame frame, ref int pc)
     {
         var enumeratorId = ReadInt32(proc, ref pc);
         var assocRef = ReadReference(proc.Bytecode, ref pc);
@@ -420,14 +420,14 @@ public partial class DreamThread
             if (enumerator.MoveNext())
             {
                 var key = enumerator.Current;
-                SetReferenceValue(outputRef, frame, key);
+                SetReferenceValue(outputRef, ref frame, key);
 
                 DreamValue value = DreamValue.Null;
                 if (EnumeratorLists.TryGetValue(enumeratorId, out var list))
                 {
                     value = list.GetValue(key);
                 }
-                SetReferenceValue(assocRef, frame, value);
+                SetReferenceValue(assocRef, ref frame, value);
             }
             else
             {
@@ -451,11 +451,11 @@ public partial class DreamThread
         EnumeratorLists.Remove(enumeratorId);
     }
 
-    internal void Opcode_Append(DreamProc proc, CallFrame frame, ref int pc)
+    internal void Opcode_Append(DreamProc proc, ref CallFrame frame, ref int pc)
     {
         var reference = ReadReference(proc.Bytecode, ref pc);
         var value = Pop();
-        var listValue = GetReferenceValue(reference, frame);
+        var listValue = GetReferenceValue(reference, ref frame);
 
         if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
         {
@@ -463,11 +463,11 @@ public partial class DreamThread
         }
     }
 
-    internal void Opcode_Remove(DreamProc proc, CallFrame frame, ref int pc)
+    internal void Opcode_Remove(DreamProc proc, ref CallFrame frame, ref int pc)
     {
         var reference = ReadReference(proc.Bytecode, ref pc);
         var value = Pop();
-        var listValue = GetReferenceValue(reference, frame);
+        var listValue = GetReferenceValue(reference, ref frame);
 
         if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
         {

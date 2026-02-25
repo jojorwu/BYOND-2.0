@@ -234,7 +234,7 @@ public partial class DreamThread : IScriptThread, IDisposable
             if (tryBlock.CatchReference.HasValue)
             {
                 var catchValue = e.ThrownValue ?? new DreamValue(e.Message);
-                SetReferenceValue(tryBlock.CatchReference.Value, _callStack[_callStackPtr - 1], catchValue, 0);
+                SetReferenceValue(tryBlock.CatchReference.Value, ref _callStack[_callStackPtr - 1], catchValue, 0);
                 PopCount(GetReferenceStackSize(tryBlock.CatchReference.Value));
             }
 
@@ -294,7 +294,7 @@ public partial class DreamThread : IScriptThread, IDisposable
     /// Resolves a reference to its current value.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public DreamValue GetReferenceValue(DMReference reference, CallFrame frame, int stackOffset = 0)
+    public DreamValue GetReferenceValue(DMReference reference, ref CallFrame frame, int stackOffset = 0)
     {
         switch (reference.RefType)
         {
@@ -309,11 +309,14 @@ public partial class DreamThread : IScriptThread, IDisposable
                 return Context.World != null ? new DreamValue(Context.World) : DreamValue.Null;
             case DMReference.Type.Args:
                 {
+                    if (frame.ArgsList != null) return new DreamValue(frame.ArgsList);
                     var list = new DreamList(Context.ListType);
                     for (int i = 0; i < frame.Proc.Arguments.Length; i++)
                     {
                         list.AddValue(_stack[frame.StackBase + i]);
                     }
+                    frame.ArgsList = list;
+                    _callStack[_callStackPtr - 1].ArgsList = list;
                     return new DreamValue(list);
                 }
             case DMReference.Type.Global:
@@ -366,7 +369,7 @@ public partial class DreamThread : IScriptThread, IDisposable
     /// Updates the value pointed to by a reference.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetReferenceValue(DMReference reference, CallFrame frame, DreamValue value, int stackOffset = 0)
+    public void SetReferenceValue(DMReference reference, ref CallFrame frame, DreamValue value, int stackOffset = 0)
     {
         switch (reference.RefType)
         {

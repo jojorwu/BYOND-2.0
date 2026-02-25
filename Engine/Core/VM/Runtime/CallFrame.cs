@@ -12,6 +12,7 @@ namespace Core.VM.Runtime
         public int LocalBase { get; }
         public DreamObject? Instance { get; }
         public bool DiscardReturnValue { get; }
+        public DreamList? ArgsList { get; set; }
 
         public CallFrame(DreamProc proc, int pc, int stackBase, DreamObject? instance, bool discardReturnValue = false)
         {
@@ -22,6 +23,7 @@ namespace Core.VM.Runtime
             LocalBase = stackBase + proc.Arguments.Length;
             Instance = instance;
             DiscardReturnValue = discardReturnValue;
+            ArgsList = null;
         }
     }
 }

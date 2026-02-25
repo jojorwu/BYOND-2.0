@@ -54,8 +54,54 @@ public partial class DreamThread : IScriptThread, IDisposable
         if (_tryStackPtr > 0) _tryStackPtr--;
     }
 
+    private readonly IEnumerator<DreamValue>?[] _activeEnumeratorsArray = new IEnumerator<DreamValue>[16];
+    private readonly DreamList?[] _enumeratorListsArray = new DreamList[16];
     public readonly Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators = new();
     public readonly Dictionary<int, DreamList> EnumeratorLists = new();
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IEnumerator<DreamValue>? GetEnumerator(int id)
+    {
+        if (id >= 0 && id < 16) return _activeEnumeratorsArray[id];
+        return ActiveEnumerators.TryGetValue(id, out var enumerator) ? enumerator : null;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetEnumerator(int id, IEnumerator<DreamValue> enumerator, DreamList? list)
+    {
+        if (id >= 0 && id < 16)
+        {
+            _activeEnumeratorsArray[id] = enumerator;
+            _enumeratorListsArray[id] = list;
+        }
+        else
+        {
+            ActiveEnumerators[id] = enumerator;
+            if (list != null) EnumeratorLists[id] = list;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public DreamList? GetEnumeratorList(int id)
+    {
+        if (id >= 0 && id < 16) return _enumeratorListsArray[id];
+        return EnumeratorLists.TryGetValue(id, out var list) ? list : null;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RemoveEnumerator(int id)
+    {
+        if (id >= 0 && id < 16)
+        {
+            _activeEnumeratorsArray[id] = null;
+            _enumeratorListsArray[id] = null;
+        }
+        else
+        {
+            ActiveEnumerators.Remove(id);
+            EnumeratorLists.Remove(id);
+        }
+    }
     public int StackCount => _stackPtr;
     public int CallStackCount => _callStackPtr;
 

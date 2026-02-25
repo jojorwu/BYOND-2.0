@@ -154,19 +154,6 @@ public partial class DreamThread
         Push(new DreamValue(_globalVars));
     }
 
-    internal void Opcode_Modulus()
-    {
-        var b = Pop();
-        var a = Pop();
-        Push(a % b);
-    }
-
-    internal void Opcode_ModulusModulus()
-    {
-        var b = Pop();
-        var a = Pop();
-        Push(new DreamValue(SharedOperations.Modulo(a.GetValueAsFloat(), b.GetValueAsFloat())));
-    }
 
     internal void Opcode_GetStep()
     {
@@ -319,20 +306,6 @@ public partial class DreamThread
         Opcode_CreateAssociativeList(proc, ref pc);
     }
 
-    internal void Opcode_IsInList()
-    {
-        var listValue = Pop();
-        var value = Pop();
-
-        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
-        {
-            Push(list.Contains(value) ? DreamValue.True : DreamValue.False);
-        }
-        else
-        {
-            Push(DreamValue.False);
-        }
-    }
 
     internal void PerformCall(IDreamProc newProc, DreamObject? instance, int stackDelta, int argCount, bool discardReturnValue = false)
     {
@@ -376,12 +349,11 @@ public partial class DreamThread
 
         if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
         {
-            ActiveEnumerators[enumeratorId] = list.Values.GetEnumerator();
-            EnumeratorLists[enumeratorId] = list;
+            SetEnumerator(enumeratorId, list.Values.GetEnumerator(), list);
         }
         else
         {
-            ActiveEnumerators[enumeratorId] = Enumerable.Empty<DreamValue>().GetEnumerator();
+            SetEnumerator(enumeratorId, Enumerable.Empty<DreamValue>().GetEnumerator(), null);
         }
     }
 
@@ -391,7 +363,8 @@ public partial class DreamThread
         var reference = ReadReference(proc.Bytecode, ref pc);
         var jumpAddress = ReadInt32(proc, ref pc);
 
-        if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
+        var enumerator = GetEnumerator(enumeratorId);
+        if (enumerator != null)
         {
             if (enumerator.MoveNext())
             {
@@ -415,7 +388,8 @@ public partial class DreamThread
         var outputRef = ReadReference(proc.Bytecode, ref pc);
         var jumpAddress = ReadInt32(proc, ref pc);
 
-        if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
+        var enumerator = GetEnumerator(enumeratorId);
+        if (enumerator != null)
         {
             if (enumerator.MoveNext())
             {
@@ -423,7 +397,8 @@ public partial class DreamThread
                 SetReferenceValue(outputRef, ref frame, key);
 
                 DreamValue value = DreamValue.Null;
-                if (EnumeratorLists.TryGetValue(enumeratorId, out var list))
+                var list = GetEnumeratorList(enumeratorId);
+                if (list != null)
                 {
                     value = list.GetValue(key);
                 }
@@ -443,12 +418,12 @@ public partial class DreamThread
     internal void Opcode_DestroyEnumerator(DreamProc proc, ref int pc)
     {
         var enumeratorId = ReadInt32(proc, ref pc);
-        if (ActiveEnumerators.TryGetValue(enumeratorId, out var enumerator))
+        var enumerator = GetEnumerator(enumeratorId);
+        if (enumerator != null)
         {
             enumerator.Dispose();
-            ActiveEnumerators.Remove(enumeratorId);
+            RemoveEnumerator(enumeratorId);
         }
-        EnumeratorLists.Remove(enumeratorId);
     }
 
     internal void Opcode_Append(DreamProc proc, ref CallFrame frame, ref int pc)
@@ -572,35 +547,6 @@ public partial class DreamThread
         Push(new DreamValue(result.ToString()));
     }
 
-    internal void Opcode_Power()
-    {
-        var b = Pop();
-        var a = Pop();
-        Push(new DreamValue(MathF.Pow(a.GetValueAsFloat(), b.GetValueAsFloat())));
-    }
-    internal void Opcode_Sqrt()
-    {
-        var a = Pop();
-        Push(new DreamValue(SharedOperations.Sqrt(a.GetValueAsFloat())));
-    }
-    internal void Opcode_Abs()
-    {
-        var a = Pop();
-        Push(new DreamValue(SharedOperations.Abs(a.GetValueAsFloat())));
-    }
-
-    internal void Opcode_Sin() => Push(new DreamValue(SharedOperations.Sin(Pop().GetValueAsFloat())));
-    internal void Opcode_Cos() => Push(new DreamValue(SharedOperations.Cos(Pop().GetValueAsFloat())));
-    internal void Opcode_Tan() => Push(new DreamValue(SharedOperations.Tan(Pop().GetValueAsFloat())));
-    internal void Opcode_ArcSin() => Push(new DreamValue(SharedOperations.ArcSin(Pop().GetValueAsFloat())));
-    internal void Opcode_ArcCos() => Push(new DreamValue(SharedOperations.ArcCos(Pop().GetValueAsFloat())));
-    internal void Opcode_ArcTan() => Push(new DreamValue(SharedOperations.ArcTan(Pop().GetValueAsFloat())));
-    internal void Opcode_ArcTan2()
-    {
-        var y = Pop();
-        var x = Pop();
-        Push(new DreamValue(SharedOperations.ArcTan(x.GetValueAsFloat(), y.GetValueAsFloat())));
-    }
 
     internal void Opcode_CreateObject(DreamProc proc, ref int pc)
     {

@@ -17,7 +17,7 @@ public interface IBytecodeInterpreter
 internal unsafe ref struct InterpreterState
 {
     public DreamThread Thread;
-    public CallFrame Frame;
+    public ref CallFrame Frame;
     public DreamProc Proc;
     public int PC;
     public DreamValue[] Stack;
@@ -83,18 +83,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (thread.State != DreamThreadState.Running)
             return thread.State;
 
-        var frame = thread._callStack[thread._callStackPtr - 1];
         var state = new InterpreterState
         {
             Thread = thread,
-            Frame = frame,
-            Proc = frame.Proc,
-            PC = frame.PC,
+            Frame = ref thread._callStack[thread._callStackPtr - 1],
+            Proc = thread._callStack[thread._callStackPtr - 1].Proc,
+            PC = thread._callStack[thread._callStackPtr - 1].PC,
             Stack = thread._stack,
             StackPtr = thread._stackPtr,
-            BytecodeArray = frame.Proc.Bytecode,
-            LocalBase = frame.LocalBase,
-            ArgumentBase = frame.ArgumentBase
+            BytecodeArray = thread._callStack[thread._callStackPtr - 1].Proc.Bytecode,
+            LocalBase = thread._callStack[thread._callStackPtr - 1].LocalBase,
+            ArgumentBase = thread._callStack[thread._callStackPtr - 1].ArgumentBase
         };
 
         int instructionsExecutedThisTick = 0;
@@ -131,7 +130,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 state.StackPtr = thread._stackPtr;
                                 if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
                                 {
-                                    state.Frame = thread._callStack[thread._callStackPtr - 1];
+                                    state.Frame = ref thread._callStack[thread._callStackPtr - 1];
                                     state.Proc = state.Frame.Proc;
                                     state.PC = state.Frame.PC;
                                     if (state.Proc.Bytecode != state.BytecodeArray)
@@ -158,7 +157,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                             {
                                 if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
                                 {
-                                    state.Frame = thread._callStack[thread._callStackPtr - 1];
+                                    state.Frame = ref thread._callStack[thread._callStackPtr - 1];
                                     state.Proc = state.Frame.Proc;
                                     state.PC = state.Frame.PC;
                                     state.Stack = thread._stack;
@@ -191,7 +190,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
                 if (thread._callStackPtr > 0)
                 {
-                    state.Frame = thread._callStack[thread._callStackPtr - 1];
+                    state.Frame = ref thread._callStack[thread._callStackPtr - 1];
                     state.Proc = state.Frame.Proc;
                     state.PC = state.Frame.PC;
                     state.BytecodeArray = state.Proc.Bytecode;
@@ -1018,9 +1017,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleModulus(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Modulus();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Modulus", state.Proc, state.PC, state.Thread);
+        var b = state.Stack[--state.StackPtr];
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = a % b;
     }
 
     private static void HandleAssignInto(ref InterpreterState state)
@@ -1030,9 +1030,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.Thread.Push(value);
-        state.Stack = state.Thread._stack;
         state.StackPtr = state.Thread._stackPtr;
+        state.Push(value);
     }
 
     private static void HandleModulusReference(ref InterpreterState state)
@@ -1048,9 +1047,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleModulusModulus(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ModulusModulus();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during ModulusModulus", state.Proc, state.PC, state.Thread);
+        var b = state.Stack[--state.StackPtr];
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Modulo(a.GetValueAsFloat(), b.GetValueAsFloat()));
     }
 
     private static void HandleModulusModulusReference(ref InterpreterState state)
@@ -1090,9 +1090,16 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIsInList(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_IsInList();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during IsInList", state.Proc, state.PC, state.Thread);
+        var listValue = state.Stack[--state.StackPtr];
+        var value = state.Stack[state.StackPtr - 1];
+
+        bool result = false;
+        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+        {
+            result = list.Contains(value);
+        }
+        state.Stack[state.StackPtr - 1] = result ? DreamValue.True : DreamValue.False;
     }
 
     private static void HandleInput(ref InterpreterState state)
@@ -1346,23 +1353,24 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePower(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Power();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Power", state.Proc, state.PC, state.Thread);
+        var b = state.Stack[--state.StackPtr];
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(MathF.Pow(a.GetValueAsFloat(), b.GetValueAsFloat()));
     }
 
     private static void HandleSqrt(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Sqrt();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Sqrt", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Sqrt(a.GetValueAsFloat()));
     }
 
     private static void HandleAbs(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Abs();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Abs", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Abs(a.GetValueAsFloat()));
     }
 
     private static void HandleMultiplyReference(ref InterpreterState state)
@@ -1378,9 +1386,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleSin(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Sin();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Sin", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Sin(a.GetValueAsFloat()));
     }
 
     private static void HandleDivideReference(ref InterpreterState state)
@@ -1396,44 +1404,45 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleCos(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Cos();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Cos", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Cos(a.GetValueAsFloat()));
     }
 
     private static void HandleTan(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Tan();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Tan", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.Tan(a.GetValueAsFloat()));
     }
 
     private static void HandleArcSin(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcSin();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during ArcSin", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcSin(a.GetValueAsFloat()));
     }
 
     private static void HandleArcCos(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcCos();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during ArcCos", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcCos(a.GetValueAsFloat()));
     }
 
     private static void HandleArcTan(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcTan();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during ArcTan", state.Proc, state.PC, state.Thread);
+        var a = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcTan(a.GetValueAsFloat()));
     }
 
     private static void HandleArcTan2(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_ArcTan2();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during ArcTan2", state.Proc, state.PC, state.Thread);
+        var y = state.Stack[--state.StackPtr];
+        var x = state.Stack[state.StackPtr - 1];
+        state.Stack[state.StackPtr - 1] = new DreamValue(SharedOperations.ArcTan(x.GetValueAsFloat(), y.GetValueAsFloat()));
     }
 
     private static void HandleLog(ref InterpreterState state)

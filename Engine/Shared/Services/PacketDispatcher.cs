@@ -49,7 +49,18 @@ namespace Shared.Services;
         public async Task DispatchAsync(INetworkPeer peer, string data)
         {
             if (string.IsNullOrEmpty(data)) return;
-            await DispatchAsync(peer, System.Text.Encoding.UTF8.GetBytes(data).AsMemory());
+
+            int byteCount = System.Text.Encoding.UTF8.GetByteCount(data);
+            var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(byteCount);
+            try
+            {
+                System.Text.Encoding.UTF8.GetBytes(data, 0, data.Length, buffer, 0);
+                await DispatchAsync(peer, new ReadOnlyMemory<byte>(buffer, 0, byteCount));
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
 
         public async Task DispatchAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)

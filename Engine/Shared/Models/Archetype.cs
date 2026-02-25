@@ -213,6 +213,20 @@ public class Archetype
         return data;
     }
 
+    public int GetComponents(Type type, IComponent[] destination)
+    {
+        if (_componentArrays.TryGetValue(type, out var array))
+        {
+            lock (_lock)
+            {
+                int count = Math.Min(_count, destination.Length);
+                for (int i = 0; i < count; i++) destination[i] = array.Get(i);
+                return count;
+            }
+        }
+        return 0;
+    }
+
     public IEnumerable<IComponent> GetComponents(Type type)
     {
         if (_componentArrays.TryGetValue(type, out var array))

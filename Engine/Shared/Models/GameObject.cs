@@ -330,76 +330,79 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public override DreamValue GetVariable(string name)
     {
-        // Fast-path for common variables
-        if (name.Length == 1)
+        // Fast-path for high-frequency built-in variables to avoid lock and dictionary lookup
+        if (name.Length <= 10) // Optimization: only check short names
         {
-            if (name[0] == 'x') return new DreamValue((float)X);
-            if (name[0] == 'y') return new DreamValue((float)Y);
-            if (name[0] == 'z') return new DreamValue((float)Z);
+            switch (name)
+            {
+                case "x": return new DreamValue((float)_x);
+                case "y": return new DreamValue((float)_y);
+                case "z": return new DreamValue((float)_z);
+                case "icon": return new DreamValue(_icon);
+                case "icon_state": return new DreamValue(_iconState);
+                case "dir": return new DreamValue((float)_dir);
+                case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
+                case "name":
+                    var n = base.GetVariable(name);
+                    return !n.IsNull ? n : new DreamValue(ObjectType?.Name ?? "object");
+            }
         }
 
-        switch (name)
+        if (ObjectType != null)
         {
-            case "loc": return Loc != null ? new DreamValue((DreamObject)Loc) : DreamValue.Null;
-            case "icon": return new DreamValue(Icon);
-            case "icon_state": return new DreamValue(IconState);
-            case "dir": return new DreamValue((float)Dir);
-            case "alpha": return new DreamValue(Alpha);
-            case "color": return new DreamValue(Color);
-            case "layer": return new DreamValue(Layer);
-            case "pixel_x": return new DreamValue(PixelX);
-            case "pixel_y": return new DreamValue(PixelY);
-            case "name":
-                var val = base.GetVariable(name);
-                return !val.IsNull ? val : new DreamValue(ObjectType?.Name ?? "object");
-            default:
-                return base.GetVariable(name);
+            int index = ObjectType.GetVariableIndex(name);
+            if (index != -1) return GetVariable(index);
         }
+
+        return base.GetVariable(name);
     }
 
     public override void SetVariable(string name, DreamValue value)
     {
-        if (name.Length == 1)
-        {
-            if (name[0] == 'x') { X = (int)value.GetValueAsFloat(); return; }
-            if (name[0] == 'y') { Y = (int)value.GetValueAsFloat(); return; }
-            if (name[0] == 'z') { Z = (int)value.GetValueAsFloat(); return; }
-        }
-
-        lock (_lock)
+        // Fast-path for high-frequency built-in variables to avoid dictionary lookups
+        if (name.Length <= 10)
         {
             switch (name)
             {
+                case "x": X = (int)value.GetValueAsFloat(); return;
+                case "y": Y = (int)value.GetValueAsFloat(); return;
+                case "z": Z = (int)value.GetValueAsFloat(); return;
+                case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
+                case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
+                case "dir": Dir = (int)value.GetValueAsFloat(); return;
                 case "loc":
-                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                        Loc = loc;
-                    else
-                        Loc = null;
-                    break;
-                case "icon": Icon = value.TryGetValue(out string? s) ? s ?? "" : ""; break;
-                case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? "" : ""; break;
-                case "dir": Dir = (int)value.GetValueAsFloat(); break;
-                case "alpha": Alpha = value.GetValueAsFloat(); break;
-                case "color": Color = value.TryGetValue(out string? s3) ? s3 ?? "#ffffff" : "#ffffff"; break;
-                case "layer": Layer = value.GetValueAsFloat(); break;
-                case "pixel_x": PixelX = value.GetValueAsFloat(); break;
-                case "pixel_y": PixelY = value.GetValueAsFloat(); break;
-                default:
-                    base.SetVariable(name, value);
-                    break;
+                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
+                    else Loc = null;
+                    return;
             }
         }
+
+        if (ObjectType != null)
+        {
+            int index = ObjectType.GetVariableIndex(name);
+            if (index != -1)
+            {
+                SetVariableDirect(index, value);
+                return;
+            }
+        }
+
+        base.SetVariable(name, value);
     }
 
     public override void SetVariableDirect(int index, DreamValue value)
     {
+        if (index < 0) return;
+
         lock (_lock)
         {
             base.SetVariableDirect(index, value);
 
-            if (ObjectType != null && index >= 0 && index < ObjectType.VariableToBuiltin?.Length)
+            // Use the pre-calculated VariableToBuiltin map for O(1) side-effect dispatch
+            var builtinMap = ObjectType?.VariableToBuiltin;
+            if (builtinMap != null && index < builtinMap.Length)
             {
-                var builtin = ObjectType.VariableToBuiltin[index];
+                var builtin = builtinMap[index];
                 if (builtin != (BuiltinVar)255)
                 {
                     switch (builtin)
@@ -415,22 +418,18 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     }
                     return;
                 }
+            }
 
-                var name = ObjectType.VariableNames[index];
-                if (name.Length == 1)
-                {
-                    if (name[0] == 'x') { _x = (int)value.GetValueAsFloat(); return; }
-                    if (name[0] == 'y') { _y = (int)value.GetValueAsFloat(); return; }
-                    if (name[0] == 'z') { _z = (int)value.GetValueAsFloat(); return; }
-                }
-
-                if (name == "loc")
-                {
-                    if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                        SetLocInternal(loc, false);
-                    else
-                        SetLocInternal(null, false);
-                }
+            // Fallback to manual index checks (for unfinalized types or coordinates/loc)
+            if (index == _xIndex) { X = (int)value.GetValueAsFloat(); }
+            else if (index == _yIndex) { Y = (int)value.GetValueAsFloat(); }
+            else if (index == _zIndex) { Z = (int)value.GetValueAsFloat(); }
+            else if (index == _locIndex)
+            {
+                if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                    Loc = loc;
+                else
+                    Loc = null;
             }
         }
     }
@@ -587,12 +586,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (Archetype is Archetype arch)
         {
-            var components = new List<IComponent>();
+            // Count components first to avoid over-allocation
+            int count = arch._componentArrays.Count;
+            var components = new IComponent[count];
+            int i = 0;
             foreach (var array in arch._componentArrays.Values)
             {
                 var comp = array.Get(ArchetypeIndex);
-                if (comp != null) components.Add(comp);
+                if (comp != null) components[i++] = comp;
             }
+            if (i < count) System.Array.Resize(ref components, i);
             return components;
         }
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();

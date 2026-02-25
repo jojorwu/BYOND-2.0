@@ -280,9 +280,11 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator +(DreamValue a, DreamValue b)
         {
+            // Hot path: both are floats
             if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
                 return new DreamValue(a._floatValue + b._floatValue);
 
+            // String concatenation
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
                 var sA = a.ToString();
@@ -294,6 +296,7 @@ namespace Shared;
                 return new DreamValue(sA + sB);
             }
 
+            // List addition
             if (a.Type == DreamValueType.DreamObject && a._objectValue is DreamList listA)
             {
                 var newList = listA.Clone();
@@ -308,15 +311,18 @@ namespace Shared;
                 return new DreamValue(newList);
             }
 
+            // Fallback to float math
             return new DreamValue(a.GetValueAsFloat() + b.GetValueAsFloat());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
+            // Hot path: both are floats
             if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
                 return new DreamValue(a._floatValue - b._floatValue);
 
+            // List subtraction
             if (a.Type == DreamValueType.DreamObject && a._objectValue is DreamList listA)
             {
                 var newList = listA.Clone();
@@ -330,6 +336,8 @@ namespace Shared;
                 }
                 return new DreamValue(newList);
             }
+
+            // Fallback to float math
             return new DreamValue(a.GetValueAsFloat() - b.GetValueAsFloat());
         }
 
@@ -530,13 +538,17 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsFalse()
         {
-            return Type switch
+            switch (Type)
             {
-                DreamValueType.Null => true,
-                DreamValueType.Float => _floatValue == 0,
-                DreamValueType.String => ((string)_objectValue!).Length == 0,
-                _ => false
-            };
+                case DreamValueType.Null:
+                    return true;
+                case DreamValueType.Float:
+                    return _floatValue == 0;
+                case DreamValueType.String:
+                    return ((string)_objectValue!).Length == 0;
+                default:
+                    return false;
+            }
         }
 
         public void WriteTo(Utf8JsonWriter writer, JsonSerializerOptions options)

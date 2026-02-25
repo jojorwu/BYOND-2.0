@@ -75,7 +75,11 @@ public class ObjectType
                 "layer" => BuiltinVar.Layer,
                 "pixel_x" => BuiltinVar.PixelX,
                 "pixel_y" => BuiltinVar.PixelY,
-                _ => (BuiltinVar)255
+                "x" => BuiltinVar.X,
+                "y" => BuiltinVar.Y,
+                "z" => BuiltinVar.Z,
+                "loc" => BuiltinVar.Loc,
+                _ => BuiltinVar.None
             };
 
             switch (name)

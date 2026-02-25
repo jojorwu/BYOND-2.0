@@ -382,16 +382,19 @@ namespace Shared;
         {
             if (Type != other.Type) return false;
 
-            if (Type == DreamValueType.Float)
+            // Direct bitwise check for the most common case (same bits = same value)
+            if (_floatValue == other._floatValue && ReferenceEquals(_objectValue, other._objectValue))
+                return true;
+
+            switch (Type)
             {
-                // Re-ordered for common exact-match case
-                if (_floatValue == other._floatValue) return true;
-                return MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+                case DreamValueType.Float:
+                    return MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
+                case DreamValueType.Null:
+                    return true;
+                default:
+                    return _objectValue != null && _objectValue.Equals(other._objectValue);
             }
-
-            if (Type == DreamValueType.Null) return true;
-
-            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue != null && _objectValue.Equals(other._objectValue));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -408,17 +411,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            // Hot path: exact same type and value
-            if (a.Type == b.Type)
-            {
-                if (a.Type == DreamValueType.Float)
-                {
-                    if (a._floatValue == b._floatValue) return true;
-                    return MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
-                }
-                if (a.Type == DreamValueType.Null) return true;
-                return ReferenceEquals(a._objectValue, b._objectValue) || (a._objectValue != null && a._objectValue.Equals(b._objectValue));
-            }
+            if (a.Type == b.Type) return a.Equals(b);
 
             // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)
@@ -551,6 +544,7 @@ namespace Shared;
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteTo(Utf8JsonWriter writer, JsonSerializerOptions options)
         {
             switch (Type)
@@ -570,6 +564,7 @@ namespace Shared;
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int GetWriteSize()
         {
             int size = 1; // Type byte
@@ -617,6 +612,7 @@ namespace Shared;
             return count;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int WriteTo(Span<byte> span)
         {
             span[0] = (byte)Type;

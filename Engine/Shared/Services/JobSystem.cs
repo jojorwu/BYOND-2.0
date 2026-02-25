@@ -255,14 +255,15 @@ namespace Shared.Services;
 
         public async Task CompleteAllAsync()
         {
-            var tasks = new List<Task>();
-            while (_pendingJobTrackers.TryTake(out var tcs))
+            while (true)
             {
-                tasks.Add(tcs.Task);
-            }
+                var tasks = new List<Task>();
+                while (_pendingJobTrackers.TryTake(out var tcs))
+                {
+                    tasks.Add(tcs.Task);
+                }
 
-            if (tasks.Count > 0)
-            {
+                if (tasks.Count == 0) break;
                 await Task.WhenAll(tasks);
             }
         }
@@ -279,9 +280,10 @@ namespace Shared.Services;
                 return;
             }
 
+            var handles = new List<Task>();
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item), priority: priority);
+                foreach (var item in list) handles.Add(Schedule(() => action(item), priority: priority, track: false).Task!);
             }
             else
             {
@@ -289,16 +291,16 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(() =>
+                    handles.Add(Schedule(() =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             action(list[j]);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false).Task!);
                 }
             }
-            await CompleteAllAsync();
+            await Task.WhenAll(handles);
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
@@ -313,12 +315,13 @@ namespace Shared.Services;
                 return;
             }
 
+            var handles = new List<Task>();
             if (count <= BatchSize)
             {
                 for (int i = 0; i < count; i++)
                 {
                     int index = i;
-                    Schedule(() => action(list[index], index), priority: priority);
+                    handles.Add(Schedule(() => action(list[index], index), priority: priority, track: false).Task!);
                 }
             }
             else
@@ -327,16 +330,16 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(() =>
+                    handles.Add(Schedule(() =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             action(list[j], j);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false).Task!);
                 }
             }
-            await CompleteAllAsync();
+            await Task.WhenAll(handles);
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
@@ -345,9 +348,10 @@ namespace Shared.Services;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 
+            var handles = new List<Task>();
             if (count <= BatchSize)
             {
-                foreach (var item in list) Schedule(() => action(item), priority: priority);
+                foreach (var item in list) handles.Add(Schedule(() => action(item), priority: priority, track: false).Task!);
             }
             else
             {
@@ -355,16 +359,16 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + BatchSize, count);
-                    Schedule(async () =>
+                    handles.Add(Schedule(async () =>
                     {
                         for (int j = start; j < end; j++)
                         {
                             await action(list[j]);
                         }
-                    }, priority: priority);
+                    }, priority: priority, track: false).Task!);
                 }
             }
-            await CompleteAllAsync();
+            await Task.WhenAll(handles);
         }
 
         public IArenaAllocator? GetCurrentArena()

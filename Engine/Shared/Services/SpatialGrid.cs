@@ -152,15 +152,8 @@ namespace Shared;
 
         public void Update(IGameObject obj, int oldX, int oldY)
         {
-            int newGX = GetGridCoord(obj.X);
-            int newGY = GetGridCoord(obj.Y);
-            long newKey = ((long)newGX << 32) | (uint)newGY;
-
-            if (obj.CurrentGridCellKey != newKey)
-            {
-                Remove(obj);
-                Add(obj);
-            }
+            // Add already handles movement and checking if the key changed
+            Add(obj);
         }
 
         public List<IGameObject> GetObjectsInBox(Box2i box)

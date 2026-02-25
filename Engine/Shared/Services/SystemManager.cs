@@ -289,24 +289,31 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                         }
                         else
                         {
-                            var ecbArray = new EntityCommandBuffer[layer.Count];
-                            await _jobSystem.ForEachAsync(layer, (system, index) =>
+                            var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Count);
+                            try
                             {
-                                var ecb = _ecbPool.Rent();
-                                ecbArray[index] = ecb;
-                                ExecuteSystem(system, ecb);
-                            });
-
-                            await _jobSystem.CompleteAllAsync();
-
-                            using (_profilingService.Measure("SystemManager.ECBPlayback"))
-                            {
-                                for (int j = 0; j < ecbArray.Length; j++)
+                                await _jobSystem.ForEachAsync(layer, (system, index) =>
                                 {
-                                    var ecb = ecbArray[j];
-                                    ecb.Playback();
-                                    _ecbPool.Return(ecb);
+                                    var ecb = _ecbPool.Rent();
+                                    ecbArray[index] = ecb;
+                                    ExecuteSystem(system, ecb);
+                                });
+
+                                await _jobSystem.CompleteAllAsync();
+
+                                using (_profilingService.Measure("SystemManager.ECBPlayback"))
+                                {
+                                    for (int j = 0; j < layer.Count; j++)
+                                    {
+                                        var ecb = ecbArray[j];
+                                        ecb.Playback();
+                                        _ecbPool.Return(ecb);
+                                    }
                                 }
+                            }
+                            finally
+                            {
+                                System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Return(ecbArray, clearArray: true);
                             }
                         }
                     }

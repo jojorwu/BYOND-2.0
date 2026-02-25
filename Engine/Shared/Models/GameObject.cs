@@ -41,7 +41,23 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
+    public event Action<IGameObject>? StateChanged;
     internal event Action<GameObject, int, int, int>? PositionChanged;
+
+    private int _isDirty;
+    protected override void IncrementVersion()
+    {
+        base.IncrementVersion();
+        if (Interlocked.CompareExchange(ref _isDirty, 1, 0) == 0)
+        {
+            StateChanged?.Invoke(this);
+        }
+    }
+
+    public void ClearDirty()
+    {
+        Interlocked.Exchange(ref _isDirty, 0);
+    }
 
     public IGameObject? NextInGridCell { get; set; }
     public IGameObject? PrevInGridCell { get; set; }

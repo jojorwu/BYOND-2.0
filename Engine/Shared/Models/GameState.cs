@@ -14,6 +14,7 @@ namespace Shared;
         public IMap? Map { get; set; }
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
+        private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
 
         public GameState(SpatialGrid spatialGrid)
         {
@@ -64,13 +65,16 @@ namespace Shared;
         {
             GameObjects.TryAdd(gameObject.Id, gameObject);
             gameObject.PositionChanged += OnObjectPositionChanged;
+            gameObject.StateChanged += OnObjectStateChanged;
             SpatialGrid.Add(gameObject);
+            _dirtyObjects.Enqueue(gameObject);
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
             GameObjects.TryRemove(gameObject.Id, out _);
             gameObject.PositionChanged -= OnObjectPositionChanged;
+            gameObject.StateChanged -= OnObjectStateChanged;
             SpatialGrid.Remove(gameObject);
         }
 
@@ -82,6 +86,21 @@ namespace Shared;
         private void OnObjectPositionChanged(GameObject obj, int oldX, int oldY, int oldZ)
         {
             UpdateGameObject(obj, oldX, oldY);
+        }
+
+        private void OnObjectStateChanged(IGameObject obj)
+        {
+            _dirtyObjects.Enqueue(obj);
+        }
+
+        public IEnumerable<IGameObject> GetDirtyObjects()
+        {
+            var list = new List<IGameObject>();
+            while (_dirtyObjects.TryDequeue(out var obj))
+            {
+                list.Add(obj);
+            }
+            return list;
         }
 
         private sealed class DisposableAction : IDisposable

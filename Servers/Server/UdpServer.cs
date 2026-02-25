@@ -46,6 +46,10 @@ namespace Server
             _networkService.BroadcastSnapshot(snapshot);
         }
 
+        public void BroadcastSnapshot(byte[] snapshot) {
+            _networkService.BroadcastSnapshot(snapshot);
+        }
+
         public void BroadcastSnapshot(MergedRegion region, string snapshot)
         {
             // We should ideally wrap this with a message type, but keeping it for compatibility

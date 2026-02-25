@@ -49,15 +49,16 @@ namespace tests
         {
             // Arrange
             var strategy = new GlobalGameLoopStrategy(_scriptHostMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _udpServerMock.Object);
-            _gameStateSnapshotterMock.Setup(gs => gs.GetSnapshot(_gameStateMock.Object)).Returns("snapshot");
+            var snapshot = new byte[] { 1, 2, 3 };
+            _gameStateSnapshotterMock.Setup(gs => gs.GetBinarySnapshot(_gameStateMock.Object)).Returns(snapshot);
 
             // Act
             await strategy.TickAsync(_cancellationTokenSource.Token);
 
             // Assert
             _scriptHostMock.Verify(s => s.TickAsync(), Times.Once);
-            _gameStateSnapshotterMock.Verify(gs => gs.GetSnapshot(_gameStateMock.Object), Times.Once);
-            _udpServerMock.Verify(u => u.BroadcastSnapshot("snapshot"), Times.Once);
+            _gameStateSnapshotterMock.Verify(gs => gs.GetBinarySnapshot(_gameStateMock.Object), Times.Once);
+            _udpServerMock.Verify(u => u.BroadcastSnapshot(snapshot), Times.Once);
         }
 
         [Test]

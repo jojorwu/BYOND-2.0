@@ -12,7 +12,7 @@ namespace Shared;
         protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
         private long _version;
         public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }
-        protected void IncrementVersion() => Interlocked.Increment(ref _version);
+        protected virtual void IncrementVersion() => Interlocked.Increment(ref _version);
 
         public DreamObject(ObjectType? objectType)
         {

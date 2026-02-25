@@ -8,6 +8,7 @@ using LiteNetLib;
 using Microsoft.Extensions.Logging;
 using Shared;
 using Shared.Services;
+using Core;
 
 namespace Server
 {
@@ -138,6 +139,22 @@ namespace Server
             var writer = _writerPool.Rent();
             try
             {
+                writer.Put((byte)SnapshotMessageType.Json);
+                writer.Put(snapshot);
+                _context.PerformanceMonitor.RecordBytesSent(writer.Length);
+                _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
+        }
+
+        public void BroadcastSnapshot(byte[] snapshot) {
+            var writer = _writerPool.Rent();
+            try
+            {
+                writer.Put((byte)SnapshotMessageType.Binary);
                 writer.Put(snapshot);
                 _context.PerformanceMonitor.RecordBytesSent(writer.Length);
                 _netManager.SendToAll(writer, DeliveryMethod.Unreliable);

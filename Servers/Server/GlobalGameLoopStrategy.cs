@@ -22,7 +22,7 @@ namespace Server
         public async Task TickAsync(CancellationToken cancellationToken)
         {
             await _scriptHost.TickAsync();
-            var snapshot = _gameStateSnapshotter.GetSnapshot(_gameState);
+            var snapshot = _gameStateSnapshotter.GetBinarySnapshot(_gameState);
             _ = Task.Run(() => _udpServer.BroadcastSnapshot(snapshot), cancellationToken);
         }
     }

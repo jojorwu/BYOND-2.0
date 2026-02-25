@@ -13,5 +13,6 @@ namespace Server
         void Start();
         void Stop();
         void BroadcastSnapshot(string snapshot);
+        void BroadcastSnapshot(byte[] snapshot);
     }
 }

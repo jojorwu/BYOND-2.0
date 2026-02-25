@@ -8,6 +8,11 @@ namespace Shared;
     public interface IGameObject
     {
         /// <summary>
+        /// Occurs when the object's state changes.
+        /// </summary>
+        event System.Action<IGameObject>? StateChanged;
+
+        /// <summary>
         /// Unique identifier for this object.
         /// </summary>
         int Id { get; }
@@ -83,6 +88,11 @@ namespace Shared;
         /// Commits the current state to the read-only buffer.
         /// </summary>
         void CommitState();
+
+        /// <summary>
+        /// Clears the dirty flag on this object.
+        /// </summary>
+        void ClearDirty();
 
         /// <summary>
         /// Updates the object's 3D position in the world.

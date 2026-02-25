@@ -60,7 +60,11 @@ namespace Server
                     await _systemManager.TickAsync();
 
                     // Commit object state for consistent reading by other systems (e.g. networking/rendering)
-                    _context.GameState.ForEachGameObject(obj => obj.CommitState());
+                    foreach (var obj in _context.GameState.GetDirtyObjects())
+                    {
+                        obj.CommitState();
+                        obj.ClearDirty();
+                    }
 
                     _context.PerformanceMonitor.RecordTick();
                     accumulator -= targetFrameTime;

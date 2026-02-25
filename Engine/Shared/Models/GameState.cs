@@ -64,28 +64,19 @@ namespace Shared;
         {
             GameObjects.TryAdd(gameObject.Id, gameObject);
             gameObject.PositionChanged += OnObjectPositionChanged;
-            using (WriteLock())
-            {
-                SpatialGrid.Add(gameObject);
-            }
+            SpatialGrid.Add(gameObject);
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
             GameObjects.TryRemove(gameObject.Id, out _);
             gameObject.PositionChanged -= OnObjectPositionChanged;
-            using (WriteLock())
-            {
-                SpatialGrid.Remove(gameObject);
-            }
+            SpatialGrid.Remove(gameObject);
         }
 
         public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)
         {
-            using (WriteLock())
-            {
-                SpatialGrid.Update(gameObject, oldX, oldY);
-            }
+            SpatialGrid.Update(gameObject, oldX, oldY);
         }
 
         private void OnObjectPositionChanged(GameObject obj, int oldX, int oldY, int oldZ)

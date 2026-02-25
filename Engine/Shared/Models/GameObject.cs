@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -74,14 +75,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int X
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get { lock (_lock) return _x; }
         set
         {
             int oldX, oldY, oldZ;
             lock (_lock)
             {
-                if (_x == value) return;
-                oldX = _x; oldY = _y; oldZ = _z;
+                oldX = _x;
+                if (oldX == value) return;
+                oldY = _y; oldZ = _z;
                 _x = value;
                 if (_xIndex != -1) _variableValues[_xIndex] = new DreamValue((float)value);
                 IncrementVersion();
@@ -102,14 +105,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int Y
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get { lock (_lock) return _y; }
         set
         {
             int oldX, oldY, oldZ;
             lock (_lock)
             {
-                if (_y == value) return;
-                oldX = _x; oldY = _y; oldZ = _z;
+                oldY = _y;
+                if (oldY == value) return;
+                oldX = _x; oldZ = _z;
                 _y = value;
                 if (_yIndex != -1) _variableValues[_yIndex] = new DreamValue((float)value);
                 IncrementVersion();
@@ -130,14 +135,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public int Z
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get { lock (_lock) return _z; }
         set
         {
             int oldX, oldY, oldZ;
             lock (_lock)
             {
-                if (_z == value) return;
-                oldX = _x; oldY = _y; oldZ = _z;
+                oldZ = _z;
+                if (oldZ == value) return;
+                oldX = _x; oldY = _y;
                 _z = value;
                 if (_zIndex != -1) _variableValues[_zIndex] = new DreamValue((float)value);
                 IncrementVersion();

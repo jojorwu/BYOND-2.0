@@ -82,6 +82,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private const float DegToRad = MathF.PI / 180.0f;
     private const float RadToDeg = 180.0f / MathF.PI;
 
+    private static readonly ThreadLocal<System.Text.StringBuilder> _stringBuilder = new(() => new System.Text.StringBuilder(1024));
+
     private static readonly delegate*<ref InterpreterState, void>[] _dispatchTable = CreateDispatchTable();
 
     public DreamThreadState Run(DreamThread thread, int instructionBudget)
@@ -1308,26 +1310,42 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleCreateList(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_CreateList(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
-        state.StackPtr = state.Thread._stackPtr;
+        var size = state.ReadInt32();
+        if (size < 0 || size > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid list size: {size}", state.Proc, state.PC, state.Thread);
+
+        var list = new DreamList(state.Thread.Context.ListType, 0);
+        if (size > 0)
+        {
+            list.Populate(state.Stack.AsSpan(state.StackPtr - size, size));
+            state.StackPtr -= size;
+        }
+        state.Push(new DreamValue(list));
     }
 
     private static void HandleCreateAssociativeList(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_CreateAssociativeList(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
-        state.StackPtr = state.Thread._stackPtr;
+        var size = state.ReadInt32();
+        if (size < 0 || size * 2 > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid associative list size: {size}", state.Proc, state.PC, state.Thread);
+        var list = new DreamList(state.Thread.Context.ListType);
+        if (size > 0)
+        {
+            int baseIdx = state.StackPtr - size * 2;
+            for (int i = 0; i < size; i++)
+            {
+                var key = state.Stack[baseIdx + i * 2];
+                var value = state.Stack[baseIdx + i * 2 + 1];
+                list.SetValue(key, value);
+            }
+            state.StackPtr -= size * 2;
+        }
+        state.Push(new DreamValue(list));
     }
 
     private static void HandleCreateStrictAssociativeList(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_CreateStrictAssociativeList(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
-        state.StackPtr = state.Thread._stackPtr;
+        HandleCreateAssociativeList(ref state);
     }
 
     private static void HandleIsInList(ref InterpreterState state)
@@ -1371,14 +1389,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during DereferenceField", state.Proc, state.PC, state.Thread);
         var nameId = state.ReadInt32();
         var objValue = state.Stack[--state.StackPtr];
-        DreamValue val = DreamValue.Null;
+
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
             var name = state.Thread.Context.Strings[nameId];
             int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
-            val = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+            state.Push(idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name));
         }
-        state.Push(val);
+        else
+        {
+            state.Push(DreamValue.Null);
+        }
     }
 
     private static void HandleDereferenceIndex(ref InterpreterState state)
@@ -1386,17 +1407,32 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during DereferenceIndex", state.Proc, state.PC, state.Thread);
         var index = state.Stack[--state.StackPtr];
         var objValue = state.Stack[--state.StackPtr];
-        DreamValue val = DreamValue.Null;
-        if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+
+        if (objValue.TryGetValue(out DreamObject? obj))
         {
-            if (index.Type == DreamValueType.Float)
+            if (obj is DreamList list)
             {
-                int i = (int)index.RawFloat - 1;
-                if (i >= 0 && i < list.Values.Count) val = list.Values[i];
+                if (index.Type == DreamValueType.Float)
+                {
+                    state.Push(list.GetValue((int)index.RawFloat - 1));
+                }
+                else
+                {
+                    state.Push(list.GetValue(index));
+                }
+                return;
             }
-            else val = list.GetValue(index);
+
+            if (objValue.Type == DreamValueType.String && index.Type == DreamValueType.Float)
+            {
+                objValue.TryGetValue(out string? s);
+                int i = (int)index.RawFloat - 1;
+                state.Push((i >= 0 && i < s!.Length) ? new DreamValue(s[i].ToString()) : DreamValue.Null);
+                return;
+            }
         }
-        state.Push(val);
+
+        state.Push(DreamValue.Null);
     }
 
     private static void HandlePopReference(ref InterpreterState state)
@@ -1500,16 +1536,66 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleEnumerate(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Enumerate(state.Proc, ref state.Frame, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var enumeratorId = state.ReadInt32();
+        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var jumpAddress = state.ReadInt32();
+
+        var enumerator = state.Thread.GetEnumerator(enumeratorId);
+        if (enumerator != null && enumerator.MoveNext())
+        {
+            var value = enumerator.Current;
+            if (reference.RefType == DMReference.Type.Local)
+            {
+                state.Stack[state.LocalBase + reference.Index] = value;
+            }
+            else if (reference.RefType == DMReference.Type.Argument)
+            {
+                state.Stack[state.ArgumentBase + reference.Index] = value;
+            }
+            else
+            {
+                state.Thread.SetReferenceValue(reference, ref state.Frame, value);
+            }
+        }
+        else
+        {
+            state.PC = jumpAddress;
+        }
     }
 
     private static void HandleEnumerateAssoc(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_EnumerateAssoc(state.Proc, ref state.Frame, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var enumeratorId = state.ReadInt32();
+        var assocRef = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var outputRef = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var jumpAddress = state.ReadInt32();
+
+        var enumerator = state.Thread.GetEnumerator(enumeratorId);
+        if (enumerator != null && enumerator.MoveNext())
+        {
+            var key = enumerator.Current;
+
+            // Set outputRef (key)
+            if (outputRef.RefType == DMReference.Type.Local) state.Stack[state.LocalBase + outputRef.Index] = key;
+            else if (outputRef.RefType == DMReference.Type.Argument) state.Stack[state.ArgumentBase + outputRef.Index] = key;
+            else state.Thread.SetReferenceValue(outputRef, ref state.Frame, key);
+
+            DreamValue value = DreamValue.Null;
+            var list = state.Thread.GetEnumeratorList(enumeratorId);
+            if (list != null)
+            {
+                value = list.GetValue(key);
+            }
+
+            // Set assocRef (value)
+            if (assocRef.RefType == DMReference.Type.Local) state.Stack[state.LocalBase + assocRef.Index] = value;
+            else if (assocRef.RefType == DMReference.Type.Argument) state.Stack[state.ArgumentBase + assocRef.Index] = value;
+            else state.Thread.SetReferenceValue(assocRef, ref state.Frame, value);
+        }
+        else
+        {
+            state.PC = jumpAddress;
+        }
     }
 
     private static void HandleDestroyEnumerator(ref InterpreterState state)
@@ -1686,16 +1772,90 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleMassConcatenation(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_MassConcatenation(state.Proc, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var count = state.ReadInt32();
+        if (count < 0 || count > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid concatenation count: {count}", state.Proc, state.PC, state.Thread);
+
+        if (count == 0)
+        {
+            state.Push(new DreamValue(""));
+            return;
+        }
+
+        if (count == 1)
+        {
+            var val = state.Stack[state.StackPtr - 1];
+            if (val.Type != DreamValueType.String)
+                state.Stack[state.StackPtr - 1] = new DreamValue(val.ToString());
+            return;
+        }
+
+        var sb = _stringBuilder.Value!;
+        sb.Clear();
+
+        int baseIdx = state.StackPtr - count;
+        for (int i = 0; i < count; i++)
+        {
+            var val = state.Stack[baseIdx + i];
+            if (val.TryGetValue(out string? s))
+            {
+                sb.Append(s);
+            }
+            else if (val.Type == DreamValueType.Float)
+            {
+                sb.Append(val.RawFloat);
+            }
+            else if (val.Type != DreamValueType.Null)
+            {
+                sb.Append(val.ToString());
+            }
+        }
+
+        state.StackPtr -= count;
+        state.Push(new DreamValue(sb.ToString()));
     }
 
     private static void HandleFormatString(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_FormatString(state.Proc, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var stringId = state.ReadInt32();
+        var formatCount = state.ReadInt32();
+
+        if (stringId < 0 || stringId >= state.Thread.Context.Strings.Count)
+            throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
+        if (formatCount < 0 || formatCount > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid format count: {formatCount}", state.Proc, state.PC, state.Thread);
+
+        var formatString = state.Thread.Context.Strings[stringId];
+        var sb = _stringBuilder.Value!;
+        sb.Clear();
+
+        int baseIdx = state.StackPtr - formatCount;
+        int valueIndex = 0;
+
+        for (int i = 0; i < formatString.Length; i++)
+        {
+            char c = formatString[i];
+            if (StringFormatEncoder.Decode(c, out var suffix))
+            {
+                if (StringFormatEncoder.IsInterpolation(suffix))
+                {
+                    if (valueIndex < formatCount)
+                    {
+                        var val = state.Stack[baseIdx + valueIndex++];
+                        if (val.TryGetValue(out string? s)) sb.Append(s);
+                        else if (val.Type == DreamValueType.Float) sb.Append(val.RawFloat);
+                        else if (val.Type != DreamValueType.Null) sb.Append(val.ToString());
+                    }
+                }
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+
+        state.StackPtr -= formatCount;
+        state.Push(new DreamValue(sb.ToString()));
     }
 
     private static void HandlePower(ref InterpreterState state)

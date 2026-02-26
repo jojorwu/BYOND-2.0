@@ -216,6 +216,16 @@ namespace Shared;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public DreamValue GetValue(int index)
+        {
+            lock (_lock)
+            {
+                if (index >= 0 && index < _values.Count) return _values[index];
+                return DreamValue.Null;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool AddCount(DreamValue value)
         {
             if (_valueCounts == null)

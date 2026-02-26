@@ -382,19 +382,10 @@ namespace Shared;
         {
             if (Type != other.Type) return false;
 
-            // Direct bitwise check for the most common case (same bits = same value)
-            if (_floatValue == other._floatValue && ReferenceEquals(_objectValue, other._objectValue))
-                return true;
+            if (Type == DreamValueType.Float)
+                return BitConverter.SingleToInt32Bits(_floatValue) == BitConverter.SingleToInt32Bits(other._floatValue);
 
-            switch (Type)
-            {
-                case DreamValueType.Float:
-                    return MathF.Abs(_floatValue - other._floatValue) < 0.00001f;
-                case DreamValueType.Null:
-                    return true;
-                default:
-                    return _objectValue != null && _objectValue.Equals(other._objectValue);
-            }
+            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue != null && _objectValue.Equals(other._objectValue));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -411,13 +402,18 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            if (a.Type == b.Type) return a.Equals(b);
+            if (a.Type == b.Type)
+            {
+                if (a.Type == DreamValueType.Float)
+                    return a._floatValue == b._floatValue || MathF.Abs(a._floatValue - b._floatValue) < 0.00001f;
+                return a.Equals(b);
+            }
 
             // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)
-                return b.Type == DreamValueType.Float && b._floatValue == 0;
+                return b.Type == DreamValueType.Float && (b._floatValue == 0 || MathF.Abs(b._floatValue) < 0.00001f);
             if (b.Type == DreamValueType.Null)
-                return a.Type == DreamValueType.Float && a._floatValue == 0;
+                return a.Type == DreamValueType.Float && (a._floatValue == 0 || MathF.Abs(a._floatValue) < 0.00001f);
 
             return false;
         }

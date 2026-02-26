@@ -651,5 +651,115 @@ namespace tests
             thread.Run(1000);
             Assert.That(thread.Pop(), Is.EqualTo(DreamValue.True));
         }
+
+        [Test]
+        public void DereferenceIndex_StringIndexing_Test()
+        {
+            // "abc"[2] -> "b"
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushString);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // "abc"
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(2f)); // index 2
+            bytecode.Add((byte)Opcode.DereferenceIndex);
+            bytecode.Add((byte)Opcode.Return);
+
+            _vm.Context.Strings.Clear();
+            _vm.Context.Strings.Add("abc");
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.ToString(), Is.EqualTo("b"));
+        }
+
+        [Test]
+        public void Modulus_ByZero_Opcode_Test()
+        {
+            // 10 % 0 -> 0
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(10f));
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(0f));
+            bytecode.Add((byte)Opcode.Modulus);
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+            var result = thread.Pop();
+
+            Assert.That(result.AsFloat(), Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void PushNRefs_StackLeak_Test()
+        {
+            var list = new DreamList(null);
+            list.AddValue(new DreamValue(100f));
+
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0); // Pushes the list from local 0
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(1f)); // index 1
+
+            bytecode.Add((byte)Opcode.PushNRefs);
+            bytecode.AddRange(BitConverter.GetBytes(1)); // count 1
+            bytecode.Add((byte)DMReference.Type.ListIndex);
+
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+            thread.Push(new DreamValue(list)); // local 0
+
+            thread.Run(1000);
+
+            // Should have only 100f on stack.
+            Assert.That(thread.Pop().AsFloat(), Is.EqualTo(100f));
+            Assert.That(thread.StackCount, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void NPushFloatAssign_Logic_Test()
+        {
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.NPushFloatAssign);
+            bytecode.AddRange(BitConverter.GetBytes(2)); // N = 2
+            bytecode.AddRange(BitConverter.GetBytes(5f)); // value = 5
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(1);
+
+            // Push locals to verify
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(0);
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.Add(1);
+
+            bytecode.Add((byte)Opcode.CreateList);
+            bytecode.AddRange(BitConverter.GetBytes(3)); // [result, local0, local1]
+            bytecode.Add((byte)Opcode.Return);
+
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 2);
+            var thread = new DreamThread(proc, _vm.Context, 1000);
+
+            thread.Run(1000);
+            var list = thread.Pop().GetValueAsDreamObject() as DreamList;
+
+            Assert.That(list!.Values[0].AsFloat(), Is.EqualTo(5f)); // result of NPush
+            Assert.That(list.Values[1].AsFloat(), Is.EqualTo(5f)); // local 0
+            Assert.That(list.Values[2].AsFloat(), Is.EqualTo(5f)); // local 1
+        }
     }
 }

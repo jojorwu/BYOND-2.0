@@ -85,6 +85,17 @@ namespace Shared;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IDreamProc? GetValueAsDreamProc()
+        {
+            if (Type == DreamValueType.DreamProc)
+            {
+                return (IDreamProc?)_objectValue;
+            }
+
+            return null;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue(out float value)
         {
             if (Type == DreamValueType.Float)

@@ -1599,13 +1599,24 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var key = state.Stack[--state.StackPtr];
         var objValue = state.Stack[--state.StackPtr];
         DreamValue result = DreamValue.Null;
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null && obj.ObjectType != null)
+
+        ObjectType? type = null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            type = obj.ObjectType;
+        }
+        else if (objValue.TryGetValue(out ObjectType? objType))
+        {
+            type = objType;
+        }
+
+        if (type != null)
         {
             if (key.TryGetValue(out string? varName) && varName != null)
             {
-                int index = obj.ObjectType.GetVariableIndex(varName);
-                if (index != -1 && index < obj.ObjectType.FlattenedDefaultValues.Count)
-                    result = obj.ObjectType.FlattenedDefaultValues[index];
+                int index = type.GetVariableIndex(varName);
+                if (index != -1 && index < type.FlattenedDefaultValues.Count)
+                    result = type.FlattenedDefaultValues[index];
             }
         }
         state.Push(result);
@@ -1617,11 +1628,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var typeValue = state.Stack[--state.StackPtr];
         var objValue = state.Stack[state.StackPtr - 1];
         bool result = false;
-        if (objValue.Type == DreamValueType.DreamObject && typeValue.Type == DreamValueType.DreamType)
+
+        if (typeValue.TryGetValue(out ObjectType? type) && type != null)
         {
-            var obj = objValue.GetValueAsDreamObject();
-            typeValue.TryGetValue(out ObjectType? type);
-            if (obj?.ObjectType != null && type != null) result = obj.ObjectType.IsSubtypeOf(type);
+            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                if (obj.ObjectType != null) result = obj.ObjectType.IsSubtypeOf(type);
+            }
+            else if (objValue.TryGetValue(out ObjectType? objType) && objType != null)
+            {
+                result = objType.IsSubtypeOf(type);
+            }
         }
         state.Stack[state.StackPtr - 1] = result ? DreamValue.True : DreamValue.False;
     }
@@ -1632,11 +1649,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var typeValue = state.Stack[--state.StackPtr];
         var objValue = state.Stack[state.StackPtr - 1];
         bool matches = false;
-        if (objValue.Type == DreamValueType.DreamObject && typeValue.Type == DreamValueType.DreamType)
+
+        if (typeValue.TryGetValue(out ObjectType? type) && type != null)
         {
-            var obj = objValue.GetValueAsDreamObject();
-            typeValue.TryGetValue(out ObjectType? type);
-            if (obj?.ObjectType != null && type != null) matches = obj.ObjectType.IsSubtypeOf(type);
+            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+            {
+                if (obj.ObjectType != null) matches = obj.ObjectType.IsSubtypeOf(type);
+            }
+            else if (objValue.TryGetValue(out ObjectType? objType) && objType != null)
+            {
+                matches = objType.IsSubtypeOf(type);
+            }
         }
         state.Stack[state.StackPtr - 1] = matches ? objValue : DreamValue.Null;
     }
@@ -1847,16 +1870,57 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleGetStep(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_GetStep();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during GetStep", state.Proc, state.PC, state.Thread);
+        var dirValue = state.Pop();
+        var objValue = state.Pop();
+
+        if (objValue.TryGetValue(out DreamObject? obj) && obj is GameObject gameObject)
+        {
+            var dir = (int)dirValue.GetValueAsFloat();
+            int dx = 0, dy = 0;
+            if ((dir & 1) != 0) dy++; // NORTH
+            if ((dir & 2) != 0) dy--; // SOUTH
+            if ((dir & 4) != 0) dx++; // EAST
+            if ((dir & 8) != 0) dx--; // WEST
+
+            var turf = state.Thread.Context.GameState?.Map?.GetTurf(gameObject.X + dx, gameObject.Y + dy, gameObject.Z);
+            state.Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
+        }
+        else
+        {
+            state.Push(DreamValue.Null);
+        }
     }
 
     private static void HandleGetStepTo(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_GetStepTo();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 3) throw new ScriptRuntimeException("Stack underflow during GetStepTo", state.Proc, state.PC, state.Thread);
+        var minDistValue = state.Pop();
+        var targetValue = state.Pop();
+        var srcValue = state.Pop();
+
+        if (srcValue.TryGetValueAsGameObject(out var src) && targetValue.TryGetValueAsGameObject(out var target))
+        {
+            var minDist = minDistValue.GetValueAsFloat();
+            var dx = target.X - src.X;
+            var dy = target.Y - src.Y;
+
+            if (MathF.Max(MathF.Abs(dx), MathF.Abs(dy)) <= minDist)
+            {
+                state.Push(DreamValue.Null);
+                return;
+            }
+
+            int stepX = Math.Sign(dx);
+            int stepY = Math.Sign(dy);
+
+            var turf = state.Thread.Context.GameState?.Map?.GetTurf(src.X + stepX, src.Y + stepY, src.Z);
+            state.Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
+        }
+        else
+        {
+            state.Push(DreamValue.Null);
+        }
     }
 
     private static void HandleGetDist(ref InterpreterState state)
@@ -1867,21 +1931,45 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         if (a.TryGetValueAsGameObject(out var objA) && b.TryGetValueAsGameObject(out var objB))
         {
-            var dx = objA.X - objB.X;
-            var dy = objA.Y - objB.Y;
-            state.Push(new DreamValue(MathF.Max(MathF.Abs(dx), MathF.Abs(dy))));
+            if (objA.Z != objB.Z)
+            {
+                state.Push(new DreamValue(1000000.0f));
+                return;
+            }
+            var dx = MathF.Abs(objA.X - objB.X);
+            var dy = MathF.Abs(objA.Y - objB.Y);
+            state.Push(new DreamValue(MathF.Max(dx, dy)));
         }
         else
         {
-            state.Push(DreamValue.False);
+            state.Push(new DreamValue(0.0f));
         }
     }
 
     private static void HandleGetDir(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_GetDir();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during GetDir", state.Proc, state.PC, state.Thread);
+        var targetValue = state.Pop();
+        var sourceValue = state.Pop();
+
+        if (sourceValue.TryGetValue(out DreamObject? src) && src is GameObject srcObj &&
+            targetValue.TryGetValue(out DreamObject? dst) && dst is GameObject dstObj)
+        {
+            int dx = dstObj.X - srcObj.X;
+            int dy = dstObj.Y - srcObj.Y;
+
+            int dir = 0;
+            if (dy > 0) dir |= 1; // NORTH
+            else if (dy < 0) dir |= 2; // SOUTH
+            if (dx > 0) dir |= 4; // EAST
+            else if (dx < 0) dir |= 8; // WEST
+
+            state.Push(new DreamValue((float)dir));
+        }
+        else
+        {
+            state.Push(new DreamValue(0f));
+        }
     }
 
     private static void HandleMassConcatenation(ref InterpreterState state)
@@ -2179,24 +2267,132 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleCreateObject(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_CreateObject(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
-        state.StackPtr = state.Thread._stackPtr;
+        var argType = (DMCallArgumentsType)state.ReadByte();
+        var argStackDelta = state.ReadInt32();
+
+        if (argStackDelta < 1 || state.StackPtr < argStackDelta)
+            throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", state.Proc, state.PC, state.Thread);
+
+        var argCount = argStackDelta - 1;
+        var typeValue = state.Stack[state.StackPtr - argStackDelta];
+
+        if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+        {
+            GameObject newObj = state.Thread.Context.ObjectFactory?.Create(type) ?? new GameObject(type);
+            state.Thread.Context.GameState?.AddGameObject(newObj);
+
+            // Capture arguments before they are potentially overwritten
+            var rented = System.Buffers.ArrayPool<DreamValue>.Shared.Rent(argCount);
+            try
+            {
+                var args = rented.AsSpan(0, argCount);
+                for (int i = 0; i < argCount; i++) args[i] = state.Stack[state.StackPtr - argCount + i];
+
+                state.StackPtr -= argStackDelta;
+                state.Push(new DreamValue(newObj));
+
+                if (argCount > 0)
+                {
+                    if (args[0].TryGetValueAsGameObject(out var locObj))
+                    {
+                        newObj.Loc = locObj;
+                    }
+                }
+
+                var newProc = newObj.ObjectType?.GetProc("New");
+                if (newProc != null)
+                {
+                    state.Thread._stackPtr = state.StackPtr;
+                    for (int i = 0; i < argCount; i++) state.Thread.Push(args[i]);
+                    state.Thread.SavePC(state.PC);
+                    state.Thread.PerformCall(newProc, newObj, argCount, argCount, discardReturnValue: true);
+                    state.Stack = state.Thread._stack;
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<DreamValue>.Shared.Return(rented);
+            }
+        }
+        else
+        {
+            state.StackPtr -= argStackDelta;
+            state.Push(DreamValue.Null);
+        }
     }
 
     private static void HandleLocateCoord(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_LocateCoord();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 3) throw new ScriptRuntimeException("Stack underflow during LocateCoord", state.Proc, state.PC, state.Thread);
+        var zValue = state.Pop();
+        var yValue = state.Pop();
+        var xValue = state.Pop();
+
+        if (xValue.TryGetValue(out float x) && yValue.TryGetValue(out float y) && zValue.TryGetValue(out float z))
+        {
+            var turf = state.Thread.Context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
+            if (turf != null)
+            {
+                state.Push(new DreamValue((GameObject)turf));
+                return;
+            }
+        }
+        state.Push(DreamValue.Null);
     }
 
     private static void HandleLocate(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Locate();
-        state.StackPtr = state.Thread._stackPtr;
+        if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during Locate", state.Proc, state.PC, state.Thread);
+        var containerValue = state.Pop();
+        var typeValue = state.Pop();
+
+        if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
+        {
+            if (containerValue.Type == DreamValueType.DreamObject && containerValue.TryGetValue(out DreamObject? container))
+            {
+                if (container is DreamList list)
+                {
+                    foreach (var item in list.Values)
+                    {
+                        if (item.Type == DreamValueType.DreamObject && item.TryGetValue(out DreamObject? obj) && obj?.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
+                        {
+                            state.Push(item);
+                            return;
+                        }
+                    }
+                }
+                else if (container is GameObject gameObject)
+                {
+                    foreach (var content in gameObject.Contents)
+                    {
+                        if (content.ObjectType != null && content.ObjectType.IsSubtypeOf(type) && content is GameObject contentObj)
+                        {
+                            state.Push(new DreamValue(contentObj));
+                            return;
+                        }
+                    }
+                }
+            }
+            else if (containerValue.IsNull)
+            {
+                if (state.Thread.Context.GameState != null)
+                {
+                    using (state.Thread.Context.GameState.ReadLock())
+                    {
+                        foreach (var obj in state.Thread.Context.GameState.GameObjects.Values)
+                        {
+                            if (obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(type))
+                            {
+                                state.Push(new DreamValue(obj));
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        state.Push(DreamValue.Null);
     }
 
     private static void HandleLength(ref InterpreterState state)
@@ -2262,16 +2458,81 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleRgb(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Rgb(state.Proc, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var argType = (DMCallArgumentsType)state.ReadByte();
+        var argCount = state.ReadInt32();
+
+        if (argCount < 0 || (argType == DMCallArgumentsType.FromStackKeyed ? argCount * 2 : argCount) > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", state.Proc, state.PC, state.Thread);
+
+        var rented = System.Buffers.ArrayPool<(string? Name, float? Value)>.Shared.Rent(argCount);
+        try
+        {
+            var values = rented.AsSpan(0, argCount);
+            if (argType == DMCallArgumentsType.FromStackKeyed)
+            {
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    var value = state.Pop();
+                    var name = state.Pop().ToString();
+                    values[i] = (name, value.GetValueAsFloat());
+                }
+            }
+            else
+            {
+                for (int i = argCount - 1; i >= 0; i--)
+                {
+                    values[i] = (null, state.Pop().GetValueAsFloat());
+                }
+            }
+
+            state.Push(new DreamValue(SharedOperations.ParseRgb(values)));
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<(string? Name, float? Value)>.Shared.Return(rented, true);
+        }
     }
 
     private static void HandleGradient(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Gradient(state.Proc, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var argType = (DMCallArgumentsType)state.ReadByte();
+        var argCount = state.ReadInt32();
+
+        if (argCount < 0 || argCount > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid gradient argument count: {argCount}", state.Proc, state.PC, state.Thread);
+
+        var rented = System.Buffers.ArrayPool<DreamValue>.Shared.Rent(argCount);
+        try
+        {
+            var values = rented.AsSpan(0, argCount);
+            for (int i = argCount - 1; i >= 0; i--)
+            {
+                values[i] = state.Pop();
+            }
+
+            if (argCount >= 3)
+            {
+                var color1Str = values[0].ToString();
+                var color2Str = values[1].ToString();
+                var index = values[2].GetValueAsFloat();
+
+                var c1 = Robust.Shared.Maths.Color.TryFromHex(color1Str);
+                var c2 = Robust.Shared.Maths.Color.TryFromHex(color2Str);
+
+                if (c1.HasValue && c2.HasValue)
+                {
+                    var interpolated = Robust.Shared.Maths.Color.InterpolateBetween(c1.Value, c2.Value, Math.Clamp(index / 100f, 0, 1));
+                    state.Push(new DreamValue(interpolated.ToHex()));
+                    return;
+                }
+            }
+
+            state.Push(new DreamValue("#000000"));
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<DreamValue>.Shared.Return(rented);
+        }
     }
 
     private static void HandleAppendNoPush(ref InterpreterState state)
@@ -2389,14 +2650,34 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePushRefAndDereferenceField(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
+        DreamValue objValue;
+        switch (refType)
+        {
+            case DMReference.Type.Local: objValue = state.Stack[state.LocalBase + state.ReadByte()]; break;
+            case DMReference.Type.Argument: objValue = state.Stack[state.ArgumentBase + state.ReadByte()]; break;
+            case DMReference.Type.Global: objValue = state.Thread.Context.GetGlobal(state.ReadInt32()); break;
+            case DMReference.Type.Src:
+            case DMReference.Type.Self: objValue = state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null; break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    objValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
+
         var fieldNameId = state.ReadInt32();
         var fieldName = state.Thread.Context.Strings[fieldNameId];
-        state.Thread._stackPtr = state.StackPtr;
-        var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
         DreamValue val = DreamValue.Null;
-        if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj != null) val = obj.GetVariable(fieldName);
-        state.StackPtr = state.Thread._stackPtr;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            int idx = obj.ObjectType?.GetVariableIndex(fieldName) ?? -1;
+            val = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(fieldName);
+        }
         state.Push(val);
     }
 
@@ -2612,17 +2893,30 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIndexRefWithString(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
+        DreamValue objValue;
+        switch (refType)
+        {
+            case DMReference.Type.Local: objValue = state.Stack[state.LocalBase + state.ReadByte()]; break;
+            case DMReference.Type.Argument: objValue = state.Stack[state.ArgumentBase + state.ReadByte()]; break;
+            case DMReference.Type.Global: objValue = state.Thread.Context.GetGlobal(state.ReadInt32()); break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    objValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
+
         var stringId = state.ReadInt32();
         var stringValue = new DreamValue(state.Thread.Context.Strings[stringId]);
-        state.Thread._stackPtr = state.StackPtr;
-        var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         DreamValue result = DreamValue.Null;
-        if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) result = list.GetValue(stringValue);
+        if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) result = list.GetValue(stringValue);
         state.Push(result);
-        state.Stack = state.Thread._stack;
-        state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandleReturnReferenceValue(ref InterpreterState state)

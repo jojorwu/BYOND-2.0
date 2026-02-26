@@ -611,6 +611,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (!state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
                 }
                 break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    int address = state.ReadInt32();
+                    if (!state.Thread.Context.GetGlobal(idx).IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var address = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    DreamValue val = DreamValue.Null;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                    }
+                    if (!val.IsFalse()) state.PC = address;
+                }
+                break;
             default:
                 {
                     state.PC--;
@@ -643,6 +665,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = state.ReadByte();
                     int address = state.ReadInt32();
                     if (state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    int address = state.ReadInt32();
+                    if (state.Thread.Context.GetGlobal(idx).IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var address = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    DreamValue val = DreamValue.Null;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                    }
+                    if (val.IsFalse()) state.PC = address;
                 }
                 break;
             default:
@@ -706,13 +750,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitXorReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue ^ value, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] ^= value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] ^= value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, oldVal ^ value);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, refValue ^ value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleBitNot(ref InterpreterState state)
@@ -730,13 +802,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitShiftLeftReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue << value, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] <<= value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] <<= value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, oldVal << value);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, refValue << value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleBitShiftRight(ref InterpreterState state)
@@ -748,13 +848,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitShiftRightReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue >> value, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] >>= value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] >>= value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, oldVal >> value);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, refValue >> value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleGetVariable(ref InterpreterState state)
@@ -808,10 +936,38 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 }
                 break;
             case DMReference.Type.Src:
+            case DMReference.Type.Self:
                 state.Push(state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null);
                 break;
             case DMReference.Type.World:
                 state.Push(state.Thread.Context.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        state.Push(idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name));
+                    }
+                    else state.Push(DreamValue.Null);
+                }
+                break;
+            case DMReference.Type.Field:
+                {
+                    if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during Field reference access", state.Proc, state.PC, state.Thread);
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var objValue = state.Pop();
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                        state.Push(idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name));
+                    }
+                    else state.Push(DreamValue.Null);
+                }
                 break;
             default:
                 {
@@ -849,6 +1005,34 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     var globalIdx = state.ReadInt32();
                     state.Thread.Context.SetGlobal(globalIdx, value);
+                }
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        if (idx != -1) instance.SetVariableDirect(idx, value);
+                        else instance.SetVariable(name, value);
+                    }
+                }
+                break;
+            case DMReference.Type.Field:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var val = state.Pop(); // value
+                    var objValue = state.Pop(); // object
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                        if (idx != -1) obj.SetVariableDirect(idx, val);
+                        else obj.SetVariable(name, val);
+                    }
+                    state.Push(val);
                 }
                 break;
             default:
@@ -1036,13 +1220,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleModulusReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue % value, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] %= value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] %= value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, oldVal % value);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, refValue % value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleModulusModulus(ref InterpreterState state)
@@ -1055,13 +1267,43 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleModulusModulusReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    var oldVal = state.Stack[state.LocalBase + idx];
+                    state.Stack[state.LocalBase + idx] = new DreamValue(SharedOperations.Modulo(oldVal.GetValueAsFloat(), value.GetValueAsFloat()));
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    var oldVal = state.Stack[state.ArgumentBase + idx];
+                    state.Stack[state.ArgumentBase + idx] = new DreamValue(SharedOperations.Modulo(oldVal.GetValueAsFloat(), value.GetValueAsFloat()));
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, new DreamValue(SharedOperations.Modulo(oldVal.GetValueAsFloat(), value.GetValueAsFloat())));
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleCreateList(ref InterpreterState state)
@@ -1279,16 +1521,102 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAppend(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Append(state.Proc, ref state.Frame, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var refType = (DMReference.Type)state.ReadByte();
+        var value = state.Pop();
+        DreamValue listValue = DreamValue.Null;
+        switch (refType)
+        {
+            case DMReference.Type.Local: listValue = state.Stack[state.LocalBase + state.ReadByte()]; break;
+            case DMReference.Type.Argument: listValue = state.Stack[state.ArgumentBase + state.ReadByte()]; break;
+            case DMReference.Type.Global: listValue = state.Thread.Context.GetGlobal(state.ReadInt32()); break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        listValue = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                    }
+                }
+                break;
+            case DMReference.Type.Field:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var objValue = state.Pop();
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                        listValue = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+                    }
+                }
+                break;
+            default:
+                state.PC--;
+                var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                state.Thread._stackPtr = state.StackPtr;
+                listValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
+                state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                state.StackPtr = state.Thread._stackPtr;
+                break;
+        }
+
+        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? dreamObj) && dreamObj is DreamList list)
+        {
+            list.AddValue(value);
+        }
     }
 
     private static void HandleRemove(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Remove(state.Proc, ref state.Frame, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        var refType = (DMReference.Type)state.ReadByte();
+        var value = state.Pop();
+        DreamValue listValue = DreamValue.Null;
+        switch (refType)
+        {
+            case DMReference.Type.Local: listValue = state.Stack[state.LocalBase + state.ReadByte()]; break;
+            case DMReference.Type.Argument: listValue = state.Stack[state.ArgumentBase + state.ReadByte()]; break;
+            case DMReference.Type.Global: listValue = state.Thread.Context.GetGlobal(state.ReadInt32()); break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        listValue = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                    }
+                }
+                break;
+            case DMReference.Type.Field:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var objValue = state.Pop();
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                        listValue = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+                    }
+                }
+                break;
+            default:
+                state.PC--;
+                var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                state.Thread._stackPtr = state.StackPtr;
+                listValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
+                state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                state.StackPtr = state.Thread._stackPtr;
+                break;
+        }
+
+        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? dreamObj) && dreamObj is DreamList list)
+        {
+            list.RemoveValue(value);
+        }
     }
 
     private static void HandleDeleteObject(ref InterpreterState state)
@@ -1400,13 +1728,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleMultiplyReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue * value, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] *= value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] *= value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, oldVal * value);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, refValue * value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleSin(ref InterpreterState state)
@@ -1418,13 +1774,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleDivideReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Stack[--state.StackPtr];
-        state.Thread._stackPtr = state.StackPtr;
-        var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-        state.Thread.SetReferenceValue(reference, ref state.Frame, refValue / value, 0);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] /= value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] /= value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    var oldVal = state.Thread.Context.GetGlobal(idx);
+                    state.Thread.Context.SetGlobal(idx, oldVal / value);
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, refValue / value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandleCos(ref InterpreterState state)
@@ -1590,23 +1974,115 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAppendNoPush(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Pop();
-        state.Thread._stackPtr = state.StackPtr;
-        var listValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
-        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) list.AddValue(value);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        DreamValue listValue = DreamValue.Null;
+        switch (refType)
+        {
+            case DMReference.Type.Local: listValue = state.Stack[state.LocalBase + state.ReadByte()]; break;
+            case DMReference.Type.Argument: listValue = state.Stack[state.ArgumentBase + state.ReadByte()]; break;
+            case DMReference.Type.Global: listValue = state.Thread.Context.GetGlobal(state.ReadInt32()); break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        listValue = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                    }
+                }
+                break;
+            case DMReference.Type.Field:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var objValue = state.Pop();
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                        listValue = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+                    }
+                }
+                break;
+            default:
+                state.PC--;
+                var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                state.Thread._stackPtr = state.StackPtr;
+                listValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
+                state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                state.StackPtr = state.Thread._stackPtr;
+                break;
+        }
+
+        if (listValue.Type == DreamValueType.DreamObject && listValue.TryGetValue(out DreamObject? dreamObj) && dreamObj is DreamList list)
+        {
+            list.AddValue(value);
+        }
     }
 
     private static void HandleAssignNoPush(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var refType = (DMReference.Type)state.ReadByte();
         var value = state.Pop();
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.SetReferenceValue(reference, ref state.Frame, value);
-        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.StackPtr = state.Thread._stackPtr;
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.LocalBase + idx] = value;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = state.ReadByte();
+                    state.Stack[state.ArgumentBase + idx] = value;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    var globalIdx = state.ReadInt32();
+                    state.Thread.Context.SetGlobal(globalIdx, value);
+                }
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        if (idx != -1) instance.SetVariableDirect(idx, value);
+                        else instance.SetVariable(name, value);
+                    }
+                }
+                break;
+            case DMReference.Type.Field:
+                {
+                    var nameId = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var objValue = state.Pop(); // object
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                        if (idx != -1) obj.SetVariableDirect(idx, value);
+                        else obj.SetVariable(name, value);
+                    }
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    state.Thread._stackPtr = state.StackPtr;
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                }
+                break;
+        }
     }
 
     private static void HandlePushRefAndDereferenceField(ref InterpreterState state)
@@ -1691,6 +2167,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = state.ReadByte();
                     int address = state.ReadInt32();
                     if (state.Stack[state.ArgumentBase + idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Global:
+                {
+                    int idx = state.ReadInt32();
+                    int address = state.ReadInt32();
+                    if (state.Thread.Context.GetGlobal(idx).IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    var nameId = state.ReadInt32();
+                    var address = state.ReadInt32();
+                    var name = state.Thread.Context.Strings[nameId];
+                    var instance = state.Frame.Instance;
+                    DreamValue val = DreamValue.Null;
+                    if (instance != null)
+                    {
+                        int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+                    }
+                    if (val.IsFalse()) state.PC = address;
                 }
                 break;
             default:

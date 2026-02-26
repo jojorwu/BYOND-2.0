@@ -188,10 +188,19 @@ public static class SharedOperations {
                 throw new NotSupportedException($"Unimplemented color space {space}");
         }
 
-        if (alpha is null) {
-            return $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}".ToLowerInvariant();
-        } else {
-            return $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}{color.AByte:X2}".ToLowerInvariant();
-        }
+        return alpha is null
+            ? string.Create(7, color, (span, c) => {
+                span[0] = '#';
+                c.RByte.TryFormat(span.Slice(1, 2), out _, "x2");
+                c.GByte.TryFormat(span.Slice(3, 2), out _, "x2");
+                c.BByte.TryFormat(span.Slice(5, 2), out _, "x2");
+            })
+            : string.Create(9, color, (span, c) => {
+                span[0] = '#';
+                c.RByte.TryFormat(span.Slice(1, 2), out _, "x2");
+                c.GByte.TryFormat(span.Slice(3, 2), out _, "x2");
+                c.BByte.TryFormat(span.Slice(5, 2), out _, "x2");
+                c.AByte.TryFormat(span.Slice(7, 2), out _, "x2");
+            });
     }
 }

@@ -21,7 +21,7 @@ public partial class DreamThread
 
         if (srcValue.TryGetValueAsGameObject(out var src) && targetValue.TryGetValueAsGameObject(out var target))
         {
-            var minDist = minDistValue.GetValueAsFloat();
+            var minDist = minDistValue.GetValueAsDouble();
             var dx = target.X - src.X;
             var dy = target.Y - src.Y;
 
@@ -52,16 +52,16 @@ public partial class DreamThread
         {
             if (objA.Z != objB.Z)
             {
-                Push(new DreamValue(1000000.0f));
+                Push(new DreamValue(1000000.0));
                 return;
             }
             var dx = Math.Abs(objA.X - objB.X);
             var dy = Math.Abs(objA.Y - objB.Y);
-            Push(new DreamValue((float)Math.Max(dx, dy)));
+            Push(new DreamValue((double)Math.Max(dx, dy)));
         }
         else
         {
-            Push(new DreamValue(0.0f));
+            Push(new DreamValue(0.0));
         }
     }
 
@@ -162,7 +162,7 @@ public partial class DreamThread
 
         if (objValue.TryGetValue(out DreamObject? obj) && obj is GameObject gameObject)
         {
-            var dir = (int)dirValue.GetValueAsFloat();
+            var dir = (int)dirValue.GetValueAsDouble();
             int dx = 0, dy = 0;
             if ((dir & 1) != 0) dy++; // NORTH
             if ((dir & 2) != 0) dy--; // SOUTH
@@ -195,11 +195,11 @@ public partial class DreamThread
             if (dx > 0) dir |= 4; // EAST
             else if (dx < 0) dir |= 8; // WEST
 
-            Push(new DreamValue((float)dir));
+            Push(new DreamValue((double)dir));
         }
         else
         {
-            Push(new DreamValue(0f));
+            Push(new DreamValue(0.0));
         }
     }
 
@@ -231,11 +231,11 @@ public partial class DreamThread
             return;
         }
 
-        float totalWeight = 0;
+        double totalWeight = 0;
         int baseIdx = _stackPtr - count * 2;
         for (int i = 0; i < count; i++)
         {
-            totalWeight += _stack[baseIdx + i * 2 + 1].GetValueAsFloat();
+            totalWeight += _stack[baseIdx + i * 2 + 1].GetValueAsDouble();
         }
 
         if (totalWeight <= 0)
@@ -246,11 +246,11 @@ public partial class DreamThread
             return;
         }
 
-        var pick = (float)Random.Shared.NextDouble() * totalWeight;
-        float currentWeight = 0;
+        var pick = Random.Shared.NextDouble() * totalWeight;
+        double currentWeight = 0;
         for (int i = 0; i < count; i++)
         {
-            currentWeight += _stack[baseIdx + i * 2 + 1].GetValueAsFloat();
+            currentWeight += _stack[baseIdx + i * 2 + 1].GetValueAsDouble();
             if (pick <= currentWeight)
             {
                 var result = _stack[baseIdx + i * 2];
@@ -453,7 +453,7 @@ public partial class DreamThread
     internal void Opcode_Prob()
     {
         var chanceValue = Pop();
-        if (chanceValue.TryGetValue(out float chance))
+        if (chanceValue.TryGetValue(out double chance))
         {
             var roll = Random.Shared.NextDouble() * 100;
             Push(new DreamValue(roll < chance ? 1 : 0));
@@ -617,7 +617,7 @@ public partial class DreamThread
         var yValue = Pop();
         var xValue = Pop();
 
-        if (xValue.TryGetValue(out float x) && yValue.TryGetValue(out float y) && zValue.TryGetValue(out float z))
+        if (xValue.TryGetValue(out double x) && yValue.TryGetValue(out double y) && zValue.TryGetValue(out double z))
         {
             var turf = Context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
             if (turf != null)
@@ -691,7 +691,7 @@ public partial class DreamThread
         if (argCount < 0 || (argType == DMCallArgumentsType.FromStackKeyed ? argCount * 2 : argCount) > _stackPtr)
             throw new ScriptRuntimeException($"Invalid rgb argument count: {argCount}", proc, pc, this);
 
-        var rented = System.Buffers.ArrayPool<(string? Name, float? Value)>.Shared.Rent(argCount);
+        var rented = System.Buffers.ArrayPool<(string? Name, double? Value)>.Shared.Rent(argCount);
         try
         {
             var values = rented.AsSpan(0, argCount);
@@ -701,14 +701,14 @@ public partial class DreamThread
                 {
                     var value = Pop();
                     var name = Pop().ToString();
-                    values[i] = (name, value.GetValueAsFloat());
+                    values[i] = (name, value.GetValueAsDouble());
                 }
             }
             else
             {
                 for (int i = argCount - 1; i >= 0; i--)
                 {
-                    values[i] = (null, Pop().GetValueAsFloat());
+                    values[i] = (null, Pop().GetValueAsDouble());
                 }
             }
 
@@ -716,7 +716,7 @@ public partial class DreamThread
         }
         finally
         {
-            System.Buffers.ArrayPool<(string? Name, float? Value)>.Shared.Return(rented, true);
+            System.Buffers.ArrayPool<(string? Name, double? Value)>.Shared.Return(rented, true);
         }
     }
 
@@ -739,14 +739,14 @@ public partial class DreamThread
             // Simple 2-color interpolation: gradient(color1, color2, index)
             var color1Str = values[0].ToString();
             var color2Str = values[1].ToString();
-            var index = values[2].GetValueAsFloat();
+            var index = values[2].GetValueAsDouble();
 
             var c1 = Robust.Shared.Maths.Color.TryFromHex(color1Str);
             var c2 = Robust.Shared.Maths.Color.TryFromHex(color2Str);
 
             if (c1.HasValue && c2.HasValue)
             {
-                var interpolated = Robust.Shared.Maths.Color.InterpolateBetween(c1.Value, c2.Value, Math.Clamp(index / 100f, 0, 1));
+                var interpolated = Robust.Shared.Maths.Color.InterpolateBetween(c1.Value, c2.Value, (float)Math.Clamp(index / 100.0, 0, 1));
                 Push(new DreamValue(interpolated.ToHex()));
                 return;
             }

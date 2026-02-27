@@ -604,7 +604,7 @@ internal sealed class ConstFoldPower : IOptimization {
 
         // At runtime, given "A ** B" we pop B then A
         // In the peephole optimizer, index is "A", index+1 is "B"
-        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(MathF.Pow(pushVal1, pushVal2), firstInstruction.Location)};
+        var args = new List<IAnnotatedBytecode>(1) {new AnnotatedBytecodeFloat(Math.Pow(pushVal1, pushVal2), firstInstruction.Location)};
 
         IOptimization.ReplaceInstructions(input, index, 3,
             new AnnotatedBytecodeInstruction(Opcode.PushFloat, 1, args));

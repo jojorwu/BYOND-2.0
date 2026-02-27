@@ -51,7 +51,7 @@ namespace tests
 
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(42f));
+            bytecode.AddRange(BitConverter.GetBytes(42.0));
             bytecode.Add((byte)Opcode.SetVariable);
             bytecode.AddRange(BitConverter.GetBytes(0)); // String ID for "myVar"
             bytecode.Add((byte)Opcode.GetVariable);

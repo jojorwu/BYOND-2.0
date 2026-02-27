@@ -16,6 +16,7 @@ namespace Shared;
 
         public DreamObject(ObjectType? objectType)
         {
+            if (objectType != null && objectType.DefaultValuesArray == null) objectType.FinalizeVariables();
             Initialize(objectType);
         }
 
@@ -24,24 +25,19 @@ namespace Shared;
             ObjectType = objectType;
             if (objectType != null)
             {
-                int count = objectType.VariableNames.Count;
-                if (_variableValues == null || _variableValues.Length < count)
+                var defaults = objectType.DefaultValuesArray;
+                if (defaults != null)
                 {
-                    _variableValues = count > 0 ? new DreamValue[count] : System.Array.Empty<DreamValue>();
+                    int count = defaults.Length;
+                    if (_variableValues == null || _variableValues.Length < count)
+                    {
+                        _variableValues = new DreamValue[count];
+                    }
+                    System.Array.Copy(defaults, _variableValues, count);
                 }
                 else
                 {
-                    Array.Clear(_variableValues, 0, _variableValues.Length);
-                }
-
-                int defaultCount = objectType.FlattenedDefaultValues.Count;
-                if (defaultCount > 0 && _variableValues.Length >= defaultCount)
-                {
-                    var defaults = objectType.FlattenedDefaultValues;
-                    for (int i = 0; i < defaultCount; i++)
-                    {
-                        _variableValues[i] = defaults[i];
-                    }
+                    _variableValues = System.Array.Empty<DreamValue>();
                 }
             }
             else

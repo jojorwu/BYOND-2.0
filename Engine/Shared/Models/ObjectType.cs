@@ -15,6 +15,7 @@ public class ObjectType
     public Dictionary<string, object?> DefaultProperties { get; set; }
     public List<string> VariableNames { get; } = new();
     public List<DreamValue> FlattenedDefaultValues { get; } = new();
+    public DreamValue[]? DefaultValuesArray { get; private set; }
     public Dictionary<string, IDreamProc> Procs { get; } = new();
     public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
     private Dictionary<string, int>? _variableIndices;
@@ -60,6 +61,7 @@ public class ObjectType
     {
         _variableIndices = new Dictionary<string, int>(VariableNames.Count);
         VariableToBuiltin = new BuiltinVar[VariableNames.Count];
+        DefaultValuesArray = FlattenedDefaultValues.ToArray();
         for (int i = 0; i < VariableNames.Count; i++)
         {
             var name = VariableNames[i];

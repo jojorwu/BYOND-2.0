@@ -37,7 +37,7 @@ namespace tests
         {
             _vm.Context.ObjectTypeManager = null;
             var bytecode = new List<byte> { (byte)Opcode.PushFloat };
-            bytecode.AddRange(BitConverter.GetBytes(0f)); // Push 0 (not an object)
+            bytecode.AddRange(BitConverter.GetBytes(0.0)); // Push 0 (not an object)
             bytecode.Add((byte)Opcode.IsTypeDirect);
             bytecode.AddRange(BitConverter.GetBytes(1)); // typeId
             bytecode.Add((byte)Opcode.Return);
@@ -61,7 +61,7 @@ namespace tests
 
             // Define a New proc that returns something else (to test if it overwrites the object)
             var newBytecode = new List<byte> { (byte)Opcode.PushFloat };
-            newBytecode.AddRange(BitConverter.GetBytes(123f));
+            newBytecode.AddRange(BitConverter.GetBytes(123.0));
             newBytecode.Add((byte)Opcode.Return);
             var newProc = new DreamProc("New", newBytecode.ToArray(), Array.Empty<string>(), 0);
             type.Procs["New"] = newProc;
@@ -98,7 +98,7 @@ namespace tests
 
             // Parent proc: returns 42
             var parentBytecode = new List<byte> { (byte)Opcode.PushFloat };
-            parentBytecode.AddRange(BitConverter.GetBytes(42f));
+            parentBytecode.AddRange(BitConverter.GetBytes(42.0));
             parentBytecode.Add((byte)Opcode.Return);
             var attackProcParent = new DreamProc("attack", parentBytecode.ToArray(), Array.Empty<string>(), 0);
             parentType.Procs["attack"] = attackProcParent;
@@ -244,7 +244,7 @@ namespace tests
         public void Call_FromVariable_Works()
         {
             var parentBytecode = new List<byte> { (byte)Opcode.PushFloat };
-            parentBytecode.AddRange(BitConverter.GetBytes(42f));
+            parentBytecode.AddRange(BitConverter.GetBytes(42.0));
             parentBytecode.Add((byte)Opcode.Return);
             var proc = new DreamProc("test_proc", parentBytecode.ToArray(), Array.Empty<string>(), 0);
 
@@ -285,12 +285,12 @@ namespace tests
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushNull); // Target (world)
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(123f)); // Message
+            bytecode.AddRange(BitConverter.GetBytes(123.0)); // Message
             bytecode.Add((byte)Opcode.Output);
 
             // Push something else to verify stack balance
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(456f));
+            bytecode.AddRange(BitConverter.GetBytes(456.0));
             bytecode.Add((byte)Opcode.Return);
 
             var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
@@ -313,7 +313,7 @@ namespace tests
             _vm.Context.Strings.Add("my_proc");
 
             var procBytecode = new List<byte> { (byte)Opcode.PushFloat };
-            procBytecode.AddRange(BitConverter.GetBytes(789f));
+            procBytecode.AddRange(BitConverter.GetBytes(789.0));
             procBytecode.Add((byte)Opcode.Return);
             var targetProc = new DreamProc("my_proc", procBytecode.ToArray(), Array.Empty<string>(), 0);
 
@@ -346,9 +346,9 @@ namespace tests
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushNull); // delay
             bytecode.Add((byte)Opcode.Spawn);
-            bytecode.AddRange(BitConverter.GetBytes(10)); // Jump address
+            bytecode.AddRange(BitConverter.GetBytes(14)); // Jump address (Opcode + 8 bytes float + Opcode)
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(42f));
+            bytecode.AddRange(BitConverter.GetBytes(42.0));
             bytecode.Add((byte)Opcode.Return);
             bytecode.Add((byte)Opcode.Return);
 
@@ -363,7 +363,7 @@ namespace tests
         {
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(123.456f));
+            bytecode.AddRange(BitConverter.GetBytes(123.456));
             bytecode.Add((byte)Opcode.Length);
             bytecode.Add((byte)Opcode.Return);
 
@@ -456,10 +456,10 @@ namespace tests
             bytecode.Add(0); // list is in local 0
 
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(1f)); // index 1
+            bytecode.AddRange(BitConverter.GetBytes(1.0)); // index 1
 
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(20f)); // value 20
+            bytecode.AddRange(BitConverter.GetBytes(20.0)); // value 20
 
             bytecode.Add((byte)Opcode.Assign);
             bytecode.Add((byte)DMReference.Type.ListIndex);
@@ -506,9 +506,9 @@ namespace tests
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Src); // Push obj
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(10f)); // Push arg1
+            bytecode.AddRange(BitConverter.GetBytes(10.0)); // Push arg1
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(20f)); // Push arg2
+            bytecode.AddRange(BitConverter.GetBytes(20.0)); // Push arg2
             bytecode.Add((byte)Opcode.DereferenceCall);
             bytecode.AddRange(BitConverter.GetBytes(0)); // stringId 0 ("my_proc")
             bytecode.Add((byte)DMCallArgumentsType.None);
@@ -541,16 +541,29 @@ namespace tests
             bytecode.Add((byte)DMReference.Type.Src);
             bytecode.Add((byte)Opcode.JumpIfTrueReference);
             bytecode.Add((byte)DMReference.Type.Field);
-            bytecode.AddRange(BitConverter.GetBytes(0)); // counter
-            bytecode.AddRange(BitConverter.GetBytes(18)); // jump address (12 + 1 + 4 + 1)
+            bytecode.AddRange(BitConverter.GetBytes(0)); // field stringId
+            bytecode.AddRange(BitConverter.GetBytes(22)); // jump address (Opcode + ReferenceSize + 4 + Opcode + 8 + Opcode = 1 + 5 + 4 + 1 + 8 + 1 + 1 + 8 + 1)
+            // Wait, let's recount.
+            // Opcode.PushReferenceValue (1)
+            // DMReference.Type.Src (1)
+            // Opcode.JumpIfTrueReference (1)
+            // DMReference.Type.Field (1)
+            // fieldId (4)
+            // jumpAddress (4) -- this is at PC 12. PC after this is 12.
+            // PC 12: Opcode.PushFloat (1)
+            // value (8)
+            // PC 21: Opcode.Return (1)
+            // PC 22: Opcode.PushFloat (1)
+            // value (8)
+            // PC 31: Opcode.Return (1)
 
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(0f)); // 12, 13, 14, 15, 16
-            bytecode.Add((byte)Opcode.Return); // 17
+            bytecode.AddRange(BitConverter.GetBytes(0.0));
+            bytecode.Add((byte)Opcode.Return);
 
-            bytecode.Add((byte)Opcode.PushFloat); // 18
-            bytecode.AddRange(BitConverter.GetBytes(1f)); // 19, 20, 21, 22
-            bytecode.Add((byte)Opcode.Return); // 23
+            bytecode.Add((byte)Opcode.PushFloat);
+            bytecode.AddRange(BitConverter.GetBytes(1.0));
+            bytecode.Add((byte)Opcode.Return);
 
             var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
             var thread = new DreamThread(proc, _vm.Context, 1000, obj);
@@ -573,13 +586,13 @@ namespace tests
             bytecode.Add(0); // list is in local 0
 
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(1f)); // index 1
+            bytecode.AddRange(BitConverter.GetBytes(1.0)); // index 1
 
             bytecode.Add((byte)Opcode.PopReference);
             bytecode.Add((byte)DMReference.Type.ListIndex);
 
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(42f));
+            bytecode.AddRange(BitConverter.GetBytes(42.0));
             bytecode.Add((byte)Opcode.Return);
 
             var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
@@ -641,7 +654,7 @@ namespace tests
         {
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(123f));
+            bytecode.AddRange(BitConverter.GetBytes(123.0));
             bytecode.Add((byte)Opcode.IsSaved);
             bytecode.Add((byte)Opcode.Return);
 
@@ -660,7 +673,7 @@ namespace tests
             bytecode.Add((byte)Opcode.PushString);
             bytecode.AddRange(BitConverter.GetBytes(0)); // "abc"
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(2f)); // index 2
+            bytecode.AddRange(BitConverter.GetBytes(2.0)); // index 2
             bytecode.Add((byte)Opcode.DereferenceIndex);
             bytecode.Add((byte)Opcode.Return);
 
@@ -682,9 +695,9 @@ namespace tests
             // 10 % 0 -> 0
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(10f));
+            bytecode.AddRange(BitConverter.GetBytes(10.0));
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(0f));
+            bytecode.AddRange(BitConverter.GetBytes(0.0));
             bytecode.Add((byte)Opcode.Modulus);
             bytecode.Add((byte)Opcode.Return);
 
@@ -701,14 +714,14 @@ namespace tests
         public void PushNRefs_StackLeak_Test()
         {
             var list = new DreamList(null);
-            list.AddValue(new DreamValue(100f));
+            list.AddValue(new DreamValue(100.0));
 
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
             bytecode.Add(0); // Pushes the list from local 0
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(1f)); // index 1
+            bytecode.AddRange(BitConverter.GetBytes(1.0)); // index 1
 
             bytecode.Add((byte)Opcode.PushNRefs);
             bytecode.AddRange(BitConverter.GetBytes(1)); // count 1
@@ -733,7 +746,7 @@ namespace tests
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.NPushFloatAssign);
             bytecode.AddRange(BitConverter.GetBytes(2)); // N = 2
-            bytecode.AddRange(BitConverter.GetBytes(5f)); // value = 5
+            bytecode.AddRange(BitConverter.GetBytes(5.0)); // value = 5
             bytecode.Add((byte)DMReference.Type.Local);
             bytecode.Add(0);
             bytecode.Add((byte)DMReference.Type.Local);

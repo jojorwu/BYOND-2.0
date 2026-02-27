@@ -107,15 +107,15 @@ namespace Core.VM.Utils
                         }
                     }
 
-                    if (pc + 3 + 4 < bytecode.Length && bytecode[pc + 3] == (byte)Opcode.PushFloat && !IsJumpTarget(pc + 3, 5))
+                    if (pc + 3 + 8 < bytecode.Length && bytecode[pc + 3] == (byte)Opcode.PushFloat && !IsJumpTarget(pc + 3, 9))
                     {
-                        int addPc = pc + 3 + 5;
+                        int addPc = pc + 3 + 9;
                         if (addPc < bytecode.Length && bytecode[addPc] == (byte)Opcode.Add && !IsJumpTarget(addPc, 1))
                         {
                             MarkPcMap(pc, addPc + 1, optimized.Count);
                             optimized.Add((byte)Opcode.LocalAddFloat);
                             optimized.Add(idx);
-                            optimized.AddRange(bytecode.AsSpan(pc + 4, 4)); // Copy float
+                            optimized.AddRange(bytecode.AsSpan(pc + 4, 8)); // Copy float
                             pc = addPc + 1;
                             continue;
                         }
@@ -311,7 +311,7 @@ namespace Core.VM.Utils
                 OpcodeArgType.ListSize => 4,
                 OpcodeArgType.Int => 4,
                 OpcodeArgType.Label => 4,
-                OpcodeArgType.Float => 4,
+                OpcodeArgType.Float => 8,
                 OpcodeArgType.String => 4,
                 OpcodeArgType.Reference => GetReferenceSize(bytecode, pc),
                 OpcodeArgType.FormatCount => 4,

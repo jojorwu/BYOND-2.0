@@ -196,9 +196,9 @@ internal sealed class AnnotatedBytecodeInteger(int value, Location location) : I
     }
 }
 
-internal sealed class AnnotatedBytecodeFloat(float value, Location location) : IAnnotatedBytecode {
+internal sealed class AnnotatedBytecodeFloat(double value, Location location) : IAnnotatedBytecode {
     public Location Location = location;
-    public float Value = value;
+    public double Value = value;
 
     public void AddArg(DMCompiler compiler, IAnnotatedBytecode arg) {
         compiler.ForcedError(Location, "Cannot add args to a float");

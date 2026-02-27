@@ -24,9 +24,9 @@ namespace Core.VM.Utils
             _jumpTargets.Clear();
             PreScanJumpTargets(bytecode, _jumpTargets);
 
-            // Reclaim memory if buffers are excessively large (e.g., > 1MB)
-            if (_optimizationBuffer != null && _optimizationBuffer.Capacity > 1024 * 1024) _optimizationBuffer = null;
-            if (_pcMap != null && _pcMap.Length > 256 * 1024) _pcMap = null;
+            // Reclaim memory if buffers are excessively large (e.g., > 1GB)
+            if (_optimizationBuffer != null && _optimizationBuffer.Capacity > 1073741824) _optimizationBuffer = null;
+            if (_pcMap != null && _pcMap.Length > 100000000) _pcMap = null;
 
             _optimizationBuffer ??= new List<byte>(bytecode.Length);
             var optimized = _optimizationBuffer;

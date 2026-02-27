@@ -154,8 +154,8 @@ public partial class DreamThread : IScriptThread, IDisposable
     public void Sleep(float seconds)
     {
         if (float.IsNaN(seconds) || seconds <= 0) seconds = 0;
-        // Max 24 hours to prevent DateTime overflow
-        if (seconds > 86400) seconds = 86400;
+        // Max 1 year to prevent DateTime overflow
+        if (seconds > 31536000) seconds = 31536000;
 
         State = DreamThreadState.Sleeping;
         SleepUntil = DateTime.Now.AddSeconds(seconds);

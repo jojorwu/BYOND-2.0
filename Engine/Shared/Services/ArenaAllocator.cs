@@ -71,13 +71,13 @@ namespace Shared.Services;
         public void Reset()
         {
             // If we have many blocks, prune them to reclaim memory
-            if (_blocks.Count > 8)
+            if (_blocks.Count > 1024)
             {
-                for (int i = 8; i < _blocks.Count; i++)
+                for (int i = 1024; i < _blocks.Count; i++)
                 {
                     _blocks[i].Return();
                 }
-                _blocks.RemoveRange(8, _blocks.Count - 8);
+                _blocks.RemoveRange(1024, _blocks.Count - 1024);
             }
 
             foreach (var block in _blocks)

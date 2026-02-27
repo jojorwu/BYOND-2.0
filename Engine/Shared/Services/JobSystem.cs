@@ -24,7 +24,7 @@ namespace Shared.Services;
         {
             _logger = logger;
             _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
-            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 4);
+            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
 
             int initialCount = Math.Max(1, Environment.ProcessorCount);
             _workers = new WorkerThread[initialCount];

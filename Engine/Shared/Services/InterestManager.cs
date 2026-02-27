@@ -9,7 +9,7 @@ namespace Shared.Services;
     public class InterestManager : IInterestManager
     {
         private readonly SpatialGrid _spatialGrid;
-        private static readonly ThreadLocal<List<IGameObject>> _queryBuffer = new(() => new List<IGameObject>(1024));
+        private static readonly ThreadLocal<List<IGameObject>> _queryBuffer = new(() => new List<IGameObject>(65536));
 
         private struct PlayerInterestState
         {

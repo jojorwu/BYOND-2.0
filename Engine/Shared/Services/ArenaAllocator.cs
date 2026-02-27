@@ -6,7 +6,7 @@ using Shared.Interfaces;
 namespace Shared.Services;
     public class ArenaAllocator : IArenaAllocator, IDisposable
     {
-        private const int DefaultBlockSize = 64 * 1024; // 64KB
+        private const int DefaultBlockSize = 1024 * 1024; // 1MB
 
         private class Block
         {

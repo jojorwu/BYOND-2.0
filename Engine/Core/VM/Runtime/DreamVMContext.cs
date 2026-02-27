@@ -8,7 +8,7 @@ namespace Core.VM.Runtime
 {
     public class DreamVMContext : IDisposable
     {
-        private const int MaxGlobals = 1000000;
+        private const int MaxGlobals = 100000000;
         private readonly ReaderWriterLockSlim _globalLock = new();
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();

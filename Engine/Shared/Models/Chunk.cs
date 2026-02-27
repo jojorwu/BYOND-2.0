@@ -1,7 +1,7 @@
 namespace Shared;
     public class Chunk
     {
-        public const int ChunkSize = 16;
+        public const int ChunkSize = 32;
 
         private readonly ITurf?[] _turfObjects;
         private readonly int[] _turfTypeIds;

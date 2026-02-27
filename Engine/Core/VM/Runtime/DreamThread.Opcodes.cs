@@ -469,7 +469,7 @@ public partial class DreamThread
         var count = ReadInt32(proc, ref pc);
         if (count < 0 || count > _stackPtr)
             throw new ScriptRuntimeException($"Invalid concatenation count: {count}", proc, pc, this);
-        if (count > 1024)
+        if (count > 1048576)
             throw new ScriptRuntimeException($"Concatenation count too large: {count}", proc, pc, this);
 
         if (count == 0)
@@ -489,7 +489,7 @@ public partial class DreamThread
                 totalLength += strings[i].Length;
             }
 
-            if (totalLength > 67108864)
+            if (totalLength > 1073741824)
                 throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", proc, pc, this);
 
             _stackPtr -= count;
@@ -532,7 +532,7 @@ public partial class DreamThread
                     if (valueIndex < values.Length)
                     {
                         result.Append(values[valueIndex++].ToString());
-                        if (result.Length > 67108864)
+                        if (result.Length > 1073741824)
                             throw new ScriptRuntimeException("Maximum string length exceeded during formatting", proc, pc, this);
                     }
                 }

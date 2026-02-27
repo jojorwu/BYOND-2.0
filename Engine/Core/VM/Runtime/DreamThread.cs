@@ -28,13 +28,13 @@ public struct TryBlock
 /// </summary>
 public partial class DreamThread : IScriptThread, IDisposable
 {
-    public const int MaxCallStackDepth = 512;
-    public const int MaxStackSize = 65536;
+    public const int MaxCallStackDepth = 65536;
+    public const int MaxStackSize = 10485760;
     internal DreamValue[] _stack;
     internal int _stackPtr = 0;
-    internal CallFrame[] _callStack = new CallFrame[64];
+    internal CallFrame[] _callStack = new CallFrame[1024];
     internal int _callStackPtr = 0;
-    private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(16);
+    private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(1024);
     private int _tryStackPtr = 0;
 
     internal void PushTryBlock(TryBlock tryBlock)
@@ -54,22 +54,22 @@ public partial class DreamThread : IScriptThread, IDisposable
         if (_tryStackPtr > 0) _tryStackPtr--;
     }
 
-    private readonly IEnumerator<DreamValue>?[] _activeEnumeratorsArray = new IEnumerator<DreamValue>[16];
-    private readonly DreamList?[] _enumeratorListsArray = new DreamList[16];
+    private readonly IEnumerator<DreamValue>?[] _activeEnumeratorsArray = new IEnumerator<DreamValue>[1024];
+    private readonly DreamList?[] _enumeratorListsArray = new DreamList[1024];
     public readonly Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators = new();
     public readonly Dictionary<int, DreamList> EnumeratorLists = new();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<DreamValue>? GetEnumerator(int id)
     {
-        if (id >= 0 && id < 16) return _activeEnumeratorsArray[id];
+        if (id >= 0 && id < 1024) return _activeEnumeratorsArray[id];
         return ActiveEnumerators.TryGetValue(id, out var enumerator) ? enumerator : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetEnumerator(int id, IEnumerator<DreamValue> enumerator, DreamList? list)
     {
-        if (id >= 0 && id < 16)
+        if (id >= 0 && id < 1024)
         {
             _activeEnumeratorsArray[id] = enumerator;
             _enumeratorListsArray[id] = list;
@@ -84,14 +84,14 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamList? GetEnumeratorList(int id)
     {
-        if (id >= 0 && id < 16) return _enumeratorListsArray[id];
+        if (id >= 0 && id < 1024) return _enumeratorListsArray[id];
         return EnumeratorLists.TryGetValue(id, out var list) ? list : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RemoveEnumerator(int id)
     {
-        if (id >= 0 && id < 16)
+        if (id >= 0 && id < 1024)
         {
             _activeEnumeratorsArray[id] = null;
             _enumeratorListsArray[id] = null;
@@ -130,7 +130,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         _maxInstructions = maxInstructions;
         _interpreter = interpreter ?? new BytecodeInterpreter();
         AssociatedObject = associatedObject;
-        _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
+        _stack = ArrayPool<DreamValue>.Shared.Rent(65536);
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
     }

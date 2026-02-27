@@ -9,8 +9,8 @@ namespace Shared.Services;
     public class ProfilingService : IProfilingService, IShrinkable
     {
         private readonly ConcurrentDictionary<string, MetricData> _metrics = new();
-        private const int MaxSamples = 100;
-        private const int MaxUniqueMetrics = 1000;
+        private const int MaxSamples = 100000;
+        private const int MaxUniqueMetrics = 100000;
 
         [ThreadStatic]
         private static Stack<MeasureScope>? _scopeStack;

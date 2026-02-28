@@ -195,7 +195,7 @@ internal sealed class Rgb(Location location, ArgumentList arguments) : DMExpress
 
     // TODO: This needs to have full parity with the rgb opcode. This is a simplified implementation for the most common case rgb(R, G, B)
     public override bool TryAsConstant(DMCompiler compiler, [NotNullWhen(true)] out Constant? constant) {
-        (string?, float?)[] values = new (string?, float?)[arguments.Length];
+        (string?, double?)[] values = new (string?, double?)[arguments.Length];
 
         bool validArgs = true;
 

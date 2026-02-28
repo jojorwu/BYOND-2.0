@@ -49,7 +49,7 @@ namespace Core.Maps
             var map = new Map();
 
             // Parallelize turf processing in batches
-            int batchSize = 100;
+            int batchSize = 1024;
             var turfBatches = mapData.Turfs
                 .Select((t, i) => new { Index = i, Data = t })
                 .GroupBy(x => x.Index / batchSize)

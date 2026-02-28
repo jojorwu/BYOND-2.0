@@ -5,9 +5,9 @@ using System.Collections.Generic;
 namespace Shared;
     public class Map : IMap
     {
-        private const int MaxCoordinate = 100000;
-        private const int MaxChunksPerZ = 10000;
-        private const int MaxZLevels = 100;
+        private const int MaxCoordinate = 10000000;
+        private const int MaxChunksPerZ = 10000000;
+        private const int MaxZLevels = 10000;
         private readonly Dictionary<int, Dictionary<Vector2i, Chunk>> _chunksByZ = new();
         private readonly object _mapLock = new();
 

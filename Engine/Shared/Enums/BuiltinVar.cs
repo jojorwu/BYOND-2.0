@@ -1,4 +1,3 @@
-using Shared.Enums;
 namespace Shared.Enums;
 
 public enum BuiltinVar : byte
@@ -10,5 +9,10 @@ public enum BuiltinVar : byte
     Color = 4,
     Layer = 5,
     PixelX = 6,
-    PixelY = 7
+    PixelY = 7,
+    X = 8,
+    Y = 9,
+    Z = 10,
+    Loc = 11,
+    None = 255
 }

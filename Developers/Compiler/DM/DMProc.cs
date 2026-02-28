@@ -456,7 +456,7 @@ internal sealed class DMProc {
                     break;
                 }
 
-                Invisibility = Convert.ToSByte(Math.Clamp(MathF.Floor(invisNum.Value), 0f, 100f));
+                Invisibility = Convert.ToSByte(Math.Clamp(Math.Floor(invisNum.Value), 0.0, 100.0));
                 break;
             case "src":
                 _compiler.UnimplementedWarning(statementSet.Location, "set src is not implemented");
@@ -1148,7 +1148,7 @@ internal sealed class DMProc {
         WriteOpcode(Opcode.Abs);
     }
 
-    public void PushFloat(float value) {
+    public void PushFloat(double value) {
         WriteOpcode(Opcode.PushFloat);
         WriteFloat(value);
     }
@@ -1338,7 +1338,7 @@ internal sealed class DMProc {
         AnnotatedBytecode.WriteEnumeratorId(enumeratorId, _writerLocation);
     }
 
-    private void WriteFloat(float value) {
+    private void WriteFloat(double value) {
         AnnotatedBytecode.WriteFloat(value, _writerLocation);
     }
 

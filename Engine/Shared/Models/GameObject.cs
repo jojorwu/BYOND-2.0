@@ -63,27 +63,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public IGameObject? PrevInGridCell { get; set; }
     public long? CurrentGridCellKey { get; set; }
 
-    private int _xIndex = -1, _yIndex = -1, _zIndex = -1, _locIndex = -1;
-    private int _iconIndex = -1, _iconStateIndex = -1, _dirIndex = -1, _alphaIndex = -1;
-    private int _colorIndex = -1, _layerIndex = -1, _pixelXIndex = -1, _pixelYIndex = -1;
-
-    private void InitializeBuiltinIndices()
-    {
-        if (ObjectType == null) return;
-        _xIndex = ObjectType.XIndex;
-        _yIndex = ObjectType.YIndex;
-        _zIndex = ObjectType.ZIndex;
-        _locIndex = ObjectType.LocIndex;
-        _iconIndex = ObjectType.IconIndex;
-        _iconStateIndex = ObjectType.IconStateIndex;
-        _dirIndex = ObjectType.DirIndex;
-        _alphaIndex = ObjectType.AlphaIndex;
-        _colorIndex = ObjectType.ColorIndex;
-        _layerIndex = ObjectType.LayerIndex;
-        _pixelXIndex = ObjectType.PixelXIndex;
-        _pixelYIndex = ObjectType.PixelYIndex;
-    }
-
     private int _x;
     private int _committedX;
     /// <summary>
@@ -102,7 +81,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (oldX == value) return;
                 oldY = _y; oldZ = _z;
                 _x = value;
-                if (_xIndex != -1) _variableValues[_xIndex] = new DreamValue((float)value);
+                var type = ObjectType;
+                if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue((double)value);
                 IncrementVersion();
             }
             PositionChanged?.Invoke(this, oldX, oldY, oldZ);
@@ -132,7 +112,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (oldY == value) return;
                 oldX = _x; oldZ = _z;
                 _y = value;
-                if (_yIndex != -1) _variableValues[_yIndex] = new DreamValue((float)value);
+                var type = ObjectType;
+                if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue((double)value);
                 IncrementVersion();
             }
             PositionChanged?.Invoke(this, oldX, oldY, oldZ);
@@ -162,7 +143,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (oldZ == value) return;
                 oldX = _x; oldY = _y;
                 _z = value;
-                if (_zIndex != -1) _variableValues[_zIndex] = new DreamValue((float)value);
+                var type = ObjectType;
+                if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue((double)value);
                 IncrementVersion();
             }
             PositionChanged?.Invoke(this, oldX, oldY, oldZ);
@@ -178,56 +160,56 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public string Icon
     {
         get { lock (_lock) return _icon; }
-        set { lock (_lock) { if (_icon != value) { _icon = value; if (_iconIndex != -1) _variableValues[_iconIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_icon != value) { _icon = value; var idx = ObjectType?.IconIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _iconState = string.Empty;
     public string IconState
     {
         get { lock (_lock) return _iconState; }
-        set { lock (_lock) { if (_iconState != value) { _iconState = value; if (_iconStateIndex != -1) _variableValues[_iconStateIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_iconState != value) { _iconState = value; var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private int _dir = 2;
     public int Dir
     {
         get { lock (_lock) return _dir; }
-        set { lock (_lock) { if (_dir != value) { _dir = value; if (_dirIndex != -1) _variableValues[_dirIndex] = new DreamValue((float)value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_dir != value) { _dir = value; var idx = ObjectType?.DirIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue((double)value); IncrementVersion(); } } }
     }
 
-    private float _alpha = 255.0f;
-    public float Alpha
+    private double _alpha = 255.0;
+    public double Alpha
     {
         get { lock (_lock) return _alpha; }
-        set { lock (_lock) { if (_alpha != value) { _alpha = value; if (_alphaIndex != -1) _variableValues[_alphaIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_alpha != value) { _alpha = value; var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _color = "#ffffff";
     public string Color
     {
         get { lock (_lock) return _color; }
-        set { lock (_lock) { if (_color != value) { _color = value; if (_colorIndex != -1) _variableValues[_colorIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_color != value) { _color = value; var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
-    private float _layer = 2.0f;
-    public float Layer
+    private double _layer = 2.0;
+    public double Layer
     {
         get { lock (_lock) return _layer; }
-        set { lock (_lock) { if (_layer != value) { _layer = value; if (_layerIndex != -1) _variableValues[_layerIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_layer != value) { _layer = value; var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
-    private float _pixelX = 0;
-    public float PixelX
+    private double _pixelX = 0;
+    public double PixelX
     {
         get { lock (_lock) return _pixelX; }
-        set { lock (_lock) { if (_pixelX != value) { _pixelX = value; if (_pixelXIndex != -1) _variableValues[_pixelXIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_pixelX != value) { _pixelX = value; var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
-    private float _pixelY = 0;
-    public float PixelY
+    private double _pixelY = 0;
+    public double PixelY
     {
         get { lock (_lock) return _pixelY; }
-        set { lock (_lock) { if (_pixelY != value) { _pixelY = value; if (_pixelYIndex != -1) _variableValues[_pixelYIndex] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     /// <summary>
@@ -270,8 +252,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
                 if (syncVariable)
                 {
-                    if (_locIndex != -1)
-                        _variableValues[_locIndex] = value != null ? new DreamValue((DreamObject)value) : DreamValue.Null;
+                    var idx = ObjectType?.LocIndex ?? -1;
+                    if (idx != -1)
+                        _variableValues[idx] = value != null ? new DreamValue((DreamObject)value) : DreamValue.Null;
                     IncrementVersion();
                 }
             }
@@ -358,12 +341,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": return new DreamValue((float)_x);
-                case "y": return new DreamValue((float)_y);
-                case "z": return new DreamValue((float)_z);
+                case "x": return new DreamValue((double)_x);
+                case "y": return new DreamValue((double)_y);
+                case "z": return new DreamValue((double)_z);
                 case "icon": return new DreamValue(_icon);
                 case "icon_state": return new DreamValue(_iconState);
-                case "dir": return new DreamValue((float)_dir);
+                case "dir": return new DreamValue((double)_dir);
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
                 case "name":
                     var n = base.GetVariable(name);
@@ -387,12 +370,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": X = (int)value.GetValueAsFloat(); return;
-                case "y": Y = (int)value.GetValueAsFloat(); return;
-                case "z": Z = (int)value.GetValueAsFloat(); return;
+                case "x": X = (int)value.GetValueAsDouble(); return;
+                case "y": Y = (int)value.GetValueAsDouble(); return;
+                case "z": Z = (int)value.GetValueAsDouble(); return;
                 case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
                 case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
-                case "dir": Dir = (int)value.GetValueAsFloat(); return;
+                case "dir": Dir = (int)value.GetValueAsDouble(); return;
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
                     else Loc = null;
@@ -426,33 +409,30 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             if (builtinMap != null && index < builtinMap.Length)
             {
                 var builtin = builtinMap[index];
-                if (builtin != (BuiltinVar)255)
+                if (builtin != BuiltinVar.None)
                 {
                     switch (builtin)
                     {
                         case BuiltinVar.Icon: _icon = value.TryGetValue(out string? s1) ? s1 ?? string.Empty : string.Empty; break;
                         case BuiltinVar.IconState: _iconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; break;
-                        case BuiltinVar.Dir: _dir = (int)value.GetValueAsFloat(); break;
-                        case BuiltinVar.Alpha: _alpha = value.GetValueAsFloat(); break;
+                        case BuiltinVar.Dir: _dir = (int)value.GetValueAsDouble(); break;
+                        case BuiltinVar.Alpha: _alpha = value.GetValueAsDouble(); break;
                         case BuiltinVar.Color: _color = value.TryGetValue(out string? s3) ? s3 ?? "#ffffff" : "#ffffff"; break;
-                        case BuiltinVar.Layer: _layer = value.GetValueAsFloat(); break;
-                        case BuiltinVar.PixelX: _pixelX = value.GetValueAsFloat(); break;
-                        case BuiltinVar.PixelY: _pixelY = value.GetValueAsFloat(); break;
+                        case BuiltinVar.Layer: _layer = value.GetValueAsDouble(); break;
+                        case BuiltinVar.PixelX: _pixelX = value.GetValueAsDouble(); break;
+                        case BuiltinVar.PixelY: _pixelY = value.GetValueAsDouble(); break;
+                        case BuiltinVar.X: X = (int)value.GetValueAsDouble(); break;
+                        case BuiltinVar.Y: Y = (int)value.GetValueAsDouble(); break;
+                        case BuiltinVar.Z: Z = (int)value.GetValueAsDouble(); break;
+                        case BuiltinVar.Loc:
+                            if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
+                                Loc = loc;
+                            else
+                                Loc = null;
+                            break;
                     }
                     return;
                 }
-            }
-
-            // Fallback to manual index checks (for unfinalized types or coordinates/loc)
-            if (index == _xIndex) { X = (int)value.GetValueAsFloat(); }
-            else if (index == _yIndex) { Y = (int)value.GetValueAsFloat(); }
-            else if (index == _zIndex) { Z = (int)value.GetValueAsFloat(); }
-            else if (index == _locIndex)
-            {
-                if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                    Loc = loc;
-                else
-                    Loc = null;
             }
         }
     }
@@ -468,7 +448,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             lock (_lock)
             {
                 base.ObjectType = value;
-                InitializeBuiltinIndices();
             }
         }
     }
@@ -514,7 +493,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public GameObject(ObjectType objectType) : base(objectType)
     {
         Id = Interlocked.Increment(ref nextId);
-        InitializeBuiltinIndices();
     }
 
     public void Initialize(ObjectType objectType, int x, int y, int z)
@@ -524,7 +502,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         _y = y;
         _z = z;
         Id = Interlocked.Increment(ref nextId);
-        InitializeBuiltinIndices();
     }
 
     /// <summary>
@@ -681,9 +658,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _icon = string.Empty;
             _iconState = string.Empty;
             _dir = 2;
-            _alpha = 255.0f;
+            _alpha = 255.0;
             _color = "#ffffff";
-            _layer = 2.0f;
+            _layer = 2.0;
             _pixelX = 0;
             _pixelY = 0;
             _isDirty = 0;

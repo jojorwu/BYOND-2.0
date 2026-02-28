@@ -17,7 +17,7 @@ namespace Shared.Services;
         {
             _logger = logger;
             _jobSystem = jobSystem;
-            _commandChannel = Channel.CreateBounded<ICommand>(new BoundedChannelOptions(1000)
+            _commandChannel = Channel.CreateBounded<ICommand>(new BoundedChannelOptions(1000000)
             {
                 SingleReader = true,
                 SingleWriter = false,

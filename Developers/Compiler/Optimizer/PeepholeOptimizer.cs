@@ -17,7 +17,7 @@ internal interface IOptimization {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static AnnotatedBytecodeInstruction GetInstructionAndValue(IAnnotatedBytecode input, out float value, int argIndex = 0) {
+    public static AnnotatedBytecodeInstruction GetInstructionAndValue(IAnnotatedBytecode input, out double value, int argIndex = 0) {
         AnnotatedBytecodeInstruction firstInstruction = (AnnotatedBytecodeInstruction)(input);
         value = firstInstruction.GetArg<AnnotatedBytecodeFloat>(argIndex).Value;
         return firstInstruction;

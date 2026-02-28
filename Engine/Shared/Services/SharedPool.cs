@@ -12,8 +12,8 @@ namespace Shared.Services;
     {
         private readonly Func<T> _factory;
         private readonly ConcurrentQueue<T> _globalQueue = new();
-        private const int LocalCapacity = 32;
-        private const int MaxGlobalCapacity = 1024;
+        private const int LocalCapacity = 4096;
+        private const int MaxGlobalCapacity = 10485760;
 
         private class LocalCache
         {

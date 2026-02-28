@@ -36,7 +36,8 @@ namespace tests
             foreach (var op in ops)
             {
                 if (op is Opcode opcode) bytecode.Add((byte)opcode);
-                else if (op is float f) bytecode.AddRange(BitConverter.GetBytes(f));
+                else if (op is float f) bytecode.AddRange(BitConverter.GetBytes((double)f));
+                else if (op is double d) bytecode.AddRange(BitConverter.GetBytes(d));
                 else if (op is int i) bytecode.AddRange(BitConverter.GetBytes(i));
                 else if (op is byte b) bytecode.Add(b);
                 else throw new ArgumentException($"Unsupported op type: {op.GetType()}");
@@ -176,9 +177,9 @@ namespace tests
         {
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(10f));
+            bytecode.AddRange(BitConverter.GetBytes(10.0));
             bytecode.Add((byte)Opcode.PushFloat);
-            bytecode.AddRange(BitConverter.GetBytes(20f));
+            bytecode.AddRange(BitConverter.GetBytes(20.0));
             bytecode.Add((byte)Opcode.Pop);
             bytecode.Add((byte)Opcode.Return);
 

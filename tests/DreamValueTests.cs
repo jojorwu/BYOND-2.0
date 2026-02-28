@@ -1,6 +1,7 @@
 using Shared;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 
 namespace tests
 {
@@ -33,9 +34,39 @@ namespace tests
         [Test]
         public void Equality_FloatEpsilon_Works()
         {
-            // Implementation uses 0.00001f epsilon
-            Assert.That(new DreamValue(1.000001f).Equals(new DreamValue(1.000002f)), Is.True);
-            Assert.That(new DreamValue(1.0001f).Equals(new DreamValue(1.0002f)), Is.False);
+            // Equals() is now bitwise strict for collection stability
+            Assert.That(new DreamValue(1.000001f).Equals(new DreamValue(1.000001f)), Is.True);
+            Assert.That(new DreamValue(1.000001f).Equals(new DreamValue(1.000002f)), Is.False);
+
+            // operator == uses 0.00001f epsilon for DM parity
+            Assert.That(new DreamValue(1.000001f) == new DreamValue(1.000002f), Is.True);
+            Assert.That(new DreamValue(1.0001f) == new DreamValue(1.0002f), Is.False);
+        }
+
+        [Test]
+        public void Equality_FloatKeys_InDictionary_AreStable()
+        {
+            var dict = new Dictionary<DreamValue, string>();
+            var val1 = new DreamValue(1.000001f);
+            var val2 = new DreamValue(1.000002f);
+
+            dict[val1] = "first";
+            dict[val2] = "second";
+
+            // If Equals() were epsilon-based, dict.Count would be 1 and dict[val1] would be "second"
+            Assert.That(dict.Count, Is.EqualTo(2));
+            Assert.That(dict[val1], Is.EqualTo("first"));
+            Assert.That(dict[val2], Is.EqualTo("second"));
+        }
+
+        [Test]
+        public void Modulo_ByZero_ReturnsZero()
+        {
+            var a = new DreamValue(10f);
+            var b = new DreamValue(0f);
+
+            // DreamValue.operator % should handle this
+            Assert.That((a % b).AsFloat(), Is.EqualTo(0f));
         }
 
         [Test]

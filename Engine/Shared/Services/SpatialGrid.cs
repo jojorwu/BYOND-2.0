@@ -41,7 +41,7 @@ namespace Shared;
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
 
-        public SpatialGrid(ILogger<SpatialGrid> logger, int cellSize = 16)
+        public SpatialGrid(ILogger<SpatialGrid> logger, int cellSize = 32)
         {
             _logger = logger;
             _cellSize = cellSize;
@@ -200,7 +200,7 @@ namespace Shared;
                 return;
             }
 
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
 
             for (int x = startGX; x <= endGX; x++)
             {
@@ -264,7 +264,8 @@ namespace Shared;
                 return;
             }
 
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000) return;
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
 
             for (int x = startGX; x <= endGX; x++)
             {
@@ -351,7 +352,7 @@ namespace Shared;
             }
 
             // Prevent DoS via huge search area
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000)
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000)
             {
                 return;
             }

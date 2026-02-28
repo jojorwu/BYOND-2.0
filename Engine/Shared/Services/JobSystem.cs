@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace Shared.Services;
     public class JobSystem : IJobSystem, IDisposable, IAsyncDisposable
     {
-        private const int MaxTrackedJobs = 10000;
+        private const int MaxTrackedJobs = 1000000;
         private volatile WorkerThread[] _workers;
         private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
         private readonly int _minWorkers;
@@ -24,7 +24,7 @@ namespace Shared.Services;
         {
             _logger = logger;
             _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
-            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 4);
+            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
 
             int initialCount = Math.Max(1, Environment.ProcessorCount);
             _workers = new WorkerThread[initialCount];
@@ -270,7 +270,7 @@ namespace Shared.Services;
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action, JobPriority priority = JobPriority.Normal)
         {
-            const int BatchSize = 32;
+            const int BatchSize = 1024;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 
@@ -305,7 +305,7 @@ namespace Shared.Services;
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
         {
-            const int BatchSize = 32;
+            const int BatchSize = 1024;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 
@@ -344,7 +344,7 @@ namespace Shared.Services;
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
         {
-            const int BatchSize = 32;
+            const int BatchSize = 1024;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
 

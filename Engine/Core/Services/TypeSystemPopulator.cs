@@ -25,13 +25,24 @@ namespace Core
             {
                 var type = objectTypes[i];
                 FlattenProcs(type);
+            }
+
+            for (int i = 0; i < objectTypes.Length; i++)
+            {
+                var type = objectTypes[i];
                 type.FinalizeVariables();
             }
         }
 
         private void FlattenProcs(ObjectType type)
         {
-            if (type.FlattenedProcs.Count > 0 || type.Name == "/") return;
+            if (type.FlattenedProcs.Count > 0 || type.Name == "/") {
+                foreach (var (name, proc) in type.Procs)
+                {
+                    type.FlattenedProcs[name] = proc;
+                }
+                return;
+            }
 
             if (type.Parent != null)
             {
@@ -40,10 +51,11 @@ namespace Core
                 {
                     type.FlattenedProcs[name] = proc;
                 }
-                foreach (var (name, proc) in type.Parent.Procs)
-                {
-                    type.FlattenedProcs[name] = proc;
-                }
+            }
+
+            foreach (var (name, proc) in type.Procs)
+            {
+                type.FlattenedProcs[name] = proc;
             }
         }
 

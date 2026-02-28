@@ -69,7 +69,7 @@ internal class AnnotatedByteCodeWriter(DMCompiler compiler) {
     /// </summary>
     /// <param name="val">The integer to write</param>
     /// <param name="location">The location of the integer in the source code</param>
-    public void WriteFloat(float val, Location location) {
+    public void WriteFloat(double val, Location location) {
         _location = location;
         ValidateArgument(location, OpcodeArgType.Float);
         _annotatedBytecode[^1].AddArg(compiler, new AnnotatedBytecodeFloat(val, location));

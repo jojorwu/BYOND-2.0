@@ -14,7 +14,7 @@ namespace Core
 {
     public class CompiledJsonService : EngineService, ICompiledJsonService
     {
-        private const int MaxLocalVariables = 1024;
+        private const int MaxLocalVariables = 65536;
         private readonly ILogger<CompiledJsonService>? _logger;
         private readonly IGameApi _gameApi;
         private readonly ITypeSystemPopulator _typeSystemPopulator;
@@ -155,7 +155,7 @@ namespace Core
 
             if (json.Globals != null)
             {
-                if (json.Globals.GlobalCount > 1000000)
+                if (json.Globals.GlobalCount > 100000000)
                     throw new Exception($"Too many global variables: {json.Globals.GlobalCount}");
 
                 for (int i = 0; i < json.Globals.GlobalCount; i++)

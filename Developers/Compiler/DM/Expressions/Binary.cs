@@ -145,7 +145,7 @@ internal sealed class Modulo(Location location, DMExpression lhs, DMExpression r
         }
 
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
-            constant = new Number(Location, (int)lhsNum.Value % (int)rhsNum.Value);
+            constant = new Number(Location, (double)((long)lhsNum.Value % (long)rhsNum.Value));
         } else {
             constant = null;
             return false;
@@ -177,7 +177,7 @@ internal sealed class ModuloModulo(Location location, DMExpression lhs, DMExpres
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
             // BYOND docs say that A %% B is equivalent to B * fract(A/B)
             var fraction = lhsNum.Value / rhsNum.Value;
-            fraction -= MathF.Truncate(fraction);
+            fraction -= Math.Truncate(fraction);
             constant = new Number(Location, fraction * rhsNum.Value);
         } else {
             constant = null;
@@ -208,7 +208,7 @@ internal sealed class Power(Location location, DMExpression lhs, DMExpression rh
         }
 
         if (lhs is Number lhsNum && rhs is Number rhsNum) {
-            constant = new Number(Location, MathF.Pow(lhsNum.Value, rhsNum.Value));
+            constant = new Number(Location, Math.Pow(lhsNum.Value, rhsNum.Value));
         } else {
             constant = null;
             return false;

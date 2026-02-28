@@ -105,7 +105,7 @@ namespace Shared.Services;
                     ArrayPool<byte>.Shared.Return(rentedBuffer);
                 }
 
-                if (bufferSize >= 1024 * 1024 * 32) // 32MB safety limit
+                if (bufferSize >= 1024 * 1024 * 512) // 512MB safety limit
                     throw new Exception("World state too large to serialize into a single snapshot");
 
                 bufferSize *= 2;

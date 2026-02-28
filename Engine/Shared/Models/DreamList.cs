@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace Shared;
     public class DreamList : DreamObject
     {
-        private const int MaxListSize = 1000000;
+        private const int MaxListSize = 100000000;
         private const int DictionaryThreshold = 8;
         private readonly List<DreamValue> _values;
         public IReadOnlyList<DreamValue> Values => _values;
@@ -211,6 +211,16 @@ namespace Shared;
                 {
                     return value;
                 }
+                return DreamValue.Null;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public DreamValue GetValue(int index)
+        {
+            lock (_lock)
+            {
+                if (index >= 0 && index < _values.Count) return _values[index];
                 return DreamValue.Null;
             }
         }

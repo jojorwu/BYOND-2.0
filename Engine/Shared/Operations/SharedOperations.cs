@@ -9,68 +9,68 @@ namespace Shared;
 /// Helps make sure things like sin() and cos() give the same result on both.
 /// </summary>
 public static class SharedOperations {
-    private const float DegToRad = MathF.PI / 180.0f;
-    private const float RadToDeg = 180.0f / MathF.PI;
+    private const double DegToRad = Math.PI / 180.0;
+    private const double RadToDeg = 180.0 / Math.PI;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Sin(float x) {
-        return MathF.Sin(x * DegToRad);
+    public static double Sin(double x) {
+        return Math.Sin(x * DegToRad);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Cos(float x) {
-        return MathF.Cos(x * DegToRad);
+    public static double Cos(double x) {
+        return Math.Cos(x * DegToRad);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Tan(float x) {
-        return MathF.Tan(x * DegToRad);
+    public static double Tan(double x) {
+        return Math.Tan(x * DegToRad);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float ArcSin(float x) {
-        return MathF.Asin(x) * RadToDeg;
+    public static double ArcSin(double x) {
+        return Math.Asin(x) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float ArcCos(float x) {
-        return MathF.Acos(x) * RadToDeg;
+    public static double ArcCos(double x) {
+        return Math.Acos(x) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float ArcTan(float a) {
-        return MathF.Atan(a) * RadToDeg;
+    public static double ArcTan(double a) {
+        return Math.Atan(a) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float ArcTan(float x, float y) {
-        return MathF.Atan2(y, x) * RadToDeg;
+    public static double ArcTan(double x, double y) {
+        return Math.Atan2(y, x) * RadToDeg;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Sqrt(float a) {
-        return MathF.Sqrt(a);
+    public static double Sqrt(double a) {
+        return Math.Sqrt(a);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Log(float y) {
-        return MathF.Log(y);
+    public static double Log(double y) {
+        return Math.Log(y);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Log(float y, float baseValue) {
-        return MathF.Log(y, baseValue);
+    public static double Log(double y, double baseValue) {
+        return Math.Log(y, baseValue);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Abs(float a) {
-        return MathF.Abs(a);
+    public static double Abs(double a) {
+        return Math.Abs(a);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Modulo(float a, float b) {
+    public static double Modulo(double a, double b) {
         if (b == 0) return 0;
-        return a - b * MathF.Floor(a / b);
+        return a - b * Math.Floor(a / b);
     }
 
     //because BYOND has everything as a 32 bit float with 8 bit mantissa, we need to chop off the
@@ -96,14 +96,14 @@ public static class SharedOperations {
         HSL = 2
     }
 
-    public static string ParseRgb(ReadOnlySpan<(string? Name, float? Value)> arguments) {
+    public static string ParseRgb(ReadOnlySpan<(string? Name, double? Value)> arguments) {
         if (arguments.Length == 0)
             throw new Exception("Expected at least 3 arguments for rgb()");
 
-        float? color1 = null;
-        float? color2 = null;
-        float? color3 = null;
-        float? alpha = null;
+        double? color1 = null;
+        double? color2 = null;
+        double? color3 = null;
+        double? alpha = null;
         ColorSpace space = ColorSpace.RGB;
 
         if (arguments[0].Name is null) {
@@ -169,17 +169,17 @@ public static class SharedOperations {
                 break;
             }
             case ColorSpace.HSV: {
-                float h = Math.Clamp(color1.Value, 0, 360) / 360f;
-                float s = Math.Clamp(color2.Value, 0, 100) / 100f;
-                float v = Math.Clamp(color3.Value, 0, 100) / 100f;
+                float h = (float)(Math.Clamp(color1.Value, 0, 360) / 360.0);
+                float s = (float)(Math.Clamp(color2.Value, 0, 100) / 100.0);
+                float v = (float)(Math.Clamp(color3.Value, 0, 100) / 100.0);
 
                 color = Color.FromHsv(new(h, s, v, aValue / 255f));
                 break;
             }
             case ColorSpace.HSL: {
-                float h = Math.Clamp(color1.Value, 0, 360) / 360f;
-                float s = Math.Clamp(color2.Value, 0, 100) / 100f;
-                float l = Math.Clamp(color3.Value, 0, 100) / 100f;
+                float h = (float)(Math.Clamp(color1.Value, 0, 360) / 360.0);
+                float s = (float)(Math.Clamp(color2.Value, 0, 100) / 100.0);
+                float l = (float)(Math.Clamp(color3.Value, 0, 100) / 100.0);
 
                 color = Color.FromHsl(new(h, s, l, aValue / 255f));
                 break;
@@ -188,10 +188,19 @@ public static class SharedOperations {
                 throw new NotSupportedException($"Unimplemented color space {space}");
         }
 
-        if (alpha is null) {
-            return $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}".ToLowerInvariant();
-        } else {
-            return $"#{color.RByte:X2}{color.GByte:X2}{color.BByte:X2}{color.AByte:X2}".ToLowerInvariant();
-        }
+        return alpha is null
+            ? string.Create(7, color, (span, c) => {
+                span[0] = '#';
+                c.RByte.TryFormat(span.Slice(1, 2), out _, "x2");
+                c.GByte.TryFormat(span.Slice(3, 2), out _, "x2");
+                c.BByte.TryFormat(span.Slice(5, 2), out _, "x2");
+            })
+            : string.Create(9, color, (span, c) => {
+                span[0] = '#';
+                c.RByte.TryFormat(span.Slice(1, 2), out _, "x2");
+                c.GByte.TryFormat(span.Slice(3, 2), out _, "x2");
+                c.BByte.TryFormat(span.Slice(5, 2), out _, "x2");
+                c.AByte.TryFormat(span.Slice(7, 2), out _, "x2");
+            });
     }
 }

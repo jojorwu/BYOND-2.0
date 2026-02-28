@@ -3,9 +3,9 @@ namespace Shared;
     {
         public string ServerName { get; set; } = "BYOND 2.0 Server";
         public string ServerDescription { get; set; } = "A default server instance.";
-        public int MaxPlayers { get; set; } = 32;
+        public int MaxPlayers { get; set; } = 65536;
         public bool EnableVm { get; set; } = false;
-        public int VmMaxInstructions { get; set; } = 1000000;
+        public int VmMaxInstructions { get; set; } = 1000000000;
 
         public NetworkSettings Network { get; set; } = new();
         public HttpServerSettings HttpServer { get; set; } = new();
@@ -28,7 +28,7 @@ namespace Shared;
         public string IpAddress { get; set; } = "127.0.0.1";
         public int UdpPort { get; set; } = 9050;
         public string ConnectionKey { get; set; } = "BYOND2.0";
-        public int DisconnectTimeout { get; set; } = 10000;
+        public int DisconnectTimeout { get; set; } = 60000;
         public bool EnableBinarySnapshots { get; set; } = true;
     }
 
@@ -52,11 +52,11 @@ namespace Shared;
 
     public class PerformanceSettings
     {
-        public int TickRate { get; set; } = 60;
+        public int TickRate { get; set; } = 1000;
         public bool EnableRegionalProcessing { get; set; } = false;
         public RegionalProcessingSettings RegionalProcessing { get; set; } = new();
-        public int VmInstructionSlice { get; set; } = 100;
-        public int SnapshotBroadcastInterval { get; set; } = 100; // ms
+        public int VmInstructionSlice { get; set; } = 1000;
+        public int SnapshotBroadcastInterval { get; set; } = 16; // ms
         public TimeBudgetSettings TimeBudgeting { get; set; } = new();
     }
 

@@ -33,11 +33,15 @@ internal sealed class Null(Location location) : Constant(location) {
 
 // 4.0, -4.0
 internal sealed class Number : Constant {
-    public float Value { get; }
+    public double Value { get; }
 
     public override DMComplexValueType ValType => DMValueType.Num;
 
     public Number(Location location, int value) : base(location) {
+        Value = value;
+    }
+
+    public Number(Location location, double value) : base(location) {
         Value = value;
     }
 
@@ -53,16 +57,16 @@ internal sealed class Number : Constant {
 
     public override bool TryAsJsonRepresentation(DMCompiler compiler, out object? json) {
         // Positive/Negative infinity cannot be represented in JSON and need a special value
-        if (float.IsPositiveInfinity(Value)) {
+        if (double.IsPositiveInfinity(Value)) {
             json = new Dictionary<string, object>() {
                 {"type", JsonVariableType.PositiveInfinity}
             };
-        } else if (float.IsNegativeInfinity(Value)) {
+        } else if (double.IsNegativeInfinity(Value)) {
             json = new Dictionary<string, object>() {
                 {"type", JsonVariableType.NegativeInfinity}
             };
         } else {
-            json = Value;
+            json = (float)Value;
         }
 
         return true;

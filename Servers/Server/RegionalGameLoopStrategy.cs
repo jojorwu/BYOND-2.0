@@ -38,7 +38,7 @@ namespace Server
         {
             var allThreads = _scriptHost.GetThreads();
             var globals = new List<IScriptThread>();
-            var objectThreads = new Dictionary<int, List<IScriptThread>>();
+            var objectThreads = new Dictionary<long, List<IScriptThread>>();
 
             foreach (var thread in allThreads)
             {
@@ -48,7 +48,7 @@ namespace Server
                 }
                 else
                 {
-                    int objId = thread.AssociatedObject.Id;
+                    long objId = thread.AssociatedObject.Id;
                     if (!objectThreads.TryGetValue(objId, out var threads))
                     {
                         threads = new List<IScriptThread>();
@@ -92,7 +92,7 @@ namespace Server
             {
                 foreach (var (mergedRegion, gameObjects) in batch)
                 {
-                    var objectIds = new HashSet<int>(gameObjects.Count);
+                    var objectIds = new HashSet<long>(gameObjects.Count);
                     var threadsForRegion = new List<IScriptThread>();
 
                     foreach (var obj in gameObjects)

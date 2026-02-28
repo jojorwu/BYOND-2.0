@@ -16,12 +16,12 @@ namespace Shared;
 [JsonConverter(typeof(GameObjectConverter))]
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
-    private static int nextId = 1;
+    private static long nextId = 1;
     private static readonly object _globalHierarchyLock = new();
 
-    public static void EnsureNextId(int id)
+    public static void EnsureNextId(long id)
     {
-        int current;
+        long current;
         do
         {
             current = nextId;
@@ -36,7 +36,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the unique identifier for the game object.
     /// </summary>
-    public int Id { get; set; }
+    public long Id { get; set; }
 
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }

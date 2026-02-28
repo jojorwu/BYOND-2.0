@@ -50,7 +50,7 @@ namespace Server
         {
             ProcessCommandQueue();
 
-            var objectIds = new HashSet<int>();
+            var objectIds = new HashSet<long>();
             _gameState.ForEachGameObject(o => objectIds.Add(o.Id));
 
             var threads = _envManager.GetActiveThreads();
@@ -78,7 +78,7 @@ namespace Server
             _envManager.UpdateActiveThreads(threads);
         }
 
-        public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
+        public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null)
         {
             return _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals, objectIds);
         }

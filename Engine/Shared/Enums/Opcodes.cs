@@ -302,33 +302,33 @@ public enum Opcode : byte {
     PushFloatAssign = 0x9A,
     [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
     NPushFloatAssign = 0x9B,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(1, OpcodeArgType.Int)]
     PushLocal = 0x9C,
     [OpcodeMetadata(-2)]
     GetStepTo = 0x9D,
     [OpcodeMetadata(-1)]
     GetDist = 0x9E,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(1, OpcodeArgType.Int)]
     PushArgument = 0x9F,
-    [OpcodeMetadata(0, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(0, OpcodeArgType.Int)]
     AssignLocal = 0xA0,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalPushLocalPushAdd = 0xA1,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.Float)]
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Float)]
     LocalAddFloat = 0xA2,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalMulAdd = 0xA3,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(1, OpcodeArgType.Int)]
     GetBuiltinVar = 0xA4,
-    [OpcodeMetadata(-1, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(-1, OpcodeArgType.Int)]
     SetBuiltinVar = 0xA5,
-    [OpcodeMetadata(0, true, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(0, true, OpcodeArgType.Int)]
     LocalPushReturn = 0xA6,
-    [OpcodeMetadata(1, OpcodeArgType.ArgType, OpcodeArgType.ArgType)]
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalCompareEquals = 0xA7,
-    [OpcodeMetadata(0, OpcodeArgType.ArgType, OpcodeArgType.Label)]
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
     LocalJumpIfFalse = 0xA8,
-    [OpcodeMetadata(0, OpcodeArgType.ArgType, OpcodeArgType.Label)]
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
     LocalJumpIfTrue = 0xA9,
 }
 

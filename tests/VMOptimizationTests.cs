@@ -25,23 +25,27 @@ namespace tests
             // 4: Jump(9) (5 bytes)
             // 9: Add (1 byte) -> Target
 
-            byte[] bytecode = new byte[] {
-                (byte)Opcode.PushReferenceValue, (byte)DMReference.Type.Local, 0,
-                (byte)Opcode.PushReferenceValue, (byte)DMReference.Type.Local, 1,
-                (byte)Opcode.Jump, 11, 0, 0, 0,
-                (byte)Opcode.Add
-            };
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.AddRange(BitConverter.GetBytes(0)); // 6 bytes
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.AddRange(BitConverter.GetBytes(1)); // 6 bytes
+            bytecode.Add((byte)Opcode.Jump);
+            bytecode.AddRange(BitConverter.GetBytes(17)); // 5 bytes. Target is at 17.
+            bytecode.Add((byte)Opcode.Add); // PC 17
 
-            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode.ToArray());
 
-            // Verify size reduction: 3+3+5+1 = 12 -> 2+2+5+1 = 10
-            Assert.That(optimized.Length, Is.EqualTo(10));
+            // Verify size reduction: 6+6+5+1 = 18 -> 5+5+5+1 = 16
+            Assert.That(optimized.Length, Is.EqualTo(16));
             Assert.That(optimized[0], Is.EqualTo((byte)Opcode.PushLocal));
-            Assert.That(optimized[2], Is.EqualTo((byte)Opcode.PushLocal));
-            Assert.That(optimized[4], Is.EqualTo((byte)Opcode.Jump));
+            Assert.That(optimized[5], Is.EqualTo((byte)Opcode.PushLocal));
+            Assert.That(optimized[10], Is.EqualTo((byte)Opcode.Jump));
 
-            int target = BitConverter.ToInt32(optimized, 5);
-            Assert.That(target, Is.EqualTo(9)); // Target should be updated from 11 to 9
+            int target = BitConverter.ToInt32(optimized, 11);
+            Assert.That(target, Is.EqualTo(15)); // Target should be updated from 17 to 15
         }
 
         [Test]
@@ -57,20 +61,26 @@ namespace tests
             // 0: LocalPushLocalPushAdd(0, 1) (3 bytes) -> -4 bytes
             // 3: Jump(0) (5 bytes)
 
-            byte[] bytecode = new byte[] {
-                (byte)Opcode.PushReferenceValue, (byte)DMReference.Type.Local, 0,
-                (byte)Opcode.PushReferenceValue, (byte)DMReference.Type.Local, 1,
-                (byte)Opcode.Add,
-                (byte)Opcode.Jump, 0, 0, 0, 0
-            };
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.AddRange(BitConverter.GetBytes(0));
+            bytecode.Add((byte)Opcode.PushReferenceValue);
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.AddRange(BitConverter.GetBytes(1));
+            bytecode.Add((byte)Opcode.Add);
+            bytecode.Add((byte)Opcode.Jump);
+            bytecode.AddRange(BitConverter.GetBytes(0));
 
-            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode.ToArray());
 
-            Assert.That(optimized.Length, Is.EqualTo(8));
+            // 1 (Opcode) + 4 (idx1) + 4 (idx2) = 9 bytes
+            // + 1 (Jump) + 4 (target) = 14 bytes
+            Assert.That(optimized.Length, Is.EqualTo(14));
             Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalPushLocalPushAdd));
-            Assert.That(optimized[3], Is.EqualTo((byte)Opcode.Jump));
+            Assert.That(optimized[9], Is.EqualTo((byte)Opcode.Jump));
 
-            int target = BitConverter.ToInt32(optimized, 4);
+            int target = BitConverter.ToInt32(optimized, 10);
             Assert.That(target, Is.EqualTo(0));
         }
 
@@ -78,20 +88,21 @@ namespace tests
         public void BytecodeOptimizer_HandlesVariableArgsCorrectly()
         {
             // PushNRefs(1) followed by Local reference
-            // Opcode(1) + Count(4) + RefType(1) + Idx(1) = 7 bytes
-            byte[] bytecode = new byte[] {
-                (byte)Opcode.PushNRefs, 1, 0, 0, 0,
-                (byte)DMReference.Type.Local, 5,
-                (byte)Opcode.Return
-            };
+            // Opcode(1) + Count(4) + [RefType(1) + Idx(4)] = 10 bytes
+            var bytecode = new List<byte>();
+            bytecode.Add((byte)Opcode.PushNRefs);
+            bytecode.AddRange(BitConverter.GetBytes(1));
+            bytecode.Add((byte)DMReference.Type.Local);
+            bytecode.AddRange(BitConverter.GetBytes(5));
+            bytecode.Add((byte)Opcode.Return);
 
             // It should NOT try to optimize the Local reference inside PushNRefs
-            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode.ToArray());
 
-            Assert.That(optimized.Length, Is.EqualTo(8));
+            Assert.That(optimized.Length, Is.EqualTo(11));
             Assert.That(optimized[0], Is.EqualTo((byte)Opcode.PushNRefs));
             Assert.That(optimized[5], Is.EqualTo((byte)DMReference.Type.Local));
-            Assert.That(optimized[6], Is.EqualTo(5));
+            Assert.That(BitConverter.ToInt32(optimized, 6), Is.EqualTo(5));
         }
     }
 }

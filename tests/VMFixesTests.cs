@@ -42,7 +42,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(1)); // typeId
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             Assert.DoesNotThrow(() => thread.Run(1000));
@@ -63,7 +63,7 @@ namespace tests
             var newBytecode = new List<byte> { (byte)Opcode.PushFloat };
             newBytecode.AddRange(BitConverter.GetBytes(123.0));
             newBytecode.Add((byte)Opcode.Return);
-            var newProc = new DreamProc("New", newBytecode.ToArray(), Array.Empty<string>(), 0);
+            var newProc = new DreamProc("New", newBytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             type.Procs["New"] = newProc;
 
             // Main test bytecode: new /test()
@@ -74,7 +74,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(1)); // 0 args + 1 type = stack delta 1
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -100,7 +100,7 @@ namespace tests
             var parentBytecode = new List<byte> { (byte)Opcode.PushFloat };
             parentBytecode.AddRange(BitConverter.GetBytes(42.0));
             parentBytecode.Add((byte)Opcode.Return);
-            var attackProcParent = new DreamProc("attack", parentBytecode.ToArray(), Array.Empty<string>(), 0);
+            var attackProcParent = new DreamProc("attack", parentBytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             parentType.Procs["attack"] = attackProcParent;
 
             // Child proc: calls ..() and returns its result
@@ -108,7 +108,7 @@ namespace tests
             childBytecode.Add((byte)(byte)DMCallArgumentsType.None);
             childBytecode.AddRange(BitConverter.GetBytes(0)); // 0 args
             childBytecode.Add((byte)Opcode.Return);
-            var attackProcChild = new DreamProc("attack", childBytecode.ToArray(), Array.Empty<string>(), 0);
+            var attackProcChild = new DreamProc("attack", childBytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             childType.Procs["attack"] = attackProcChild;
 
             // Execute attackProcChild on a /child instance
@@ -246,18 +246,18 @@ namespace tests
             var parentBytecode = new List<byte> { (byte)Opcode.PushFloat };
             parentBytecode.AddRange(BitConverter.GetBytes(42.0));
             parentBytecode.Add((byte)Opcode.Return);
-            var proc = new DreamProc("test_proc", parentBytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test_proc", parentBytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
 
             // test_proc() call where test_proc is in local 0
             var bytecode = new List<byte> { (byte)Opcode.Call };
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0); // Index 0
+            bytecode.AddRange(BitConverter.GetBytes(0)); // Index 0
             bytecode.Add((byte)DMCallArgumentsType.None);
             bytecode.AddRange(BitConverter.GetBytes(0)); // 0 args
             bytecode.AddRange(BitConverter.GetBytes(0)); // unused
             bytecode.Add((byte)Opcode.Return);
 
-            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 1, new List<string>());
             var thread = new DreamThread(mainProc, _vm.Context, 1000);
 
             // Push the proc to local 0
@@ -293,7 +293,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(456.0));
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -367,7 +367,7 @@ namespace tests
             bytecode.Add((byte)Opcode.Length);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -399,7 +399,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(3));
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), new[] { "arg1" }, 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), new[] { "arg1" }, 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Usr = usrObj;
             thread.Push(new DreamValue(123f)); // arg1
@@ -432,7 +432,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(0)); // stringId 0 ("counter")
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000, obj);
 
             thread.Run(1000);
@@ -453,7 +453,7 @@ namespace tests
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0); // list is in local 0
+            bytecode.AddRange(BitConverter.GetBytes(0)); // list is in local 0
 
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(1.0)); // index 1
@@ -465,7 +465,7 @@ namespace tests
             bytecode.Add((byte)DMReference.Type.ListIndex);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Push(new DreamValue(list)); // local 0
 
@@ -490,13 +490,13 @@ namespace tests
             var procBytecode = new List<byte>();
             procBytecode.Add((byte)Opcode.PushReferenceValue);
             procBytecode.Add((byte)DMReference.Type.Argument);
-            procBytecode.Add(0); // arg1
+            procBytecode.AddRange(BitConverter.GetBytes(0)); // arg1
             procBytecode.Add((byte)Opcode.PushReferenceValue);
             procBytecode.Add((byte)DMReference.Type.Argument);
-            procBytecode.Add(1); // arg2
+            procBytecode.AddRange(BitConverter.GetBytes(1)); // arg2
             procBytecode.Add((byte)Opcode.Add);
             procBytecode.Add((byte)Opcode.Return);
-            var targetProc = new DreamProc("my_proc", procBytecode.ToArray(), new[] { "arg1", "arg2" }, 0);
+            var targetProc = new DreamProc("my_proc", procBytecode.ToArray(), new[] { "arg1", "arg2" }, 0, new List<string>());
             type.Procs["my_proc"] = targetProc;
 
             var obj = new GameObject(type);
@@ -515,7 +515,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(3)); // 3 stack delta (obj + 2 args)
             bytecode.Add((byte)Opcode.Return);
 
-            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 0, _vm.Context.Strings);
             var thread = new DreamThread(mainProc, _vm.Context, 1000, obj);
 
             thread.Run(1000);
@@ -565,7 +565,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(1.0));
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000, obj);
 
             thread.Run(1000);
@@ -583,7 +583,7 @@ namespace tests
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0); // list is in local 0
+            bytecode.AddRange(BitConverter.GetBytes(0)); // list is in local 0
 
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(1.0)); // index 1
@@ -595,7 +595,7 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(42.0));
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Push(new DreamValue(list)); // local 0
 
@@ -610,9 +610,9 @@ namespace tests
             // try { throw "error" } catch(var/e) { return e }
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.Try);
-            bytecode.AddRange(BitConverter.GetBytes(15)); // Catch address
+            bytecode.AddRange(BitConverter.GetBytes(18));
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0); // catch variable in local 0
+            bytecode.AddRange(BitConverter.GetBytes(0)); // catch variable in local 0
 
             bytecode.Add((byte)Opcode.PushString);
             bytecode.AddRange(BitConverter.GetBytes(0)); // string 0 ("error")
@@ -621,16 +621,16 @@ namespace tests
             bytecode.Add((byte)Opcode.EndTry);
             bytecode.Add((byte)Opcode.Return);
 
-            // Catch block at 15
+            // Catch block at 18
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0);
+            bytecode.AddRange(BitConverter.GetBytes(0));
             bytecode.Add((byte)Opcode.Return);
 
             _vm.Context.Strings.Clear();
             _vm.Context.Strings.Add("error");
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -658,7 +658,7 @@ namespace tests
             bytecode.Add((byte)Opcode.IsSaved);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -680,7 +680,7 @@ namespace tests
             _vm.Context.Strings.Clear();
             _vm.Context.Strings.Add("abc");
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -719,7 +719,7 @@ namespace tests
             var bytecode = new List<byte>();
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0); // Pushes the list from local 0
+            bytecode.AddRange(BitConverter.GetBytes(0)); // Pushes the list from local 0
             bytecode.Add((byte)Opcode.PushFloat);
             bytecode.AddRange(BitConverter.GetBytes(1.0)); // index 1
 
@@ -729,7 +729,7 @@ namespace tests
 
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Push(new DreamValue(list)); // local 0
 
@@ -748,23 +748,23 @@ namespace tests
             bytecode.AddRange(BitConverter.GetBytes(2)); // N = 2
             bytecode.AddRange(BitConverter.GetBytes(5.0)); // value = 5
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0);
+            bytecode.AddRange(BitConverter.GetBytes(0));
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(1);
+            bytecode.AddRange(BitConverter.GetBytes(1));
 
             // Push locals to verify
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(0);
+            bytecode.AddRange(BitConverter.GetBytes(0));
             bytecode.Add((byte)Opcode.PushReferenceValue);
             bytecode.Add((byte)DMReference.Type.Local);
-            bytecode.Add(1);
+            bytecode.AddRange(BitConverter.GetBytes(1));
 
             bytecode.Add((byte)Opcode.CreateList);
             bytecode.AddRange(BitConverter.GetBytes(3)); // [result, local0, local1]
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 2);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 2, new List<string>());
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);

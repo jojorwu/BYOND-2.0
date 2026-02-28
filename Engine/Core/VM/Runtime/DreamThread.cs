@@ -28,8 +28,8 @@ public struct TryBlock
 /// </summary>
 public partial class DreamThread : IScriptThread, IDisposable
 {
-    public const int MaxCallStackDepth = 65536;
-    public const int MaxStackSize = 10485760;
+    public int MaxCallStackDepth { get; set; } = 65536;
+    public int MaxStackSize { get; set; } = 10485760;
     internal DreamValue[] _stack;
     internal int _stackPtr = 0;
     internal CallFrame[] _callStack = new CallFrame[1024];
@@ -151,9 +151,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
     }
 
-    public void Sleep(float seconds)
+    public void Sleep(double seconds)
     {
-        if (float.IsNaN(seconds) || seconds <= 0) seconds = 0;
+        if (double.IsNaN(seconds) || seconds <= 0) seconds = 0;
         // Max 1 year to prevent DateTime overflow
         if (seconds > 31536000) seconds = 31536000;
 
@@ -226,12 +226,12 @@ public partial class DreamThread : IScriptThread, IDisposable
         return value;
     }
 
-    internal float ReadSingle(DreamProc proc, ref int pc)
+    internal double ReadDouble(DreamProc proc, ref int pc)
     {
-        if (pc + 4 > proc.Bytecode.Length)
+        if (pc + 8 > proc.Bytecode.Length)
             throw new Exception("Attempted to read past the end of the bytecode.");
-        var value = BinaryPrimitives.ReadSingleLittleEndian(proc.Bytecode.AsSpan(pc));
-        pc += 4;
+        var value = BinaryPrimitives.ReadDoubleLittleEndian(proc.Bytecode.AsSpan(pc));
+        pc += 8;
         return value;
     }
 
@@ -305,7 +305,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         var refType = (DMReference.Type)bytecode[pc++];
         if (refType == DMReference.Type.Local || refType == DMReference.Type.Argument)
         {
-            return new DMReference { RefType = refType, Index = bytecode[pc++] };
+            var idx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+            pc += 4;
+            return new DMReference { RefType = refType, Index = idx };
         }
 
         if (refType >= DMReference.Type.Global && refType <= DMReference.Type.GlobalProc)
@@ -315,7 +317,7 @@ public partial class DreamThread : IScriptThread, IDisposable
             return new DMReference { RefType = refType, Index = globalIdx };
         }
 
-        if (refType >= DMReference.Type.Field && refType <= DMReference.Type.SrcField)
+        if (refType >= DMReference.Type.Field && refType <= DMReference.Type.SrcProc)
         {
             var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
             pc += 4;
@@ -399,7 +401,7 @@ public partial class DreamThread : IScriptThread, IDisposable
                     {
                         if (index.Type == DreamValueType.Float)
                         {
-                            int i = (int)index.RawFloat - 1;
+                            int i = (int)index.RawDouble - 1;
                             return (i >= 0 && i < list.Values.Count) ? list.Values[i] : DreamValue.Null;
                         }
                         return list.GetValue(index);
@@ -459,7 +461,7 @@ public partial class DreamThread : IScriptThread, IDisposable
                     {
                         if (index.Type == DreamValueType.Float)
                         {
-                            int i = (int)index.RawFloat - 1;
+                            int i = (int)index.RawDouble - 1;
                             if (i >= 0 && i < list.Values.Count)
                                 list.SetValue(i, value);
                             else if (i == list.Values.Count)

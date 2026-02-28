@@ -80,7 +80,7 @@ namespace tests
             var region = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
             _regionActivationStrategyMock.Setup(r => r.GetActiveRegions()).Returns(new HashSet<Region> { region });
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
-            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<long>>()))
                 .ReturnsAsync(new List<IScriptThread>());
 
             // Act

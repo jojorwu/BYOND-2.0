@@ -14,19 +14,19 @@ public interface IArchetypeManager
 {
     event EventHandler<Archetype>? ArchetypeCreated;
     void AddEntity(IGameObject entity);
-    void RemoveEntity(int entityId);
+    void RemoveEntity(long entityId);
     void AddComponent<T>(IGameObject entity, T component) where T : class, IComponent;
     void AddComponent(IGameObject entity, IComponent component);
     void RemoveComponent<T>(IGameObject entity) where T : class, IComponent;
     void RemoveComponent(IGameObject entity, Type componentType);
-    T? GetComponent<T>(int entityId) where T : class, IComponent;
-    IComponent? GetComponent(int entityId, Type componentType);
+    T? GetComponent<T>(long entityId) where T : class, IComponent;
+    IComponent? GetComponent(long entityId, Type componentType);
     IEnumerable<T> GetComponents<T>() where T : class, IComponent;
     IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent;
     IEnumerable<IComponent> GetComponents(Type componentType);
-    IEnumerable<IComponent> GetAllComponents(int entityId);
+    IEnumerable<IComponent> GetAllComponents(long entityId);
     IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes);
-    void ForEach<T>(Action<T, int> action) where T : class, IComponent;
+    void ForEach<T>(Action<T, long> action) where T : class, IComponent;
     void ForEachEntity(Action<IGameObject> action);
     void Compact();
 }
@@ -37,8 +37,8 @@ public class ArchetypeManager : IArchetypeManager
     private readonly List<Archetype> _archetypes = new();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
-    private readonly ConcurrentDictionary<int, Archetype> _entityToArchetype = new();
-    private readonly ConcurrentDictionary<int, Dictionary<Type, IComponent>> _entityComponents = new();
+    private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
+    private readonly ConcurrentDictionary<long, Dictionary<Type, IComponent>> _entityComponents = new();
     private readonly object[] _entityLocks = Enumerable.Range(0, 256).Select(_ => new object()).ToArray();
     private readonly ILogger<ArchetypeManager> _logger;
 
@@ -47,7 +47,7 @@ public class ArchetypeManager : IArchetypeManager
         _logger = logger;
     }
 
-    private object GetEntityLock(int entityId) => _entityLocks[(uint)entityId % _entityLocks.Length];
+    private object GetEntityLock(long entityId) => _entityLocks[(uint)entityId % _entityLocks.Length];
 
     public void AddEntity(IGameObject entity)
     {
@@ -58,7 +58,7 @@ public class ArchetypeManager : IArchetypeManager
         }
     }
 
-    public void RemoveEntity(int entityId)
+    public void RemoveEntity(long entityId)
     {
         lock (GetEntityLock(entityId))
         {
@@ -167,7 +167,7 @@ public class ArchetypeManager : IArchetypeManager
 
     private void MoveToArchetypeInternal(IGameObject entity, Type? componentType = null, bool added = true)
     {
-        int entityId = entity.Id;
+        long entityId = entity.Id;
         if (!_entityComponents.TryGetValue(entityId, out var components)) return;
 
         if (components.Count == 0)
@@ -230,12 +230,12 @@ public class ArchetypeManager : IArchetypeManager
         _entityToArchetype[entityId] = targetArchetype;
     }
 
-    public T? GetComponent<T>(int entityId) where T : class, IComponent
+    public T? GetComponent<T>(long entityId) where T : class, IComponent
     {
         return GetComponent(entityId, typeof(T)) as T;
     }
 
-    public IComponent? GetComponent(int entityId, Type componentType)
+    public IComponent? GetComponent(long entityId, Type componentType)
     {
         if (_entityToArchetype.TryGetValue(entityId, out var archetype))
         {
@@ -283,7 +283,7 @@ public class ArchetypeManager : IArchetypeManager
         }
     }
 
-    public IEnumerable<IComponent> GetAllComponents(int entityId)
+    public IEnumerable<IComponent> GetAllComponents(long entityId)
     {
         if (_entityComponents.TryGetValue(entityId, out var components))
         {
@@ -320,7 +320,7 @@ public class ArchetypeManager : IArchetypeManager
         return results ?? Enumerable.Empty<Archetype>();
     }
 
-    public void ForEach<T>(Action<T, int> action) where T : class, IComponent
+    public void ForEach<T>(Action<T, long> action) where T : class, IComponent
     {
         if (_typeToArchetypesCache.TryGetValue(typeof(T), out var archetypes))
         {

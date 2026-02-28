@@ -20,24 +20,24 @@ namespace Core.VM.Procs
 
                 if (args.Length >= 4)
                 {
-                    dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 10000000);
-                    centerX = (int)args[1].GetValueAsFloat();
-                    centerY = (int)args[2].GetValueAsFloat();
-                    centerZ = (int)args[3].GetValueAsFloat();
+                    dist = Math.Clamp((int)args[0].GetValueAsDouble(), 0, 10000000);
+                    centerX = (int)args[1].GetValueAsDouble();
+                    centerY = (int)args[2].GetValueAsDouble();
+                    centerZ = (int)args[3].GetValueAsDouble();
                 }
                 else
                 {
                     GameObject? center = null;
                     if (args.Length >= 2)
                     {
-                        dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 10000000);
+                        dist = Math.Clamp((int)args[0].GetValueAsDouble(), 0, 10000000);
                         args[1].TryGetValueAsGameObject(out center);
                     }
                     else if (args.Length == 1)
                     {
                         if (!args[0].TryGetValueAsGameObject(out center))
                         {
-                            dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 10000000);
+                            dist = Math.Clamp((int)args[0].GetValueAsDouble(), 0, 10000000);
                         }
                     }
 
@@ -65,14 +65,14 @@ namespace Core.VM.Procs
 
                 if (args.Length >= 2)
                 {
-                    dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 10000000);
+                    dist = Math.Clamp((int)args[0].GetValueAsDouble(), 0, 10000000);
                     args[1].TryGetValueAsGameObject(out viewer);
                 }
                 else if (args.Length == 1)
                 {
                     if (!args[0].TryGetValueAsGameObject(out viewer))
                     {
-                        dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 10000000);
+                        dist = Math.Clamp((int)args[0].GetValueAsDouble(), 0, 10000000);
                     }
                 }
 
@@ -87,27 +87,27 @@ namespace Core.VM.Procs
 
             procs["step"] = new NativeProc("step", (thread, src, args) =>
             {
-                if (thread.Context.GameApi == null || args.Length < 2) return new DreamValue(0f);
+                if (thread.Context.GameApi == null || args.Length < 2) return new DreamValue(0.0);
                 if (args[0].TryGetValueAsGameObject(out var obj) && obj is GameObject gameObj)
                 {
-                    int dir = (int)args[1].GetValueAsFloat();
-                    int speed = args.Length >= 3 ? (int)args[2].GetValueAsFloat() : 0;
-                    return new DreamValue((float)thread.Context.GameApi.StdLib.Step(gameObj, dir, speed));
+                    int dir = (int)args[1].GetValueAsDouble();
+                    int speed = args.Length >= 3 ? (int)args[2].GetValueAsDouble() : 0;
+                    return new DreamValue((double)thread.Context.GameApi.StdLib.Step(gameObj, dir, speed));
                 }
-                return new DreamValue(0f);
+                return new DreamValue(0.0);
             });
 
             procs["step_to"] = new NativeProc("step_to", (thread, src, args) =>
             {
-                if (thread.Context.GameApi == null || args.Length < 2) return new DreamValue(0f);
+                if (thread.Context.GameApi == null || args.Length < 2) return new DreamValue(0.0);
                 if (args[0].TryGetValueAsGameObject(out var obj) && obj is GameObject gameObj &&
                     args[1].TryGetValueAsGameObject(out var target) && target is GameObject targetObj)
                 {
-                    int minDist = args.Length >= 3 ? (int)args[2].GetValueAsFloat() : 0;
-                    int speed = args.Length >= 4 ? (int)args[3].GetValueAsFloat() : 0;
-                    return new DreamValue((float)thread.Context.GameApi.StdLib.StepTo(gameObj, targetObj, minDist, speed));
+                    int minDist = args.Length >= 3 ? (int)args[2].GetValueAsDouble() : 0;
+                    int speed = args.Length >= 4 ? (int)args[3].GetValueAsDouble() : 0;
+                    return new DreamValue((double)thread.Context.GameApi.StdLib.StepTo(gameObj, targetObj, minDist, speed));
                 }
-                return new DreamValue(0f);
+                return new DreamValue(0.0);
             });
 
             return procs;

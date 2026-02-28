@@ -3,6 +3,7 @@ using Shared.Interfaces;
 using System.Collections.Generic;
 using System.Linq;
 using Core.VM.Procs;
+using Core.Services;
 using System;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,15 +26,18 @@ namespace Core.VM.Runtime
         private readonly IEnumerable<INativeProcProvider> _nativeProcProviders;
         private readonly IBytecodeInterpreter _interpreter;
         private readonly IObjectFactory? _objectFactory;
+        private readonly IDynamicLimitService? _limitService;
 
-        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
+        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IDynamicLimitService? limitService = null, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
         {
             _settings = settings.Value;
             _logger = logger;
             _nativeProcProviders = nativeProcProviders;
             _objectFactory = objectFactory;
             _interpreter = interpreter ?? new BytecodeInterpreter();
+            _limitService = limitService;
             Context.ObjectFactory = objectFactory;
+            if (_limitService != null) Context.MaxGlobals = _limitService.MaxGlobals;
         }
 
         public void Initialize()
@@ -65,7 +69,13 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, interpreter: _interpreter);
+                var thread = new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, interpreter: _interpreter);
+                if (_limitService != null)
+                {
+                    thread.MaxStackSize = _limitService.MaxStackSize;
+                    thread.MaxCallStackDepth = _limitService.MaxCallStackDepth;
+                }
+                return thread;
             }
             _logger.LogError("/world/proc/New not found. Is the script compiled correctly?");
             return null;
@@ -75,7 +85,13 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, associatedObject, _interpreter);
+                var thread = new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, associatedObject, _interpreter);
+                if (_limitService != null)
+                {
+                    thread.MaxStackSize = _limitService.MaxStackSize;
+                    thread.MaxCallStackDepth = _limitService.MaxCallStackDepth;
+                }
+                return thread;
             }
 
             _logger.LogWarning("Could not find proc '{ProcName}' to create a thread.", procName);

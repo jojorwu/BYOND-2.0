@@ -9,7 +9,7 @@ namespace Server
     {
         private readonly NetPeer _peer;
         private readonly NetDataWriterPool _writerPool;
-        public System.Collections.Generic.IDictionary<int, long> LastSentVersions { get; } = new System.Collections.Concurrent.ConcurrentDictionary<int, long>();
+        public System.Collections.Generic.IDictionary<long, long> LastSentVersions { get; } = new System.Collections.Concurrent.ConcurrentDictionary<long, long>();
 
         public UdpNetworkPeer(NetPeer peer, NetDataWriterPool writerPool)
         {

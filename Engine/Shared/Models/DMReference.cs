@@ -54,16 +54,12 @@ public struct DMReference {
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static DMReference CreateArgument(int argId) {
-        if (argId > 255) throw new Exception("Argument id is greater than the maximum of 255");
-
-        return new DMReference { RefType = Type.Argument, Index = (byte)argId };
+        return new DMReference { RefType = Type.Argument, Index = argId };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static DMReference CreateLocal(int local) {
-        if (local > 255) throw new Exception("Local variable id is greater than the maximum of 255");
-
-        return new DMReference { RefType = Type.Local, Index = (byte)local };
+        return new DMReference { RefType = Type.Local, Index = local };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

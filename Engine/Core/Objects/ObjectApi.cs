@@ -36,7 +36,7 @@ namespace Core.Api
             }
         }
 
-        public GameObject? GetObject(int id)
+        public GameObject? GetObject(long id)
         {
             using (_gameState.ReadLock())
             {
@@ -45,7 +45,7 @@ namespace Core.Api
             }
         }
 
-        public void DestroyObject(int id)
+        public void DestroyObject(long id)
         {
             using (_gameState.WriteLock())
             {
@@ -58,7 +58,7 @@ namespace Core.Api
             }
         }
 
-        public void MoveObject(int id, int x, int y, int z)
+        public void MoveObject(long id, int x, int y, int z)
         {
             using (_gameState.WriteLock())
             {

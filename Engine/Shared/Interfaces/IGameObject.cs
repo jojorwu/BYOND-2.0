@@ -15,7 +15,7 @@ namespace Shared;
         /// <summary>
         /// Unique identifier for this object.
         /// </summary>
-        int Id { get; }
+        long Id { get; }
 
         /// <summary>
         /// X-coordinate in the spatial grid.

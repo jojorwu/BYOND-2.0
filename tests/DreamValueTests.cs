@@ -149,21 +149,22 @@ namespace tests
         }
 
         [Test]
-        public void BitwiseParity_24Bit_Test()
+        public void Bitwise_53Bit_Test()
         {
-            // BYOND uses 24-bit bitwise operations
-            var largeValue = new DreamValue((float)0xFFFFFFFF); // All bits set
-            var maskedValue = ~largeValue;
+            // Now using full bitwise operations up to the precision of a double (53 bits)
+            // 0x1FFFFFFFFFFFFFL is the maximum safe integer (53 bits)
+            var largeValue = new DreamValue((double)0xFFFFFFFFL);
+            var bitNot = ~largeValue;
 
-            // In 32-bit: ~0xFFFFFFFF = 0
-            // In 24-bit: (~0xFFFFFFFF) & 0xFFFFFF = 0
-            Assert.That(maskedValue.AsInt(), Is.EqualTo(0));
+            // ~0xFFFFFFFF in 64-bit
+            Assert.That((long)bitNot.GetValueAsDouble(), Is.EqualTo(~0xFFFFFFFFL));
 
-            var val1 = new DreamValue((float)0x123456);
-            var val2 = new DreamValue((float)0xF0F0F0);
+            // Use 48-bit values to ensure they fit in a double without precision loss
+            var val1 = new DreamValue((double)0x123456789ABCL);
+            var val2 = new DreamValue((double)0xF0F0F0F0F0F0L);
 
-            Assert.That((val1 & val2).AsInt(), Is.EqualTo((0x123456 & 0xF0F0F0) & 0x00FFFFFF));
-            Assert.That((val1 | val2).AsInt(), Is.EqualTo((0x123456 | 0xF0F0F0) & 0x00FFFFFF));
+            Assert.That((long)(val1 & val2).GetValueAsDouble(), Is.EqualTo(0x123456789ABCL & 0xF0F0F0F0F0F0L));
+            Assert.That((long)(val1 | val2).GetValueAsDouble(), Is.EqualTo(0x123456789ABCL | 0xF0F0F0F0F0F0L));
         }
     }
 }

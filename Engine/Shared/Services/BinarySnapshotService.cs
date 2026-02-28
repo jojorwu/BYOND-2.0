@@ -15,7 +15,7 @@ namespace Shared.Services;
             _interner = interner;
         }
 
-        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions, out bool truncated)
+        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
         {
             int offset = 0;
             truncated = false;
@@ -28,16 +28,16 @@ namespace Shared.Services;
                 }
 
                 // Check if we have enough space for the basic object data
-                // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
-                if (offset + 32 > destination.Length)
+                // Estimate: ID(10) + Version(10) + Type(5) + 3*Int(4) + PropCount(5) = 45 bytes
+                if (offset + 45 > destination.Length)
                 {
                     truncated = true;
                     break;
                 }
 
                 int startOffset = offset;
-                offset += WriteVarInt(destination.Slice(offset), obj.Id);
-                offset += WriteVarInt(destination.Slice(offset), (int)obj.Version);
+                offset += WriteVarInt64(destination.Slice(offset), obj.Id);
+                offset += WriteVarInt64(destination.Slice(offset), obj.Version);
                 offset += WriteVarInt(destination.Slice(offset), obj.ObjectType?.Id ?? -1);
                 BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.X);
                 offset += 4;
@@ -84,7 +84,7 @@ namespace Shared.Services;
             return offset;
         }
 
-        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
+        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions = null)
         {
             int bufferSize = 65536;
             while (true)
@@ -126,6 +126,19 @@ namespace Shared.Services;
             return count;
         }
 
+        private int WriteVarInt64(Span<byte> span, long value)
+        {
+            ulong v = (ulong)value;
+            int count = 0;
+            while (v >= 0x80)
+            {
+                span[count++] = (byte)(v | 0x80);
+                v >>= 7;
+            }
+            span[count++] = (byte)v;
+            return count;
+        }
+
         public int ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
         {
             int result = 0;
@@ -140,21 +153,35 @@ namespace Shared.Services;
             }
         }
 
-        public void Deserialize(byte[] data, IDictionary<int, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
+        public long ReadVarInt64(ReadOnlySpan<byte> span, out int bytesRead)
+        {
+            long result = 0;
+            int shift = 0;
+            bytesRead = 0;
+            while (true)
+            {
+                byte b = span[bytesRead++];
+                result |= (long)(b & 0x7f) << shift;
+                if ((b & 0x80) == 0) return result;
+                shift += 7;
+            }
+        }
+
+        public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
             ReadOnlySpan<byte> span = data;
             int offset = 0;
-            var unresolvedReferences = new List<(GameObject target, int propIdx, int refId)>();
+            var unresolvedReferences = new List<(GameObject target, int propIdx, long refId)>();
 
             while (offset < span.Length)
             {
-                int id = ReadVarInt(span.Slice(offset), out int idBytes);
+                long id = ReadVarInt64(span.Slice(offset), out int idBytes);
                 offset += idBytes;
                 if (id == 0) break;
 
                 GameObject.EnsureNextId(id);
 
-                int version = ReadVarInt(span.Slice(offset), out int vBytes);
+                long version = ReadVarInt64(span.Slice(offset), out int vBytes);
                 offset += vBytes;
                 int typeId = ReadVarInt(span.Slice(offset), out int tBytes);
                 offset += tBytes;
@@ -204,7 +231,7 @@ namespace Shared.Services;
                     {
                         if (val.IsObjectIdReference)
                         {
-                            unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
+                        unresolvedReferences.Add((gameObject, propIdx, (long)val.ObjectId));
                         }
                         else
                         {

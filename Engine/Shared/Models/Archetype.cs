@@ -11,10 +11,10 @@ namespace Shared.Models;
 public struct ArchetypeChunk<T> where T : class, IComponent
 {
     public readonly T[] Components;
-    public readonly int[] EntityIds;
+    public readonly long[] EntityIds;
     public readonly int Count;
 
-    public ArchetypeChunk(T[] components, int[] entityIds, int count)
+    public ArchetypeChunk(T[] components, long[] entityIds, int count)
     {
         Components = components;
         EntityIds = entityIds;
@@ -27,9 +27,9 @@ public struct ArchetypeChunk<T> where T : class, IComponent
 /// </summary>
 public class Archetype
 {
-    private int[] _entityIds = System.Array.Empty<int>();
+    private long[] _entityIds = System.Array.Empty<long>();
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
-    private readonly ConcurrentDictionary<int, int> _entityIdToIndex = new();
+    private readonly ConcurrentDictionary<long, int> _entityIdToIndex = new();
     internal readonly Dictionary<Type, IComponentArray> _componentArrays = new();
     private readonly object _lock = new();
     private int _count = 0;
@@ -88,7 +88,7 @@ public class Archetype
         }
     }
 
-    public void RemoveEntity(int entityId)
+    public void RemoveEntity(long entityId)
     {
         lock (_lock)
         {
@@ -101,7 +101,7 @@ public class Archetype
             int lastIndex = _count - 1;
             if (index != lastIndex)
             {
-                int lastEntityId = _entityIds[lastIndex];
+                long lastEntityId = _entityIds[lastIndex];
                 IGameObject lastEntity = _entities[lastIndex];
 
                 _entityIds[index] = lastEntityId;
@@ -135,7 +135,7 @@ public class Archetype
                 return new ArchetypeChunk<T>(((ComponentArray<T>)array).Data, _entityIds, _count);
             }
         }
-        return new ArchetypeChunk<T>(System.Array.Empty<T>(), System.Array.Empty<int>(), 0);
+        return new ArchetypeChunk<T>(System.Array.Empty<T>(), System.Array.Empty<long>(), 0);
     }
 
     internal T[] GetComponentsInternal<T>() where T : class, IComponent
@@ -157,7 +157,7 @@ public class Archetype
     /// Executes an action on each component of type T. Faster than GetComponents as it avoids array copying.
     /// WARNING: The action must not perform structural changes on this archetype.
     /// </summary>
-    public void ForEach<T>(Action<T, int> action) where T : class, IComponent
+    public void ForEach<T>(Action<T, long> action) where T : class, IComponent
     {
         if (_componentArrays.TryGetValue(typeof(T), out var array))
         {
@@ -243,9 +243,9 @@ public class Archetype
         return Array.Empty<IComponent>();
     }
 
-    public bool ContainsEntity(int entityId) => _entityIdToIndex.ContainsKey(entityId);
+    public bool ContainsEntity(long entityId) => _entityIdToIndex.ContainsKey(entityId);
 
-    public void SetComponent(int entityId, IComponent component)
+    public void SetComponent(long entityId, IComponent component)
     {
         lock (_lock)
         {
@@ -260,7 +260,7 @@ public class Archetype
         }
     }
 
-    public IComponent? GetComponent(int entityId, Type type)
+    public IComponent? GetComponent(long entityId, Type type)
     {
         lock (_lock)
         {
@@ -308,12 +308,12 @@ public class Archetype
         public IComponent Get(int index) => Data[index];
     }
 
-    public int[] GetEntityIdsSnapshot()
+    public long[] GetEntityIdsSnapshot()
     {
         lock (_lock)
         {
             int count = _count;
-            int[] snapshot = new int[count];
+            long[] snapshot = new long[count];
             Array.Copy(_entityIds, snapshot, count);
             return snapshot;
         }

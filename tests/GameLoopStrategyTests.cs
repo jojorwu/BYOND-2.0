@@ -78,7 +78,7 @@ namespace tests
 
             _regionActivationStrategyMock.Setup(rm => rm.GetActiveRegions()).Returns(activeRegions);
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
-            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<long>>()))
                 .ReturnsAsync(new List<IScriptThread>());
             _gameStateSnapshotterMock.Setup(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>())).Returns("snapshot");
 
@@ -88,7 +88,7 @@ namespace tests
             // Assert
             _regionActivationStrategyMock.Verify(rm => rm.GetActiveRegions(), Times.Once);
             _gameStateSnapshotterMock.Verify(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>()), Times.AtLeastOnce);
-            _scriptHostMock.Verify(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()), Times.AtLeastOnce());
+            _scriptHostMock.Verify(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<long>>()), Times.AtLeastOnce());
             _udpServerMock.Verify(u => u.BroadcastSnapshot(It.IsAny<MergedRegion>(), "snapshot"), Times.AtLeastOnce);
         }
 

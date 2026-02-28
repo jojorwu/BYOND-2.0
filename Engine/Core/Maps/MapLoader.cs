@@ -141,7 +141,7 @@ namespace Core.Maps
 
                                     // We only save it if it's different from the default value
                                     // To keep it simple for now, we save everything
-                                    if (val.TryGetValue(out float f)) props[varName] = f;
+                                    if (val.TryGetValue(out double d)) props[varName] = d;
                                     else if (val.TryGetValue(out string? s)) props[varName] = s;
                                     else if (val.Type == DreamValueType.Null) props[varName] = null;
                                     else props[varName] = val.ToString();

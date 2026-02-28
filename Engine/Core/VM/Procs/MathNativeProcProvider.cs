@@ -12,32 +12,32 @@ namespace Core.VM.Procs
             var procs = new Dictionary<string, IDreamProc>();
 
             procs["abs"] = new NativeProc("abs", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.Abs(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.Abs(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["sin"] = new NativeProc("sin", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.Sin(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.Sin(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["cos"] = new NativeProc("cos", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.Cos(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.Cos(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["tan"] = new NativeProc("tan", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.Tan(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.Tan(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["sqrt"] = new NativeProc("sqrt", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.Sqrt(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.Sqrt(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["arcsin"] = new NativeProc("arcsin", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.ArcSin(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.ArcSin(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["arccos"] = new NativeProc("arccos", (thread, src, args) =>
-                args.Length > 0 ? new DreamValue(SharedOperations.ArcCos(args[0].GetValueAsFloat())) : DreamValue.Null);
+                args.Length > 0 ? new DreamValue(SharedOperations.ArcCos(args[0].GetValueAsDouble())) : DreamValue.Null);
 
             procs["arctan"] = new NativeProc("arctan", (thread, src, args) =>
             {
                 if (args.Length >= 2)
-                    return new DreamValue(SharedOperations.ArcTan(args[0].GetValueAsFloat(), args[1].GetValueAsFloat()));
+                    return new DreamValue(SharedOperations.ArcTan(args[0].GetValueAsDouble(), args[1].GetValueAsDouble()));
                 if (args.Length >= 1)
-                    return new DreamValue(SharedOperations.ArcTan(args[0].GetValueAsFloat()));
+                    return new DreamValue(SharedOperations.ArcTan(args[0].GetValueAsDouble()));
                 return DreamValue.Null;
             });
 

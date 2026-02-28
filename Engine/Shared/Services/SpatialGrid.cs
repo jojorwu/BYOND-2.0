@@ -200,7 +200,7 @@ namespace Shared;
                 return;
             }
 
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000000000) return;
 
             for (int x = startGX; x <= endGX; x++)
             {
@@ -264,8 +264,7 @@ namespace Shared;
                 return;
             }
 
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000000000) return;
 
             for (int x = startGX; x <= endGX; x++)
             {
@@ -352,7 +351,7 @@ namespace Shared;
             }
 
             // Prevent DoS via huge search area
-            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000)
+            if ((long)(endGX - startGX + 1) * (endGY - startGY + 1) > 10000000000)
             {
                 return;
             }

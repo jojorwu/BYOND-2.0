@@ -24,7 +24,7 @@ namespace Shared.Services;
             public ObjectType? ObjectType;
             public IComponent? Component;
             public Type? ComponentType;
-            public int X, Y, Z;
+            public long X, Y, Z;
         }
 
         private class CommandList : IDisposable
@@ -80,7 +80,7 @@ namespace Shared.Services;
             });
         }
 
-        public void CreateObject(ObjectType objectType, int x = 0, int y = 0, int z = 0)
+        public void CreateObject(ObjectType objectType, long x = 0, long y = 0, long z = 0)
         {
             _localCommands.Value!.Add(new Command { Type = CommandType.Create, ObjectType = objectType, X = x, Y = y, Z = z });
         }

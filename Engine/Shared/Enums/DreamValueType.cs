@@ -3,6 +3,7 @@ namespace Shared.Enums;
 
 public enum DreamValueType {
     Float,
+    Integer,
     String,
     Null,
     DreamObject,

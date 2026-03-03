@@ -73,21 +73,20 @@ public static class SharedOperations {
         return a - b * Math.Floor(a / b);
     }
 
-    //because BYOND has everything as a 32 bit float with 8 bit mantissa, we need to chop off the
-    //top 8 bits when bit shifting for parity.
-    //We also handle negative shift amounts (by swapping left/right) and large shift amounts (resulting in 0).
+    // Removed the 24-bit shift limit and 0x00FFFFFF mask to support the fundamental 64-bit architecture transition.
+    // We also handle negative shift amounts (by swapping left/right) and large shift amounts (resulting in 0).
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int BitShiftLeft(int left, int right) {
-        if (right <= 0) return (right == 0) ? (left & 0x00FFFFFF) : BitShiftRight(left, -right);
-        if (right >= 24) return 0;
-        return (left << right) & 0x00FFFFFF;
+    public static long BitShiftLeft(long left, long right) {
+        if (right <= 0) return (right == 0) ? left : BitShiftRight(left, -right);
+        if (right >= 64) return 0;
+        return left << (int)right;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int BitShiftRight(int left, int right) {
-        if (right <= 0) return (right == 0) ? (left & 0x00FFFFFF) : BitShiftLeft(left, -right);
-        if (right >= 24) return 0;
-        return (left & 0x00FFFFFF) >> right;
+    public static long BitShiftRight(long left, long right) {
+        if (right <= 0) return (right == 0) ? left : BitShiftLeft(left, -right);
+        if (right >= 64) return 0;
+        return (long)((ulong)left >> (int)right);
     }
 
     public enum ColorSpace {

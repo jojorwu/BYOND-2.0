@@ -205,10 +205,10 @@ namespace Core.Maps
 
         private class TurfData
         {
-            public int X { get; set; }
-            public int Y { get; set; }
-            public int Z { get; set; }
-            public int Id { get; set; }
+            public long X { get; set; }
+            public long Y { get; set; }
+            public long Z { get; set; }
+            public long Id { get; set; }
             public List<GameObjectData> Contents { get; set; } = new List<GameObjectData>();
         }
 

@@ -16,12 +16,12 @@ namespace Shared;
 [JsonConverter(typeof(GameObjectConverter))]
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
-    private static int nextId = 1;
+    private static long nextId = 1;
     private static readonly object _globalHierarchyLock = new();
 
-    public static void EnsureNextId(int id)
+    public static void EnsureNextId(long id)
     {
-        int current;
+        long current;
         do
         {
             current = nextId;
@@ -36,13 +36,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the unique identifier for the game object.
     /// </summary>
-    public int Id { get; set; }
+    public long Id { get; set; }
 
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
     public event Action<IGameObject>? StateChanged;
-    internal event Action<GameObject, int, int, int>? PositionChanged;
+    internal event Action<GameObject, long, long, long>? PositionChanged;
 
     private int _isDirty;
     protected override void IncrementVersion()
@@ -61,20 +61,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public IGameObject? NextInGridCell { get; set; }
     public IGameObject? PrevInGridCell { get; set; }
-    public long? CurrentGridCellKey { get; set; }
+    public (long X, long Y)? CurrentGridCellKey { get; set; }
 
-    private int _x;
-    private int _committedX;
+    private long _x;
+    private long _committedX;
     /// <summary>
     /// Gets or sets the X-coordinate of the game object.
     /// </summary>
-    public int X
+    public long X
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get { lock (_lock) return _x; }
         set
         {
-            int oldX, oldY, oldZ;
+            long oldX, oldY, oldZ;
             lock (_lock)
             {
                 oldX = _x;
@@ -92,20 +92,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed X-coordinate, used for consistent reads across threads.
     /// </summary>
-    public int CommittedX => _committedX;
+    public long CommittedX => _committedX;
 
-    private int _y;
-    private int _committedY;
+    private long _y;
+    private long _committedY;
     /// <summary>
     /// Gets or sets the Y-coordinate of the game object.
     /// </summary>
-    public int Y
+    public long Y
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get { lock (_lock) return _y; }
         set
         {
-            int oldX, oldY, oldZ;
+            long oldX, oldY, oldZ;
             lock (_lock)
             {
                 oldY = _y;
@@ -123,20 +123,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Y-coordinate, used for consistent reads across threads.
     /// </summary>
-    public int CommittedY => _committedY;
+    public long CommittedY => _committedY;
 
-    private int _z;
-    private int _committedZ;
+    private long _z;
+    private long _committedZ;
     /// <summary>
     /// Gets or sets the Z-coordinate of the game object.
     /// </summary>
-    public int Z
+    public long Z
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get { lock (_lock) return _z; }
         set
         {
-            int oldX, oldY, oldZ;
+            long oldX, oldY, oldZ;
             lock (_lock)
             {
                 oldZ = _z;
@@ -154,7 +154,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Z-coordinate, used for consistent reads across threads.
     /// </summary>
-    public int CommittedZ => _committedZ;
+    public long CommittedZ => _committedZ;
 
     private string _icon = string.Empty;
     public string Icon
@@ -370,9 +370,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": X = (int)value.GetValueAsDouble(); return;
-                case "y": Y = (int)value.GetValueAsDouble(); return;
-                case "z": Z = (int)value.GetValueAsDouble(); return;
+                case "x": X = (long)value.GetValueAsDouble(); return;
+                case "y": Y = (long)value.GetValueAsDouble(); return;
+                case "z": Z = (long)value.GetValueAsDouble(); return;
                 case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
                 case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
                 case "dir": Dir = (int)value.GetValueAsDouble(); return;
@@ -421,9 +421,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                         case BuiltinVar.Layer: _layer = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelX: _pixelX = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelY: _pixelY = value.GetValueAsDouble(); break;
-                        case BuiltinVar.X: X = (int)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Y: Y = (int)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Z: Z = (int)value.GetValueAsDouble(); break;
+                        case BuiltinVar.X: X = (long)value.GetValueAsDouble(); break;
+                        case BuiltinVar.Y: Y = (long)value.GetValueAsDouble(); break;
+                        case BuiltinVar.Z: Z = (long)value.GetValueAsDouble(); break;
                         case BuiltinVar.Loc:
                             if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                                 Loc = loc;
@@ -495,7 +495,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         Id = Interlocked.Increment(ref nextId);
     }
 
-    public void Initialize(ObjectType objectType, int x, int y, int z)
+    public void Initialize(ObjectType objectType, long x, long y, long z)
     {
         base.Initialize(objectType);
         _x = x;
@@ -519,7 +519,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <param name="x">The X-coordinate of the game object.</param>
     /// <param name="y">The Y-coordinate of the game object.</param>
     /// <param name="z">The Z-coordinate of the game object.</param>
-    public GameObject(ObjectType objectType, int x, int y, int z) : this(objectType)
+    public GameObject(ObjectType objectType, long x, long y, long z) : this(objectType)
     {
         X = x;
         Y = y;
@@ -532,7 +532,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <param name="x">The new X-coordinate.</param>
     /// <param name="y">The new Y-coordinate.</param>
     /// <param name="z">The new Z-coordinate.</param>
-    public void SetPosition(int x, int y, int z)
+    public void SetPosition(long x, long y, long z)
     {
         X = x;
         Y = y;

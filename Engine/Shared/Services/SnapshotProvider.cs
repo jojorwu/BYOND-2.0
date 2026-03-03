@@ -7,7 +7,7 @@ namespace Shared.Services;
     public interface IGameStateSnapshot
     {
         IEnumerable<IGameObject> GetObjects();
-        IGameObject? GetObject(int id);
+        IGameObject? GetObject(long id);
     }
 
     public interface ISnapshotProvider
@@ -37,12 +37,12 @@ namespace Shared.Services;
         private class EmptySnapshot : IGameStateSnapshot
         {
             public IEnumerable<IGameObject> GetObjects() => Enumerable.Empty<IGameObject>();
-            public IGameObject? GetObject(int id) => null;
+            public IGameObject? GetObject(long id) => null;
         }
 
         private class StateSnapshot : IGameStateSnapshot
         {
-            private readonly Dictionary<int, IGameObject> _objects;
+            private readonly Dictionary<long, IGameObject> _objects;
 
             public StateSnapshot(List<IGameObject> objects)
             {
@@ -50,6 +50,6 @@ namespace Shared.Services;
             }
 
             public IEnumerable<IGameObject> GetObjects() => _objects.Values;
-            public IGameObject? GetObject(int id) => _objects.TryGetValue(id, out var obj) ? obj : null;
+            public IGameObject? GetObject(long id) => _objects.TryGetValue(id, out var obj) ? obj : null;
         }
     }

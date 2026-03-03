@@ -28,7 +28,7 @@ namespace Core.Api
             Thread.Sleep(milliseconds);
         }
 
-        public List<GameObject> Range(int distance, int centerX, int centerY, int centerZ)
+        public List<GameObject> Range(int distance, long centerX, long centerY, long centerZ)
         {
             return _spatialQueryApi.Range(distance, centerX, centerY, centerZ);
         }
@@ -46,8 +46,8 @@ namespace Core.Api
             if ((dir & 4) != 0) dx++; // EAST
             if ((dir & 8) != 0) dx--; // WEST
 
-            int newX = obj.X + dx;
-            int newY = obj.Y + dy;
+            long newX = obj.X + dx;
+            long newY = obj.Y + dy;
 
             // Simple collision check: check if the target turf is walkable
             var turf = _mapApi.GetTurf(newX, newY, obj.Z);

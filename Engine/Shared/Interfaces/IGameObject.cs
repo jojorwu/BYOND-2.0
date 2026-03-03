@@ -15,22 +15,22 @@ namespace Shared;
         /// <summary>
         /// Unique identifier for this object.
         /// </summary>
-        int Id { get; }
+        long Id { get; }
 
         /// <summary>
         /// X-coordinate in the spatial grid.
         /// </summary>
-        int X { get; set; }
+        long X { get; set; }
 
         /// <summary>
         /// Y-coordinate in the spatial grid.
         /// </summary>
-        int Y { get; set; }
+        long Y { get; set; }
 
         /// <summary>
         /// Z-coordinate (map level).
         /// </summary>
-        int Z { get; set; }
+        long Z { get; set; }
 
         /// <summary>
         /// The location of this object (container or turf).
@@ -75,14 +75,14 @@ namespace Shared;
         /// <summary>
         /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
         /// </summary>
-        long? CurrentGridCellKey { get; set; }
+        (long X, long Y)? CurrentGridCellKey { get; set; }
 
         /// <summary>
         /// Committed coordinates for thread-safe reading.
         /// </summary>
-        int CommittedX { get; }
-        int CommittedY { get; }
-        int CommittedZ { get; }
+        long CommittedX { get; }
+        long CommittedY { get; }
+        long CommittedZ { get; }
 
         /// <summary>
         /// Commits the current state to the read-only buffer.
@@ -97,7 +97,7 @@ namespace Shared;
         /// <summary>
         /// Updates the object's 3D position in the world.
         /// </summary>
-        void SetPosition(int x, int y, int z);
+        void SetPosition(long x, long y, long z);
 
         /// <summary>
         /// Retrieves a variable value by its string name.

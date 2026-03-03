@@ -2,15 +2,22 @@ using Shared.Enums;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Shared;
     [JsonConverter(typeof(DreamValueConverter))]
+    [StructLayout(LayoutKind.Explicit)]
     public readonly struct DreamValue : IEquatable<DreamValue>
     {
+        [FieldOffset(0)]
         public readonly DreamValueType Type;
+        [FieldOffset(8)]
         private readonly double _floatValue;
+        [FieldOffset(8)]
+        private readonly long _longValue;
+        [FieldOffset(16)]
         private readonly object? _objectValue;
 
         public static readonly DreamValue Null = new DreamValue();
@@ -25,69 +32,84 @@ namespace Shared;
 
         public DreamValue()
         {
-            Type = DreamValueType.Null;
             _floatValue = 0;
+            _longValue = 0;
             _objectValue = null;
+            Type = DreamValueType.Null;
         }
 
         public DreamValue(double value)
         {
+            _objectValue = null;
             Type = DreamValueType.Float;
             _floatValue = value;
-            _objectValue = null;
         }
 
         public DreamValue(float value)
         {
+            _objectValue = null;
             Type = DreamValueType.Float;
             _floatValue = value;
+        }
+
+        public DreamValue(long value)
+        {
             _objectValue = null;
+            Type = DreamValueType.Integer;
+            _longValue = value;
         }
 
         public DreamValue(string value)
         {
-            Type = DreamValueType.String;
-            _floatValue = 0;
+            _longValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
+            Type = DreamValueType.String;
         }
 
         private DreamValue(DreamValueType type, double floatValue, object? objectValue)
         {
-            Type = type;
             _floatValue = floatValue;
+            Type = type;
             _objectValue = objectValue;
         }
 
-        internal static DreamValue CreateObjectIdReference(int objectId)
+        private DreamValue(DreamValueType type, long longValue, object? objectValue)
+        {
+            _longValue = longValue;
+            Type = type;
+            _objectValue = objectValue;
+        }
+
+        public static DreamValue CreateObjectIdReference(long objectId)
         {
             return new DreamValue(DreamValueType.DreamObject, objectId, null);
         }
 
         public DreamValue(DreamObject value)
         {
+            _longValue = 0;
             Type = DreamValueType.DreamObject;
-            _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
         public DreamValue(ObjectType value)
         {
+            _longValue = 0;
             Type = DreamValueType.DreamType;
-            _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
         public DreamValue(DreamResource value)
         {
+            _longValue = 0;
             Type = DreamValueType.DreamResource;
-            _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
         public DreamValue(IDreamProc value)
         {
+            _longValue = 0;
             Type = DreamValueType.DreamProc;
-            _floatValue = 0;
             _objectValue = value ?? throw new ArgumentNullException(nameof(value));
         }
 
@@ -217,41 +239,47 @@ namespace Shared;
         }
 
         public bool IsObjectIdReference => Type == DreamValueType.DreamObject && _objectValue == null;
-        public int ObjectId => (int)_floatValue;
+        public long ObjectId => _longValue;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public double AsDouble()
         {
-            if (Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a double");
-            return _floatValue;
+            if (Type == DreamValueType.Float) return _floatValue;
+            if (Type == DreamValueType.Integer) return (double)_longValue;
+            throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a double");
         }
 
         public float AsFloat()
         {
-            if (Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a float");
-            return (float)_floatValue;
+            if (Type == DreamValueType.Float) return (float)_floatValue;
+            if (Type == DreamValueType.Integer) return (float)_longValue;
+            throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as a float");
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int AsInt()
         {
-            if (Type != DreamValueType.Float)
-                throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as an int");
-            return (int)_floatValue;
+            if (Type == DreamValueType.Float) return (int)_floatValue;
+            if (Type == DreamValueType.Integer) return (int)_longValue;
+            throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as an int");
         }
 
         public double RawDouble
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _floatValue;
+            get => (Type == DreamValueType.Float) ? _floatValue : (double)_longValue;
+        }
+
+        public long RawLong
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => (Type == DreamValueType.Float) ? (long)_floatValue : _longValue;
         }
 
         public float RawFloat
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => (float)_floatValue;
+            get => (float)RawDouble;
         }
 
         public static implicit operator DreamValue(double value) => new DreamValue(value);
@@ -269,9 +297,10 @@ namespace Shared;
             {
                 null => Null,
                 string s => new DreamValue(s),
-                int i => new DreamValue(i),
+                int i => new DreamValue((long)i),
+                long l => new DreamValue(l),
                 float f => new DreamValue(f),
-                double d => new DreamValue((float)d),
+                double d => new DreamValue(d),
                 DreamObject o => new DreamValue(o),
                 ObjectType t => new DreamValue(t),
                 DreamResource r => new DreamValue(r),
@@ -303,6 +332,7 @@ namespace Shared;
             return Type switch
             {
                 DreamValueType.Float => _floatValue.ToString(CultureInfo.InvariantCulture),
+                DreamValueType.Integer => _longValue.ToString(CultureInfo.InvariantCulture),
                 DreamValueType.String => (string)_objectValue! ?? string.Empty,
                 DreamValueType.DreamObject => _objectValue?.ToString() ?? string.Empty,
                 DreamValueType.Null => string.Empty,
@@ -317,8 +347,9 @@ namespace Shared;
             return Type switch
             {
                 DreamValueType.Float => _floatValue,
+                DreamValueType.Integer => (double)_longValue,
                 DreamValueType.Null => 0.0,
-                _ => 0.0 // Optimized fallback to 0 for non-math types to avoid checks in operators
+                _ => (double)_longValue // Optimized fallback to _longValue for other types
             };
         }
 
@@ -330,9 +361,13 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator +(DreamValue a, DreamValue b)
         {
-            // Hot path: both are floats
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                return new DreamValue(a._floatValue + b._floatValue);
+            // Hot path: numeric
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+            {
+                if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                    return new DreamValue(a._longValue + b._longValue);
+                return new DreamValue(a.RawDouble + b.RawDouble);
+            }
 
             // String concatenation
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
@@ -368,9 +403,13 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator -(DreamValue a, DreamValue b)
         {
-            // Hot path: both are floats
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                return new DreamValue(a._floatValue - b._floatValue);
+            // Hot path: numeric
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+            {
+                if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                    return new DreamValue(a._longValue - b._longValue);
+                return new DreamValue(a.RawDouble - b.RawDouble);
+            }
 
             // List subtraction
             if (a.Type == DreamValueType.DreamObject && a._objectValue is DreamList listA)
@@ -394,8 +433,12 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator *(DreamValue a, DreamValue b)
         {
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                return new DreamValue(a._floatValue * b._floatValue);
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+            {
+                if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                    return new DreamValue(a._longValue * b._longValue);
+                return new DreamValue(a.RawDouble * b.RawDouble);
+            }
             return new DreamValue(a.GetValueAsDouble() * b.GetValueAsDouble());
         }
 
@@ -435,6 +478,9 @@ namespace Shared;
             if (Type == DreamValueType.Float)
                 return BitConverter.DoubleToInt64Bits(_floatValue) == BitConverter.DoubleToInt64Bits(other._floatValue);
 
+            if (Type == DreamValueType.Integer)
+                return _longValue == other._longValue;
+
             return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue != null && _objectValue.Equals(other._objectValue));
         }
 
@@ -444,6 +490,7 @@ namespace Shared;
             // Use bit-level representation for floats to avoid fuzzy hash issues in collections
             // while maintaining speed.
             if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
+            if (Type == DreamValueType.Integer) return _longValue.GetHashCode();
             if (Type == DreamValueType.Null) return 0;
 
             return HashCode.Combine(Type, _objectValue);
@@ -461,9 +508,20 @@ namespace Shared;
 
             // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)
-                return b.Type == DreamValueType.Float && (b._floatValue == 0 || Math.Abs(b._floatValue) < 0.00001);
+            {
+                if (b.Type == DreamValueType.Float) return b._floatValue == 0 || Math.Abs(b._floatValue) < 0.00001;
+                if (b.Type == DreamValueType.Integer) return b._longValue == 0;
+            }
             if (b.Type == DreamValueType.Null)
-                return a.Type == DreamValueType.Float && (a._floatValue == 0 || Math.Abs(a._floatValue) < 0.00001);
+            {
+                if (a.Type == DreamValueType.Float) return a._floatValue == 0 || Math.Abs(a._floatValue) < 0.00001;
+                if (a.Type == DreamValueType.Integer) return a._longValue == 0;
+            }
+
+            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Integer)
+                return a._floatValue == b._longValue || Math.Abs(a._floatValue - b._longValue) < 0.00001;
+            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Float)
+                return a._longValue == b._floatValue || Math.Abs(a._longValue - b._floatValue) < 0.00001;
 
             return false;
         }
@@ -529,49 +587,37 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator &(DreamValue a, DreamValue b)
         {
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                return new DreamValue(((int)a._floatValue & (int)b._floatValue) & 0x00FFFFFF);
-            return new DreamValue(((int)a.GetValueAsDouble() & (int)b.GetValueAsDouble()) & 0x00FFFFFF);
+            return new DreamValue(a.RawLong & b.RawLong);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator |(DreamValue a, DreamValue b)
         {
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                return new DreamValue(((int)a._floatValue | (int)b._floatValue) & 0x00FFFFFF);
-            return new DreamValue(((int)a.GetValueAsDouble() | (int)b.GetValueAsDouble()) & 0x00FFFFFF);
+            return new DreamValue(a.RawLong | b.RawLong);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator ^(DreamValue a, DreamValue b)
         {
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Float)
-                return new DreamValue(((int)a._floatValue ^ (int)b._floatValue) & 0x00FFFFFF);
-            return new DreamValue(((int)a.GetValueAsDouble() ^ (int)b.GetValueAsDouble()) & 0x00FFFFFF);
+            return new DreamValue(a.RawLong ^ b.RawLong);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator ~(DreamValue a)
         {
-            if (a.Type == DreamValueType.Float)
-                return new DreamValue((~(int)a._floatValue) & 0x00FFFFFF);
-            return new DreamValue((~(int)a.GetValueAsDouble()) & 0x00FFFFFF);
+            return new DreamValue(~a.RawLong);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator <<(DreamValue a, DreamValue b)
         {
-            int valA = (a.Type == DreamValueType.Float) ? (int)a._floatValue : (int)a.GetValueAsDouble();
-            int valB = (b.Type == DreamValueType.Float) ? (int)b._floatValue : (int)b.GetValueAsDouble();
-            return new DreamValue(SharedOperations.BitShiftLeft(valA, valB));
+            return new DreamValue(SharedOperations.BitShiftLeft(a.RawLong, b.RawLong));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator >>(DreamValue a, DreamValue b)
         {
-            int valA = (a.Type == DreamValueType.Float) ? (int)a._floatValue : (int)a.GetValueAsDouble();
-            int valB = (b.Type == DreamValueType.Float) ? (int)b._floatValue : (int)b.GetValueAsDouble();
-            return new DreamValue(SharedOperations.BitShiftRight(valA, valB));
+            return new DreamValue(SharedOperations.BitShiftRight(a.RawLong, b.RawLong));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -583,6 +629,8 @@ namespace Shared;
                     return true;
                 case DreamValueType.Float:
                     return _floatValue == 0.0;
+                case DreamValueType.Integer:
+                    return _longValue == 0;
                 case DreamValueType.String:
                     return ((string)_objectValue!).Length == 0;
                 default:
@@ -597,6 +645,9 @@ namespace Shared;
             {
                 case DreamValueType.Float:
                     writer.WriteNumberValue(_floatValue);
+                    break;
+                case DreamValueType.Integer:
+                    writer.WriteNumberValue(_longValue);
                     break;
                 case DreamValueType.String:
                     writer.WriteStringValue((string)_objectValue!);
@@ -619,6 +670,9 @@ namespace Shared;
                 case DreamValueType.Float:
                     size += 8;
                     break;
+                case DreamValueType.Integer:
+                    size += 8;
+                    break;
                 case DreamValueType.String:
                     {
                         int len = System.Text.Encoding.UTF8.GetByteCount((string)_objectValue!);
@@ -629,7 +683,7 @@ namespace Shared;
                     break;
                 case DreamValueType.DreamObject:
                     size += 1; // Boolean flag
-                    if (_objectValue is GameObject) size += 4; // ID
+                    if (_objectValue is GameObject) size += 8; // ID
                     else
                     {
                         int len = System.Text.Encoding.UTF8.GetByteCount(ToString());
@@ -646,9 +700,9 @@ namespace Shared;
             return size;
         }
 
-        private static int GetVarIntSize(int value)
+        private static int GetVarIntSize(long value)
         {
-            uint v = (uint)value;
+            ulong v = (ulong)value;
             int count = 1;
             while (v >= 0x80)
             {
@@ -668,6 +722,9 @@ namespace Shared;
                 case DreamValueType.Float:
                     System.Buffers.Binary.BinaryPrimitives.WriteDoubleLittleEndian(span.Slice(offset), _floatValue);
                     return offset + 8;
+                case DreamValueType.Integer:
+                    System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(span.Slice(offset), _longValue);
+                    return offset + 8;
                 case DreamValueType.String:
                     {
                         var s = (string)_objectValue!;
@@ -684,8 +741,8 @@ namespace Shared;
                     if (_objectValue is GameObject g)
                     {
                         span[offset++] = 1; // Boolean true
-                        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(span.Slice(offset), g.Id);
-                        return offset + 4;
+                        System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(span.Slice(offset), g.Id);
+                        return offset + 8;
                     }
                     else
                     {
@@ -709,9 +766,9 @@ namespace Shared;
             }
         }
 
-        private static int WriteVarInt(Span<byte> span, int value)
+        private static int WriteVarInt(Span<byte> span, long value)
         {
-            uint v = (uint)value;
+            ulong v = (ulong)value;
             int count = 0;
             while (v >= 0x80)
             {
@@ -731,12 +788,15 @@ namespace Shared;
                 case DreamValueType.Float:
                     bytesRead = offset + 8;
                     return new DreamValue(System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(span.Slice(offset)));
+                case DreamValueType.Integer:
+                    bytesRead = offset + 8;
+                    return new DreamValue(System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(span.Slice(offset)));
                 case DreamValueType.String:
                     {
-                        int len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        long len = ReadVarInt(span.Slice(offset), out int lenBytes);
                         offset += lenBytes;
-                        bytesRead = offset + len;
-                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, len)));
+                        bytesRead = offset + (int)len;
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
                     }
                 case DreamValueType.Null:
                     bytesRead = offset;
@@ -744,35 +804,35 @@ namespace Shared;
                 case DreamValueType.DreamObject:
                     if (span[offset++] != 0)
                     {
-                        bytesRead = offset + 4;
-                        return CreateObjectIdReference(System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset)));
+                        bytesRead = offset + 8;
+                        return CreateObjectIdReference(System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(span.Slice(offset)));
                     }
                     else
                     {
-                        int len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        long len = ReadVarInt(span.Slice(offset), out int lenBytes);
                         offset += lenBytes;
-                        bytesRead = offset + len;
-                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, len)));
+                        bytesRead = offset + (int)len;
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
                     }
                 default:
                     {
-                        int len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        long len = ReadVarInt(span.Slice(offset), out int lenBytes);
                         offset += lenBytes;
-                        bytesRead = offset + len;
-                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, len)));
+                        bytesRead = offset + (int)len;
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
                     }
             }
         }
 
-        private static int ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
+        private static long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
         {
-            int result = 0;
+            long result = 0;
             int shift = 0;
             bytesRead = 0;
             while (true)
             {
                 byte b = span[bytesRead++];
-                result |= (b & 0x7f) << shift;
+                result |= (long)(b & 0x7f) << shift;
                 if ((b & 0x80) == 0) return result;
                 shift += 7;
             }

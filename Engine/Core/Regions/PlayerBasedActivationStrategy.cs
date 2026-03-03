@@ -32,12 +32,12 @@ namespace Core.Regions
             _playerManager.ForEachPlayerObject(playerObject =>
             {
                 var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
-                var regionCoords = new Vector2i(
-                    (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
-                    (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
+                var regionCoords = (
+                    (long)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                    (long)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
                 );
 
-                if (_regionManager.TryGetRegion(playerObject.Z, regionCoords, out var region))
+                if (_regionManager.TryGetRegion((int)playerObject.Z, regionCoords, out var region))
                 {
                     playerCenterRegions.Add(region);
                 }
@@ -54,7 +54,7 @@ namespace Core.Regions
                     {
                         for (int y = -range; y <= range; y++)
                         {
-                            var targetCoords = new Vector2i(centerRegion.Coords.X + x, centerRegion.Coords.Y + y);
+                            var targetCoords = (centerRegion.Coords.X + x, centerRegion.Coords.Y + y);
                             if (_regionManager.TryGetRegion(currentZ, targetCoords, out var region))
                             {
                                 activeRegions.Add(region);
@@ -66,15 +66,15 @@ namespace Core.Regions
             return activeRegions;
         }
 
-        public void SetRegionActive(int x, int y, int z, bool active)
+        public void SetRegionActive(long x, long y, long z, bool active)
         {
             var (chunkCoords, _) = Map.GlobalToChunk(x, y);
-            var regionCoords = new Vector2i(
-                (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
-                (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
+            var regionCoords = (
+                (long)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                (long)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
             );
 
-            if (_regionManager.TryGetRegion(z, regionCoords, out var region))
+            if (_regionManager.TryGetRegion((int)z, regionCoords, out var region))
             {
                 if (active)
                     _scriptActivatedRegions[region] = (float)_stopwatch.Elapsed.TotalSeconds;

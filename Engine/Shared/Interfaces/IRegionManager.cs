@@ -7,5 +7,5 @@ namespace Shared;
     {
         void Initialize();
         IEnumerable<Region> GetRegions(int z);
-        bool TryGetRegion(int z, Vector2i coords, [NotNullWhen(true)] out Region? region);
+        bool TryGetRegion(int z, (long X, long Y) coords, [NotNullWhen(true)] out Region? region);
     }

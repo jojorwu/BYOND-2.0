@@ -23,11 +23,11 @@ namespace Server
             _jobSystem = jobSystem;
         }
 
-        public async System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<int>? objectIds = null)
+        public async System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null)
         {
             if (objectIds == null)
             {
-                objectIds = new HashSet<int>();
+                objectIds = new HashSet<long>();
                 foreach (var obj in objectsToTick)
                 {
                     objectIds.Add(obj.Id);
@@ -90,7 +90,7 @@ namespace Server
             return nextThreads;
         }
 
-        private void ProcessThread(IScriptThread thread, bool processGlobals, HashSet<int>? objectIds, ConcurrentBag<IScriptThread> nextThreads, int instructionSlice)
+        private void ProcessThread(IScriptThread thread, bool processGlobals, HashSet<long>? objectIds, ConcurrentBag<IScriptThread> nextThreads, int instructionSlice)
         {
             if (thread is DreamThread dreamThread)
                 {

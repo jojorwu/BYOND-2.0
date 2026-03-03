@@ -21,7 +21,7 @@ namespace Shared;
         /// <summary>
         /// All active game objects indexed by their ID.
         /// </summary>
-        IDictionary<int, GameObject> GameObjects { get; }
+        IDictionary<long, GameObject> GameObjects { get; }
 
         /// <summary>
         /// Acquires a shared read lock.
@@ -56,7 +56,7 @@ namespace Shared;
         /// <summary>
         /// Updates an object's spatial registration after movement.
         /// </summary>
-        void UpdateGameObject(GameObject gameObject, int oldX, int oldY);
+        void UpdateGameObject(GameObject gameObject, long oldX, long oldY);
 
         /// <summary>
         /// Retrieves all objects that have been modified since the last clear.

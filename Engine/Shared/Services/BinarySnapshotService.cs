@@ -15,7 +15,7 @@ namespace Shared.Services;
             _interner = interner;
         }
 
-        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions, out bool truncated)
+        public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
         {
             int offset = 0;
             truncated = false;
@@ -37,14 +37,11 @@ namespace Shared.Services;
 
                 int startOffset = offset;
                 offset += WriteVarInt(destination.Slice(offset), obj.Id);
-                offset += WriteVarInt(destination.Slice(offset), (int)obj.Version);
-                offset += WriteVarInt(destination.Slice(offset), obj.ObjectType?.Id ?? -1);
-                BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.X);
-                offset += 4;
-                BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.Y);
-                offset += 4;
-                BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(offset), obj.Z);
-                offset += 4;
+                offset += WriteVarInt(destination.Slice(offset), obj.Version);
+                offset += WriteVarInt(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
+                offset += WriteVarInt(destination.Slice(offset), obj.X);
+                offset += WriteVarInt(destination.Slice(offset), obj.Y);
+                offset += WriteVarInt(destination.Slice(offset), obj.Z);
 
                 if (obj.ObjectType != null)
                 {
@@ -84,7 +81,7 @@ namespace Shared.Services;
             return offset;
         }
 
-        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<int, long>? lastVersions = null)
+        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions = null)
         {
             int bufferSize = 65536;
             while (true)
@@ -113,9 +110,9 @@ namespace Shared.Services;
         }
 
 
-        private int WriteVarInt(Span<byte> span, int value)
+        private int WriteVarInt(Span<byte> span, long value)
         {
-            uint v = (uint)value;
+            ulong v = (ulong)value;
             int count = 0;
             while (v >= 0x80)
             {
@@ -126,45 +123,45 @@ namespace Shared.Services;
             return count;
         }
 
-        public int ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
+        public long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
         {
-            int result = 0;
+            long result = 0;
             int shift = 0;
             bytesRead = 0;
             while (true)
             {
                 byte b = span[bytesRead++];
-                result |= (b & 0x7f) << shift;
+                result |= (long)(b & 0x7f) << shift;
                 if ((b & 0x80) == 0) return result;
                 shift += 7;
             }
         }
 
-        public void Deserialize(byte[] data, IDictionary<int, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
+        public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
             ReadOnlySpan<byte> span = data;
             int offset = 0;
-            var unresolvedReferences = new List<(GameObject target, int propIdx, int refId)>();
+            var unresolvedReferences = new List<(GameObject target, int propIdx, long refId)>();
 
             while (offset < span.Length)
             {
-                int id = ReadVarInt(span.Slice(offset), out int idBytes);
+                long id = ReadVarInt(span.Slice(offset), out int idBytes);
                 offset += idBytes;
                 if (id == 0) break;
 
                 GameObject.EnsureNextId(id);
 
-                int version = ReadVarInt(span.Slice(offset), out int vBytes);
+                long version = ReadVarInt(span.Slice(offset), out int vBytes);
                 offset += vBytes;
-                int typeId = ReadVarInt(span.Slice(offset), out int tBytes);
+                long typeId = ReadVarInt(span.Slice(offset), out int tBytes);
                 offset += tBytes;
 
-                int x = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
-                offset += 4;
-                int y = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
-                offset += 4;
-                int z = BinaryPrimitives.ReadInt32LittleEndian(span.Slice(offset));
-                offset += 4;
+                long x = ReadVarInt(span.Slice(offset), out int xBytes);
+                offset += xBytes;
+                long y = ReadVarInt(span.Slice(offset), out int yBytes);
+                offset += yBytes;
+                long z = ReadVarInt(span.Slice(offset), out int zBytes);
+                offset += zBytes;
 
                 bool skip = false;
                 if (world.TryGetValue(id, out var gameObject))
@@ -173,7 +170,7 @@ namespace Shared.Services;
                 }
                 else
                 {
-                    var type = typeManager.GetObjectType(typeId);
+                    var type = typeManager.GetObjectType((int)typeId);
                     if (type != null)
                     {
                         gameObject = factory.Create(type, x, y, z);
@@ -191,11 +188,11 @@ namespace Shared.Services;
                     gameObject.SetPosition(x, y, z);
                 }
 
-                int propertyCount = ReadVarInt(span.Slice(offset), out int propCountBytes);
+                int propertyCount = (int)ReadVarInt(span.Slice(offset), out int propCountBytes);
                 offset += propCountBytes;
                 for (int i = 0; i < propertyCount; i++)
                 {
-                    int propIdx = ReadVarInt(span.Slice(offset), out int propIdxBytes);
+                    int propIdx = (int)ReadVarInt(span.Slice(offset), out int propIdxBytes);
                     offset += propIdxBytes;
                     var val = DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
                     offset += valBytes;

@@ -186,8 +186,8 @@ public partial class DreamThread
         if (sourceValue.TryGetValue(out DreamObject? src) && src is GameObject srcObj &&
             targetValue.TryGetValue(out DreamObject? dst) && dst is GameObject dstObj)
         {
-            int dx = dstObj.X - srcObj.X;
-            int dy = dstObj.Y - srcObj.Y;
+            long dx = dstObj.X - srcObj.X;
+            long dy = dstObj.Y - srcObj.Y;
 
             int dir = 0;
             if (dy > 0) dir |= 1; // NORTH

@@ -305,7 +305,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         var refType = (DMReference.Type)bytecode[pc++];
         if (refType == DMReference.Type.Local || refType == DMReference.Type.Argument)
         {
-            return new DMReference { RefType = refType, Index = bytecode[pc++] };
+            var idx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+            pc += 4;
+            return new DMReference { RefType = refType, Index = idx };
         }
 
         if (refType >= DMReference.Type.Global && refType <= DMReference.Type.GlobalProc)

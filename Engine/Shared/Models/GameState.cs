@@ -14,7 +14,7 @@ namespace Shared;
 
         public IMap? Map { get; set; }
         public SpatialGrid SpatialGrid { get; }
-        public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
+        public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
         private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
         private readonly IObjectFactory? _objectFactory;
 
@@ -26,7 +26,7 @@ namespace Shared;
 
         public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
 
-        IDictionary<int, GameObject> IGameState.GameObjects => GameObjects;
+        IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 
         public IDisposable ReadLock()
         {
@@ -83,12 +83,12 @@ namespace Shared;
             _objectFactory?.Destroy(gameObject);
         }
 
-        public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)
+        public void UpdateGameObject(GameObject gameObject, long oldX, long oldY)
         {
             SpatialGrid.Update(gameObject, oldX, oldY);
         }
 
-        private void OnObjectPositionChanged(GameObject obj, int oldX, int oldY, int oldZ)
+        private void OnObjectPositionChanged(GameObject obj, long oldX, long oldY, long oldZ)
         {
             UpdateGameObject(obj, oldX, oldY);
         }

@@ -258,18 +258,10 @@ namespace tests
             bytecode.Add((byte)Opcode.Return);
 
             var mainProc = new DreamProc("main", bytecode.ToArray(), Array.Empty<string>(), 1);
+
+            // local 0 is at stack base 0. The constructor will initialize it and set stackPtr to 1.
             var thread = new DreamThread(mainProc, _vm.Context, 1000);
-
-            // Push the proc to local 0
-            thread.Push(new DreamValue(proc));
-            // Stack: [proc]
-            // Frame expects locals at stack base + args count + index.
-            // main has 0 args, so local 0 is at stack base + 0.
-            // thread constructor pushes a frame with stackBase 0.
-            // So we need to push the local manually or use a proper call sequence.
-
-            // Actually, thread.Push(proc) puts it at index 0.
-            // The frame will look for it at stackBase + 0 + 0 = 0.
+            thread._stack[0] = new DreamValue(proc);
 
             thread.Run(1000);
             var result = thread.Pop();
@@ -469,7 +461,7 @@ namespace tests
 
             var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
             var thread = new DreamThread(proc, _vm.Context, 1000);
-            thread.Push(new DreamValue(list)); // local 0
+            thread._stack[0] = new DreamValue(list);
 
             thread.Run(1000);
             var result = thread.Pop();
@@ -744,7 +736,7 @@ namespace tests
 
             var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 1);
             var thread = new DreamThread(proc, _vm.Context, 1000);
-            thread.Push(new DreamValue(list)); // local 0
+            thread._stack[0] = new DreamValue(list);
 
             thread.Run(1000);
 

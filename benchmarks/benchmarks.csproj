@@ -19,4 +19,8 @@
     <Compile Remove="BenchmarkTool.cs" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="scripts\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

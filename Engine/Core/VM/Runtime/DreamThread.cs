@@ -131,9 +131,17 @@ public partial class DreamThread : IScriptThread, IDisposable
         _maxInstructions = maxInstructions;
         _interpreter = interpreter ?? new BytecodeInterpreter();
         AssociatedObject = associatedObject;
-        _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
+        _stack = ArrayPool<DreamValue>.Shared.Rent(Math.Max(1024, proc.LocalVariableCount));
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
+
+        // Initialize locals for the entry-point frame
+        int localCount = proc.LocalVariableCount;
+        if (localCount > 0)
+        {
+            _stack.AsSpan(0, localCount).Fill(DreamValue.Null);
+            _stackPtr = localCount;
+        }
     }
 
     public DreamThread(DreamThread other, int pc)

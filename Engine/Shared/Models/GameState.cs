@@ -10,9 +10,8 @@ using Shared.Interfaces;
 namespace Shared;
     public class GameState : IGameState
     {
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-
-        public IMap? Map { get; set; }
+        private IMap? _map;
+        public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
         private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
@@ -30,19 +29,16 @@ namespace Shared;
 
         public IDisposable ReadLock()
         {
-            _lock.EnterReadLock();
-            return new DisposableAction(() => _lock.ExitReadLock());
+            return new DisposableAction(() => { });
         }
 
         public IDisposable WriteLock()
         {
-            _lock.EnterWriteLock();
-            return new DisposableAction(() => _lock.ExitWriteLock());
+            return new DisposableAction(() => { });
         }
 
         public void Dispose()
         {
-            _lock.Dispose();
             // SpatialGrid is shared, should it be disposed here?
             // In BYOND 2.0, GameState is the primary owner of the simulation grid.
             SpatialGrid.Dispose();
@@ -50,10 +46,7 @@ namespace Shared;
 
         public IEnumerable<IGameObject> GetAllGameObjects()
         {
-            using (ReadLock())
-            {
-                return new List<IGameObject>(GameObjects.Values);
-            }
+            return new List<IGameObject>(GameObjects.Values);
         }
 
         public void ForEachGameObject(Action<IGameObject> action)

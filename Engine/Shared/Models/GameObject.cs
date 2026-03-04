@@ -71,7 +71,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public long X
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { lock (_lock) return _x; }
+        get => Interlocked.Read(ref _x);
         set
         {
             long oldX, oldY, oldZ;
@@ -92,7 +92,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed X-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedX => _committedX;
+    public long CommittedX => Interlocked.Read(ref _committedX);
 
     private long _y;
     private long _committedY;
@@ -102,7 +102,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public long Y
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { lock (_lock) return _y; }
+        get => Interlocked.Read(ref _y);
         set
         {
             long oldX, oldY, oldZ;
@@ -123,7 +123,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Y-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedY => _committedY;
+    public long CommittedY => Interlocked.Read(ref _committedY);
 
     private long _z;
     private long _committedZ;
@@ -133,7 +133,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public long Z
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { lock (_lock) return _z; }
+        get => Interlocked.Read(ref _z);
         set
         {
             long oldX, oldY, oldZ;
@@ -159,56 +159,56 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     private string _icon = string.Empty;
     public string Icon
     {
-        get { lock (_lock) return _icon; }
+        get => Volatile.Read(ref _icon);
         set { lock (_lock) { if (_icon != value) { _icon = value; var idx = ObjectType?.IconIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _iconState = string.Empty;
     public string IconState
     {
-        get { lock (_lock) return _iconState; }
+        get => Volatile.Read(ref _iconState);
         set { lock (_lock) { if (_iconState != value) { _iconState = value; var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private int _dir = 2;
     public int Dir
     {
-        get { lock (_lock) return _dir; }
+        get => Volatile.Read(ref _dir);
         set { lock (_lock) { if (_dir != value) { _dir = value; var idx = ObjectType?.DirIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue((double)value); IncrementVersion(); } } }
     }
 
     private double _alpha = 255.0;
     public double Alpha
     {
-        get { lock (_lock) return _alpha; }
+        get => Volatile.Read(ref _alpha);
         set { lock (_lock) { if (_alpha != value) { _alpha = value; var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _color = "#ffffff";
     public string Color
     {
-        get { lock (_lock) return _color; }
+        get => Volatile.Read(ref _color);
         set { lock (_lock) { if (_color != value) { _color = value; var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private double _layer = 2.0;
     public double Layer
     {
-        get { lock (_lock) return _layer; }
+        get => Volatile.Read(ref _layer);
         set { lock (_lock) { if (_layer != value) { _layer = value; var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private double _pixelX = 0;
     public double PixelX
     {
-        get { lock (_lock) return _pixelX; }
+        get => Volatile.Read(ref _pixelX);
         set { lock (_lock) { if (_pixelX != value) { _pixelX = value; var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private double _pixelY = 0;
     public double PixelY
     {
-        get { lock (_lock) return _pixelY; }
+        get => Volatile.Read(ref _pixelY);
         set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
@@ -219,9 +219,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         lock (_lock)
         {
-            _committedX = _x;
-            _committedY = _y;
-            _committedZ = _z;
+            Interlocked.Exchange(ref _committedX, _x);
+            Interlocked.Exchange(ref _committedY, _y);
+            Interlocked.Exchange(ref _committedZ, _z);
         }
     }
 
@@ -370,9 +370,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": X = (long)value.GetValueAsDouble(); return;
-                case "y": Y = (long)value.GetValueAsDouble(); return;
-                case "z": Z = (long)value.GetValueAsDouble(); return;
+                case "x": X = value.RawLong; return;
+                case "y": Y = value.RawLong; return;
+                case "z": Z = value.RawLong; return;
                 case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
                 case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
                 case "dir": Dir = (int)value.GetValueAsDouble(); return;
@@ -563,9 +563,29 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <param name="z">The new Z-coordinate.</param>
     public void SetPosition(long x, long y, long z)
     {
-        X = x;
-        Y = y;
-        Z = z;
+        long oldX, oldY, oldZ;
+        lock (_lock)
+        {
+            oldX = _x;
+            oldY = _y;
+            oldZ = _z;
+
+            if (oldX == x && oldY == y && oldZ == z) return;
+
+            _x = x;
+            _y = y;
+            _z = z;
+
+            var type = ObjectType;
+            if (type != null)
+            {
+                if (type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(x);
+                if (type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(y);
+                if (type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(z);
+            }
+            IncrementVersion();
+        }
+        PositionChanged?.Invoke(this, oldX, oldY, oldZ);
     }
 
     public override string ToString()

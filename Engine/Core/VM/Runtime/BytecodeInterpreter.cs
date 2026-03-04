@@ -1,5 +1,6 @@
 using Shared.Enums;
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
@@ -2673,6 +2674,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
+        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
         state.Push(state.Stack[state.LocalBase + idx]);
     }
 
@@ -2680,6 +2682,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
+        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
         state.Stack[state.LocalBase + idx] = state.Stack[state.StackPtr - 1];
     }
 
@@ -2687,6 +2690,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
+        if ((uint)idx >= (uint)state.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC, state.Thread);
         state.Push(state.Stack[state.ArgumentBase + idx]);
     }
 

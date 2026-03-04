@@ -13,21 +13,16 @@ namespace Shared;
     {
         private class Cell : IDisposable
         {
-            public IGameObject? Head;
+            public readonly HashSet<IGameObject> Objects = new();
             public readonly ReaderWriterLockSlim Lock = new(LockRecursionPolicy.NoRecursion);
 
             public void Clear()
             {
-                var current = Head;
-                while (current != null)
+                foreach (var obj in Objects)
                 {
-                    var next = current.NextInGridCell;
-                    current.NextInGridCell = null;
-                    current.PrevInGridCell = null;
-                    current.CurrentGridCellKey = null;
-                    current = next;
+                    obj.CurrentGridCellKey = null;
                 }
-                Head = null;
+                Objects.Clear();
             }
 
             public void Dispose()
@@ -90,7 +85,6 @@ namespace Shared;
         public void Add(IGameObject obj)
         {
             var key = GetCellKey(obj.X, obj.Y);
-            var cell = GetOrCreateCell(key);
 
             if (obj.CurrentGridCellKey != null)
             {
@@ -98,6 +92,8 @@ namespace Shared;
                 if (oldKey == key) return;
 
                 var oldCell = GetOrCreateCell(oldKey);
+                var cell = GetOrCreateCell(key);
+
                 // Consistent lock ordering to avoid deadlocks
                 if (CompareKeys(oldKey, key) < 0)
                 {
@@ -107,8 +103,9 @@ namespace Shared;
                         cell.Lock.EnterWriteLock();
                         try
                         {
-                            RemoveInternal(obj);
-                            AddInternal(obj, cell, key);
+                            oldCell.Objects.Remove(obj);
+                            cell.Objects.Add(obj);
+                            obj.CurrentGridCellKey = key;
                         }
                         finally
                         {
@@ -128,8 +125,9 @@ namespace Shared;
                         oldCell.Lock.EnterWriteLock();
                         try
                         {
-                            RemoveInternal(obj);
-                            AddInternal(obj, cell, key);
+                            oldCell.Objects.Remove(obj);
+                            cell.Objects.Add(obj);
+                            obj.CurrentGridCellKey = key;
                         }
                         finally
                         {
@@ -144,25 +142,18 @@ namespace Shared;
             }
             else
             {
+                var cell = GetOrCreateCell(key);
                 cell.Lock.EnterWriteLock();
                 try
                 {
-                    AddInternal(obj, cell, key);
+                    cell.Objects.Add(obj);
+                    obj.CurrentGridCellKey = key;
                 }
                 finally
                 {
                     cell.Lock.ExitWriteLock();
                 }
             }
-        }
-
-        private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
-        {
-            obj.NextInGridCell = cell.Head;
-            obj.PrevInGridCell = null;
-            if (cell.Head != null) cell.Head.PrevInGridCell = obj;
-            cell.Head = obj;
-            obj.CurrentGridCellKey = key;
         }
 
         public void Remove(IGameObject obj)
@@ -173,7 +164,8 @@ namespace Shared;
                 cell.Lock.EnterWriteLock();
                 try
                 {
-                    RemoveInternal(obj);
+                    cell.Objects.Remove(obj);
+                    obj.CurrentGridCellKey = null;
                 }
                 finally
                 {
@@ -182,23 +174,8 @@ namespace Shared;
             }
         }
 
-        private void RemoveInternal(IGameObject obj)
-        {
-            if (obj.CurrentGridCellKey == null) return;
-            if (!_grid.TryGetValue(obj.CurrentGridCellKey.Value, out var cell)) return;
-
-            if (cell.Head == obj) cell.Head = obj.NextInGridCell;
-            if (obj.PrevInGridCell != null) obj.PrevInGridCell.NextInGridCell = obj.NextInGridCell;
-            if (obj.NextInGridCell != null) obj.NextInGridCell.PrevInGridCell = obj.PrevInGridCell;
-
-            obj.NextInGridCell = null;
-            obj.PrevInGridCell = null;
-            obj.CurrentGridCellKey = null;
-        }
-
         public void Update(IGameObject obj, long oldX, long oldY)
         {
-            // Add already handles movement and checking if the key changed
             Add(obj);
         }
 
@@ -211,46 +188,12 @@ namespace Shared;
 
         public delegate void QueryCallback<TState>(IGameObject obj, ref TState state);
 
-        /// <summary>
-        /// Queries objects in a box without allocating a list, using a callback for each found object.
-        /// </summary>
         public void QueryBox(Box2l box, Action<IGameObject> callback)
         {
             long startGX = GetGridCoord(box.Left);
             long startGY = GetGridCoord(box.Bottom);
             long endGX = GetGridCoord(box.Right);
             long endGY = GetGridCoord(box.Top);
-
-            // Fast path for single-cell queries
-            if (startGX == endGX && startGY == endGY)
-            {
-                if (_grid.TryGetValue((startGX, startGY), out var cell))
-                {
-                    cell.Lock.EnterReadLock();
-                    try
-                    {
-                        var current = cell.Head;
-                        while (current != null)
-                        {
-                            var next = current.NextInGridCell;
-                            long ox = current.X;
-                            long oy = current.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
-                            {
-                                callback(current);
-                            }
-                            current = next;
-                        }
-                    }
-                    finally
-                    {
-                        cell.Lock.ExitReadLock();
-                    }
-                }
-                return;
-            }
-
-            if ((double)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
 
             for (long x = startGX; x <= endGX; x++)
             {
@@ -261,17 +204,14 @@ namespace Shared;
                         cell.Lock.EnterReadLock();
                         try
                         {
-                            var current = cell.Head;
-                            while (current != null)
+                            foreach (var obj in cell.Objects)
                             {
-                                var next = current.NextInGridCell;
-                                long ox = current.X;
-                                long oy = current.Y;
+                                long ox = obj.X;
+                                long oy = obj.Y;
                                 if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
                                 {
-                                    callback(current);
+                                    callback(obj);
                                 }
-                                current = next;
                             }
                         }
                         finally
@@ -283,46 +223,12 @@ namespace Shared;
             }
         }
 
-        /// <summary>
-        /// Queries objects in a box without allocating a list or closure, passing state to the callback.
-        /// </summary>
         public void QueryBox<TState>(Box2l box, ref TState state, QueryCallback<TState> callback)
         {
             long startGX = GetGridCoord(box.Left);
             long startGY = GetGridCoord(box.Bottom);
             long endGX = GetGridCoord(box.Right);
             long endGY = GetGridCoord(box.Top);
-
-            // Fast path for single-cell queries
-            if (startGX == endGX && startGY == endGY)
-            {
-                if (_grid.TryGetValue((startGX, startGY), out var cell))
-                {
-                    cell.Lock.EnterReadLock();
-                    try
-                    {
-                        var current = cell.Head;
-                        while (current != null)
-                        {
-                            var next = current.NextInGridCell;
-                            long ox = current.X;
-                            long oy = current.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
-                            {
-                                callback(current, ref state);
-                            }
-                            current = next;
-                        }
-                    }
-                    finally
-                    {
-                        cell.Lock.ExitReadLock();
-                    }
-                }
-                return;
-            }
-
-            if ((double)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000) return;
 
             for (long x = startGX; x <= endGX; x++)
             {
@@ -333,17 +239,14 @@ namespace Shared;
                         cell.Lock.EnterReadLock();
                         try
                         {
-                            var current = cell.Head;
-                            while (current != null)
+                            foreach (var obj in cell.Objects)
                             {
-                                var next = current.NextInGridCell;
-                                long ox = current.X;
-                                long oy = current.Y;
+                                long ox = obj.X;
+                                long oy = obj.Y;
                                 if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
                                 {
-                                    callback(current, ref state);
+                                    callback(obj, ref state);
                                 }
-                                current = next;
                             }
                         }
                         finally
@@ -360,12 +263,12 @@ namespace Shared;
             foreach (var kvp in _grid)
             {
                 var cell = kvp.Value;
-                if (cell.Head == null)
+                if (cell.Objects.Count == 0)
                 {
                     cell.Lock.EnterWriteLock();
                     try
                     {
-                        if (cell.Head == null)
+                        if (cell.Objects.Count == 0)
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
                             {
@@ -387,75 +290,7 @@ namespace Shared;
 
         public void GetObjectsInBox(Box2l box, List<IGameObject> results)
         {
-            long startGX = GetGridCoord(box.Left);
-            long startGY = GetGridCoord(box.Bottom);
-            long endGX = GetGridCoord(box.Right);
-            long endGY = GetGridCoord(box.Top);
-
-            // Fast path for single-cell queries
-            if (startGX == endGX && startGY == endGY)
-            {
-                if (_grid.TryGetValue((startGX, startGY), out var cell))
-                {
-                    cell.Lock.EnterReadLock();
-                    try
-                    {
-                        var current = cell.Head;
-                        while (current != null)
-                        {
-                            var next = current.NextInGridCell;
-                            long ox = current.X;
-                            long oy = current.Y;
-                            if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
-                            {
-                                results.Add(current);
-                            }
-                            current = next;
-                        }
-                    }
-                    finally
-                    {
-                        cell.Lock.ExitReadLock();
-                    }
-                }
-                return;
-            }
-
-            // Prevent DoS via huge search area
-            if ((double)(endGX - startGX + 1) * (endGY - startGY + 1) > 1000000000)
-            {
-                return;
-            }
-
-            for (long x = startGX; x <= endGX; x++)
-            {
-                for (long y = startGY; y <= endGY; y++)
-                {
-                    if (_grid.TryGetValue((x, y), out var cell))
-                    {
-                        cell.Lock.EnterReadLock();
-                        try
-                        {
-                            var current = cell.Head;
-                            while (current != null)
-                            {
-                                var next = current.NextInGridCell;
-                                long ox = current.X;
-                                long oy = current.Y;
-                                if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
-                                {
-                                    results.Add(current);
-                                }
-                                current = next;
-                            }
-                        }
-                        finally
-                        {
-                            cell.Lock.ExitReadLock();
-                        }
-                    }
-                }
-            }
+            QueryBox(box, obj => results.Add(obj));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

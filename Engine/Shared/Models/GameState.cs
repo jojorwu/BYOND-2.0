@@ -39,14 +39,12 @@ namespace Shared;
 
         public void Dispose()
         {
-            // SpatialGrid is shared, should it be disposed here?
-            // In BYOND 2.0, GameState is the primary owner of the simulation grid.
             SpatialGrid.Dispose();
         }
 
         public IEnumerable<IGameObject> GetAllGameObjects()
         {
-            return new List<IGameObject>(GameObjects.Values);
+            return GameObjects.Values;
         }
 
         public void ForEachGameObject(Action<IGameObject> action)
@@ -59,21 +57,25 @@ namespace Shared;
 
         public void AddGameObject(GameObject gameObject)
         {
-            GameObjects.TryAdd(gameObject.Id, gameObject);
-            gameObject.PositionChanged += OnObjectPositionChanged;
-            gameObject.StateChanged += OnObjectStateChanged;
-            SpatialGrid.Add(gameObject);
-            _dirtyObjects.Enqueue(gameObject);
+            if (GameObjects.TryAdd(gameObject.Id, gameObject))
+            {
+                gameObject.PositionChanged += OnObjectPositionChanged;
+                gameObject.StateChanged += OnObjectStateChanged;
+                SpatialGrid.Add(gameObject);
+                _dirtyObjects.Enqueue(gameObject);
+            }
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
-            GameObjects.TryRemove(gameObject.Id, out _);
-            gameObject.PositionChanged -= OnObjectPositionChanged;
-            gameObject.StateChanged -= OnObjectStateChanged;
-            SpatialGrid.Remove(gameObject);
+            if (GameObjects.TryRemove(gameObject.Id, out _))
+            {
+                gameObject.PositionChanged -= OnObjectPositionChanged;
+                gameObject.StateChanged -= OnObjectStateChanged;
+                SpatialGrid.Remove(gameObject);
 
-            _objectFactory?.Destroy(gameObject);
+                _objectFactory?.Destroy(gameObject);
+            }
         }
 
         public void UpdateGameObject(GameObject gameObject, long oldX, long oldY)
@@ -83,7 +85,7 @@ namespace Shared;
 
         private void OnObjectPositionChanged(GameObject obj, long oldX, long oldY, long oldZ)
         {
-            UpdateGameObject(obj, oldX, oldY);
+            SpatialGrid.Add(obj);
         }
 
         private void OnObjectStateChanged(IGameObject obj)

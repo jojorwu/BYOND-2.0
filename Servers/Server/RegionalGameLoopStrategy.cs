@@ -69,10 +69,11 @@ namespace Server
             int currentBatchObjects = 0;
             const int TargetObjectsPerBatch = 500;
 
+            int regionSize = _settings.Performance.RegionalProcessing.RegionSize;
             foreach (var region in mergedRegions)
             {
                 var objs = new List<IGameObject>();
-                region.GetGameObjects(objs);
+                region.GetGameObjects(_gameState, objs, regionSize);
                 if (currentBatchObjects + objs.Count > TargetObjectsPerBatch && currentBatch.Count > 0)
                 {
                     batchedRegions.Add(currentBatch);
@@ -108,16 +109,13 @@ namespace Server
                     var remainingRegionThreads = await _scriptHost.ExecuteThreadsAsync(threadsForRegion, gameObjects, objectIds: objectIds);
                     nextThreadsCollection.Add(remainingRegionThreads);
 
-                    // Calculate aggregate version for cache check
+                    // Update region versions after potential turf changes during script execution
+                    foreach (var r in mergedRegion.Regions) r.UpdateVersion();
+
+                    // Optimized aggregate version calculation
                     long aggregateVersion = 0;
                     foreach (var obj in gameObjects) aggregateVersion += obj.Version;
-                    foreach (var r in mergedRegion.Regions)
-                    {
-                        foreach (var chunk in r.GetChunks())
-                        {
-                            aggregateVersion += chunk.Version;
-                        }
-                    }
+                    foreach (var r in mergedRegion.Regions) aggregateVersion += r.Version;
 
                     // Use merged region's first region as a cache key for simplicity
                     var firstRegion = mergedRegion.Regions[0];

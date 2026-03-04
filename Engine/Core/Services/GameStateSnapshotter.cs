@@ -32,7 +32,7 @@ namespace Core
             {
                 var snapshot = new
                 {
-                    GameObjects = region.GetGameObjects()
+                    GameObjects = region.GetGameObjects(gameState)
                 };
                 return JsonSerializer.Serialize(snapshot);
             }
@@ -44,7 +44,7 @@ namespace Core
             {
                 var snapshot = new
                 {
-                    GameObjects = region.GetGameObjects()
+                    GameObjects = region.GetGameObjects(gameState)
                 };
                 return JsonSerializer.Serialize(snapshot);
             }
@@ -62,7 +62,7 @@ namespace Core
         {
             using (gameState.ReadLock())
             {
-                return _binarySnapshotService.Serialize(mergedRegion.GetGameObjects());
+                return _binarySnapshotService.Serialize(mergedRegion.GetGameObjects(gameState));
             }
         }
     }

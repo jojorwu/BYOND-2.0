@@ -160,6 +160,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             Stack = thread._stack,
             StackPtr = thread._stackPtr,
             BytecodeArray = thread._callStack[thread._callStackPtr - 1].Proc.Bytecode,
+            BytecodePtr = null, // Initialized in fixed block
             LocalBase = thread._callStack[thread._callStackPtr - 1].LocalBase,
             ArgumentBase = thread._callStack[thread._callStackPtr - 1].ArgumentBase,
             Strings = thread.Context.Strings,

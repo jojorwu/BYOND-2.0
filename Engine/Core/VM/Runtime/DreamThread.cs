@@ -266,9 +266,10 @@ public partial class DreamThread : IScriptThread, IDisposable
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void PushCallFrame(CallFrame frame)
     {
-        if (_callStackPtr >= MaxCallStackDepth)
+        if ((uint)_callStackPtr >= (uint)MaxCallStackDepth)
             throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, this);
 
         if (_callStackPtr >= _callStack.Length)
@@ -278,6 +279,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         _callStack[_callStackPtr++] = frame;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public CallFrame PopCallFrame()
     {
         if (_callStackPtr <= 0) throw new Exception("Call stack underflow");

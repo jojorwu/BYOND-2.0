@@ -46,12 +46,21 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
-                var distanceSquared = (long)distance * distance;
                 var box = new Box2l(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
-                var results = _gameState.SpatialGrid.GetObjectsInBox(box)
-                    .Cast<GameObject>()
-                    .Where(obj => obj.Z == centerZ && GetDistanceSquared(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distanceSquared)
-                    .ToList();
+                var potentialObjects = _gameState.SpatialGrid.GetObjectsInBox(box);
+                var results = new List<GameObject>(potentialObjects.Count);
+
+                foreach (var obj in potentialObjects)
+                {
+                    if (obj.Z == centerZ && obj is GameObject gameObj)
+                    {
+                        // BYOND range() uses Chebyshev distance: max(|x1-x2|, |y1-y2|)
+                        if (Math.Max(Math.Abs(gameObj.X - centerX), Math.Abs(gameObj.Y - centerY)) <= distance)
+                        {
+                            results.Add(gameObj);
+                        }
+                    }
+                }
                 return results;
             }
         }
@@ -60,12 +69,24 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
-                var distanceSquared = (long)distance * distance;
                 var box = new Box2l(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
-                var results = _gameState.SpatialGrid.GetObjectsInBox(box)
-                    .Cast<GameObject>()
-                    .Where(obj => obj != viewer && obj.Z == viewer.Z && GetDistanceSquared(viewer, obj) <= distanceSquared && HasLineOfSight(viewer, obj))
-                    .ToList();
+                var potentialObjects = _gameState.SpatialGrid.GetObjectsInBox(box);
+                var results = new List<GameObject>(potentialObjects.Count);
+
+                foreach (var obj in potentialObjects)
+                {
+                    if (obj is GameObject gameObj && gameObj.Z == viewer.Z)
+                    {
+                        // BYOND view() uses Chebyshev distance: max(|x1-x2|, |y1-y2|)
+                        if (Math.Max(Math.Abs(gameObj.X - viewer.X), Math.Abs(gameObj.Y - viewer.Y)) <= distance)
+                        {
+                            if (gameObj == viewer || HasLineOfSight(viewer, gameObj))
+                            {
+                                results.Add(gameObj);
+                            }
+                        }
+                    }
+                }
                 return results;
             }
         }
@@ -88,9 +109,9 @@ namespace Core.Api
                 {
                     foreach (var content in turf.Contents)
                     {
-                        if (content != from && content != to)
+                        if (content != from && content != to && content is GameObject gameObj)
                         {
-                            if (content.GetVariable("opacity").AsFloat() == 1.0f)
+                            if (gameObj.Opacity == 1.0)
                             {
                                 return false; // Blocked
                             }

@@ -92,4 +92,34 @@ namespace Shared.Services;
             // For now, fall back to CPU-based processing
             return Task.FromResult(data);
         }
+
+        public void CalculateDistancesSIMD(ReadOnlySpan<long> x1, ReadOnlySpan<long> y1, ReadOnlySpan<long> x2, ReadOnlySpan<long> y2, Span<double> results)
+        {
+            int n = results.Length;
+            if (Vector.IsHardwareAccelerated && n >= Vector<long>.Count)
+            {
+                int i = 0;
+                int vectorSize = Vector<long>.Count;
+                for (; i <= n - vectorSize; i += vectorSize)
+                {
+                    var vx1 = new Vector<long>(x1.Slice(i));
+                    var vy1 = new Vector<long>(y1.Slice(i));
+                    var vx2 = new Vector<long>(x2.Slice(i));
+                    var vy2 = new Vector<long>(y2.Slice(i));
+
+                    var dx = Vector.Abs(vx1 - vx2);
+                    var dy = Vector.Abs(vy1 - vy2);
+
+                    // Chebyshev distance: max(|x1-x2|, |y1-y2|)
+                    var dist = Vector.Max(dx, dy);
+
+                    for (int j = 0; j < vectorSize; j++) results[i + j] = dist[j];
+                }
+                for (; i < n; i++) results[i] = Math.Max(Math.Abs(x1[i] - x2[i]), Math.Abs(y1[i] - y2[i]));
+            }
+            else
+            {
+                for (int i = 0; i < n; i++) results[i] = Math.Max(Math.Abs(x1[i] - x2[i]), Math.Abs(y1[i] - y2[i]));
+            }
+        }
     }

@@ -23,7 +23,7 @@ public class ObjectType
     public BuiltinVar[]? VariableToBuiltin { get; private set; }
     public int XIndex = -1, YIndex = -1, ZIndex = -1, LocIndex = -1;
     public int IconIndex = -1, IconStateIndex = -1, DirIndex = -1, AlphaIndex = -1;
-    public int ColorIndex = -1, LayerIndex = -1, PixelXIndex = -1, PixelYIndex = -1;
+    public int ColorIndex = -1, LayerIndex = -1, PixelXIndex = -1, PixelYIndex = -1, OpacityIndex = -1;
 
     public ObjectType(int id, string name)
     {
@@ -77,6 +77,7 @@ public class ObjectType
                 "layer" => BuiltinVar.Layer,
                 "pixel_x" => BuiltinVar.PixelX,
                 "pixel_y" => BuiltinVar.PixelY,
+                "opacity" => BuiltinVar.Opacity,
                 "x" => BuiltinVar.X,
                 "y" => BuiltinVar.Y,
                 "z" => BuiltinVar.Z,
@@ -98,6 +99,7 @@ public class ObjectType
                 case "layer": LayerIndex = i; break;
                 case "pixel_x": PixelXIndex = i; break;
                 case "pixel_y": PixelYIndex = i; break;
+                case "opacity": OpacityIndex = i; break;
             }
         }
 

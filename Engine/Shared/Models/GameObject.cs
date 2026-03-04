@@ -82,7 +82,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldY = _y; oldZ = _z;
                 _x = value;
                 var type = ObjectType;
-                if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue((double)value);
+                if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(value);
                 IncrementVersion();
             }
             PositionChanged?.Invoke(this, oldX, oldY, oldZ);
@@ -113,7 +113,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldZ = _z;
                 _y = value;
                 var type = ObjectType;
-                if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue((double)value);
+                if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(value);
                 IncrementVersion();
             }
             PositionChanged?.Invoke(this, oldX, oldY, oldZ);
@@ -144,7 +144,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldY = _y;
                 _z = value;
                 var type = ObjectType;
-                if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue((double)value);
+                if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(value);
                 IncrementVersion();
             }
             PositionChanged?.Invoke(this, oldX, oldY, oldZ);
@@ -341,9 +341,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": return new DreamValue((double)_x);
-                case "y": return new DreamValue((double)_y);
-                case "z": return new DreamValue((double)_z);
+                case "x": return new DreamValue(_x);
+                case "y": return new DreamValue(_y);
+                case "z": return new DreamValue(_z);
                 case "icon": return new DreamValue(_icon);
                 case "icon_state": return new DreamValue(_iconState);
                 case "dir": return new DreamValue((double)_dir);
@@ -396,6 +396,35 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         base.SetVariable(name, value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public override DreamValue GetVariableDirect(int index)
+    {
+        var builtinMap = ObjectType?.VariableToBuiltin;
+        if (builtinMap != null && index >= 0 && index < builtinMap.Length)
+        {
+            var builtin = builtinMap[index];
+            if (builtin != BuiltinVar.None)
+            {
+                switch (builtin)
+                {
+                    case BuiltinVar.X: return new DreamValue(_x);
+                    case BuiltinVar.Y: return new DreamValue(_y);
+                    case BuiltinVar.Z: return new DreamValue(_z);
+                    case BuiltinVar.Icon: return new DreamValue(_icon);
+                    case BuiltinVar.IconState: return new DreamValue(_iconState);
+                    case BuiltinVar.Dir: return new DreamValue((double)_dir);
+                    case BuiltinVar.Alpha: return new DreamValue(_alpha);
+                    case BuiltinVar.Color: return new DreamValue(_color);
+                    case BuiltinVar.Layer: return new DreamValue(_layer);
+                    case BuiltinVar.PixelX: return new DreamValue(_pixelX);
+                    case BuiltinVar.PixelY: return new DreamValue(_pixelY);
+                    case BuiltinVar.Loc: return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
+                }
+            }
+        }
+        return base.GetVariableDirect(index);
+    }
+
     public override void SetVariableDirect(int index, DreamValue value)
     {
         if (index < 0) return;
@@ -421,9 +450,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                         case BuiltinVar.Layer: _layer = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelX: _pixelX = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelY: _pixelY = value.GetValueAsDouble(); break;
-                        case BuiltinVar.X: X = (long)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Y: Y = (long)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Z: Z = (long)value.GetValueAsDouble(); break;
+                        case BuiltinVar.X: X = value.RawLong; break;
+                        case BuiltinVar.Y: Y = value.RawLong; break;
+                        case BuiltinVar.Z: Z = value.RawLong; break;
                         case BuiltinVar.Loc:
                             if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                                 Loc = loc;

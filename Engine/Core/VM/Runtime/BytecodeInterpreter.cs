@@ -107,6 +107,34 @@ internal unsafe ref struct InterpreterState
         if (index < 0 || index >= Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", Proc, PC, Thread);
         return ref Stack[ArgumentBase + index];
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public DMReference ReadReference()
+    {
+        var refType = (DMReference.Type)BytecodeArray[PC++];
+        if (refType == DMReference.Type.Local || refType == DMReference.Type.Argument)
+        {
+            var idx = *(int*)(BytecodePtr + PC);
+            PC += 4;
+            return new DMReference { RefType = refType, Index = idx };
+        }
+
+        if (refType >= DMReference.Type.Global && refType <= DMReference.Type.GlobalProc)
+        {
+            var globalIdx = *(int*)(BytecodePtr + PC);
+            PC += 4;
+            return new DMReference { RefType = refType, Index = globalIdx };
+        }
+
+        if (refType >= DMReference.Type.Field && refType <= DMReference.Type.SrcField)
+        {
+            var nameId = *(int*)(BytecodePtr + PC);
+            PC += 4;
+            return new DMReference { RefType = refType, Name = Thread.Context.Strings[nameId] };
+        }
+
+        return new DMReference { RefType = refType };
+    }
 }
 
 public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
@@ -693,7 +721,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -723,8 +751,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleCallStatement(ref InterpreterState state)
     {
-        var argType = (DMCallArgumentsType)state.ReadByte();
-        var argStackDelta = state.ReadInt32();
+        var argType = (DMCallArgumentsType)state.BytecodeArray[state.PC++];
+        int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
 
         if (argStackDelta < 0 || state.StackPtr < argStackDelta)
             throw new ScriptRuntimeException($"Invalid argument stack delta for ..() call: {argStackDelta}", state.Proc, state.PC, state.Thread);
@@ -791,28 +820,33 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfTrueReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
-                    int address = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     if (!state.GetLocal(idx).IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
-                    int address = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     if (!state.GetArgument(idx).IsFalse()) state.PC = address;
                 }
                 break;
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
-                    var address = state.ReadInt32();
+                    var reference = state.ReadReference();
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Thread._stackPtr = state.StackPtr;
                     var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -825,28 +859,33 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfFalseReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
-                    int address = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     if (state.GetLocal(idx).IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
-                    int address = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     if (state.GetArgument(idx).IsFalse()) state.PC = address;
                 }
                 break;
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
-                    var address = state.ReadInt32();
+                    var reference = state.ReadReference();
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Thread._stackPtr = state.StackPtr;
                     var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -903,25 +942,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitXorReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         var value = state.Pop();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetLocal(idx) ^= value;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetArgument(idx) ^= value;
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
                     state.Thread.Context.SetGlobal(idx, val ^ value);
                 }
@@ -949,7 +991,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.SetReferenceValue(reference, ref state.Frame, refValue ^ value, 0);
@@ -975,25 +1017,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitShiftLeftReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         var value = state.Pop();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetLocal(idx) <<= value;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetArgument(idx) <<= value;
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
                     state.Thread.Context.SetGlobal(idx, val << value);
                 }
@@ -1021,7 +1066,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.SetReferenceValue(reference, ref state.Frame, refValue << value, 0);
@@ -1041,25 +1086,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleBitShiftRightReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         var value = state.Pop();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetLocal(idx) >>= value;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetArgument(idx) >>= value;
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
                     state.Thread.Context.SetGlobal(idx, val >> value);
                 }
@@ -1087,7 +1135,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.SetReferenceValue(reference, ref state.Frame, refValue >> value, 0);
@@ -1127,24 +1175,27 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePushReferenceValue(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Push(state.GetLocal(idx));
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Push(state.GetArgument(idx));
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    var globalIdx = state.ReadInt32();
+                    int globalIdx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Push(state.Thread.Context.GetGlobal(globalIdx));
                 }
                 break;
@@ -1157,7 +1208,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -1170,32 +1221,35 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAssign(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         var value = state.Stack[state.StackPtr - 1]; // peek
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetLocal(idx) = value;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.GetArgument(idx) = value;
                 }
                 break;
             case DMReference.Type.Global:
                 {
-                    var globalIdx = state.ReadInt32();
+                    int globalIdx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Thread.Context.SetGlobal(globalIdx, value);
                 }
                 break;
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     var val = state.Pop();
                     state.Thread._stackPtr = state.StackPtr;
                     state.Thread.SetReferenceValue(reference, ref state.Frame, val, 0);
@@ -1280,12 +1334,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIncrement(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetLocal(idx);
                     var newVal = val + 1;
                     val = newVal;
@@ -1294,7 +1349,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetArgument(idx);
                     var newVal = val + 1;
                     val = newVal;
@@ -1304,7 +1360,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var value = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     var newValue = value + 1;
@@ -1319,12 +1375,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleDecrement(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetLocal(idx);
                     var newVal = val - 1;
                     val = newVal;
@@ -1333,7 +1390,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetArgument(idx);
                     var newVal = val - 1;
                     val = newVal;
@@ -1343,7 +1401,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var value = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     var newValue = value - 1;
@@ -1366,7 +1424,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAssignInto(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         var value = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
@@ -1377,13 +1435,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleModulusReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         var value = state.Pop();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetLocal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
@@ -1395,7 +1454,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetArgument(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
@@ -1407,7 +1467,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Global:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
@@ -1446,7 +1507,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.SetReferenceValue(reference, ref state.Frame, refValue % value, 0);
@@ -1467,13 +1528,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleModulusModulusReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         var value = state.Pop();
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetLocal(idx);
                     double da = val.RawDouble;
                     double db = value.RawDouble;
@@ -1482,7 +1544,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     ref var val = ref state.GetArgument(idx);
                     double da = val.RawDouble;
                     double db = value.RawDouble;
@@ -1491,7 +1554,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.Global:
                 {
-                    int idx = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
                     double da = val.RawDouble;
                     double db = value.RawDouble;
@@ -1523,7 +1587,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+                    var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.SetReferenceValue(reference, ref state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
@@ -1637,7 +1701,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePopReference(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
@@ -1750,16 +1814,53 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleEnumerate(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_Enumerate(state.Proc, ref state.Frame, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        int enumeratorId = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        var reference = state.ReadReference();
+        int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+
+        var enumerator = state.Thread.GetEnumerator(enumeratorId);
+        if (enumerator != null && enumerator.MoveNext())
+        {
+            state.Thread.SetReferenceValue(reference, ref state.Frame, enumerator.Current, 0);
+            state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+        }
+        else
+        {
+            state.PC = jumpAddress;
+        }
     }
 
     private static void HandleEnumerateAssoc(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_EnumerateAssoc(state.Proc, ref state.Frame, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        int enumeratorId = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        var assocRef = state.ReadReference();
+        var outputRef = state.ReadReference();
+        int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+
+        var enumerator = state.Thread.GetEnumerator(enumeratorId);
+        if (enumerator != null && enumerator.MoveNext())
+        {
+            var key = enumerator.Current;
+            state.Thread.SetReferenceValue(outputRef, ref state.Frame, key, 0);
+            state.Thread.PopCount(state.Thread.GetReferenceStackSize(outputRef));
+
+            DreamValue value = DreamValue.Null;
+            var list = state.Thread.GetEnumeratorList(enumeratorId);
+            if (list != null)
+            {
+                value = list.GetValue(key);
+            }
+            state.Thread.SetReferenceValue(assocRef, ref state.Frame, value, 0);
+            state.Thread.PopCount(state.Thread.GetReferenceStackSize(assocRef));
+        }
+        else
+        {
+            state.PC = jumpAddress;
+        }
     }
 
     private static void HandleDestroyEnumerator(ref InterpreterState state)
@@ -1854,16 +1955,91 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleMassConcatenation(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_MassConcatenation(state.Proc, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        int count = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        if (count < 0 || count > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid concatenation count: {count}", state.Proc, state.PC, state.Thread);
+
+        if (count == 0)
+        {
+            state.Push(new DreamValue(""));
+            return;
+        }
+
+        int baseIdx = state.StackPtr - count;
+        var strings = ArrayPool<string>.Shared.Rent(count);
+        try
+        {
+            long totalLength = 0;
+            for (int i = 0; i < count; i++)
+            {
+                strings[i] = state.Stack[baseIdx + i].ToString();
+                totalLength += strings[i].Length;
+            }
+
+            if (totalLength > 1073741824)
+                throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", state.Proc, state.PC, state.Thread);
+
+            state.StackPtr -= count;
+            state.Push(new DreamValue(string.Concat(strings.AsSpan(0, count))));
+        }
+        finally
+        {
+            Array.Clear(strings, 0, count);
+            ArrayPool<string>.Shared.Return(strings);
+        }
     }
+
+    private static readonly ThreadLocal<System.Text.StringBuilder> _formatStringBuilder = new(() => new System.Text.StringBuilder(256));
 
     private static void HandleFormatString(ref InterpreterState state)
     {
-        state.Thread._stackPtr = state.StackPtr;
-        state.Thread.Opcode_FormatString(state.Proc, ref state.PC);
-        state.StackPtr = state.Thread._stackPtr;
+        int stringId = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        int formatCount = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+
+        if (stringId < 0 || stringId >= state.Thread.Context.Strings.Count)
+            throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
+        if (formatCount < 0 || formatCount > state.StackPtr)
+            throw new ScriptRuntimeException($"Invalid format count: {formatCount}", state.Proc, state.PC, state.Thread);
+
+        var formatString = state.Thread.Context.Strings[stringId];
+        var values = state.Stack.AsSpan(state.StackPtr - formatCount, formatCount);
+
+        var result = _formatStringBuilder.Value!;
+        result.Clear();
+        if (result.Capacity < formatString.Length + formatCount * 8) result.Capacity = formatString.Length + formatCount * 8;
+
+        int valueIndex = 0;
+        for (int i = 0; i < formatString.Length; i++)
+        {
+            char c = formatString[i];
+            if (StringFormatEncoder.Decode(c, out var suffix))
+            {
+                if (StringFormatEncoder.IsInterpolation(suffix))
+                {
+                    if (valueIndex < values.Length)
+                    {
+                        result.Append(values[valueIndex++].ToString());
+                        if (result.Length > 1073741824)
+                            throw new ScriptRuntimeException("Maximum string length exceeded during formatting", state.Proc, state.PC, state.Thread);
+                    }
+                }
+                else
+                {
+                    // Preservation of non-interpolation markers if needed, but standard DM just appends literal markers if not interpolation
+                    result.Append(c);
+                }
+            }
+            else
+            {
+                result.Append(c);
+            }
+        }
+
+        state.StackPtr -= formatCount;
+        state.Push(new DreamValue(result.ToString()));
     }
 
     private static void HandlePower(ref InterpreterState state)
@@ -2253,7 +2429,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAppendNoPush(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         var value = state.Pop();
         state.Thread._stackPtr = state.StackPtr;
         var listValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
@@ -2264,17 +2440,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleAssignNoPush(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         var value = state.Pop();
         state.Thread._stackPtr = state.StackPtr;
-        state.Thread.SetReferenceValue(reference, ref state.Frame, value);
+        state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandlePushRefAndDereferenceField(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         var fieldNameId = state.ReadInt32();
         var fieldName = state.Thread.Context.Strings[fieldNameId];
         state.Thread._stackPtr = state.StackPtr;
@@ -2287,16 +2463,18 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePushNRefs(ref InterpreterState state)
     {
-        var count = state.ReadInt32();
-        state.Thread._stackPtr = state.StackPtr;
+        int count = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+
         for (int i = 0; i < count; i++)
         {
-            var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
-            var val = state.Thread.GetReferenceValue(reference, ref state.Frame);
-            state.Thread.Push(val);
+            var reference = state.ReadReference();
+            state.Thread._stackPtr = state.StackPtr;
+            var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+            state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+            state.StackPtr = state.Thread._stackPtr;
+            state.Push(val);
         }
-        state.Stack = state.Thread._stack;
-        state.StackPtr = state.Thread._stackPtr;
     }
 
     private static void HandlePushNFloats(ref InterpreterState state)
@@ -2339,28 +2517,33 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleJumpIfReferenceFalse(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.ReadByte();
+        var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
         switch (refType)
         {
             case DMReference.Type.Local:
                 {
-                    int idx = state.ReadInt32();
-                    int address = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     if (state.GetLocal(idx).IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
                 {
-                    int idx = state.ReadInt32();
-                    int address = state.ReadInt32();
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     if (state.GetArgument(idx).IsFalse()) state.PC = address;
                 }
                 break;
             default:
                 {
                     state.PC--;
-                    var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
-                    var address = state.ReadInt32();
+                    var reference = state.ReadReference();
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
                     state.Thread._stackPtr = state.StackPtr;
                     var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -2388,37 +2571,33 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         for (int i = 0; i < n; i++)
         {
-            var refType = (DMReference.Type)state.ReadByte();
-            switch (refType)
+            var refType = (DMReference.Type)state.BytecodeArray[state.PC++];
+            if (refType == DMReference.Type.Local)
             {
-                case DMReference.Type.Local:
-                    {
-                    int idx = state.ReadInt32();
-                    state.GetLocal(idx) = dv;
-                    }
-                    break;
-                case DMReference.Type.Argument:
-                    {
-                    int idx = state.ReadInt32();
-                    state.GetArgument(idx) = dv;
-                    }
-                    break;
-                case DMReference.Type.Global:
-                    {
-                        var globalIdx = state.ReadInt32();
-                        state.Thread.Context.SetGlobal(globalIdx, dv);
-                    }
-                    break;
-                default:
-                    {
-                        state.PC--;
-                        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
-                        state.Thread._stackPtr = state.StackPtr;
-                        state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
-                        state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-                        state.StackPtr = state.Thread._stackPtr;
-                    }
-                    break;
+                int idx = *(int*)(state.BytecodePtr + state.PC);
+                state.PC += 4;
+                state.Stack[state.LocalBase + idx] = dv;
+            }
+            else if (refType == DMReference.Type.Argument)
+            {
+                int idx = *(int*)(state.BytecodePtr + state.PC);
+                state.PC += 4;
+                state.Stack[state.ArgumentBase + idx] = dv;
+            }
+            else if (refType == DMReference.Type.Global)
+            {
+                int globalIdx = *(int*)(state.BytecodePtr + state.PC);
+                state.PC += 4;
+                state.Thread.Context.SetGlobal(globalIdx, dv);
+            }
+            else
+            {
+                state.PC--;
+                var reference = state.ReadReference();
+                state.Thread._stackPtr = state.StackPtr;
+                state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
+                state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                state.StackPtr = state.Thread._stackPtr;
             }
         }
         state.Push(dv);
@@ -2443,7 +2622,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleNullRef(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, DreamValue.Null, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -2452,7 +2631,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleIndexRefWithString(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         var stringId = state.ReadInt32();
         var stringValue = new DreamValue(state.Thread.Context.Strings[stringId]);
         state.Thread._stackPtr = state.StackPtr;
@@ -2467,7 +2646,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandleReturnReferenceValue(ref InterpreterState state)
     {
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         state.Thread._stackPtr = state.StackPtr;
         var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -2480,7 +2659,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandlePushFloatAssign(ref InterpreterState state)
     {
         var value = state.ReadDouble();
-        var reference = state.Thread.ReadReference(state.BytecodeArray, ref state.PC);
+        var reference = state.ReadReference();
         var dv = new DreamValue(value);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
@@ -2492,20 +2671,23 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
     private static void HandlePushLocal(ref InterpreterState state)
     {
-        int idx = state.ReadInt32();
-        state.Push(state.GetLocal(idx));
+        int idx = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        state.Push(state.Stack[state.LocalBase + idx]);
     }
 
     private static void HandleAssignLocal(ref InterpreterState state)
     {
-        int idx = state.ReadInt32();
-        state.GetLocal(idx) = state.Stack[state.StackPtr - 1];
+        int idx = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        state.Stack[state.LocalBase + idx] = state.Stack[state.StackPtr - 1];
     }
 
     private static void HandlePushArgument(ref InterpreterState state)
     {
-        int idx = state.ReadInt32();
-        state.Push(state.GetArgument(idx));
+        int idx = *(int*)(state.BytecodePtr + state.PC);
+        state.PC += 4;
+        state.Push(state.Stack[state.ArgumentBase + idx]);
     }
 
     private static void HandleLocalPushLocalPushAdd(ref InterpreterState state)

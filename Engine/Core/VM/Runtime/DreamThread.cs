@@ -31,9 +31,9 @@ public partial class DreamThread : IScriptThread, IDisposable
     public const int MaxCallStackDepth = 65536;
     public const int MaxStackSize = 10485760;
     internal DreamValue[] _stack;
-    internal int _stackPtr = 0;
+    internal volatile int _stackPtr = 0;
     internal CallFrame[] _callStack = new CallFrame[1024];
-    internal int _callStackPtr = 0;
+    internal volatile int _callStackPtr = 0;
     private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(1024);
     private int _tryStackPtr = 0;
 
@@ -108,7 +108,8 @@ public partial class DreamThread : IScriptThread, IDisposable
     public IEnumerable<CallFrame> CallStack => _callStack.Take(_callStackPtr).Reverse();
 
     public DreamProc CurrentProc => _callStack[_callStackPtr - 1].Proc;
-    public DreamThreadState State { get; internal set; } = DreamThreadState.Running;
+    private volatile int _state = (int)DreamThreadState.Running;
+    public DreamThreadState State { get => (DreamThreadState)_state; internal set => _state = (int)value; }
     public DateTime SleepUntil { get; internal set; }
     public IGameObject? AssociatedObject { get; }
     public DreamObject? Usr { get; set; }

@@ -5,14 +5,14 @@ namespace Core.VM.Runtime
 {
     public struct CallFrame
     {
-        public DreamProc Proc { get; }
-        public int PC { get; set; }
-        public int StackBase { get; }
-        public int ArgumentBase { get; }
-        public int LocalBase { get; }
-        public DreamObject? Instance { get; }
-        public bool DiscardReturnValue { get; }
-        public DreamList? ArgsList { get; set; }
+        public readonly DreamProc Proc;
+        public int PC;
+        public readonly int StackBase;
+        public readonly int ArgumentBase;
+        public readonly int LocalBase;
+        public readonly DreamObject? Instance;
+        public readonly bool DiscardReturnValue;
+        public DreamList? ArgsList;
 
         public CallFrame(DreamProc proc, int pc, int stackBase, DreamObject? instance, bool discardReturnValue = false)
         {

@@ -46,6 +46,13 @@ internal unsafe ref struct InterpreterState
     public int LocalBase;
     public int ArgumentBase;
 
+    public List<string> Strings;
+    public List<DreamValue> Globals;
+    public List<IDreamProc> AllProcs;
+    public Dictionary<string, IDreamProc> Procs;
+    public DreamObject? World;
+    public DreamVMContext Context;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Push(DreamValue value)
     {
@@ -131,7 +138,7 @@ internal unsafe ref struct InterpreterState
         {
             var nameId = *(int*)(BytecodePtr + PC);
             PC += 4;
-            return new DMReference { RefType = refType, Name = Thread.Context.Strings[nameId] };
+            return new DMReference { RefType = refType, Name = Strings[nameId] };
         }
 
         return new DMReference { RefType = refType };
@@ -141,11 +148,33 @@ internal unsafe ref struct InterpreterState
 public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 {
     private static readonly delegate*<ref InterpreterState, void>[] _dispatchTable = CreateDispatchTable();
+    private static readonly ThreadLocal<InterpreterContextCache> _contextCache = new(() => new());
+
+    private class InterpreterContextCache
+    {
+        public DreamVMContext? Context;
+        public List<string>? Strings;
+        public List<DreamValue>? Globals;
+        public List<IDreamProc>? AllProcs;
+        public Dictionary<string, IDreamProc>? Procs;
+        public DreamObject? World;
+    }
 
     public DreamThreadState Run(DreamThread thread, int instructionBudget)
     {
         if (thread.State != DreamThreadState.Running)
             return thread.State;
+
+        var cache = _contextCache.Value!;
+        if (cache.Context != thread.Context)
+        {
+            cache.Context = thread.Context;
+            cache.Strings = thread.Context.Strings;
+            cache.Globals = thread.Context.Globals;
+            cache.AllProcs = thread.Context.AllProcs;
+            cache.Procs = thread.Context.Procs;
+            cache.World = thread.Context.World;
+        }
 
         var state = new InterpreterState
         {
@@ -157,7 +186,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             StackPtr = thread._stackPtr,
             BytecodeArray = thread._callStack[thread._callStackPtr - 1].Proc.Bytecode,
             LocalBase = thread._callStack[thread._callStackPtr - 1].LocalBase,
-            ArgumentBase = thread._callStack[thread._callStackPtr - 1].ArgumentBase
+            ArgumentBase = thread._callStack[thread._callStackPtr - 1].ArgumentBase,
+            Strings = cache.Strings!,
+            Globals = cache.Globals!,
+            AllProcs = cache.AllProcs!,
+            Procs = cache.Procs!,
+            World = cache.World,
+            Context = thread.Context
         };
 
         int instructionsExecutedThisTick = 0;
@@ -291,7 +326,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int procId = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        state.Stack[state.StackPtr++] = new DreamValue((IDreamProc)thread.Context.AllProcs[procId]);
+                                        state.Stack[state.StackPtr++] = new DreamValue(state.AllProcs[procId]);
                                     }
                                     break;
                                 case Opcode.PushReferenceValue:
@@ -313,7 +348,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
-                                            state.Stack[state.StackPtr++] = thread.Context.GetGlobal(idx);
+                                            state.Stack[state.StackPtr++] = state.Context.GetGlobal(idx);
                                         }
                                         else
                                         {
@@ -562,9 +597,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandlePushString(ref InterpreterState state)
     {
         var stringId = state.ReadInt32();
-        if (stringId < 0 || stringId >= state.Thread.Context.Strings.Count)
+        if (stringId < 0 || stringId >= state.Strings.Count)
             throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
-        state.Push(new DreamValue(state.Thread.Context.Strings[stringId]));
+        state.Push(new DreamValue(state.Strings[stringId]));
     }
 
     private static void HandlePushFloat(ref InterpreterState state)
@@ -805,8 +840,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int procId = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if (procId >= 0 && procId < state.Thread.Context.AllProcs.Count)
-                        targetProc = state.Thread.Context.AllProcs[procId];
+                    if (procId >= 0 && procId < state.AllProcs.Count)
+                        targetProc = state.AllProcs[procId];
                 }
                 break;
             case DMReference.Type.SrcProc:
@@ -816,9 +851,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     instance = state.Frame.Instance;
                     if (instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         targetProc = instance.ObjectType?.GetProc(name);
-                        if (targetProc == null) state.Thread.Context.Procs.TryGetValue(name, out targetProc);
+                        if (targetProc == null) state.Procs.TryGetValue(name, out targetProc);
                     }
                 }
                 break;
@@ -840,7 +875,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    targetProc = state.Thread.Context.GetGlobal(idx).GetValueAsDreamProc();
+                    targetProc = state.Context.GetGlobal(idx).GetValueAsDreamProc();
                 }
                 break;
             default:
@@ -923,8 +958,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         var procId = state.ReadInt32();
         DreamValue val;
-        if (procId >= 0 && procId < state.Thread.Context.AllProcs.Count)
-            val = new DreamValue((IDreamProc)state.Thread.Context.AllProcs[procId]);
+        if (procId >= 0 && procId < state.AllProcs.Count)
+            val = new DreamValue((IDreamProc)state.AllProcs[procId]);
         else
             val = DreamValue.Null;
         state.Push(val);
@@ -1089,8 +1124,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Thread.Context.GetGlobal(idx);
-                    state.Thread.Context.SetGlobal(idx, val ^ value);
+                    var val = state.Context.GetGlobal(idx);
+                    state.Context.SetGlobal(idx, val ^ value);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -1098,7 +1133,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         var newVal = val ^ value;
@@ -1107,7 +1142,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, val ^ value);
                     }
@@ -1164,8 +1199,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Thread.Context.GetGlobal(idx);
-                    state.Thread.Context.SetGlobal(idx, val << value);
+                    var val = state.Context.GetGlobal(idx);
+                    state.Context.SetGlobal(idx, val << value);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -1173,7 +1208,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         var newVal = val << value;
@@ -1182,7 +1217,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, val << value);
                     }
@@ -1233,8 +1268,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Thread.Context.GetGlobal(idx);
-                    state.Thread.Context.SetGlobal(idx, val >> value);
+                    var val = state.Context.GetGlobal(idx);
+                    state.Context.SetGlobal(idx, val >> value);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -1242,7 +1277,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         var newVal = val >> value;
@@ -1251,7 +1286,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, val >> value);
                     }
@@ -1278,7 +1313,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         DreamValue val = DreamValue.Null;
         if (instance != null)
         {
-            var name = state.Thread.Context.Strings[nameId];
+            var name = state.Strings[nameId];
             int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
             val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
         }
@@ -1291,7 +1326,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var val = state.Stack[--state.StackPtr];
         if (state.Frame.Instance != null)
         {
-            var name = state.Thread.Context.Strings[nameId];
+            var name = state.Strings[nameId];
             int idx = state.Frame.Instance.ObjectType?.GetVariableIndex(name) ?? -1;
             if (idx != -1) state.Frame.Instance.SetVariableDirect(idx, val);
             else state.Frame.Instance.SetVariable(name, val);
@@ -1321,14 +1356,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.Thread.Context.GetGlobal(globalIdx));
+                    state.Push(state.Context.GetGlobal(globalIdx));
                 }
                 break;
             case DMReference.Type.Src:
                 state.Push(state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null);
                 break;
             case DMReference.Type.World:
-                state.Push(state.Thread.Context.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
+                state.Push(state.World != null ? new DreamValue(state.World) : DreamValue.Null);
                 break;
             default:
                 {
@@ -1368,7 +1403,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Thread.Context.SetGlobal(globalIdx, value);
+                    state.Context.SetGlobal(globalIdx, value);
                 }
                 break;
             default:
@@ -1594,13 +1629,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Thread.Context.GetGlobal(idx);
+                    var val = state.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         double db = value.RawDouble;
-                        state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False);
+                        state.Context.SetGlobal(idx, (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False);
                     }
-                    else state.Thread.Context.SetGlobal(idx, val % value);
+                    else state.Context.SetGlobal(idx, val % value);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -1608,7 +1643,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         DreamValue newVal;
@@ -1623,7 +1658,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, val % value);
                     }
@@ -1681,10 +1716,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Thread.Context.GetGlobal(idx);
+                    var val = state.Context.GetGlobal(idx);
                     double da = val.RawDouble;
                     double db = value.RawDouble;
-                    state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False);
+                    state.Context.SetGlobal(idx, (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -1692,7 +1727,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         double da = val.RawDouble;
@@ -1703,7 +1738,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, new DreamValue(SharedOperations.Modulo(val.GetValueAsDouble(), value.GetValueAsDouble())));
                     }
@@ -1791,7 +1826,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         DreamValue val = DreamValue.Null;
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
-            var name = state.Thread.Context.Strings[nameId];
+            var name = state.Strings[nameId];
             int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
             val = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
         }
@@ -1845,7 +1880,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var objValue = state.Stack[state.StackPtr - argStackDelta];
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
-            var procName = state.Thread.Context.Strings[nameId];
+            var procName = state.Strings[nameId];
             var targetProc = obj.ObjectType?.GetProc(procName);
             if (targetProc == null)
             {
@@ -2078,7 +2113,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandleDeleteObject(ref InterpreterState state)
     {
         var value = state.Stack[--state.StackPtr];
-        if (value.TryGetValueAsGameObject(out var obj)) state.Thread.Context.GameState?.RemoveGameObject(obj);
+        if (value.TryGetValueAsGameObject(out var obj)) state.Context.GameState?.RemoveGameObject(obj);
     }
 
     private static void HandleProb(ref InterpreterState state)
@@ -2181,12 +2216,12 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int formatCount = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
 
-        if (stringId < 0 || stringId >= state.Thread.Context.Strings.Count)
+        if (stringId < 0 || stringId >= state.Strings.Count)
             throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
         if (formatCount < 0 || formatCount > state.StackPtr)
             throw new ScriptRuntimeException($"Invalid format count: {formatCount}", state.Proc, state.PC, state.Thread);
 
-        var formatString = state.Thread.Context.Strings[stringId];
+        var formatString = state.Strings[stringId];
         var values = state.Stack.AsSpan(state.StackPtr - formatCount, formatCount);
 
         var result = _formatStringBuilder.Value!;
@@ -2292,16 +2327,16 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             case DMReference.Type.Global:
                 {
                     int idx = state.ReadInt32();
-                    var val = state.Thread.Context.GetGlobal(idx);
+                    var val = state.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.RawLong * value.RawLong));
+                            state.Context.SetGlobal(idx, new DreamValue(val.RawLong * value.RawLong));
                         else
-                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.RawDouble * value.RawDouble));
+                            state.Context.SetGlobal(idx, new DreamValue(val.RawDouble * value.RawDouble));
                     }
                     else
-                        state.Thread.Context.SetGlobal(idx, val * value);
+                        state.Context.SetGlobal(idx, val * value);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -2309,7 +2344,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         DreamValue newVal;
@@ -2327,7 +2362,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, val * value);
                     }
@@ -2389,14 +2424,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             case DMReference.Type.Global:
                 {
                     int idx = state.ReadInt32();
-                    var val = state.Thread.Context.GetGlobal(idx);
+                    var val = state.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         double dv = value.RawDouble;
-                        state.Thread.Context.SetGlobal(idx, (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0));
+                        state.Context.SetGlobal(idx, (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0));
                     }
                     else
-                        state.Thread.Context.SetGlobal(idx, val / value);
+                        state.Context.SetGlobal(idx, val / value);
                 }
                 break;
             case DMReference.Type.SrcField:
@@ -2404,7 +2439,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var nameId = state.ReadInt32();
                     if (state.Frame.Instance is GameObject gameObject)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
                         DreamValue newVal;
@@ -2420,7 +2455,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     }
                     else if (state.Frame.Instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
+                        var name = state.Strings[nameId];
                         var val = state.Frame.Instance.GetVariable(name);
                         state.Frame.Instance.SetVariable(name, val / value);
                     }
@@ -2498,7 +2533,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     private static void HandlePushType(ref InterpreterState state)
     {
         var typeId = state.ReadInt32();
-        var type = state.Thread.Context.ObjectTypeManager?.GetObjectType(typeId);
+        var type = state.Context.ObjectTypeManager?.GetObjectType(typeId);
         state.Push(type != null ? new DreamValue(type) : DreamValue.Null);
     }
 
@@ -2590,7 +2625,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread._stackPtr = state.StackPtr;
         var newThread = new DreamThread(state.Thread, bodyPc);
         if (delay.TryGetValue(out double seconds) && seconds > 0) newThread.Sleep(seconds / 10.0);
-        state.Thread.Context.ScriptHost?.AddThread(newThread);
+        state.Context.ScriptHost?.AddThread(newThread);
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -2633,7 +2668,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         var reference = state.ReadReference();
         var fieldNameId = state.ReadInt32();
-        var fieldName = state.Thread.Context.Strings[fieldNameId];
+        var fieldName = state.Strings[fieldNameId];
         state.Thread._stackPtr = state.StackPtr;
         var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
         DreamValue val = DreamValue.Null;
@@ -2692,7 +2727,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         for (int i = 0; i < count; i++)
         {
             int stringId = state.ReadInt32();
-            state.Stack[state.StackPtr++] = new DreamValue(state.Thread.Context.Strings[stringId]);
+            state.Stack[state.StackPtr++] = new DreamValue(state.Strings[stringId]);
         }
     }
 
@@ -2709,7 +2744,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         for (int i = 0; i < count; i++)
         {
             int pathId = state.ReadInt32();
-            state.Stack[state.StackPtr++] = new DreamValue(new DreamResource("resource", state.Thread.Context.Strings[pathId]));
+            state.Stack[state.StackPtr++] = new DreamValue(new DreamResource("resource", state.Strings[pathId]));
         }
     }
 
@@ -2727,7 +2762,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         {
             int stringId = state.ReadInt32();
             double val = state.ReadDouble();
-            state.Stack[state.StackPtr++] = new DreamValue(state.Thread.Context.Strings[stringId]);
+            state.Stack[state.StackPtr++] = new DreamValue(state.Strings[stringId]);
             state.Stack[state.StackPtr++] = new DreamValue(val);
         }
     }
@@ -2736,14 +2771,14 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         var stringId = state.ReadInt32();
         var value = state.ReadDouble();
-        state.Push(new DreamValue(state.Thread.Context.Strings[stringId]));
+        state.Push(new DreamValue(state.Strings[stringId]));
         state.Push(new DreamValue(value));
     }
 
     private static void HandlePushResource(ref InterpreterState state)
     {
         var pathId = state.ReadInt32();
-        state.Push(new DreamValue(new DreamResource("resource", state.Thread.Context.Strings[pathId])));
+        state.Push(new DreamValue(new DreamResource("resource", state.Strings[pathId])));
     }
 
     private static void HandleSwitchOnFloat(ref InterpreterState state)
@@ -2761,7 +2796,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var stringId = state.ReadInt32();
         var jumpAddress = state.ReadInt32();
         var switchValue = state.Stack[state.StackPtr - 1];
-        if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == state.Thread.Context.Strings[stringId]) state.PC = jumpAddress;
+        if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == state.Strings[stringId]) state.PC = jumpAddress;
     }
 
     private static void HandleJumpIfReferenceFalse(ref InterpreterState state)
@@ -2837,7 +2872,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             {
                 int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                 state.PC += 4;
-                state.Thread.Context.SetGlobal(globalIdx, dv);
+                state.Context.SetGlobal(globalIdx, dv);
             }
             else
             {
@@ -2862,7 +2897,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             var ot = obj.ObjectType;
             if (ot != null)
             {
-                var targetType = state.Thread.Context.ObjectTypeManager?.GetObjectType(typeId);
+                var targetType = state.Context.ObjectTypeManager?.GetObjectType(typeId);
                 if (targetType != null) result = ot.IsSubtypeOf(targetType);
             }
         }
@@ -2882,7 +2917,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         var reference = state.ReadReference();
         var stringId = state.ReadInt32();
-        var stringValue = new DreamValue(state.Thread.Context.Strings[stringId]);
+        var stringValue = new DreamValue(state.Strings[stringId]);
         state.Thread._stackPtr = state.StackPtr;
         var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));

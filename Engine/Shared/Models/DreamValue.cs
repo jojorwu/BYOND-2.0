@@ -370,6 +370,31 @@ namespace Shared;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AppendTo(System.Text.StringBuilder sb)
+        {
+            switch (Type)
+            {
+                case DreamValueType.Float:
+                    sb.Append(_floatValue);
+                    break;
+                case DreamValueType.Integer:
+                    sb.Append(_longValue);
+                    break;
+                case DreamValueType.String:
+                    sb.Append((string)_objectValue!);
+                    break;
+                case DreamValueType.Null:
+                    break;
+                case DreamValueType.DreamType:
+                    sb.Append(((ObjectType)_objectValue!).Name);
+                    break;
+                default:
+                    sb.Append(_objectValue?.ToString());
+                    break;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public double GetValueAsDouble()
         {
             return Type switch

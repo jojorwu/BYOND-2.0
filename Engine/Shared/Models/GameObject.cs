@@ -41,8 +41,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
-    public event Action<IGameObject>? StateChanged;
-    internal event Action<GameObject, long, long, long>? PositionChanged;
+    private IEngineUpdateListener? _updateListener;
+    public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
     private int _isDirty;
     protected override void IncrementVersion()
@@ -50,7 +50,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         base.IncrementVersion();
         if (Interlocked.CompareExchange(ref _isDirty, 1, 0) == 0)
         {
-            StateChanged?.Invoke(this);
+            _updateListener?.OnStateChanged(this);
         }
     }
 
@@ -85,7 +85,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(value);
                 IncrementVersion();
             }
-            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
@@ -116,7 +116,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(value);
                 IncrementVersion();
             }
-            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
@@ -147,7 +147,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(value);
                 IncrementVersion();
             }
-            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
@@ -585,7 +585,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             }
             IncrementVersion();
         }
-        PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+        _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
     }
 
     public override string ToString()
@@ -736,8 +736,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _contents = System.Array.Empty<IGameObject>();
         }
 
-        StateChanged = null;
-        PositionChanged = null;
+        _updateListener = null;
 
         // We don't reset Id as it should be unique for the lifetime of its registration
         // but we could if we manage IDs in the pool.

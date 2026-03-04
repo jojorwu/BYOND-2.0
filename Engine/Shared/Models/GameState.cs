@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shared.Interfaces;
 
 namespace Shared;
-    public class GameState : IGameState
+    public class GameState : IGameState, IEngineUpdateListener
     {
         private IMap? _map;
         public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }
@@ -26,6 +26,9 @@ namespace Shared;
         public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
 
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
+
+        public void OnStateChanged(IGameObject obj) => _dirtyObjects.Enqueue(obj);
+        public void OnPositionChanged(IGameObject obj, long oldX, long oldY, long oldZ) => SpatialGrid.Add(obj);
 
         public IDisposable ReadLock()
         {
@@ -59,8 +62,7 @@ namespace Shared;
         {
             if (GameObjects.TryAdd(gameObject.Id, gameObject))
             {
-                gameObject.PositionChanged += OnObjectPositionChanged;
-                gameObject.StateChanged += OnObjectStateChanged;
+                gameObject.SetUpdateListener(this);
                 SpatialGrid.Add(gameObject);
                 _dirtyObjects.Enqueue(gameObject);
             }
@@ -70,8 +72,7 @@ namespace Shared;
         {
             if (GameObjects.TryRemove(gameObject.Id, out _))
             {
-                gameObject.PositionChanged -= OnObjectPositionChanged;
-                gameObject.StateChanged -= OnObjectStateChanged;
+                gameObject.SetUpdateListener(null!);
                 SpatialGrid.Remove(gameObject);
 
                 _objectFactory?.Destroy(gameObject);
@@ -81,16 +82,6 @@ namespace Shared;
         public void UpdateGameObject(GameObject gameObject, long oldX, long oldY)
         {
             SpatialGrid.Update(gameObject, oldX, oldY);
-        }
-
-        private void OnObjectPositionChanged(GameObject obj, long oldX, long oldY, long oldZ)
-        {
-            SpatialGrid.Add(obj);
-        }
-
-        private void OnObjectStateChanged(IGameObject obj)
-        {
-            _dirtyObjects.Enqueue(obj);
         }
 
         public IEnumerable<IGameObject> GetDirtyObjects()

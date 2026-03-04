@@ -7,10 +7,7 @@ namespace Shared;
     /// </summary>
     public interface IGameObject
     {
-        /// <summary>
-        /// Occurs when the object's state changes.
-        /// </summary>
-        event System.Action<IGameObject>? StateChanged;
+        void SetUpdateListener(IEngineUpdateListener listener);
 
         /// <summary>
         /// Unique identifier for this object.

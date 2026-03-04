@@ -13,16 +13,23 @@ namespace Shared;
     {
         private class Cell : IDisposable
         {
-            public readonly HashSet<IGameObject> Objects = new();
+            public IGameObject? Head;
+            public int Count;
             public readonly ReaderWriterLockSlim Lock = new(LockRecursionPolicy.NoRecursion);
 
             public void Clear()
             {
-                foreach (var obj in Objects)
+                var current = Head;
+                while (current != null)
                 {
-                    obj.CurrentGridCellKey = null;
+                    var next = current.NextInGridCell;
+                    current.NextInGridCell = null;
+                    current.PrevInGridCell = null;
+                    current.CurrentGridCellKey = null;
+                    current = next;
                 }
-                Objects.Clear();
+                Head = null;
+                Count = 0;
             }
 
             public void Dispose()
@@ -37,6 +44,7 @@ namespace Shared;
         }
 
         private readonly ConcurrentDictionary<(long X, long Y), Cell> _grid = new();
+        private readonly ConcurrentQueue<Cell> _activeCells = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
@@ -103,9 +111,8 @@ namespace Shared;
                         cell.Lock.EnterWriteLock();
                         try
                         {
-                            oldCell.Objects.Remove(obj);
-                            cell.Objects.Add(obj);
-                            obj.CurrentGridCellKey = key;
+                            RemoveInternal(obj, oldCell);
+                            AddInternal(obj, cell, key);
                         }
                         finally
                         {
@@ -125,9 +132,8 @@ namespace Shared;
                         oldCell.Lock.EnterWriteLock();
                         try
                         {
-                            oldCell.Objects.Remove(obj);
-                            cell.Objects.Add(obj);
-                            obj.CurrentGridCellKey = key;
+                            RemoveInternal(obj, oldCell);
+                            AddInternal(obj, cell, key);
                         }
                         finally
                         {
@@ -146,14 +152,24 @@ namespace Shared;
                 cell.Lock.EnterWriteLock();
                 try
                 {
-                    cell.Objects.Add(obj);
-                    obj.CurrentGridCellKey = key;
+                    AddInternal(obj, cell, key);
                 }
                 finally
                 {
                     cell.Lock.ExitWriteLock();
                 }
             }
+        }
+
+        private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
+        {
+            if (cell.Count == 0) _activeCells.Enqueue(cell);
+            obj.NextInGridCell = cell.Head;
+            obj.PrevInGridCell = null;
+            if (cell.Head != null) cell.Head.PrevInGridCell = obj;
+            cell.Head = obj;
+            cell.Count++;
+            obj.CurrentGridCellKey = key;
         }
 
         public void Remove(IGameObject obj)
@@ -164,14 +180,25 @@ namespace Shared;
                 cell.Lock.EnterWriteLock();
                 try
                 {
-                    cell.Objects.Remove(obj);
-                    obj.CurrentGridCellKey = null;
+                    RemoveInternal(obj, cell);
                 }
                 finally
                 {
                     cell.Lock.ExitWriteLock();
                 }
             }
+        }
+
+        private void RemoveInternal(IGameObject obj, Cell cell)
+        {
+            if (cell.Head == obj) cell.Head = obj.NextInGridCell;
+            if (obj.PrevInGridCell != null) obj.PrevInGridCell.NextInGridCell = obj.NextInGridCell;
+            if (obj.NextInGridCell != null) obj.NextInGridCell.PrevInGridCell = obj.PrevInGridCell;
+
+            obj.NextInGridCell = null;
+            obj.PrevInGridCell = null;
+            obj.CurrentGridCellKey = null;
+            cell.Count--;
         }
 
         public void Update(IGameObject obj, long oldX, long oldY)
@@ -204,14 +231,15 @@ namespace Shared;
                         cell.Lock.EnterReadLock();
                         try
                         {
-                            foreach (var obj in cell.Objects)
+                            var current = cell.Head;
+                            while (current != null)
                             {
-                                long ox = obj.X;
-                                long oy = obj.Y;
-                                if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                                var next = current.NextInGridCell;
+                                if (current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
                                 {
-                                    callback(obj);
+                                    callback(current);
                                 }
+                                current = next;
                             }
                         }
                         finally
@@ -239,14 +267,15 @@ namespace Shared;
                         cell.Lock.EnterReadLock();
                         try
                         {
-                            foreach (var obj in cell.Objects)
+                            var current = cell.Head;
+                            while (current != null)
                             {
-                                long ox = obj.X;
-                                long oy = obj.Y;
-                                if (ox >= box.Left && ox <= box.Right && oy >= box.Bottom && oy <= box.Top)
+                                var next = current.NextInGridCell;
+                                if (current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
                                 {
-                                    callback(obj, ref state);
+                                    callback(current, ref state);
                                 }
+                                current = next;
                             }
                         }
                         finally
@@ -263,12 +292,12 @@ namespace Shared;
             foreach (var kvp in _grid)
             {
                 var cell = kvp.Value;
-                if (cell.Objects.Count == 0)
+                if (cell.Count == 0)
                 {
                     cell.Lock.EnterWriteLock();
                     try
                     {
-                        if (cell.Objects.Count == 0)
+                        if (cell.Count == 0)
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
                             {

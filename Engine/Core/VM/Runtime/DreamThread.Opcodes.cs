@@ -1,5 +1,6 @@
 using Shared.Enums;
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
@@ -322,9 +323,22 @@ public partial class DreamThread
             var frame = new CallFrame(dreamProc, 0, stackBase, instance, discardReturnValue);
             PushCallFrame(frame);
 
-            for (int i = 0; i < dreamProc.LocalVariableCount; i++)
+            int localCount = dreamProc.LocalVariableCount;
+            if (localCount > 0)
             {
-                Push(DreamValue.Null);
+                if (_stackPtr + localCount >= MaxStackSize)
+                    throw new ScriptRuntimeException("Stack overflow during procedure initialization", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
+
+                if (_stackPtr + localCount > _stack.Length)
+                {
+                    var newStack = ArrayPool<DreamValue>.Shared.Rent(Math.Max(_stack.Length * 2, _stackPtr + localCount));
+                    Array.Copy(_stack, newStack, _stackPtr);
+                    ArrayPool<DreamValue>.Shared.Return(_stack, true);
+                    _stack = newStack;
+                }
+
+                _stack.AsSpan(_stackPtr, localCount).Fill(DreamValue.Null);
+                _stackPtr += localCount;
             }
         }
         else if (newProc is NativeProc nativeProc)

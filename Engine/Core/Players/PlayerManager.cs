@@ -64,9 +64,9 @@ namespace Core.Players
                 foreach (var (peer, playerObject) in _players)
                 {
                     var (chunkCoords, _) = Map.GlobalToChunk(playerObject.X, playerObject.Y);
-                    var regionCoords = new Vector2i(
-                        (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
-                        (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
+                    var regionCoords = (
+                        (long)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                        (long)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
                     );
 
                     if (region.Coords == regionCoords && region.Z == playerObject.Z)

@@ -20,7 +20,7 @@ namespace Server
         private readonly IGameStateSnapshotter _gameStateSnapshotter;
         private readonly IJobSystem _jobSystem;
         private readonly ServerSettings _settings;
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<long, (long AggregateVersion, string Snapshot)> _snapshotCache = new();
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<(long X, long Y, int Z), (long AggregateVersion, string Snapshot)> _snapshotCache = new();
 
         public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
         {
@@ -38,7 +38,7 @@ namespace Server
         {
             var allThreads = _scriptHost.GetThreads();
             var globals = new List<IScriptThread>();
-            var objectThreads = new Dictionary<int, List<IScriptThread>>();
+            var objectThreads = new Dictionary<long, List<IScriptThread>>();
 
             foreach (var thread in allThreads)
             {
@@ -48,7 +48,7 @@ namespace Server
                 }
                 else
                 {
-                    int objId = thread.AssociatedObject.Id;
+                    long objId = thread.AssociatedObject.Id;
                     if (!objectThreads.TryGetValue(objId, out var threads))
                     {
                         threads = new List<IScriptThread>();
@@ -92,7 +92,7 @@ namespace Server
             {
                 foreach (var (mergedRegion, gameObjects) in batch)
                 {
-                    var objectIds = new HashSet<int>(gameObjects.Count);
+                    var objectIds = new HashSet<long>(gameObjects.Count);
                     var threadsForRegion = new List<IScriptThread>();
 
                     foreach (var obj in gameObjects)
@@ -119,8 +119,9 @@ namespace Server
                         }
                     }
 
-                    // Use merged region's first region as a cache key for simplicity (or hash of all region coords)
-                    long cacheKey = ((long)mergedRegion.Regions[0].Coords.X << 32) | (uint)mergedRegion.Regions[0].Coords.Y;
+                    // Use merged region's first region as a cache key for simplicity
+                    var firstRegion = mergedRegion.Regions[0];
+                    var cacheKey = (firstRegion.Coords.X, firstRegion.Coords.Y, firstRegion.Z);
 
                     if (_settings.Network.EnableBinarySnapshots)
                     {
@@ -193,7 +194,7 @@ namespace Server
                             {
                                 if (Math.Abs(dx) == Math.Abs(dy)) continue;
 
-                                var neighborCoords = new Vector2i(current.Coords.X + dx, current.Coords.Y + dy);
+                                var neighborCoords = (current.Coords.X + dx, current.Coords.Y + dy);
                                 if (_regionManager.TryGetRegion(z, neighborCoords, out var neighbor) && regionsByZ[z].Contains(neighbor) && !visited.Contains(neighbor))
                                 {
                                     visited.Add(neighbor);

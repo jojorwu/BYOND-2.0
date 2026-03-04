@@ -16,14 +16,14 @@ namespace Core.VM.Procs
                 if (thread.Context.GameApi == null) return DreamValue.Null;
 
                 int dist = 5;
-                int centerX = 0, centerY = 0, centerZ = 0;
+                long centerX = 0, centerY = 0, centerZ = 0;
 
                 if (args.Length >= 4)
                 {
                     dist = Math.Clamp((int)args[0].GetValueAsFloat(), 0, 10000000);
-                    centerX = (int)args[1].GetValueAsFloat();
-                    centerY = (int)args[2].GetValueAsFloat();
-                    centerZ = (int)args[3].GetValueAsFloat();
+                    centerX = (long)args[1].GetValueAsFloat();
+                    centerY = (long)args[2].GetValueAsFloat();
+                    centerZ = (long)args[3].GetValueAsFloat();
                 }
                 else
                 {

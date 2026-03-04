@@ -6,5 +6,5 @@ namespace Shared;
         ValueTask SendAsync(string data);
         ValueTask SendAsync(byte[] data);
         ValueTask SendAsync(System.ReadOnlyMemory<byte> data);
-        System.Collections.Generic.IDictionary<int, long> LastSentVersions { get; }
+        System.Collections.Generic.IDictionary<long, long> LastSentVersions { get; }
     }

@@ -5,4 +5,4 @@ using Core;
 Console.WriteLine("C#: System loaded.");
 
 // Можно создавать объекты через API
-Game.CreateObject("Player", 5, 5, 0);
+Game.Objects.CreateObject(1, 5, 5, 0);

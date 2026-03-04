@@ -29,7 +29,7 @@ namespace Core.Api
             }
         }
 
-        public ITurf? GetTurf(int x, int y, int z)
+        public ITurf? GetTurf(long x, long y, long z)
         {
             using (_gameState.ReadLock())
             {
@@ -37,7 +37,7 @@ namespace Core.Api
             }
         }
 
-        public void SetTurf(int x, int y, int z, int turfId)
+        public void SetTurf(long x, long y, long z, int turfId)
         {
             var turfType = _objectTypeManager.GetObjectType(turfId);
             if (turfType == null || !turfType.IsSubtypeOf(_objectTypeManager.GetTurfType()))
@@ -85,18 +85,18 @@ namespace Core.Api
             }
         }
 
-        public IEnumerable<IGameObject> GetObjectsInRange(int x, int y, int z, int range)
+        public IEnumerable<IGameObject> GetObjectsInRange(long x, long y, long z, int range)
         {
             return GetObjectsInRange(x, y, z, range, "/obj"); // Default to all objects
         }
 
-        public IEnumerable<IGameObject> GetObjectsInRange(int x, int y, int z, int range, string typePath)
+        public IEnumerable<IGameObject> GetObjectsInRange(long x, long y, long z, int range, string typePath)
         {
             var targetType = _objectTypeManager.GetObjectType(typePath);
             if (targetType == null)
                 return Enumerable.Empty<IGameObject>();
 
-            var box = new Box2i(x - range, y - range, x + range, y + range);
+            var box = new Box2l(x - range, y - range, x + range, y + range);
 
             using (_gameState.ReadLock())
             {
@@ -106,18 +106,18 @@ namespace Core.Api
             }
         }
 
-        public IEnumerable<IGameObject> GetObjectsInArea(int x1, int y1, int x2, int y2, int z)
+        public IEnumerable<IGameObject> GetObjectsInArea(long x1, long y1, long x2, long y2, long z)
         {
             return GetObjectsInArea(x1, y1, x2, y2, z, "/obj"); // Default to all objects
         }
 
-        public IEnumerable<IGameObject> GetObjectsInArea(int x1, int y1, int x2, int y2, int z, string typePath)
+        public IEnumerable<IGameObject> GetObjectsInArea(long x1, long y1, long x2, long y2, long z, string typePath)
         {
             var targetType = _objectTypeManager.GetObjectType(typePath);
             if (targetType == null)
                 return Enumerable.Empty<IGameObject>();
 
-            var box = new Box2i(
+            var box = new Box2l(
                 System.Math.Min(x1, x2),
                 System.Math.Min(y1, y2),
                 System.Math.Max(x1, x2),

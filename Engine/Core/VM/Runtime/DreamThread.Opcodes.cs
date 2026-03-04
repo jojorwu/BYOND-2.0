@@ -1,5 +1,6 @@
 using Shared.Enums;
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using Core.VM.Procs;
@@ -186,8 +187,8 @@ public partial class DreamThread
         if (sourceValue.TryGetValue(out DreamObject? src) && src is GameObject srcObj &&
             targetValue.TryGetValue(out DreamObject? dst) && dst is GameObject dstObj)
         {
-            int dx = dstObj.X - srcObj.X;
-            int dy = dstObj.Y - srcObj.Y;
+            long dx = dstObj.X - srcObj.X;
+            long dy = dstObj.Y - srcObj.Y;
 
             int dir = 0;
             if (dy > 0) dir |= 1; // NORTH
@@ -322,9 +323,22 @@ public partial class DreamThread
             var frame = new CallFrame(dreamProc, 0, stackBase, instance, discardReturnValue);
             PushCallFrame(frame);
 
-            for (int i = 0; i < dreamProc.LocalVariableCount; i++)
+            int localCount = dreamProc.LocalVariableCount;
+            if (localCount > 0)
             {
-                Push(DreamValue.Null);
+                if (_stackPtr + localCount >= MaxStackSize)
+                    throw new ScriptRuntimeException("Stack overflow during procedure initialization", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
+
+                if (_stackPtr + localCount > _stack.Length)
+                {
+                    var newStack = ArrayPool<DreamValue>.Shared.Rent(Math.Max(_stack.Length * 2, _stackPtr + localCount));
+                    Array.Copy(_stack, newStack, _stackPtr);
+                    ArrayPool<DreamValue>.Shared.Return(_stack, true);
+                    _stack = newStack;
+                }
+
+                _stack.AsSpan(_stackPtr, localCount).Fill(DreamValue.Null);
+                _stackPtr += localCount;
             }
         }
         else if (newProc is NativeProc nativeProc)
@@ -557,21 +571,21 @@ public partial class DreamThread
             throw new ScriptRuntimeException($"Invalid argument stack delta: {argStackDelta}", proc, pc, this);
 
         var argCount = argStackDelta - 1;
-        // Use span to avoid allocation
-        var values = _stack.AsSpan(_stackPtr - argCount, argCount);
         var typeValue = _stack[_stackPtr - argStackDelta];
 
         if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
         {
+            // Rent buffer to safely capture arguments before potential stack reallocations
+            DreamValue[]? argCopy = null;
+            if (argCount > 0)
+            {
+                argCopy = ArrayPool<DreamValue>.Shared.Rent(argCount);
+                _stack.AsSpan(_stackPtr - argCount, argCount).CopyTo(argCopy);
+            }
+
             GameObject newObj;
-            if (Context.ObjectFactory != null)
-            {
-                newObj = Context.ObjectFactory.Create(type);
-            }
-            else
-            {
-                newObj = new GameObject(type);
-            }
+            if (Context.ObjectFactory != null) newObj = Context.ObjectFactory.Create(type);
+            else newObj = new GameObject(type);
 
             Context.GameState?.AddGameObject(newObj);
 
@@ -583,25 +597,17 @@ public partial class DreamThread
             if (argCount > 0)
             {
                 // In DM, the first argument to the constructor is often the location
-                var locValue = values[0];
-                if (locValue.TryGetValueAsGameObject(out var locObj))
-                {
-                    newObj.Loc = locObj;
-                }
-            }
+                if (argCopy![0].TryGetValueAsGameObject(out var locObj)) newObj.Loc = locObj;
 
-            var newProc = newObj.ObjectType?.GetProc("New");
-            if (newProc != null)
-            {
-                // Push arguments back for New call
-                // values are in reverse order of pushing (top-to-bottom)
-                // We need to push them such that the first arg is at the bottom of the new call's stack.
-                for (int i = 0; i < argCount; i++)
+                var newProc = newObj.ObjectType?.GetProc("New");
+                if (newProc != null)
                 {
-                    Push(values[i]);
+                    for (int i = 0; i < argCount; i++) Push(argCopy[i]);
+                    SavePC(pc);
+                    PerformCall(newProc, newObj, argCount, argCount, discardReturnValue: true);
                 }
-                SavePC(pc);
-                PerformCall(newProc, newObj, argCount, argCount, discardReturnValue: true);
+
+                ArrayPool<DreamValue>.Shared.Return(argCopy);
             }
         }
         else

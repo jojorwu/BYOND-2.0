@@ -10,7 +10,7 @@ namespace Core.Regions
     {
         private readonly IMap _map;
         private readonly ServerSettings _settings;
-        private readonly Dictionary<int, Dictionary<Vector2i, Region>> _regionsByZ = new();
+        private readonly Dictionary<int, Dictionary<(long X, long Y), Region>> _regionsByZ = new();
 
         public RegionManager(IMap map, IOptions<ServerSettings> settings)
         {
@@ -24,14 +24,14 @@ namespace Core.Regions
             {
                 if (!_regionsByZ.ContainsKey(z))
                 {
-                    _regionsByZ[z] = new Dictionary<Vector2i, Region>();
+                    _regionsByZ[z] = new Dictionary<(long X, long Y), Region>();
                 }
 
                 foreach (var (chunkCoords, chunk) in _map.GetChunks(z))
                 {
-                    var regionCoords = new Vector2i(
-                        (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
-                        (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
+                    var regionCoords = (
+                        (long)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                        (long)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
                     );
 
                     if (!_regionsByZ[z].TryGetValue(regionCoords, out var region))
@@ -53,7 +53,7 @@ namespace Core.Regions
             return new List<Region>();
         }
 
-        public bool TryGetRegion(int z, Vector2i coords, [NotNullWhen(true)] out Region? region)
+        public bool TryGetRegion(int z, (long X, long Y) coords, [NotNullWhen(true)] out Region? region)
         {
             if (_regionsByZ.TryGetValue(z, out var regions))
             {

@@ -7,9 +7,9 @@ namespace Core
 {
     public sealed class DreamMapJson
     {
-        public int MaxX { get; set; }
-        public int MaxY { get; set; }
-        public int MaxZ { get; set; }
+        public long MaxX { get; set; }
+        public long MaxY { get; set; }
+        public long MaxZ { get; set; }
         public Dictionary<string, CellDefinitionJson> CellDefinitions { get; set; } = new();
         public List<MapBlockJson> Blocks { get; set; } = new();
     }
@@ -65,9 +65,9 @@ namespace Core
 
     public sealed class MapBlockJson
     {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public int Z { get; set; }
+        public long X { get; set; }
+        public long Y { get; set; }
+        public long Z { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }
         public List<string> Cells { get; set; } = new();
@@ -77,7 +77,7 @@ namespace Core
         {
         }
 
-        public MapBlockJson(int x, int y, int z)
+        public MapBlockJson(long x, long y, long z)
         {
             X = x;
             Y = y;

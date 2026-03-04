@@ -4,11 +4,11 @@ using Robust.Shared.Maths;
 namespace Shared;
     public class Region
     {
-        public Vector2i Coords { get; }
+        public (long X, long Y) Coords { get; }
         public int Z { get; }
         private readonly List<Chunk> _chunks = new();
 
-        public Region(Vector2i coords, int z)
+        public Region((long X, long Y) coords, int z)
         {
             Coords = coords;
             Z = z;

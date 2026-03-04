@@ -34,8 +34,9 @@ namespace tests
         {
             // Arrange
             _serverSettings.Performance.RegionalProcessing.ActivationRange = 0;
-            var region = new Region(new Vector2i(0, 0), 0);
-            _regionManagerMock.Setup(r => r.TryGetRegion(0, new Vector2i(0,0), out region)).Returns(true);
+            var region = new Region((0L, 0L), 0);
+            var targetCoords = (0L, 0L);
+            _regionManagerMock.Setup(r => r.TryGetRegion(0, targetCoords, out region)).Returns(true);
             _playerManagerMock.Setup(p => p.ForEachPlayerObject(It.IsAny<Action<IGameObject>>()))
                 .Callback<Action<IGameObject>>(action => action(new GameObject(new ObjectType(1, "player"), 0, 0, 0)));
 
@@ -55,12 +56,12 @@ namespace tests
             _serverSettings.Performance.RegionalProcessing.ZActivationRange = 0;
 
             // Create a 3x3 grid of regions
-            var regions = new Dictionary<Vector2i, Region>();
+            var regions = new Dictionary<(long, long), Region>();
             for (int x = -1; x <= 1; x++)
             {
                 for (int y = -1; y <= 1; y++)
                 {
-                    var coords = new Vector2i(x, y);
+                    var coords = ((long)x, (long)y);
                     var region = new Region(coords, 0);
                     regions[coords] = region;
                     _regionManagerMock.Setup(r => r.TryGetRegion(0, coords, out region)).Returns(true);

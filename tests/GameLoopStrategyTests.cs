@@ -67,7 +67,7 @@ namespace tests
             // Arrange
             _serverSettings.Network.EnableBinarySnapshots = false; // Disable for this test to match existing expectations
             var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _regionActivationStrategyMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _jobSystemMock.Object, Options.Create(_serverSettings));
-            var activeRegions = new HashSet<Region> { new Region(new Robust.Shared.Maths.Vector2i(0,0), 0) };
+            var activeRegions = new HashSet<Region> { new Region((0L, 0L), 0) };
 
             _jobSystemMock.Setup(js => js.ForEachAsync(It.IsAny<IEnumerable<List<(MergedRegion Region, List<IGameObject> Objects)>>>(), It.IsAny<System.Func<List<(MergedRegion Region, List<IGameObject> Objects)>, Task>>(), It.IsAny<JobPriority>()))
                 .Returns(Task.CompletedTask)
@@ -78,7 +78,7 @@ namespace tests
 
             _regionActivationStrategyMock.Setup(rm => rm.GetActiveRegions()).Returns(activeRegions);
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
-            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<long>>()))
                 .ReturnsAsync(new List<IScriptThread>());
             _gameStateSnapshotterMock.Setup(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>())).Returns("snapshot");
 
@@ -88,7 +88,7 @@ namespace tests
             // Assert
             _regionActivationStrategyMock.Verify(rm => rm.GetActiveRegions(), Times.Once);
             _gameStateSnapshotterMock.Verify(gs => gs.GetSnapshot(_gameStateMock.Object, It.IsAny<MergedRegion>()), Times.AtLeastOnce);
-            _scriptHostMock.Verify(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()), Times.AtLeastOnce());
+            _scriptHostMock.Verify(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<long>>()), Times.AtLeastOnce());
             _udpServerMock.Verify(u => u.BroadcastSnapshot(It.IsAny<MergedRegion>(), "snapshot"), Times.AtLeastOnce);
         }
 
@@ -100,19 +100,24 @@ namespace tests
             _serverSettings.Performance.RegionalProcessing.MinRegionsToMerge = 2;
             var strategy = new RegionalGameLoopStrategy(_scriptHostMock.Object, _regionManagerMock.Object, _regionActivationStrategyMock.Object, _udpServerMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _jobSystemMock.Object, Options.Create(_serverSettings));
 
-            var region1 = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
-            var region2 = new Region(new Robust.Shared.Maths.Vector2i(1, 0), 0);
-            var region3 = new Region(new Robust.Shared.Maths.Vector2i(3, 3), 0); // Non-adjacent
+            var region1 = new Region((0L, 0L), 0);
+            var region2 = new Region((1L, 0L), 0);
+            var region3 = new Region((3L, 3L), 0); // Non-adjacent
             var activeRegions = new HashSet<Region> { region1, region2, region3 };
 
-            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(1, 0), out It.Ref<Region?>.IsAny))
-                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = region2; return true; }));
-            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(-1, 0), out It.Ref<Region?>.IsAny))
-                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = null; return false; }));
-             _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(0, 1), out It.Ref<Region?>.IsAny))
-                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = null; return false; }));
-            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, new Robust.Shared.Maths.Vector2i(0, -1), out It.Ref<Region?>.IsAny))
-                .Returns(new TryGetRegionDelegate((int z, Robust.Shared.Maths.Vector2i coords, out Region? region) => { region = null; return false; }));
+            var coords10 = (1L, 0L);
+            var coords_10 = (-1L, 0L);
+            var coords01 = (0L, 1L);
+            var coords0_1 = (0L, -1L);
+
+            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, coords10, out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, (long X, long Y) coords, out Region? region) => { region = region2; return true; }));
+            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, coords_10, out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, (long X, long Y) coords, out Region? region) => { region = null; return false; }));
+             _regionManagerMock.Setup(rm => rm.TryGetRegion(0, coords01, out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, (long X, long Y) coords, out Region? region) => { region = null; return false; }));
+            _regionManagerMock.Setup(rm => rm.TryGetRegion(0, coords0_1, out It.Ref<Region?>.IsAny))
+                .Returns(new TryGetRegionDelegate((int z, (long X, long Y) coords, out Region? region) => { region = null; return false; }));
 
             // Act
             var mergedRegions = strategy.MergeRegions(activeRegions);
@@ -126,6 +131,6 @@ namespace tests
             Assert.That(mergedChunkCount, Is.EqualTo(originalChunkCount));
         }
 
-        private delegate bool TryGetRegionDelegate(int z, Robust.Shared.Maths.Vector2i coords, out Region? region);
+        private delegate bool TryGetRegionDelegate(int z, (long X, long Y) coords, out Region? region);
     }
 }

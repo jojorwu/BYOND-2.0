@@ -103,7 +103,7 @@ void main() {
             _instancedRenderer.Begin();
             _renderObjectBuffer.Clear();
 
-            currentState.SpatialGrid.QueryBox(new Box2i((int)cullRect.Left, (int)cullRect.Top, (int)cullRect.Right, (int)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
+            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
 
             // Sort by layer for correct transparency
             _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
@@ -179,12 +179,12 @@ void main() {
             var vertices = new List<Vertex>();
             var objects = new List<IGameObject>();
 
-            int startX = chunk.Coords.X * RenderChunk.ChunkSize;
-            int startY = chunk.Coords.Y * RenderChunk.ChunkSize;
-            int endX = startX + RenderChunk.ChunkSize;
-            int endY = startY + RenderChunk.ChunkSize;
+            long startX = (long)chunk.Coords.X * RenderChunk.ChunkSize;
+            long startY = (long)chunk.Coords.Y * RenderChunk.ChunkSize;
+            long endX = startX + RenderChunk.ChunkSize;
+            long endY = startY + RenderChunk.ChunkSize;
 
-            state.SpatialGrid.QueryBox(new Box2i(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
+            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {

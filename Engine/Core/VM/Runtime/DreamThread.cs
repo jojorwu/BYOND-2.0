@@ -130,7 +130,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         _maxInstructions = maxInstructions;
         _interpreter = interpreter ?? new BytecodeInterpreter();
         AssociatedObject = associatedObject;
-        _stack = ArrayPool<DreamValue>.Shared.Rent(65536);
+        _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
     }
@@ -172,7 +172,7 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Push(DreamValue value)
     {
-        if (_stackPtr >= MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
+        if ((uint)_stackPtr >= (uint)MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
         if (_stackPtr >= _stack.Length)
         {
             var newStack = ArrayPool<DreamValue>.Shared.Rent(_stack.Length * 2);
@@ -305,7 +305,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         var refType = (DMReference.Type)bytecode[pc++];
         if (refType == DMReference.Type.Local || refType == DMReference.Type.Argument)
         {
-            return new DMReference { RefType = refType, Index = bytecode[pc++] };
+            var idx = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
+            pc += 4;
+            return new DMReference { RefType = refType, Index = idx };
         }
 
         if (refType >= DMReference.Type.Global && refType <= DMReference.Type.GlobalProc)

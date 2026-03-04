@@ -18,20 +18,20 @@ namespace Core.Regions
             _settings = settings.Value;
         }
 
-        public void SetRegionActive(int x, int y, int z, bool active)
+        public void SetRegionActive(long x, long y, long z, bool active)
         {
             _regionActivationStrategy.SetRegionActive(x, y, z, active);
         }
 
-        public bool IsRegionActive(int x, int y, int z)
+        public bool IsRegionActive(long x, long y, long z)
         {
             var (chunkCoords, _) = Map.GlobalToChunk(x, y);
-            var regionCoords = new Vector2i(
-                (int)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
-                (int)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
+            var regionCoords = (
+                (long)Math.Floor((double)chunkCoords.X / _settings.Performance.RegionalProcessing.RegionSize),
+                (long)Math.Floor((double)chunkCoords.Y / _settings.Performance.RegionalProcessing.RegionSize)
             );
 
-            var region = _regionManager.GetRegions(z).FirstOrDefault(r => r.Coords == regionCoords);
+            var region = _regionManager.GetRegions((int)z).FirstOrDefault(r => r.Coords == regionCoords);
             if (region == null)
                 return false;
 

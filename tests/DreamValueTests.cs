@@ -149,21 +149,18 @@ namespace tests
         }
 
         [Test]
-        public void BitwiseParity_24Bit_Test()
+        public void BitwiseParity_64Bit_Test()
         {
-            // BYOND uses 24-bit bitwise operations
-            var largeValue = new DreamValue((float)0xFFFFFFFF); // All bits set
-            var maskedValue = ~largeValue;
+            // Transitions to 64-bit architecture
+            var largeValue = new DreamValue(0xFFFFFFFFL);
+            var bitwiseNot = ~largeValue;
 
-            // In 32-bit: ~0xFFFFFFFF = 0
-            // In 24-bit: (~0xFFFFFFFF) & 0xFFFFFF = 0
-            Assert.That(maskedValue.AsInt(), Is.EqualTo(0));
+            Assert.That(bitwiseNot.RawLong, Is.EqualTo(~0xFFFFFFFFL));
 
-            var val1 = new DreamValue((float)0x123456);
-            var val2 = new DreamValue((float)0xF0F0F0);
+            var val1 = new DreamValue(0x1234567890ABCDEFL);
+            var val2 = new DreamValue(unchecked((long)0xF0F0F0F0F0F0F0F0UL));
 
-            Assert.That((val1 & val2).AsInt(), Is.EqualTo((0x123456 & 0xF0F0F0) & 0x00FFFFFF));
-            Assert.That((val1 | val2).AsInt(), Is.EqualTo((0x123456 | 0xF0F0F0) & 0x00FFFFFF));
+            Assert.That((val1 & val2).RawLong, Is.EqualTo(0x1234567890ABCDEFL & unchecked((long)0xF0F0F0F0F0F0F0F0UL)));
         }
     }
 }

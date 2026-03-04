@@ -13,7 +13,7 @@ namespace Shared.Services;
             _componentManager = componentManager;
         }
 
-        public GameObject Create(ObjectType objectType, int x = 0, int y = 0, int z = 0)
+        public GameObject Create(ObjectType objectType, long x = 0, long y = 0, long z = 0)
         {
             var obj = _pool.Rent();
             obj.SetComponentManager(_componentManager);

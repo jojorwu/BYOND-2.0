@@ -42,12 +42,12 @@ namespace Core.Api
             return null;
         }
 
-        public List<GameObject> Range(int distance, int centerX, int centerY, int centerZ)
+        public List<GameObject> Range(int distance, long centerX, long centerY, long centerZ)
         {
             using (_gameState.ReadLock())
             {
-                var distanceSquared = distance * distance;
-                var box = new Box2i(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
+                var distanceSquared = (long)distance * distance;
+                var box = new Box2l(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
                 var results = _gameState.SpatialGrid.GetObjectsInBox(box)
                     .Cast<GameObject>()
                     .Where(obj => obj.Z == centerZ && GetDistanceSquared(obj.X, obj.Y, obj.Z, centerX, centerY, centerZ) <= distanceSquared)
@@ -60,8 +60,8 @@ namespace Core.Api
         {
             using (_gameState.ReadLock())
             {
-                var distanceSquared = distance * distance;
-                var box = new Box2i(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
+                var distanceSquared = (long)distance * distance;
+                var box = new Box2l(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
                 var results = _gameState.SpatialGrid.GetObjectsInBox(box)
                     .Cast<GameObject>()
                     .Where(obj => obj != viewer && obj.Z == viewer.Z && GetDistanceSquared(viewer, obj) <= distanceSquared && HasLineOfSight(viewer, obj))
@@ -72,14 +72,14 @@ namespace Core.Api
 
         private bool HasLineOfSight(GameObject from, GameObject to)
         {
-            int x0 = from.X, y0 = from.Y;
-            int x1 = to.X, y1 = to.Y;
+            long x0 = from.X, y0 = from.Y;
+            long x1 = to.X, y1 = to.Y;
 
-            int dx = Math.Abs(x1 - x0);
-            int sx = x0 < x1 ? 1 : -1;
-            int dy = -Math.Abs(y1 - y0);
-            int sy = y0 < y1 ? 1 : -1;
-            int err = dx + dy;
+            long dx = Math.Abs(x1 - x0);
+            long sx = x0 < x1 ? 1 : -1;
+            long dy = -Math.Abs(y1 - y0);
+            long sy = y0 < y1 ? 1 : -1;
+            long err = dx + dy;
 
             while (true)
             {
@@ -100,7 +100,7 @@ namespace Core.Api
 
                 if (x0 == x1 && y0 == y1) break;
 
-                int e2 = 2 * err;
+                long e2 = 2 * err;
                 if (e2 >= dy)
                 {
                     err += dy;
@@ -121,12 +121,12 @@ namespace Core.Api
             return GetDistanceSquared(a.X, a.Y, a.Z, b.X, b.Y, b.Z);
         }
 
-        private double GetDistanceSquared(int x1, int y1, int z1, int x2, int y2, int z2)
+        private double GetDistanceSquared(long x1, long y1, long z1, long x2, long y2, long z2)
         {
             var dx = x1 - x2;
             var dy = y1 - y2;
             var dz = z1 - z2;
-            return dx * dx + dy * dy + dz * dz;
+            return (double)dx * dx + (double)dy * dy + (double)dz * dz;
         }
     }
 }

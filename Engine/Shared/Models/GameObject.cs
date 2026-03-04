@@ -16,12 +16,12 @@ namespace Shared;
 [JsonConverter(typeof(GameObjectConverter))]
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
-    private static int nextId = 1;
+    private static long nextId = 1;
     private static readonly object _globalHierarchyLock = new();
 
-    public static void EnsureNextId(int id)
+    public static void EnsureNextId(long id)
     {
-        int current;
+        long current;
         do
         {
             current = nextId;
@@ -36,13 +36,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the unique identifier for the game object.
     /// </summary>
-    public int Id { get; set; }
+    public long Id { get; set; }
 
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
-    public event Action<IGameObject>? StateChanged;
-    internal event Action<GameObject, int, int, int>? PositionChanged;
+    private IEngineUpdateListener? _updateListener;
+    public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
     private int _isDirty;
     protected override void IncrementVersion()
@@ -50,7 +50,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         base.IncrementVersion();
         if (Interlocked.CompareExchange(ref _isDirty, 1, 0) == 0)
         {
-            StateChanged?.Invoke(this);
+            _updateListener?.OnStateChanged(this);
         }
     }
 
@@ -61,20 +61,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public IGameObject? NextInGridCell { get; set; }
     public IGameObject? PrevInGridCell { get; set; }
-    public long? CurrentGridCellKey { get; set; }
+    public (long X, long Y)? CurrentGridCellKey { get; set; }
 
-    private int _x;
-    private int _committedX;
+    private long _x;
+    private long _committedX;
     /// <summary>
     /// Gets or sets the X-coordinate of the game object.
     /// </summary>
-    public int X
+    public long X
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { lock (_lock) return _x; }
+        get => Interlocked.Read(ref _x);
         set
         {
-            int oldX, oldY, oldZ;
+            long oldX, oldY, oldZ;
             lock (_lock)
             {
                 oldX = _x;
@@ -82,30 +82,30 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldY = _y; oldZ = _z;
                 _x = value;
                 var type = ObjectType;
-                if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue((double)value);
+                if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(value);
                 IncrementVersion();
             }
-            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
     /// <summary>
     /// Gets the committed X-coordinate, used for consistent reads across threads.
     /// </summary>
-    public int CommittedX => _committedX;
+    public long CommittedX => Interlocked.Read(ref _committedX);
 
-    private int _y;
-    private int _committedY;
+    private long _y;
+    private long _committedY;
     /// <summary>
     /// Gets or sets the Y-coordinate of the game object.
     /// </summary>
-    public int Y
+    public long Y
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { lock (_lock) return _y; }
+        get => Interlocked.Read(ref _y);
         set
         {
-            int oldX, oldY, oldZ;
+            long oldX, oldY, oldZ;
             lock (_lock)
             {
                 oldY = _y;
@@ -113,30 +113,30 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldZ = _z;
                 _y = value;
                 var type = ObjectType;
-                if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue((double)value);
+                if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(value);
                 IncrementVersion();
             }
-            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
     /// <summary>
     /// Gets the committed Y-coordinate, used for consistent reads across threads.
     /// </summary>
-    public int CommittedY => _committedY;
+    public long CommittedY => Interlocked.Read(ref _committedY);
 
-    private int _z;
-    private int _committedZ;
+    private long _z;
+    private long _committedZ;
     /// <summary>
     /// Gets or sets the Z-coordinate of the game object.
     /// </summary>
-    public int Z
+    public long Z
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { lock (_lock) return _z; }
+        get => Interlocked.Read(ref _z);
         set
         {
-            int oldX, oldY, oldZ;
+            long oldX, oldY, oldZ;
             lock (_lock)
             {
                 oldZ = _z;
@@ -144,71 +144,71 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldY = _y;
                 _z = value;
                 var type = ObjectType;
-                if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue((double)value);
+                if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(value);
                 IncrementVersion();
             }
-            PositionChanged?.Invoke(this, oldX, oldY, oldZ);
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
     /// <summary>
     /// Gets the committed Z-coordinate, used for consistent reads across threads.
     /// </summary>
-    public int CommittedZ => _committedZ;
+    public long CommittedZ => _committedZ;
 
     private string _icon = string.Empty;
     public string Icon
     {
-        get { lock (_lock) return _icon; }
+        get => Volatile.Read(ref _icon);
         set { lock (_lock) { if (_icon != value) { _icon = value; var idx = ObjectType?.IconIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _iconState = string.Empty;
     public string IconState
     {
-        get { lock (_lock) return _iconState; }
+        get => Volatile.Read(ref _iconState);
         set { lock (_lock) { if (_iconState != value) { _iconState = value; var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private int _dir = 2;
     public int Dir
     {
-        get { lock (_lock) return _dir; }
+        get => Volatile.Read(ref _dir);
         set { lock (_lock) { if (_dir != value) { _dir = value; var idx = ObjectType?.DirIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue((double)value); IncrementVersion(); } } }
     }
 
     private double _alpha = 255.0;
     public double Alpha
     {
-        get { lock (_lock) return _alpha; }
+        get => Volatile.Read(ref _alpha);
         set { lock (_lock) { if (_alpha != value) { _alpha = value; var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private string _color = "#ffffff";
     public string Color
     {
-        get { lock (_lock) return _color; }
+        get => Volatile.Read(ref _color);
         set { lock (_lock) { if (_color != value) { _color = value; var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private double _layer = 2.0;
     public double Layer
     {
-        get { lock (_lock) return _layer; }
+        get => Volatile.Read(ref _layer);
         set { lock (_lock) { if (_layer != value) { _layer = value; var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private double _pixelX = 0;
     public double PixelX
     {
-        get { lock (_lock) return _pixelX; }
+        get => Volatile.Read(ref _pixelX);
         set { lock (_lock) { if (_pixelX != value) { _pixelX = value; var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
     private double _pixelY = 0;
     public double PixelY
     {
-        get { lock (_lock) return _pixelY; }
+        get => Volatile.Read(ref _pixelY);
         set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
@@ -219,9 +219,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         lock (_lock)
         {
-            _committedX = _x;
-            _committedY = _y;
-            _committedZ = _z;
+            Interlocked.Exchange(ref _committedX, _x);
+            Interlocked.Exchange(ref _committedY, _y);
+            Interlocked.Exchange(ref _committedZ, _z);
         }
     }
 
@@ -341,9 +341,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": return new DreamValue((double)_x);
-                case "y": return new DreamValue((double)_y);
-                case "z": return new DreamValue((double)_z);
+                case "x": return new DreamValue(_x);
+                case "y": return new DreamValue(_y);
+                case "z": return new DreamValue(_z);
                 case "icon": return new DreamValue(_icon);
                 case "icon_state": return new DreamValue(_iconState);
                 case "dir": return new DreamValue((double)_dir);
@@ -370,9 +370,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": X = (int)value.GetValueAsDouble(); return;
-                case "y": Y = (int)value.GetValueAsDouble(); return;
-                case "z": Z = (int)value.GetValueAsDouble(); return;
+                case "x": X = value.RawLong; return;
+                case "y": Y = value.RawLong; return;
+                case "z": Z = value.RawLong; return;
                 case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
                 case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
                 case "dir": Dir = (int)value.GetValueAsDouble(); return;
@@ -394,6 +394,35 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
 
         base.SetVariable(name, value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public override DreamValue GetVariableDirect(int index)
+    {
+        var builtinMap = ObjectType?.VariableToBuiltin;
+        if (builtinMap != null && index >= 0 && index < builtinMap.Length)
+        {
+            var builtin = builtinMap[index];
+            if (builtin != BuiltinVar.None)
+            {
+                switch (builtin)
+                {
+                    case BuiltinVar.X: return new DreamValue(_x);
+                    case BuiltinVar.Y: return new DreamValue(_y);
+                    case BuiltinVar.Z: return new DreamValue(_z);
+                    case BuiltinVar.Icon: return new DreamValue(_icon);
+                    case BuiltinVar.IconState: return new DreamValue(_iconState);
+                    case BuiltinVar.Dir: return new DreamValue((double)_dir);
+                    case BuiltinVar.Alpha: return new DreamValue(_alpha);
+                    case BuiltinVar.Color: return new DreamValue(_color);
+                    case BuiltinVar.Layer: return new DreamValue(_layer);
+                    case BuiltinVar.PixelX: return new DreamValue(_pixelX);
+                    case BuiltinVar.PixelY: return new DreamValue(_pixelY);
+                    case BuiltinVar.Loc: return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
+                }
+            }
+        }
+        return base.GetVariableDirect(index);
     }
 
     public override void SetVariableDirect(int index, DreamValue value)
@@ -421,9 +450,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                         case BuiltinVar.Layer: _layer = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelX: _pixelX = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelY: _pixelY = value.GetValueAsDouble(); break;
-                        case BuiltinVar.X: X = (int)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Y: Y = (int)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Z: Z = (int)value.GetValueAsDouble(); break;
+                        case BuiltinVar.X: X = value.RawLong; break;
+                        case BuiltinVar.Y: Y = value.RawLong; break;
+                        case BuiltinVar.Z: Z = value.RawLong; break;
                         case BuiltinVar.Loc:
                             if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                                 Loc = loc;
@@ -495,7 +524,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         Id = Interlocked.Increment(ref nextId);
     }
 
-    public void Initialize(ObjectType objectType, int x, int y, int z)
+    public void Initialize(ObjectType objectType, long x, long y, long z)
     {
         base.Initialize(objectType);
         _x = x;
@@ -519,7 +548,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <param name="x">The X-coordinate of the game object.</param>
     /// <param name="y">The Y-coordinate of the game object.</param>
     /// <param name="z">The Z-coordinate of the game object.</param>
-    public GameObject(ObjectType objectType, int x, int y, int z) : this(objectType)
+    public GameObject(ObjectType objectType, long x, long y, long z) : this(objectType)
     {
         X = x;
         Y = y;
@@ -532,11 +561,31 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <param name="x">The new X-coordinate.</param>
     /// <param name="y">The new Y-coordinate.</param>
     /// <param name="z">The new Z-coordinate.</param>
-    public void SetPosition(int x, int y, int z)
+    public void SetPosition(long x, long y, long z)
     {
-        X = x;
-        Y = y;
-        Z = z;
+        long oldX, oldY, oldZ;
+        lock (_lock)
+        {
+            oldX = _x;
+            oldY = _y;
+            oldZ = _z;
+
+            if (oldX == x && oldY == y && oldZ == z) return;
+
+            _x = x;
+            _y = y;
+            _z = z;
+
+            var type = ObjectType;
+            if (type != null)
+            {
+                if (type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(x);
+                if (type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(y);
+                if (type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(z);
+            }
+            IncrementVersion();
+        }
+        _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
     }
 
     public override string ToString()
@@ -687,8 +736,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _contents = System.Array.Empty<IGameObject>();
         }
 
-        StateChanged = null;
-        PositionChanged = null;
+        _updateListener = null;
 
         // We don't reset Id as it should be unique for the lifetime of its registration
         // but we could if we manage IDs in the pool.

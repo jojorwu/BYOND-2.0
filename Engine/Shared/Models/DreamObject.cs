@@ -85,7 +85,7 @@ namespace Shared;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public DreamValue GetVariableDirect(int index)
+        public virtual DreamValue GetVariableDirect(int index)
         {
             lock (_lock)
             {

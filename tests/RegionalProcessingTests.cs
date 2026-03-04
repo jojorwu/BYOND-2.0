@@ -77,10 +77,10 @@ namespace tests
                 _jobSystemMock.Object,
                 Options.Create(_serverSettings));
 
-            var region = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
+            var region = new Region((0L, 0L), 0);
             _regionActivationStrategyMock.Setup(r => r.GetActiveRegions()).Returns(new HashSet<Region> { region });
             _scriptHostMock.Setup(s => s.GetThreads()).Returns(new List<IScriptThread>());
-            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<int>>()))
+            _scriptHostMock.Setup(s => s.ExecuteThreadsAsync(It.IsAny<IEnumerable<IScriptThread>>(), It.IsAny<IEnumerable<IGameObject>>(), It.IsAny<bool>(), It.IsAny<HashSet<long>>()))
                 .ReturnsAsync(new List<IScriptThread>());
 
             // Act
@@ -114,7 +114,7 @@ namespace tests
                 interestManagerMock.Object,
                 _jobSystemMock.Object);
 
-            var region = new Region(new Robust.Shared.Maths.Vector2i(0, 0), 0);
+            var region = new Region((0L, 0L), 0);
             var mergedRegion = new MergedRegion(new List<Region> { region });
             var peer1 = new Mock<INetworkPeer>().Object;
             var peer2 = new Mock<INetworkPeer>().Object;

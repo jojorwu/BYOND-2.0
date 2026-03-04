@@ -18,7 +18,7 @@ namespace Core.Api
             _gameObjectPool = gameObjectPool;
         }
 
-        public GameObject? CreateObject(int typeId, int x, int y, int z)
+        public GameObject? CreateObject(int typeId, long x, long y, long z)
         {
             var objectType = _objectTypeManager.GetObjectType(typeId);
             if (objectType == null)
@@ -36,7 +36,7 @@ namespace Core.Api
             }
         }
 
-        public GameObject? GetObject(int id)
+        public GameObject? GetObject(long id)
         {
             using (_gameState.ReadLock())
             {
@@ -45,7 +45,7 @@ namespace Core.Api
             }
         }
 
-        public void DestroyObject(int id)
+        public void DestroyObject(long id)
         {
             using (_gameState.WriteLock())
             {
@@ -58,7 +58,7 @@ namespace Core.Api
             }
         }
 
-        public void MoveObject(int id, int x, int y, int z)
+        public void MoveObject(long id, long x, long y, long z)
         {
             using (_gameState.WriteLock())
             {

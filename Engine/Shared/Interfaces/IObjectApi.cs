@@ -1,8 +1,8 @@
 namespace Shared;
     public interface IObjectApi
     {
-        GameObject? CreateObject(int typeId, int x, int y, int z);
-        GameObject? GetObject(int id);
-        void DestroyObject(int id);
-        void MoveObject(int id, int x, int y, int z);
+        GameObject? CreateObject(int typeId, long x, long y, long z);
+        GameObject? GetObject(long id);
+        void DestroyObject(long id);
+        void MoveObject(long id, long x, long y, long z);
     }

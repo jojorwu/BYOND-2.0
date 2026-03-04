@@ -8,13 +8,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shared.Interfaces;
 
 namespace Shared;
-    public class GameState : IGameState
+    public class GameState : IGameState, IEngineUpdateListener
     {
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
-
-        public IMap? Map { get; set; }
+        private IMap? _map;
+        public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }
         public SpatialGrid SpatialGrid { get; }
-        public ConcurrentDictionary<int, GameObject> GameObjects { get; } = new ConcurrentDictionary<int, GameObject>();
+        public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
         private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
         private readonly IObjectFactory? _objectFactory;
 
@@ -26,34 +25,29 @@ namespace Shared;
 
         public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
 
-        IDictionary<int, GameObject> IGameState.GameObjects => GameObjects;
+        IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
+
+        public void OnStateChanged(IGameObject obj) => _dirtyObjects.Enqueue(obj);
+        public void OnPositionChanged(IGameObject obj, long oldX, long oldY, long oldZ) => SpatialGrid.Add(obj);
 
         public IDisposable ReadLock()
         {
-            _lock.EnterReadLock();
-            return new DisposableAction(() => _lock.ExitReadLock());
+            return new DisposableAction(() => { });
         }
 
         public IDisposable WriteLock()
         {
-            _lock.EnterWriteLock();
-            return new DisposableAction(() => _lock.ExitWriteLock());
+            return new DisposableAction(() => { });
         }
 
         public void Dispose()
         {
-            _lock.Dispose();
-            // SpatialGrid is shared, should it be disposed here?
-            // In BYOND 2.0, GameState is the primary owner of the simulation grid.
             SpatialGrid.Dispose();
         }
 
         public IEnumerable<IGameObject> GetAllGameObjects()
         {
-            using (ReadLock())
-            {
-                return new List<IGameObject>(GameObjects.Values);
-            }
+            return GameObjects.Values;
         }
 
         public void ForEachGameObject(Action<IGameObject> action)
@@ -66,36 +60,28 @@ namespace Shared;
 
         public void AddGameObject(GameObject gameObject)
         {
-            GameObjects.TryAdd(gameObject.Id, gameObject);
-            gameObject.PositionChanged += OnObjectPositionChanged;
-            gameObject.StateChanged += OnObjectStateChanged;
-            SpatialGrid.Add(gameObject);
-            _dirtyObjects.Enqueue(gameObject);
+            if (GameObjects.TryAdd(gameObject.Id, gameObject))
+            {
+                gameObject.SetUpdateListener(this);
+                SpatialGrid.Add(gameObject);
+                _dirtyObjects.Enqueue(gameObject);
+            }
         }
 
         public void RemoveGameObject(GameObject gameObject)
         {
-            GameObjects.TryRemove(gameObject.Id, out _);
-            gameObject.PositionChanged -= OnObjectPositionChanged;
-            gameObject.StateChanged -= OnObjectStateChanged;
-            SpatialGrid.Remove(gameObject);
+            if (GameObjects.TryRemove(gameObject.Id, out _))
+            {
+                gameObject.SetUpdateListener(null!);
+                SpatialGrid.Remove(gameObject);
 
-            _objectFactory?.Destroy(gameObject);
+                _objectFactory?.Destroy(gameObject);
+            }
         }
 
-        public void UpdateGameObject(GameObject gameObject, int oldX, int oldY)
+        public void UpdateGameObject(GameObject gameObject, long oldX, long oldY)
         {
             SpatialGrid.Update(gameObject, oldX, oldY);
-        }
-
-        private void OnObjectPositionChanged(GameObject obj, int oldX, int oldY, int oldZ)
-        {
-            UpdateGameObject(obj, oldX, oldY);
-        }
-
-        private void OnObjectStateChanged(IGameObject obj)
-        {
-            _dirtyObjects.Enqueue(obj);
         }
 
         public IEnumerable<IGameObject> GetDirtyObjects()

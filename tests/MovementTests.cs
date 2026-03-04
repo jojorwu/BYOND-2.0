@@ -39,8 +39,8 @@ namespace tests
             // Setup a basic turf
             var turfType = new ObjectType(1, "/turf");
             _typeManager.RegisterObjectType(turfType);
-            mapMock.Setup(m => m.GetTurf(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>()))
-                   .Returns((int x, int y, int z) => (ITurf)new Turf(turfType, x, y, z));
+            mapMock.Setup(m => m.GetTurf(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<long>()))
+                   .Returns((long x, long y, long z) => (ITurf)new Turf(turfType, x, y, z));
         }
 
         [TearDown]
@@ -97,7 +97,7 @@ namespace tests
 
             // Re-setup to return null for specific turf
             var mapMock = new Mock<IMapApi>();
-            mapMock.Setup(m => m.GetTurf(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>())).Returns((ITurf?)null);
+            mapMock.Setup(m => m.GetTurf(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<long>())).Returns((ITurf?)null);
 
             var spatialQueryApi = new SpatialQueryApi(_gameState, _typeManager, mapMock.Object);
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapMock.Object);

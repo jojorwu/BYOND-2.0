@@ -13,8 +13,8 @@ namespace Shared.Services;
 
         private struct PlayerInterestState
         {
-            public int X;
-            public int Y;
+            public long X;
+            public long Y;
             public int Range;
         }
 
@@ -25,7 +25,7 @@ namespace Shared.Services;
             _spatialGrid = spatialGrid;
         }
 
-        public void UpdatePlayerInterest(INetworkPeer peer, int x, int y, int range)
+        public void UpdatePlayerInterest(INetworkPeer peer, long x, long y, int range)
         {
             _playerStates[peer] = new PlayerInterestState { X = x, Y = y, Range = range };
         }
@@ -34,7 +34,7 @@ namespace Shared.Services;
         {
             if (_playerStates.TryGetValue(peer, out var state))
             {
-                var box = new Box2i(state.X - state.Range, state.Y - state.Range, state.X + state.Range, state.Y + state.Range);
+                var box = new Box2l(state.X - state.Range, state.Y - state.Range, state.X + state.Range, state.Y + state.Range);
 
                 // Optimized spatial query using non-allocating callback and thread-local buffer.
                 // Safe because Serialize is called before the next query on this worker thread.

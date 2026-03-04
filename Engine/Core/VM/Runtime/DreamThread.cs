@@ -151,9 +151,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
     }
 
-    public void Sleep(float seconds)
+    public void Sleep(double seconds)
     {
-        if (float.IsNaN(seconds) || seconds <= 0) seconds = 0;
+        if (double.IsNaN(seconds) || seconds <= 0) seconds = 0;
         // Max 1 year to prevent DateTime overflow
         if (seconds > 31536000) seconds = 31536000;
 
@@ -226,12 +226,12 @@ public partial class DreamThread : IScriptThread, IDisposable
         return value;
     }
 
-    internal float ReadSingle(DreamProc proc, ref int pc)
+    internal double ReadDouble(DreamProc proc, ref int pc)
     {
-        if (pc + 4 > proc.Bytecode.Length)
+        if (pc + 8 > proc.Bytecode.Length)
             throw new Exception("Attempted to read past the end of the bytecode.");
-        var value = BinaryPrimitives.ReadSingleLittleEndian(proc.Bytecode.AsSpan(pc));
-        pc += 4;
+        var value = BinaryPrimitives.ReadDoubleLittleEndian(proc.Bytecode.AsSpan(pc));
+        pc += 8;
         return value;
     }
 

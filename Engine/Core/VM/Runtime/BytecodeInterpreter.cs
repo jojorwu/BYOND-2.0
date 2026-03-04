@@ -1715,7 +1715,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
                     var refValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-                    state.Thread.SetReferenceValue(reference, ref state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsFloat(), value.GetValueAsFloat())), 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, new DreamValue(SharedOperations.Modulo(refValue.GetValueAsDouble(), value.GetValueAsDouble())), 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                 }
@@ -2523,7 +2523,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var delay = state.Stack[--state.StackPtr];
         state.Thread._stackPtr = state.StackPtr;
         var newThread = new DreamThread(state.Thread, bodyPc);
-        if (delay.TryGetValue(out double seconds) && seconds > 0) newThread.Sleep((float)seconds / 10.0f);
+        if (delay.TryGetValue(out double seconds) && seconds > 0) newThread.Sleep(seconds / 10.0);
         state.Thread.Context.ScriptHost?.AddThread(newThread);
         state.StackPtr = state.Thread._stackPtr;
     }
@@ -2896,12 +2896,12 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             {
                 case BuiltinVar.Icon: val.TryGetValue(out string? s); if (s != null) instance.Icon = s; break;
                 case BuiltinVar.IconState: val.TryGetValue(out string? s2); if (s2 != null) instance.IconState = s2; break;
-                case BuiltinVar.Dir: instance.Dir = (int)val.GetValueAsFloat(); break;
-                case BuiltinVar.Alpha: instance.Alpha = val.GetValueAsFloat(); break;
+                case BuiltinVar.Dir: instance.Dir = (int)val.GetValueAsDouble(); break;
+                case BuiltinVar.Alpha: instance.Alpha = val.GetValueAsDouble(); break;
                 case BuiltinVar.Color: val.TryGetValue(out string? s3); if (s3 != null) instance.Color = s3; break;
-                case BuiltinVar.Layer: instance.Layer = val.GetValueAsFloat(); break;
-                case BuiltinVar.PixelX: instance.PixelX = val.GetValueAsFloat(); break;
-                case BuiltinVar.PixelY: instance.PixelY = val.GetValueAsFloat(); break;
+                case BuiltinVar.Layer: instance.Layer = val.GetValueAsDouble(); break;
+                case BuiltinVar.PixelX: instance.PixelX = val.GetValueAsDouble(); break;
+                case BuiltinVar.PixelY: instance.PixelY = val.GetValueAsDouble(); break;
             }
         }
     }

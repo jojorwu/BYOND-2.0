@@ -9,20 +9,38 @@ using Shared;
 
 namespace Core.VM.Runtime;
 
+/// <summary>
+/// Defines the core contract for the Dream VM bytecode executor.
+/// </summary>
 public interface IBytecodeInterpreter
 {
+    /// <summary>
+    /// Executes instructions from the thread's current state until the budget is exhausted
+    /// or the thread enters a non-running state.
+    /// </summary>
     DreamThreadState Run(DreamThread thread, int instructionBudget);
 }
 
+/// <summary>
+/// A high-performance ref struct used to capture the interpreter's mutable state.
+/// By using a ref struct and capturing the current Frame as a ref, we eliminate
+/// struct copying overhead during tight execution loops.
+/// </summary>
 internal unsafe ref struct InterpreterState
 {
     public DreamThread Thread;
+    /// <summary>
+    /// A reference to the current execution frame on the thread's call stack.
+    /// </summary>
     public ref CallFrame Frame;
     public DreamProc Proc;
     public int PC;
     public DreamValue[] Stack;
     public int StackPtr;
     public byte[] BytecodeArray;
+    /// <summary>
+    /// Fixed pointer to the bytecode array to bypass Bounds Checks and BinaryPrimitives overhead.
+    /// </summary>
     public byte* BytecodePtr;
     public int LocalBase;
     public int ArgumentBase;

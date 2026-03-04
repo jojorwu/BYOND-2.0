@@ -2,6 +2,10 @@ using System;
 
 namespace Shared;
 
+/// <summary>
+/// A 64-bit integer bounding box used for massive spatial queries.
+/// Replaces Box2i to support coordinates up to $10^{12}$ and beyond.
+/// </summary>
 public readonly struct Box2l : IEquatable<Box2l>
 {
     public readonly long Left;

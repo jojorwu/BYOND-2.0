@@ -7,16 +7,36 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Shared;
+    /// <summary>
+    /// The fundamental data type in the Dream VM.
+    /// Utilizes an explicit memory union to store 64-bit doubles and longs in the same slot,
+    /// ensuring absolute precision for object IDs and bitwise operations.
+    /// </summary>
     [JsonConverter(typeof(DreamValueConverter))]
     [StructLayout(LayoutKind.Explicit)]
     public readonly struct DreamValue : IEquatable<DreamValue>
     {
+        /// <summary>
+        /// The runtime type tag for this value.
+        /// </summary>
         [FieldOffset(0)]
         public readonly DreamValueType Type;
+
+        /// <summary>
+        /// Stores floating-point numeric data. Shares memory with _longValue.
+        /// </summary>
         [FieldOffset(8)]
         private readonly double _floatValue;
+
+        /// <summary>
+        /// Stores integer numeric data (IDs, bitsets). Shares memory with _floatValue.
+        /// </summary>
         [FieldOffset(8)]
         private readonly long _longValue;
+
+        /// <summary>
+        /// Reference to heap-allocated objects (strings, lists, objects).
+        /// </summary>
         [FieldOffset(16)]
         private readonly object? _objectValue;
 
@@ -264,12 +284,20 @@ namespace Shared;
             throw new InvalidOperationException($"Cannot read DreamValue of type {Type} as an int");
         }
 
+        /// <summary>
+        /// Retrieves the bit-level 64-bit value regardless of the numeric tag.
+        /// Safe because Float and Integer share the same 8-byte offset.
+        /// </summary>
         public double RawDouble
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => (Type == DreamValueType.Float) ? _floatValue : (double)_longValue;
         }
 
+        /// <summary>
+        /// Retrieves the raw 64-bit integer bits regardless of the numeric tag.
+        /// Useful for bitwise operations and exact ID comparisons.
+        /// </summary>
         public long RawLong
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]

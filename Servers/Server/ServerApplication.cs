@@ -20,13 +20,19 @@ namespace Server
     {
         private readonly ILogger<ServerApplication> _logger;
         private readonly List<IEngineService> _services;
+        private readonly CVarReplicator _replicator;
+        private readonly Shared.Config.IConsoleCommandManager _commandManager;
 
         public ServerApplication(
             ILogger<ServerApplication> logger,
-            IEnumerable<IEngineService> services)
+            IEnumerable<IEngineService> services,
+            CVarReplicator replicator,
+            Shared.Config.IConsoleCommandManager commandManager)
         {
             _logger = logger;
             _services = services.ToList();
+            _replicator = replicator;
+            _commandManager = commandManager;
             _logger.LogInformation("ServerApplication initialized with {Count} services.", _services.Count);
         }
 
@@ -76,8 +82,25 @@ namespace Server
             sw.Stop();
             _logger.LogInformation("========================================");
             _logger.LogInformation("Server started successfully in {Elapsed}ms", sw.ElapsedMilliseconds);
-            _logger.LogInformation("Ready for connections.");
+            _logger.LogInformation("Ready for connections. Type commands below:");
             _logger.LogInformation("========================================");
+
+            _ = Task.Run(() => RunConsoleLoop());
+        }
+
+        private async Task RunConsoleLoop()
+        {
+            while (true)
+            {
+                var input = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(input)) continue;
+
+                var result = await _commandManager.ExecuteCommand(input);
+                if (!string.IsNullOrEmpty(result))
+                {
+                    _logger.LogInformation(result);
+                }
+            }
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)

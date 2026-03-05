@@ -119,7 +119,8 @@ namespace Editor
             services.AddSingleton<SettingsPanel>();
             services.AddSingleton<ProjectSettingsPanel>(provider =>
                 new ProjectSettingsPanel(
-                    provider.GetRequiredService<IConfigurationManager>()
+                    provider.GetRequiredService<IConfigurationManager>(),
+                    provider.GetRequiredService<IConsoleCommandManager>()
                 )
             );
             services.AddSingleton<ToolbarPanel>(provider =>

@@ -186,11 +186,37 @@ public class ConfigurationManager : IConfigurationManager
 
     public void SetCVarDirect(string name, object value)
     {
-         if (_cvars.TryGetValue(name, out var info))
-         {
-             var method = typeof(ConfigurationManager).GetMethod(nameof(SetCVar))!.MakeGenericMethod(info.Type);
-             method.Invoke(this, new[] { value });
-         }
+        if (_cvars.TryGetValue(name, out var info))
+        {
+            object? convertedValue = value;
+            try
+            {
+                if (value is JsonElement element)
+                {
+                    convertedValue = element.Deserialize(info.Type);
+                }
+                else if (value is string str && info.Type != typeof(string))
+                {
+                    if (info.Type == typeof(bool)) convertedValue = bool.Parse(str);
+                    else if (info.Type == typeof(int)) convertedValue = int.Parse(str);
+                    else if (info.Type == typeof(long)) convertedValue = long.Parse(str);
+                    else if (info.Type == typeof(float)) convertedValue = float.Parse(str, System.Globalization.CultureInfo.InvariantCulture);
+                    else if (info.Type == typeof(double)) convertedValue = double.Parse(str, System.Globalization.CultureInfo.InvariantCulture);
+                    else convertedValue = Convert.ChangeType(str, info.Type);
+                }
+                else if (value != null && !info.Type.IsAssignableFrom(value.GetType()))
+                {
+                    convertedValue = Convert.ChangeType(value, info.Type);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to convert value '{value}' to type {info.Type} for CVar '{name}'", ex);
+            }
+
+            var method = typeof(ConfigurationManager).GetMethods().First(m => m.Name == nameof(SetCVar) && m.IsGenericMethod)!.MakeGenericMethod(info.Type);
+            method.Invoke(this, new[] { name, convertedValue });
+        }
     }
 
     public void LoadAll()

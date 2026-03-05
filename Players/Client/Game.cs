@@ -16,6 +16,7 @@ using Shared;
 using Shared.Config;
 using Shared.Enums;
 using Shared.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
@@ -51,6 +52,7 @@ namespace Client
         private readonly CSharpShaderManager _csharpShaderManager;
         private readonly DmiCache _dmiCache;
         private readonly IconCache _iconCache;
+        private readonly IServiceProvider _serviceProvider;
         private ICSharpShader? _sampleCSharpShader;
         private Graphics.Shader? _sampleGlShader;
         private Mesh _cubeMesh = null!;
@@ -69,7 +71,7 @@ namespace Client
         private double _accumulator;
         private float _alpha;
 
-        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem, IConfigurationManager configManager)
+        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem, IConfigurationManager configManager, IServiceProvider serviceProvider)
         {
             _textureCache = textureCache;
             _soundSystem = soundSystem;
@@ -79,6 +81,7 @@ namespace Client
             _typeManager = typeManager;
             _objectFactory = objectFactory;
             _configManager = configManager;
+            _serviceProvider = serviceProvider;
 
             _configManager.RegisterFromAssemblies(typeof(ConfigKeys).Assembly);
             _configManager.AddProvider(new JsonConfigProvider("client_config.json"));
@@ -113,7 +116,7 @@ namespace Client
             _imGuiController = new ImGuiController(_gl, _window, input);
             _connectionPanel = new ConnectionPanel();
             _mainHud = new MainHud();
-            _settingsPanel = new SettingsPanel(_configManager);
+            _settingsPanel = new SettingsPanel(_configManager, _serviceProvider.GetRequiredService<IConsoleCommandManager>());
             _mainHud.AddMessage("Welcome to BYOND 2.0!");
             _mainHud.AddMessage("Connecting to server...");
 

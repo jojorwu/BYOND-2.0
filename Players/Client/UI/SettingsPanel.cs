@@ -13,13 +13,17 @@ namespace Client.UI
         public bool IsOpen = false;
 
         private readonly IConfigurationManager _manager;
+        private readonly IConsoleCommandManager _commandManager;
         private List<string>? _cachedCategories;
         private List<CVarInfo>? _cachedAllCVars;
         private readonly Dictionary<string, List<CVarInfo>> _cachedCategoryCVars = new();
+        private string _consoleInput = "";
+        private List<string> _consoleOutput = new();
 
-        public SettingsPanel(IConfigurationManager manager)
+        public SettingsPanel(IConfigurationManager manager, IConsoleCommandManager commandManager)
         {
             _manager = manager;
+            _commandManager = commandManager;
             _manager.OnCVarChanged += (_, _) => { _cachedCategories = null; _cachedAllCVars = null; _cachedCategoryCVars.Clear(); };
         }
 
@@ -55,6 +59,11 @@ namespace Client.UI
                     if (ImGui.BeginTabItem("All"))
                     {
                         DrawFilteredCVars(ref _cachedAllCVars, CVarFlags.None);
+                        ImGui.EndTabItem();
+                    }
+                    if (ImGui.BeginTabItem("Console"))
+                    {
+                        DrawConsole();
                         ImGui.EndTabItem();
                     }
                     ImGui.EndTabBar();
@@ -109,22 +118,14 @@ namespace Client.UI
             }
         }
 
+        private void DrawConsole()
+        {
+            CVarUiHelper.DrawConsole(_consoleOutput, ref _consoleInput, _commandManager);
+        }
+
         private void DrawCVarEditor(CVarInfo info)
         {
-            if (!CVarUiRegistry.TryDraw(info, _manager))
-            {
-                ImGui.Text($"{info.Name}: {info.Value} (Unsupported UI)");
-            }
-
-            if (!string.IsNullOrEmpty(info.Description))
-            {
-                ImGui.SameLine();
-                ImGui.TextDisabled("(?)");
-                if (ImGui.IsItemHovered())
-                {
-                    ImGui.SetTooltip(info.Description);
-                }
-            }
+            CVarUiHelper.DrawCVarEditor(info, _manager);
         }
     }
 }

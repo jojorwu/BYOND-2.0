@@ -73,6 +73,7 @@ namespace Server
                     sp.GetRequiredService<IServerContext>(),
                     sp.GetRequiredService<IScriptHost>(),
                     sp.GetRequiredService<IUdpServer>(),
+                    sp.GetRequiredService<Shared.Config.IConsoleCommandManager>(),
                     sp.GetRequiredService<ILogger<NetworkEventHandler>>()
                 ));
 

@@ -63,5 +63,21 @@ namespace tests
             _manager.RegisterCVar("Test.Int", 10);
             Assert.Throws<System.InvalidCastException>(() => _manager.GetCVar<string>("Test.Int"));
         }
+
+        [Test]
+        public void TestSetCVarDirect_ConvertsTypes()
+        {
+            _manager.RegisterCVar("Test.Int", 10);
+            _manager.RegisterCVar("Test.Bool", false);
+            _manager.RegisterCVar("Test.Float", 1.0f);
+
+            _manager.SetCVarDirect("Test.Int", "20");
+            _manager.SetCVarDirect("Test.Bool", "true");
+            _manager.SetCVarDirect("Test.Float", "3.14");
+
+            Assert.That(_manager.GetCVar<int>("Test.Int"), Is.EqualTo(20));
+            Assert.That(_manager.GetCVar<bool>("Test.Bool"), Is.True);
+            Assert.That(_manager.GetCVar<float>("Test.Float"), Is.EqualTo(3.14f).Within(0.001f));
+        }
     }
 }

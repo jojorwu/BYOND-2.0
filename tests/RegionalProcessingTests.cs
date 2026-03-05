@@ -110,7 +110,7 @@ namespace tests
 
             var udpServer = new UdpServer(
                 new Mock<INetworkService>().Object,
-                new Mock<NetworkEventHandler>(new Mock<INetworkService>().Object, contextMock.Object, new Mock<IScriptHost>().Object, new Mock<IUdpServer>().Object, new Mock<ILogger<NetworkEventHandler>>().Object).Object,
+                new NetworkEventHandler(new Mock<INetworkService>().Object, contextMock.Object, new Mock<IScriptHost>().Object, new Mock<IUdpServer>().Object, new Mock<Shared.Config.IConsoleCommandManager>().Object, new Mock<ILogger<NetworkEventHandler>>().Object),
                 contextMock.Object,
                 snapshotServiceMock.Object,
                 interestManagerMock.Object,

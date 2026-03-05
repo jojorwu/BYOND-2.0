@@ -6,20 +6,24 @@ using Microsoft.Extensions.Logging;
 
 namespace Server
 {
+    using Shared.Config;
+
     public class NetworkEventHandler
     {
         private readonly INetworkService _networkService;
         private readonly IServerContext _context;
         private readonly IScriptHost _scriptHost;
         private readonly IUdpServer _udpServer;
+        private readonly IConsoleCommandManager _commandManager;
         private readonly ILogger<NetworkEventHandler> _logger;
 
-        public NetworkEventHandler(INetworkService networkService, IServerContext context, IScriptHost scriptHost, IUdpServer udpServer, ILogger<NetworkEventHandler> logger)
+        public NetworkEventHandler(INetworkService networkService, IServerContext context, IScriptHost scriptHost, IUdpServer udpServer, IConsoleCommandManager commandManager, ILogger<NetworkEventHandler> logger)
         {
             _networkService = networkService;
             _context = context;
             _scriptHost = scriptHost;
             _udpServer = udpServer;
+            _commandManager = commandManager;
             _logger = logger;
         }
 
@@ -58,7 +62,8 @@ namespace Server
 
         private void OnCommandReceived(INetworkPeer peer, string command)
         {
-            _scriptHost.EnqueueCommand(command, (result) => {
+            Task.Run(async () => {
+                var result = await _commandManager.ExecuteCommand(command);
                 _ = peer.SendAsync(result);
             });
         }

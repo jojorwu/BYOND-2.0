@@ -13,5 +13,6 @@ public class ConfigModule : BaseModule
     {
         services.AddSingleton<IConfigurationManager, ConfigurationManager>();
         services.AddSingleton<IEngineConfig, EngineConfig>();
+        services.AddSingleton<IConsoleCommandManager, ConsoleCommandManager>();
     }
 }

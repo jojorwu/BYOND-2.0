@@ -78,6 +78,7 @@ namespace tests
             var udpServerEngineMock = udpServerMock.As<IEngineService>();
             var scriptHostEngineMock = scriptHostMock.As<IEngineService>();
 
+            var configManager = new Shared.Config.ConfigurationManager();
             var app = new ServerApplication(
                 loggerMock.Object,
                 new IEngineService[] {
@@ -86,7 +87,9 @@ namespace tests
                     udpServerEngineMock.Object,
                     httpServerMock.Object,
                     gameLoopMock.Object
-                });
+                },
+                new CVarReplicator(configManager, new NetDataWriterPool(), new Mock<IPlayerManager>().Object),
+                new Shared.Config.ConsoleCommandManager());
 
             var cts = new CancellationTokenSource();
 

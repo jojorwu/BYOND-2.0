@@ -45,6 +45,14 @@ class Program
             return manager;
         });
 
+        services.AddSingleton<Shared.Config.IConsoleCommandManager>(sp => {
+            var manager = new Shared.Config.ConsoleCommandManager();
+            var config = sp.GetRequiredService<Shared.Config.IConfigurationManager>();
+            manager.RegisterCommand(new Shared.Config.CVarListCommand(config));
+            manager.RegisterCommand(new Shared.Config.CVarSetCommand(config));
+            return manager;
+        });
+
         services.Configure<ServerSettings>(configuration.GetSection("ServerSettings"));
         services.AddSingleton(resolver => {
             var manager = resolver.GetRequiredService<Shared.Config.IConfigurationManager>();

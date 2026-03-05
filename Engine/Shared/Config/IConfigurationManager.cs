@@ -12,7 +12,7 @@ public interface IConfigurationManager
 {
     T GetCVar<T>(string name);
     void SetCVar<T>(string name, T value);
-    void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General", object? minValue = null, object? maxValue = null);
+    void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General", object? minValue = null, object? maxValue = null, Func<T, bool>? validator = null);
     CVar<T> GetCVarHandle<T>(string name);
     void AddProvider(IConfigProvider provider);
     void RegisterFromAssemblies(params Assembly[] assemblies);
@@ -20,6 +20,11 @@ public interface IConfigurationManager
     void SaveAll();
     event Action<string, object> OnCVarChanged;
     IEnumerable<CVarInfo> GetRegisteredCVars();
+}
+
+public record CVarDef<T>(string Name, T DefaultValue, CVarFlags Flags = CVarFlags.None, string Description = "", string Category = "General", object? MinValue = null, object? MaxValue = null)
+{
+    public static implicit operator string(CVarDef<T> def) => def.Name;
 }
 
 public class CVarInfo
@@ -35,6 +40,7 @@ public class CVarInfo
     public object? MinValue { get; set; }
     public object? MaxValue { get; set; }
     public bool IsLocked { get; set; }
+    public object? Validator { get; set; }
 }
 
 public class ConfigurationManager : IConfigurationManager
@@ -104,7 +110,7 @@ public class ConfigurationManager : IConfigurationManager
         }
     }
 
-    public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General", object? minValue = null, object? maxValue = null)
+    public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General", object? minValue = null, object? maxValue = null, Func<T, bool>? validator = null)
     {
         if (_cvars.TryGetValue(name, out var info))
         {
@@ -115,6 +121,7 @@ public class ConfigurationManager : IConfigurationManager
             info.Type = typeof(T);
             info.MinValue = minValue;
             info.MaxValue = maxValue;
+            info.Validator = validator;
 
             // Try to resolve existing value if it was loaded as a generic object or JsonElement
             if (info.Value is JsonElement element)
@@ -138,7 +145,8 @@ public class ConfigurationManager : IConfigurationManager
                 Category = category,
                 Type = typeof(T),
                 MinValue = minValue,
-                MaxValue = maxValue
+                MaxValue = maxValue,
+                Validator = validator
             });
         }
     }
@@ -166,12 +174,24 @@ public class ConfigurationManager : IConfigurationManager
             {
                 foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic))
                 {
-                    var attr = field.GetCustomAttribute<CVarAttribute>();
-                    if (attr != null)
+                    // Check for CVarDef<T>
+                    if (field.FieldType.IsGenericType && field.FieldType.GetGenericTypeDefinition() == typeof(CVarDef<>))
                     {
-                        var defaultValue = field.GetValue(null);
-                        var registerMethod = typeof(ConfigurationManager).GetMethod(nameof(RegisterCVar))!.MakeGenericMethod(field.FieldType);
-                        registerMethod.Invoke(this, new[] { attr.Name, defaultValue, attr.Flags, attr.Description, attr.Category, attr.MinValue, attr.MaxValue });
+                        var def = field.GetValue(null);
+                        if (def == null) continue;
+
+                        var typeT = field.FieldType.GetGenericArguments()[0];
+
+                        var name = (string)field.FieldType.GetProperty("Name")!.GetValue(def)!;
+                        var defaultValue = field.FieldType.GetProperty("DefaultValue")!.GetValue(def);
+                        var flags = (CVarFlags)field.FieldType.GetProperty("Flags")!.GetValue(def)!;
+                        var description = (string)field.FieldType.GetProperty("Description")!.GetValue(def)!;
+                        var category = (string)field.FieldType.GetProperty("Category")!.GetValue(def)!;
+                        var minValue = field.FieldType.GetProperty("MinValue")!.GetValue(def);
+                        var maxValue = field.FieldType.GetProperty("MaxValue")!.GetValue(def);
+
+                        var registerMethod = typeof(ConfigurationManager).GetMethods().First(m => m.Name == nameof(RegisterCVar) && m.IsGenericMethod)!.MakeGenericMethod(typeT);
+                        registerMethod.Invoke(this, new[] { name, defaultValue, flags, description, category, minValue, maxValue, null });
                     }
                 }
             }

@@ -66,6 +66,7 @@ namespace Launcher
 
                 try
                 {
+                    // This uses the local Launcher.Texture class
                     _logoTexture = new Texture(_gl, Path.Combine("assets", "logo.png"));
                 }
                 catch (FileNotFoundException)

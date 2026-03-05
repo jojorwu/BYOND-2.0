@@ -79,5 +79,20 @@ namespace tests
             Assert.That(_manager.GetCVar<bool>("Test.Bool"), Is.True);
             Assert.That(_manager.GetCVar<float>("Test.Float"), Is.EqualTo(3.14f).Within(0.001f));
         }
+
+        [Test]
+        public void TestRegisterFromAssemblies_CVarDef()
+        {
+            _manager.RegisterFromAssemblies(typeof(ConfigKeys).Assembly);
+
+            // GraphicsResolutionX is registered as int 1280
+            Assert.That(_manager.GetCVar<int>(ConfigKeys.GraphicsResolutionX), Is.EqualTo(1280));
+
+            // ServerName is registered as string
+            Assert.That(_manager.GetCVar<string>(ConfigKeys.ServerName), Is.EqualTo("BYOND 2.0 Server"));
+
+            // GridCellSize is registered as long 32
+            Assert.That(_manager.GetCVar<long>(ConfigKeys.GridCellSize), Is.EqualTo(32L));
+        }
     }
 }

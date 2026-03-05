@@ -2,6 +2,7 @@ using Editor.UI;
 using Editor.History;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
+using Shared.Config;
 
 namespace Editor
 {
@@ -18,6 +19,7 @@ namespace Editor
                     provider.GetRequiredService<TextureManager>(),
                     provider.GetRequiredService<IProjectService>(),
                     provider.GetRequiredService<SettingsPanel>(),
+                    provider.GetRequiredService<ProjectSettingsPanel>(),
                     provider.GetRequiredService<IRunService>(),
                     provider.GetRequiredService<IEditorSettingsManager>()
                 )
@@ -69,6 +71,7 @@ namespace Editor
                     provider.GetRequiredService<ObjectBrowserPanel>(),
                     provider.GetRequiredService<AssetBrowserPanel>(),
                     provider.GetRequiredService<SceneHierarchyPanel>(),
+                    provider.GetRequiredService<ProjectSettingsPanel>(),
                     provider.GetRequiredService<EditorContext>(),
                     provider.GetRequiredService<EditorLaunchOptions>(),
                     provider.GetRequiredService<IUIService>()
@@ -114,6 +117,11 @@ namespace Editor
             services.AddSingleton<ObjectBrowserPanel>();
             services.AddSingleton<ScriptEditorPanel>();
             services.AddSingleton<SettingsPanel>();
+            services.AddSingleton<ProjectSettingsPanel>(provider =>
+                new ProjectSettingsPanel(
+                    provider.GetRequiredService<IConfigurationManager>()
+                )
+            );
             services.AddSingleton<ToolbarPanel>(provider =>
                 new ToolbarPanel(
                     provider.GetRequiredService<EditorContext>(),

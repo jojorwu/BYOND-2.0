@@ -27,6 +27,7 @@ namespace Editor
         private readonly TextureManager _textureManager;
         private readonly IProjectService _projectService;
         private readonly SettingsPanel _settingsPanel;
+        private readonly ProjectSettingsPanel _projectSettingsPanel;
         private readonly IRunService _runService;
         private readonly IEditorSettingsManager _settingsManager;
 
@@ -35,6 +36,7 @@ namespace Editor
         public Editor(IServiceProvider serviceProvider,
             MainPanel mainPanel, MenuBarPanel menuBarPanel, ViewportPanel viewportPanel,
             TextureManager textureManager, IProjectService projectService, SettingsPanel settingsPanel,
+            ProjectSettingsPanel projectSettingsPanel,
             IRunService runService, IEditorSettingsManager settingsManager)
         {
             _serviceProvider = serviceProvider;
@@ -44,6 +46,7 @@ namespace Editor
             _textureManager = textureManager;
             _projectService = projectService;
             _settingsPanel = settingsPanel;
+            _projectSettingsPanel = projectSettingsPanel;
             _runService = runService;
             _settingsManager = settingsManager;
         }
@@ -159,6 +162,7 @@ namespace Editor
 
             _mainPanel.Draw();
             _settingsPanel.Draw();
+            _projectSettingsPanel.Draw();
             _runService.Draw();
 
             if (_menuBarPanel.IsExitRequested)

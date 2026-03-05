@@ -13,6 +13,7 @@ using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Shared;
+using Shared.Config;
 using Shared.Enums;
 using Shared.Interfaces;
 using System.Collections.Concurrent;
@@ -57,7 +58,9 @@ namespace Client
         private ImGuiController _imGuiController = null!;
         private ConnectionPanel _connectionPanel = null!;
         private MainHud _mainHud = null!;
+        private SettingsPanel _settingsPanel = null!;
         private readonly ISoundSystem _soundSystem;
+        private readonly IConfigurationManager _configManager;
 
         private ClientState _clientState = ClientState.Connecting;
         private GameState _previousState = null!;
@@ -66,7 +69,7 @@ namespace Client
         private double _accumulator;
         private float _alpha;
 
-        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem)
+        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem, IConfigurationManager configManager)
         {
             _textureCache = textureCache;
             _soundSystem = soundSystem;
@@ -75,10 +78,15 @@ namespace Client
             _iconCache = iconCache;
             _typeManager = typeManager;
             _objectFactory = objectFactory;
+            _configManager = configManager;
+
+            new GlobalSettings(_configManager);
+            _configManager.Load("client_config.json");
 
             var options = WindowOptions.Default;
             options.Title = "BYOND 2.0 Client";
-            options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
+            options.Size = new Silk.NET.Maths.Vector2D<int>(_configManager.GetCVar<int>(ConfigKeys.GraphicsResolutionX), _configManager.GetCVar<int>(ConfigKeys.GraphicsResolutionY));
+            options.VSync = _configManager.GetCVar<bool>(ConfigKeys.GraphicsVSync);
             _window = Window.Create(options);
 
             _window.Load += OnLoad;
@@ -104,6 +112,7 @@ namespace Client
             _imGuiController = new ImGuiController(_gl, _window, input);
             _connectionPanel = new ConnectionPanel();
             _mainHud = new MainHud();
+            _settingsPanel = new SettingsPanel(_configManager);
             _mainHud.AddMessage("Welcome to BYOND 2.0!");
             _mainHud.AddMessage("Connecting to server...");
 
@@ -131,9 +140,17 @@ namespace Client
             _renderPipeline.AddPass(new OccluderPass(_occluderMap, _spriteRenderer));
             _renderPipeline.AddPass(new GeometryPass(_gBuffer, _worldRenderer));
             _renderPipeline.AddPass(new LightingPass(_lightingRenderer, _gBuffer, _occluderMap, _sceneFramebuffer, _particleSystem));
-            _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer));
+            _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer, _configManager));
 
             LoadCSharpShader();
+
+            _configManager.OnCVarChanged += (key, value) =>
+            {
+                if (key == ConfigKeys.GraphicsResolutionX || key == ConfigKeys.GraphicsResolutionY)
+                {
+                    _window.Size = new Silk.NET.Maths.Vector2D<int>(_configManager.GetCVar<int>(ConfigKeys.GraphicsResolutionX), _configManager.GetCVar<int>(ConfigKeys.GraphicsResolutionY));
+                }
+            };
         }
 
         private async void LoadCSharpShader()
@@ -292,6 +309,8 @@ new MyShader()
                 _mainHud.Draw(_playerObject);
             }
 
+            _settingsPanel.Draw();
+
             _imGuiController.Render();
         }
 
@@ -389,6 +408,10 @@ new MyShader()
             {
                 _mainHud.AddMessage("Sending ping...");
                 _logicThread?.SendCommand("ping");
+            }
+            if (key == Key.O)
+            {
+                _settingsPanel.IsOpen = !_settingsPanel.IsOpen;
             }
         }
     }

@@ -14,9 +14,10 @@ namespace Client.Graphics
         private readonly Framebuffer _sceneFramebuffer;
         private readonly Framebuffer[] _bloomBuffers;
         private readonly SpriteRenderer _spriteRenderer;
+        private readonly Shared.Config.IConfigurationManager _config;
         private Framebuffer? _historyBuffer;
 
-        public PostProcessPass(SSAOShader ssaoShader, BloomShader bloomShader, PostProcessShader postProcessShader, OccluderMap occluderMap, GBuffer gBuffer, Framebuffer sceneFramebuffer, Framebuffer[] bloomBuffers, SpriteRenderer spriteRenderer)
+        public PostProcessPass(SSAOShader ssaoShader, BloomShader bloomShader, PostProcessShader postProcessShader, OccluderMap occluderMap, GBuffer gBuffer, Framebuffer sceneFramebuffer, Framebuffer[] bloomBuffers, SpriteRenderer spriteRenderer, Shared.Config.IConfigurationManager config)
         {
             _ssaoShader = ssaoShader;
             _bloomShader = bloomShader;
@@ -26,6 +27,7 @@ namespace Client.Graphics
             _sceneFramebuffer = sceneFramebuffer;
             _bloomBuffers = bloomBuffers;
             _spriteRenderer = spriteRenderer;
+            _config = config;
         }
 
         public string Name => "PostProcess";
@@ -33,24 +35,32 @@ namespace Client.Graphics
         public void Execute(RenderContext context)
         {
             // SSAO
-            _ssaoShader.Use(_occluderMap.Texture, _gBuffer.DepthTexture, 2.0f);
+            bool ssaoEnabled = _config.GetCVar<bool>(Shared.Config.ConfigKeys.GraphicsSSAOEnabled);
+            if (ssaoEnabled)
+            {
+                _ssaoShader.Use(_occluderMap.Texture, _gBuffer.DepthTexture, 2.0f);
+            }
 
             // Bloom
-            _bloomBuffers[0].Resize(context.Width / 2, context.Height / 2);
-            _bloomBuffers[1].Resize(context.Width / 2, context.Height / 2);
-
-            _bloomBuffers[0].Bind();
-            _bloomShader.ExtractBright(_sceneFramebuffer.Texture);
-            DrawSimpleQuad(context.GL);
-            _bloomBuffers[0].Unbind();
-
+            bool bloomEnabled = _config.GetCVar<bool>(Shared.Config.ConfigKeys.GraphicsBloomEnabled);
             bool horizontal = true;
-            for (int i = 0; i < 4; i++)
+            if (bloomEnabled)
             {
-                _bloomBuffers[horizontal ? 1 : 0].Bind();
-                _bloomShader.Blur(_bloomBuffers[horizontal ? 0 : 1].Texture, horizontal);
+                _bloomBuffers[0].Resize(context.Width / 2, context.Height / 2);
+                _bloomBuffers[1].Resize(context.Width / 2, context.Height / 2);
+
+                _bloomBuffers[0].Bind();
+                _bloomShader.ExtractBright(_sceneFramebuffer.Texture);
                 DrawSimpleQuad(context.GL);
-                horizontal = !horizontal;
+                _bloomBuffers[0].Unbind();
+
+                for (int i = 0; i < 4; i++)
+                {
+                    _bloomBuffers[horizontal ? 1 : 0].Bind();
+                    _bloomShader.Blur(_bloomBuffers[horizontal ? 0 : 1].Texture, horizontal);
+                    DrawSimpleQuad(context.GL);
+                    horizontal = !horizontal;
+                }
             }
 
             // Final Composite
@@ -71,13 +81,16 @@ namespace Client.Graphics
             context.GL.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)currentFbo);
             DrawSimpleQuad(context.GL);
 
-            context.GL.Enable(EnableCap.Blend);
-            context.GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
+            if (bloomEnabled)
+            {
+                context.GL.Enable(EnableCap.Blend);
+                context.GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
 
-            context.GL.BindTexture(TextureTarget.Texture2D, _bloomBuffers[horizontal ? 0 : 1].Texture);
-            DrawSimpleQuad(context.GL);
+                context.GL.BindTexture(TextureTarget.Texture2D, _bloomBuffers[horizontal ? 0 : 1].Texture);
+                DrawSimpleQuad(context.GL);
 
-            context.GL.Disable(EnableCap.Blend);
+                context.GL.Disable(EnableCap.Blend);
+            }
         }
 
         private void DrawSimpleQuad(GL gl)

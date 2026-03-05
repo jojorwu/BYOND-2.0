@@ -12,6 +12,7 @@ public static class SharedServiceCollectionExtensions
 {
     public static IServiceCollection AddSharedEngineServices(this IServiceCollection services)
     {
+        services.AddSingleton<Shared.Config.IConfigurationManager, Shared.Config.ConfigurationManager>();
         services.AddCoreServices();
         services.AddEcsServices();
         services.AddNetworkingServices();

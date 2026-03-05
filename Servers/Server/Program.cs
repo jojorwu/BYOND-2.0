@@ -36,8 +36,18 @@ class Program
 
     private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<Shared.Config.IConfigurationManager>(sp => {
+            var manager = new Shared.Config.ConfigurationManager();
+            new Shared.GlobalSettings(manager);
+            manager.Load("server_config.json");
+            return manager;
+        });
+
         services.Configure<ServerSettings>(configuration.GetSection("ServerSettings"));
-        services.AddSingleton(resolver => resolver.GetRequiredService<Microsoft.Extensions.Options.IOptions<ServerSettings>>().Value);
+        services.AddSingleton(resolver => {
+            var manager = resolver.GetRequiredService<Shared.Config.IConfigurationManager>();
+            return new ServerSettings(manager);
+        });
 
         services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
 

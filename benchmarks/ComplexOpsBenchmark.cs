@@ -18,8 +18,14 @@ namespace Benchmarks;
 
 public class ComplexOpsBenchmark
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
+        if (args.Contains("--chunk-benchmark"))
+        {
+            await ChunkLoadingBenchmark.RunAsync();
+            return;
+        }
+
         Console.WriteLine("Starting BYOND 2.0 Complex Operations Benchmark...");
 
         var services = new ServiceCollection();

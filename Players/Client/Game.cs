@@ -197,6 +197,7 @@ new MyShader()
                     _connectionPanel.IsConnectRequested = false;
                     _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory);
                     _logicThread.SoundReceived += (sound) => _soundSystem.Play(sound);
+                    _logicThread.StopSoundReceived += (file, objId) => _soundSystem.Stop(file, objId);
                     _previousState = _logicThread.PreviousState;
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();
@@ -221,6 +222,12 @@ new MyShader()
 
                 if (_currentState?.GameObjects != null)
                 {
+                    // Update sound positions for attached objects
+                    foreach (var obj in _currentState.GameObjects.Values)
+                    {
+                        _soundSystem.UpdateObjectPosition(obj.Id, new Vector3(obj.X, obj.Y, (float)obj.Z));
+                    }
+
                     // Parallel pre-fetching of assets to leverage multiple cores
                     Parallel.ForEach(_currentState.GameObjects.Values, currentObj =>
                     {

@@ -28,6 +28,7 @@ namespace Client
         private readonly Shared.Services.BinarySnapshotService _binaryService;
 
         public event Action<SoundData>? SoundReceived;
+        public event Action<string, long?>? StopSoundReceived;
 
         public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
         {
@@ -132,6 +133,13 @@ namespace Client
                 sound.Falloff = reader.GetFloat();
 
                 SoundReceived?.Invoke(sound);
+            }
+            else if (messageType == SnapshotMessageType.StopSound)
+            {
+                var file = reader.GetString();
+                long? objectId = null;
+                if (reader.GetBool()) objectId = reader.GetLong();
+                StopSoundReceived?.Invoke(file, objectId);
             }
             else if (messageType == SnapshotMessageType.Full)
             {

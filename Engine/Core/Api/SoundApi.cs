@@ -45,8 +45,7 @@ public class SoundApi : ISoundApi
 
         if (_regionManager.TryGetRegion((int)z, regionCoords, out var region))
         {
-            // For now, simple broadcast, but ideally we'd filter by region in IUdpServer
-            _udpServer.BroadcastSound(sound);
+            _udpServer.BroadcastSound(sound, region);
         }
     }
 
@@ -60,6 +59,41 @@ public class SoundApi : ISoundApi
             Z = obj.Z,
             Falloff = falloff
         };
-        _udpServer.BroadcastSound(sound);
+
+        var (chunkCoords, _) = Map.GlobalToChunk(obj.X, obj.Y);
+        var regionSize = _settings.Performance.RegionalProcessing.RegionSize;
+        var regionCoords = (
+            (long)Math.Floor((double)chunkCoords.X / regionSize),
+            (long)Math.Floor((double)chunkCoords.Y / regionSize)
+        );
+
+        if (_regionManager.TryGetRegion((int)obj.Z, regionCoords, out var region))
+        {
+            _udpServer.BroadcastSound(sound, region);
+        }
+        else
+        {
+            // Fallback for objects not currently in a managed region
+            _udpServer.BroadcastSound(sound);
+        }
+    }
+
+    public void Stop(string file)
+    {
+        _udpServer.StopSound(file);
+    }
+
+    public void StopOn(string file, IGameObject obj)
+    {
+        var (chunkCoords, _) = Map.GlobalToChunk(obj.X, obj.Y);
+        var regionSize = _settings.Performance.RegionalProcessing.RegionSize;
+        var regionCoords = (
+            (long)Math.Floor((double)chunkCoords.X / regionSize),
+            (long)Math.Floor((double)chunkCoords.Y / regionSize)
+        );
+
+        Region? region = null;
+        _regionManager.TryGetRegion((int)obj.Z, regionCoords, out region);
+        _udpServer.StopSoundOn(file, obj.Id, region);
     }
 }

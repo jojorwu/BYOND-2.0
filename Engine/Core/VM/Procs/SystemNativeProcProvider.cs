@@ -56,6 +56,25 @@ namespace Core.VM.Procs
                 return DreamValue.Null;
             });
 
+            procs["stop_sound"] = new NativeProc("stop_sound", (thread, src, args) =>
+            {
+                if (_soundApi == null || args.Length == 0) return DreamValue.Null;
+
+                if (args[0].TryGetValue(out string? file) && file != null)
+                {
+                    if (src is GameObject obj)
+                    {
+                        _soundApi.StopOn(file, obj);
+                    }
+                    else
+                    {
+                        _soundApi.Stop(file);
+                    }
+                }
+
+                return DreamValue.Null;
+            });
+
             return procs;
         }
     }

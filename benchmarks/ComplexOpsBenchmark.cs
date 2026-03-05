@@ -26,6 +26,12 @@ public class ComplexOpsBenchmark
             return;
         }
 
+        if (args.Contains("--sound-benchmark"))
+        {
+            RegionalSoundBenchmark.Run();
+            return;
+        }
+
         Console.WriteLine("Starting BYOND 2.0 Complex Operations Benchmark...");
 
         var services = new ServiceCollection();

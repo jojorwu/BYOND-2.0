@@ -45,6 +45,8 @@ namespace Client
             services.AddSingleton<IconCache>();
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<IconCache>());
 
+            services.AddSingleton<ISoundSystem, MockSoundSystem>();
+
             return services;
         }
     }

@@ -57,6 +57,7 @@ namespace Client
         private ImGuiController _imGuiController = null!;
         private ConnectionPanel _connectionPanel = null!;
         private MainHud _mainHud = null!;
+        private readonly ISoundSystem _soundSystem;
 
         private ClientState _clientState = ClientState.Connecting;
         private GameState _previousState = null!;
@@ -65,9 +66,10 @@ namespace Client
         private double _accumulator;
         private float _alpha;
 
-        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory)
+        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem)
         {
             _textureCache = textureCache;
+            _soundSystem = soundSystem;
             _csharpShaderManager = csharpShaderManager;
             _dmiCache = dmiCache;
             _iconCache = iconCache;
@@ -183,12 +185,18 @@ new MyShader()
             _imGuiController.Update((float)deltaTime);
             _particleSystem.Update((float)deltaTime);
 
+            if (_playerObject != null)
+            {
+                _soundSystem.Update(new Vector3(_playerObject.X, _playerObject.Y, (float)_playerObject.Z), Vector3.UnitY);
+            }
+
             if (_clientState == ClientState.Connecting)
             {
                 if (_connectionPanel.IsConnectRequested)
                 {
                     _connectionPanel.IsConnectRequested = false;
                     _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory);
+                    _logicThread.SoundReceived += (sound) => _soundSystem.Play(sound);
                     _previousState = _logicThread.PreviousState;
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();

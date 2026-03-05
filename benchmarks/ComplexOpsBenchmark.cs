@@ -31,7 +31,14 @@ public class ComplexOpsBenchmark
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IComputeService, ComputeService>();
-        services.AddSingleton<SpatialGrid>();
+        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(Microsoft.Extensions.Logging.Abstractions.NullLogger<SpatialGrid>.Instance));
+        services.AddSingleton<IGameState, GameState>();
+        services.AddSingleton<IMap, Map>();
+        services.AddSingleton<IRegionManager, Core.Regions.RegionManager>();
+        services.AddSingleton<ISoundApi, SoundApi>();
+        services.AddSingleton<IUdpServer>(new Moq.Mock<IUdpServer>().Object);
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ServerSettings()));
+
         var provider = services.BuildServiceProvider();
 
         var compute = provider.GetRequiredService<IComputeService>();
@@ -52,7 +59,23 @@ public class ComplexOpsBenchmark
         // Benchmark 5: Spatial Range Query (1,000 calls, 100 range)
         RunRangeBenchmark(grid);
 
+        // Benchmark 6: Sound Dispatch Stress (10,000 sounds)
+        RunSoundBenchmark(provider);
+
         Console.WriteLine("\nBenchmark Complete.");
+    }
+
+    private static void RunSoundBenchmark(IServiceProvider provider)
+    {
+        var soundApi = provider.GetRequiredService<ISoundApi>();
+        Console.Write("Executing 10,000 sound dispatches... ");
+        var sw = Stopwatch.StartNew();
+        for (int i = 0; i < 10000; i++)
+        {
+            soundApi.Play("test.ogg", 100, 1, false);
+        }
+        sw.Stop();
+        Console.WriteLine($"{sw.ElapsedMilliseconds}ms");
     }
 
     private static void RunGridMovementBenchmark(SpatialGrid grid)

@@ -5,7 +5,8 @@ namespace Core
         Full,
         Delta,
         Binary,
-        Json
+        Json,
+        Sound
     }
 
     public enum DeltaActionType : byte

@@ -95,5 +95,38 @@ namespace Server
                 }
             });
         }
+
+        public void SendSound(INetworkPeer peer, SoundData sound)
+        {
+            byte[] data = SerializeSound(sound);
+            _ = peer.SendAsync(data);
+        }
+
+        public void BroadcastSound(SoundData sound)
+        {
+            byte[] data = SerializeSound(sound);
+            _networkService.BroadcastSnapshot(data); // Using BroadcastSnapshot for general byte broadcast
+        }
+
+        private byte[] SerializeSound(SoundData sound)
+        {
+            using var ms = new System.IO.MemoryStream();
+            using var writer = new System.IO.BinaryWriter(ms);
+            writer.Write((byte)SnapshotMessageType.Sound);
+            writer.Write(sound.File);
+            writer.Write(sound.Volume);
+            writer.Write(sound.Pitch);
+            writer.Write(sound.Repeat);
+            writer.Write(sound.X.HasValue);
+            if (sound.X.HasValue) writer.Write(sound.X.Value);
+            writer.Write(sound.Y.HasValue);
+            if (sound.Y.HasValue) writer.Write(sound.Y.Value);
+            writer.Write(sound.Z.HasValue);
+            if (sound.Z.HasValue) writer.Write(sound.Z.Value);
+            writer.Write(sound.ObjectId.HasValue);
+            if (sound.ObjectId.HasValue) writer.Write(sound.ObjectId.Value);
+            writer.Write(sound.Falloff);
+            return ms.ToArray();
+        }
     }
 }

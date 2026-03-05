@@ -7,5 +7,6 @@ namespace Shared;
         IMapApi Map { get; }
         IObjectApi Objects { get; }
         IScriptApi Scripts { get; }
+        ISoundApi Sounds { get; }
         IStandardLibraryApi StdLib { get; }
     }

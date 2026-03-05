@@ -58,7 +58,9 @@ namespace tests
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
             var soundApi = new Mock<ISoundApi>().Object;
-            _gameApi = new GameApi(mapApi, objectApi, scriptApi, soundApi, standardLibraryApi);
+            var soundRegistry = new Shared.Config.SoundRegistry();
+            var commandManager = new Shared.Config.ConsoleCommandManager();
+            _gameApi = new GameApi(mapApi, objectApi, scriptApi, soundApi, soundRegistry, standardLibraryApi, commandManager);
 
             var serviceProviderMock = new Mock<IServiceProvider>();
             var scriptHostMock = new Mock<IScriptHost>();

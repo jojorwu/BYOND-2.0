@@ -10,15 +10,19 @@ namespace Core.Api
         public IObjectApi Objects { get; }
         public IScriptApi Scripts { get; }
         public ISoundApi Sounds { get; }
+        public Shared.Config.ISoundRegistry SoundRegistry { get; }
         public IStandardLibraryApi StdLib { get; }
+        public Shared.Config.IConsoleCommandManager Commands { get; }
 
-        public GameApi(IMapApi mapApi, IObjectApi objectApi, IScriptApi scriptApi, ISoundApi soundApi, IStandardLibraryApi standardLibraryApi)
+        public GameApi(IMapApi mapApi, IObjectApi objectApi, IScriptApi scriptApi, ISoundApi soundApi, Shared.Config.ISoundRegistry soundRegistry, IStandardLibraryApi standardLibraryApi, Shared.Config.IConsoleCommandManager commandManager)
         {
             Map = mapApi;
             Objects = objectApi;
             Scripts = scriptApi;
             Sounds = soundApi;
+            SoundRegistry = soundRegistry;
             StdLib = standardLibraryApi;
+            Commands = commandManager;
         }
     }
 }

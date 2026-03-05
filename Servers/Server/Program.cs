@@ -48,8 +48,15 @@ class Program
         services.AddSingleton<Shared.Config.IConsoleCommandManager>(sp => {
             var manager = new Shared.Config.ConsoleCommandManager();
             var config = sp.GetRequiredService<Shared.Config.IConfigurationManager>();
+            var soundApi = sp.GetRequiredService<ISoundApi>();
             manager.RegisterCommand(new Shared.Config.CVarListCommand(config));
             manager.RegisterCommand(new Shared.Config.CVarSetCommand(config));
+            var settings = sp.GetRequiredService<ServerSettings>();
+            var playerManager = sp.GetRequiredService<IPlayerManager>();
+            manager.RegisterCommand(new Shared.Config.HelpCommand(manager));
+            manager.RegisterCommand(new Shared.Config.SoundPlayCommand(soundApi));
+            manager.RegisterCommand(new Shared.Config.StatusCommand(settings.ServerName, settings.MaxPlayers, playerManager));
+            manager.RegisterCommand(new Shared.Config.PlayerListCommand(playerManager));
             return manager;
         });
 

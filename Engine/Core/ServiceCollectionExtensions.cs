@@ -46,6 +46,7 @@ namespace Core
 
         private static IServiceCollection AddCoreApiServices(this IServiceCollection services)
         {
+            services.AddSingleton<Shared.Config.ISoundRegistry, Shared.Config.SoundRegistry>();
             services.AddSingleton<IMapApi, MapApi>();
             services.AddSingleton<IObjectApi, ObjectApi>();
             services.AddSingleton<IScriptApi, ScriptApi>();

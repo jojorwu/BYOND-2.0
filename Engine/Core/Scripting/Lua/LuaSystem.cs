@@ -42,6 +42,16 @@ namespace Core.Scripting.LuaSystem
                 // Disabling CLR for security
                 // _lua.LoadCLRPackage();
                 _lua["Game"] = new LuaGameApi(_gameApi); // Твоя обертка
+
+                // Allow registering commands and sounds from Lua
+                _lua.DoString(@"
+                    function RegisterCommand(name, description, help, func)
+                        Game:InternalRegisterCommand(name, description, help, func)
+                    end
+                    function RegisterSound(name, filePath, volume, pitch, falloff)
+                        Game:RegisterSound(name, filePath, volume or 100, pitch or 1, falloff or 1)
+                    end
+                ");
             }
         }
 

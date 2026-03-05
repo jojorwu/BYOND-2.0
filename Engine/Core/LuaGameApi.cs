@@ -53,5 +53,41 @@ namespace Core
         public void PlaySoundOn(string file, GameObject obj, float volume = 100f, float pitch = 1f, float falloff = 1f) => _gameApi.Sounds.PlayOn(file, obj, volume, pitch, falloff);
         public void StopSound(string file) => _gameApi.Sounds.Stop(file);
         public void StopSoundOn(string file, GameObject obj) => _gameApi.Sounds.StopOn(file, obj);
+
+        public void PlayNamedSound(string soundName) => _gameApi.Sounds.PlayNamed(soundName);
+        public void PlayNamedSoundAt(string soundName, long x, long y, long z) => _gameApi.Sounds.PlayNamedAt(soundName, x, y, z);
+        public void PlayNamedSoundOn(string soundName, GameObject obj) => _gameApi.Sounds.PlayNamedOn(soundName, obj);
+
+        public void RegisterSound(string name, string filePath, float volume = 100f, float pitch = 1f, float falloff = 1f)
+        {
+            _gameApi.SoundRegistry.RegisterSound(name, new Shared.Config.SoundDefinition(filePath, volume, pitch, falloff));
+        }
+
+        public void InternalRegisterCommand(string name, string description, string help, NLua.LuaFunction func)
+        {
+            _gameApi.Commands.RegisterCommand(new LuaConsoleCommand(name, description, help, func));
+        }
+
+        private class LuaConsoleCommand : Shared.Config.IConsoleCommand
+        {
+            public string Command { get; }
+            public string Description { get; }
+            public string Help { get; }
+            private readonly NLua.LuaFunction _func;
+
+            public LuaConsoleCommand(string name, string description, string help, NLua.LuaFunction func)
+            {
+                Command = name;
+                Description = description;
+                Help = help;
+                _func = func;
+            }
+
+            public Task<string> Execute(string[] args)
+            {
+                var result = _func.Call(args);
+                return Task.FromResult(result?.FirstOrDefault()?.ToString() ?? "Command executed.");
+            }
+        }
     }
 }

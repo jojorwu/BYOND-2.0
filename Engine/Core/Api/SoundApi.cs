@@ -10,13 +10,15 @@ public class SoundApi : ISoundApi
     private readonly IGameState _gameState;
     private readonly IRegionManager _regionManager;
     private readonly ServerSettings _settings;
+    private readonly Shared.Config.ISoundRegistry _registry;
 
-    public SoundApi(IUdpServer udpServer, IGameState gameState, IRegionManager regionManager, Microsoft.Extensions.Options.IOptions<ServerSettings> settings)
+    public SoundApi(IUdpServer udpServer, IGameState gameState, IRegionManager regionManager, Microsoft.Extensions.Options.IOptions<ServerSettings> settings, Shared.Config.ISoundRegistry registry)
     {
         _udpServer = udpServer;
         _gameState = gameState;
         _regionManager = regionManager;
         _settings = settings.Value;
+        _registry = registry;
     }
 
     public void Play(string file, float volume = 100f, float pitch = 1f, bool repeat = false)
@@ -95,5 +97,29 @@ public class SoundApi : ISoundApi
         Region? region = null;
         _regionManager.TryGetRegion((int)obj.Z, regionCoords, out region);
         _udpServer.StopSoundOn(file, obj.Id, region);
+    }
+
+    public void PlayNamed(string soundName)
+    {
+        if (_registry.TryGetSound(soundName, out var def))
+        {
+            Play(def.FilePath, def.DefaultVolume, def.DefaultPitch, false);
+        }
+    }
+
+    public void PlayNamedAt(string soundName, long x, long y, long z)
+    {
+        if (_registry.TryGetSound(soundName, out var def))
+        {
+            PlayAt(def.FilePath, x, y, z, def.DefaultVolume, def.DefaultPitch, def.DefaultFalloff);
+        }
+    }
+
+    public void PlayNamedOn(string soundName, IGameObject obj)
+    {
+        if (_registry.TryGetSound(soundName, out var def))
+        {
+            PlayOn(def.FilePath, obj, def.DefaultVolume, def.DefaultPitch, def.DefaultFalloff);
+        }
     }
 }

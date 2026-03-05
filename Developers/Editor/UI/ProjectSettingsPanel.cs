@@ -15,9 +15,9 @@ namespace Editor.UI
         public bool IsOpen { get; set; } = false;
 
         private readonly IConfigurationManager _manager;
-        private List<CVarInfo>? _cachedServerCVars;
-        private List<CVarInfo>? _cachedClientCVars;
+        private List<string>? _cachedCategories;
         private List<CVarInfo>? _cachedAllCVars;
+        private readonly Dictionary<string, List<CVarInfo>> _cachedCategoryCVars = new();
 
         public ProjectSettingsPanel(IConfigurationManager manager)
         {
@@ -30,9 +30,9 @@ namespace Editor.UI
 
         private void ClearCache()
         {
-            _cachedServerCVars = null;
-            _cachedClientCVars = null;
+            _cachedCategories = null;
             _cachedAllCVars = null;
+            _cachedCategoryCVars.Clear();
         }
 
         public void Draw()
@@ -45,13 +45,16 @@ namespace Editor.UI
             {
                 if (ImGui.BeginTabBar("ProjectSettingsTabs"))
                 {
-                    var cvars = _manager.GetRegisteredCVars();
-                    var categories = cvars
-                        .Select(c => c.Category)
-                        .Distinct()
-                        .OrderBy(c => c);
+                    if (_cachedCategories == null)
+                    {
+                        _cachedCategories = _manager.GetRegisteredCVars()
+                            .Select(c => c.Category)
+                            .Distinct()
+                            .OrderBy(c => c)
+                            .ToList();
+                    }
 
-                    foreach (var category in categories)
+                    foreach (var category in _cachedCategories)
                     {
                         if (ImGui.BeginTabItem(category))
                         {
@@ -80,9 +83,14 @@ namespace Editor.UI
 
         private void DrawCategoryCVars(string category)
         {
-            var cvars = _manager.GetRegisteredCVars()
-                .Where(c => c.Category == category)
-                .OrderBy(c => c.Name);
+            if (!_cachedCategoryCVars.TryGetValue(category, out var cvars))
+            {
+                cvars = _manager.GetRegisteredCVars()
+                    .Where(c => c.Category == category)
+                    .OrderBy(c => c.Name)
+                    .ToList();
+                _cachedCategoryCVars[category] = cvars;
+            }
 
             foreach (var info in cvars)
             {

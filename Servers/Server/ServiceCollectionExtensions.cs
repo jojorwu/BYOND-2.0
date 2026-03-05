@@ -36,6 +36,12 @@ namespace Server
         private static IServiceCollection AddServerCoreServices(this IServiceCollection services)
         {
             services.AddSingleton<IServerContext, ServerContext>();
+            services.AddSingleton<CVarReplicator>(sp =>
+                new CVarReplicator(
+                    sp.GetRequiredService<Shared.Config.IConfigurationManager>(),
+                    sp.GetRequiredService<NetDataWriterPool>(),
+                    sp.GetRequiredService<IServerContext>().PlayerManager
+                ));
 
             services.AddSingleton<IScriptWatcher, ScriptWatcher>();
             services.AddSingleton<IScriptEnvironmentManager, ScriptEnvironmentManager>();

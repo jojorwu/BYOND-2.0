@@ -115,7 +115,8 @@ namespace tests
                 snapshotServiceMock.Object,
                 interestManagerMock.Object,
                 _jobSystemMock.Object,
-                new Mock<Shared.Config.IConfigurationManager>().Object);
+                new Mock<Shared.Config.IConfigurationManager>().Object,
+                new NetDataWriterPool());
 
             var region = new Region((0L, 0L), 0);
             var mergedRegion = new MergedRegion(new List<Region> { region });

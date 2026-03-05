@@ -184,6 +184,15 @@ public class ConfigurationManager : IConfigurationManager
         _providers.Sort((a, b) => a.Priority.CompareTo(b.Priority));
     }
 
+    public void SetCVarDirect(string name, object value)
+    {
+         if (_cvars.TryGetValue(name, out var info))
+         {
+             var method = typeof(ConfigurationManager).GetMethod(nameof(SetCVar))!.MakeGenericMethod(info.Type);
+             method.Invoke(this, new[] { value });
+         }
+    }
+
     public void LoadAll()
     {
         var settings = new Dictionary<string, object>();

@@ -12,10 +12,12 @@ public interface IConfigurationManager
 {
     T GetCVar<T>(string name);
     void SetCVar<T>(string name, T value);
-    void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "");
+    void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General");
     CVar<T> GetCVarHandle<T>(string name);
-    void Load(string path);
-    void Save(string path);
+    void AddProvider(IConfigProvider provider);
+    void RegisterFromAssemblies(params Assembly[] assemblies);
+    void LoadAll();
+    void SaveAll();
     event Action<string, object> OnCVarChanged;
     IEnumerable<CVarInfo> GetRegisteredCVars();
 }
@@ -27,6 +29,7 @@ public class CVarInfo
     public object DefaultValue { get; set; } = null!;
     public CVarFlags Flags { get; set; }
     public string Description { get; set; } = "";
+    public string Category { get; set; } = "General";
     public Type Type { get; set; } = null!;
     public object? Handle { get; set; }
 }
@@ -34,6 +37,7 @@ public class CVarInfo
 public class ConfigurationManager : IConfigurationManager
 {
     private readonly ConcurrentDictionary<string, CVarInfo> _cvars = new();
+    private readonly List<IConfigProvider> _providers = new();
 
     public event Action<string, object>? OnCVarChanged;
 
@@ -90,13 +94,14 @@ public class ConfigurationManager : IConfigurationManager
         }
     }
 
-    public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "")
+    public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General")
     {
         if (_cvars.TryGetValue(name, out var info))
         {
             info.DefaultValue = defaultValue!;
             info.Flags = flags;
             info.Description = description;
+            info.Category = category;
             info.Type = typeof(T);
 
             // Try to resolve existing value if it was loaded as a generic object or JsonElement
@@ -118,6 +123,7 @@ public class ConfigurationManager : IConfigurationManager
                 DefaultValue = defaultValue!,
                 Flags = flags,
                 Description = description,
+                Category = category,
                 Type = typeof(T)
             });
         }
@@ -138,65 +144,95 @@ public class ConfigurationManager : IConfigurationManager
         throw new KeyNotFoundException($"CVar '{name}' not found.");
     }
 
-    public void Load(string path)
+    public void RegisterFromAssemblies(params Assembly[] assemblies)
     {
-        if (!File.Exists(path)) return;
-
-        try
+        foreach (var assembly in assemblies)
         {
-            var json = File.ReadAllText(path);
-            var loaded = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-            if (loaded != null)
+            foreach (var type in assembly.GetTypes())
             {
-                foreach (var kvp in loaded)
+                foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic))
                 {
-                    if (_cvars.TryGetValue(kvp.Key, out var info))
+                    var attr = field.GetCustomAttribute<CVarAttribute>();
+                    if (attr != null)
                     {
-                        object val = kvp.Value;
-                        if (val is JsonElement element && info.Type != typeof(object))
-                        {
-                            try
-                            {
-                                val = element.Deserialize(info.Type)!;
-                            }
-                            catch
-                            {
-                                // Fallback to element if deserialization fails
-                            }
-                        }
-                        info.Value = val;
-                        OnCVarChanged?.Invoke(kvp.Key, val);
-                    }
-                    else
-                    {
-                        // Register unknown CVars as objects for later type resolution
-                        _cvars.TryAdd(kvp.Key, new CVarInfo { Name = kvp.Key, Value = kvp.Value, Type = typeof(object) });
+                        var defaultValue = field.GetValue(null);
+                        var registerMethod = typeof(ConfigurationManager).GetMethod(nameof(RegisterCVar))!.MakeGenericMethod(field.FieldType);
+                        registerMethod.Invoke(this, new[] { attr.Name, defaultValue, attr.Flags, attr.Description, attr.Category });
                     }
                 }
             }
         }
-        catch (Exception ex)
+    }
+
+    public void AddProvider(IConfigProvider provider) => _providers.Add(provider);
+
+    public void LoadAll()
+    {
+        var settings = new Dictionary<string, object>();
+        foreach (var provider in _providers)
         {
-            Console.WriteLine($"Failed to load config: {ex.Message}");
+            provider.Load(settings);
+        }
+
+        foreach (var kvp in settings)
+        {
+            if (_cvars.TryGetValue(kvp.Key, out var info))
+            {
+                object val = kvp.Value;
+                if (val is JsonElement element && info.Type != typeof(object))
+                {
+                    try
+                    {
+                        val = element.Deserialize(info.Type)!;
+                    }
+                    catch { }
+                }
+                info.Value = val;
+                OnCVarChanged?.Invoke(kvp.Key, val);
+            }
+            else
+            {
+                _cvars.TryAdd(kvp.Key, new CVarInfo { Name = kvp.Key, Value = kvp.Value, Type = typeof(object) });
+            }
+        }
+    }
+
+    public void SaveAll()
+    {
+        var settings = _cvars.Values
+            .Where(c => (c.Flags & CVarFlags.Archive) != 0)
+            .ToDictionary(c => c.Name, c => c.Value);
+
+        foreach (var provider in _providers.Where(p => p.CanSave))
+        {
+            provider.Save(settings);
+        }
+    }
+
+    // Keep Load/Save for compatibility or remove if not needed.
+    // Let's refactor them to use JsonConfigProvider temporarily.
+    public void Load(string path)
+    {
+        var provider = new JsonConfigProvider(path);
+        var settings = new Dictionary<string, object>();
+        provider.Load(settings);
+        foreach(var kvp in settings) {
+             if (_cvars.TryGetValue(kvp.Key, out var info)) {
+                 info.Value = kvp.Value;
+                 OnCVarChanged?.Invoke(kvp.Key, kvp.Value);
+             } else {
+                 _cvars.TryAdd(kvp.Key, new CVarInfo { Name = kvp.Key, Value = kvp.Value, Type = typeof(object) });
+             }
         }
     }
 
     public void Save(string path)
     {
-        try
-        {
-            var toSave = _cvars.Values
-                .Where(c => (c.Flags & CVarFlags.Archive) != 0)
-                .ToDictionary(c => c.Name, c => c.Value);
-
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            var json = JsonSerializer.Serialize(toSave, options);
-            File.WriteAllText(path, json);
-        }
-        catch (Exception ex)
-        {
-             Console.WriteLine($"Failed to save config: {ex.Message}");
-        }
+        var provider = new JsonConfigProvider(path);
+        var settings = _cvars.Values
+            .Where(c => (c.Flags & CVarFlags.Archive) != 0)
+            .ToDictionary(c => c.Name, c => c.Value);
+        provider.Save(settings);
     }
 
     public IEnumerable<CVarInfo> GetRegisteredCVars() => _cvars.Values;

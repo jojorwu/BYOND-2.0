@@ -26,16 +26,27 @@ namespace Client.UI
             if (!IsOpen)
                 return;
 
-            ImGui.SetNextWindowSize(new Vector2(500, 400), ImGuiCond.FirstUseEver);
+            ImGui.SetNextWindowSize(new Vector2(600, 500), ImGuiCond.FirstUseEver);
             if (ImGui.Begin(Name, ref IsOpen))
             {
                 if (ImGui.BeginTabBar("SettingsTabs"))
                 {
-                    if (ImGui.BeginTabItem("Client"))
+                    var cvars = _manager.GetRegisteredCVars();
+                    var categories = cvars
+                        .Where(c => (c.Flags & CVarFlags.Client) != 0 || c.Category != "General")
+                        .Select(c => c.Category)
+                        .Distinct()
+                        .OrderBy(c => c);
+
+                    foreach (var category in categories)
                     {
-                        DrawFilteredCVars(ref _cachedClientCVars, CVarFlags.Client);
-                        ImGui.EndTabItem();
+                        if (ImGui.BeginTabItem(category))
+                        {
+                            DrawCategoryCVars(category);
+                            ImGui.EndTabItem();
+                        }
                     }
+
                     if (ImGui.BeginTabItem("All"))
                     {
                         DrawFilteredCVars(ref _cachedAllCVars, CVarFlags.None);
@@ -47,7 +58,7 @@ namespace Client.UI
                 ImGui.Separator();
                 if (ImGui.Button("Save Configuration"))
                 {
-                    _manager.Save("client_config.json");
+                    _manager.SaveAll();
                 }
                 ImGui.SameLine();
                 if (ImGui.Button("Close"))
@@ -55,6 +66,18 @@ namespace Client.UI
                     IsOpen = false;
                 }
                 ImGui.End();
+            }
+        }
+
+        private void DrawCategoryCVars(string category)
+        {
+            var cvars = _manager.GetRegisteredCVars()
+                .Where(c => c.Category == category)
+                .OrderBy(c => c.Name);
+
+            foreach (var info in cvars)
+            {
+                DrawCVarEditor(info);
             }
         }
 
@@ -72,43 +95,24 @@ namespace Client.UI
 
             foreach (var info in cache)
             {
-                if (info.Type == typeof(bool))
-                {
-                    bool val = (bool)info.Value;
-                    if (ImGui.Checkbox(info.Name, ref val))
-                    {
-                        _manager.SetCVar(info.Name, val);
-                    }
-                }
-                else if (info.Type == typeof(int))
-                {
-                    int val = (int)info.Value;
-                    if (ImGui.InputInt(info.Name, ref val))
-                    {
-                        _manager.SetCVar(info.Name, val);
-                    }
-                }
-                else if (info.Type == typeof(string))
-                {
-                    string val = (string)info.Value;
-                    if (ImGui.InputText(info.Name, ref val, 256))
-                    {
-                        _manager.SetCVar(info.Name, val);
-                    }
-                }
-                else
-                {
-                    ImGui.Text($"{info.Name}: {info.Value} (Unsupported UI)");
-                }
+                DrawCVarEditor(info);
+            }
+        }
 
-                if (!string.IsNullOrEmpty(info.Description))
+        private void DrawCVarEditor(CVarInfo info)
+        {
+            if (!CVarUiRegistry.TryDraw(info, _manager))
+            {
+                ImGui.Text($"{info.Name}: {info.Value} (Unsupported UI)");
+            }
+
+            if (!string.IsNullOrEmpty(info.Description))
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled("(?)");
+                if (ImGui.IsItemHovered())
                 {
-                    ImGui.SameLine();
-                    ImGui.TextDisabled("(?)");
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip(info.Description);
-                    }
+                    ImGui.SetTooltip(info.Description);
                 }
             }
         }

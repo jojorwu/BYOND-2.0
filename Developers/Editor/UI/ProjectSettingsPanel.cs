@@ -21,8 +21,9 @@ namespace Editor.UI
         public ProjectSettingsPanel(IConfigurationManager manager)
         {
             _manager = manager;
-            new Shared.GlobalSettings(_manager);
-            _manager.Load("project_config.json");
+            _manager.RegisterFromAssemblies(typeof(ConfigKeys).Assembly);
+            _manager.AddProvider(new JsonConfigProvider("project_config.json"));
+            _manager.LoadAll();
             _manager.OnCVarChanged += (_, _) => ClearCache();
         }
 
@@ -43,16 +44,21 @@ namespace Editor.UI
             {
                 if (ImGui.BeginTabBar("ProjectSettingsTabs"))
                 {
-                    if (ImGui.BeginTabItem("Server"))
+                    var cvars = _manager.GetRegisteredCVars();
+                    var categories = cvars
+                        .Select(c => c.Category)
+                        .Distinct()
+                        .OrderBy(c => c);
+
+                    foreach (var category in categories)
                     {
-                        DrawFilteredCVars(ref _cachedServerCVars, CVarFlags.Server);
-                        ImGui.EndTabItem();
+                        if (ImGui.BeginTabItem(category))
+                        {
+                            DrawCategoryCVars(category);
+                            ImGui.EndTabItem();
+                        }
                     }
-                    if (ImGui.BeginTabItem("Graphics"))
-                    {
-                        DrawFilteredCVars(ref _cachedClientCVars, CVarFlags.Client);
-                        ImGui.EndTabItem();
-                    }
+
                     if (ImGui.BeginTabItem("All"))
                     {
                         DrawFilteredCVars(ref _cachedAllCVars, CVarFlags.None);
@@ -64,11 +70,23 @@ namespace Editor.UI
                 ImGui.Separator();
                 if (ImGui.Button("Save Project Configuration"))
                 {
-                    _manager.Save("project_config.json");
+                    _manager.SaveAll();
                 }
                 ImGui.End();
             }
             IsOpen = isOpen;
+        }
+
+        private void DrawCategoryCVars(string category)
+        {
+            var cvars = _manager.GetRegisteredCVars()
+                .Where(c => c.Category == category)
+                .OrderBy(c => c.Name);
+
+            foreach (var info in cvars)
+            {
+                DrawCVarEditor(info);
+            }
         }
 
         private void DrawFilteredCVars(ref List<CVarInfo>? cache, CVarFlags filter)
@@ -85,43 +103,24 @@ namespace Editor.UI
 
             foreach (var info in cache)
             {
-                if (info.Type == typeof(bool))
-                {
-                    bool val = (bool)info.Value;
-                    if (ImGui.Checkbox(info.Name, ref val))
-                    {
-                        _manager.SetCVar(info.Name, val);
-                    }
-                }
-                else if (info.Type == typeof(int))
-                {
-                    int val = (int)info.Value;
-                    if (ImGui.InputInt(info.Name, ref val))
-                    {
-                        _manager.SetCVar(info.Name, val);
-                    }
-                }
-                else if (info.Type == typeof(string))
-                {
-                    string val = (string)info.Value;
-                    if (ImGui.InputText(info.Name, ref val, 256))
-                    {
-                        _manager.SetCVar(info.Name, val);
-                    }
-                }
-                else
-                {
-                    ImGui.Text($"{info.Name}: {info.Value} (Unsupported UI)");
-                }
+                DrawCVarEditor(info);
+            }
+        }
 
-                if (!string.IsNullOrEmpty(info.Description))
+        private void DrawCVarEditor(CVarInfo info)
+        {
+            if (!CVarUiRegistry.TryDraw(info, _manager))
+            {
+                ImGui.Text($"{info.Name}: {info.Value} (Unsupported UI)");
+            }
+
+            if (!string.IsNullOrEmpty(info.Description))
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled("(?)");
+                if (ImGui.IsItemHovered())
                 {
-                    ImGui.SameLine();
-                    ImGui.TextDisabled("(?)");
-                    if (ImGui.IsItemHovered())
-                    {
-                        ImGui.SetTooltip(info.Description);
-                    }
+                    ImGui.SetTooltip(info.Description);
                 }
             }
         }

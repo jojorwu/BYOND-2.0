@@ -80,8 +80,9 @@ namespace Client
             _objectFactory = objectFactory;
             _configManager = configManager;
 
-            new GlobalSettings(_configManager);
-            _configManager.Load("client_config.json");
+            _configManager.RegisterFromAssemblies(typeof(ConfigKeys).Assembly);
+            _configManager.AddProvider(new JsonConfigProvider("client_config.json"));
+            _configManager.LoadAll();
 
             var options = WindowOptions.Default;
             options.Title = "BYOND 2.0 Client";

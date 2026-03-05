@@ -38,8 +38,10 @@ class Program
     {
         services.AddSingleton<Shared.Config.IConfigurationManager>(sp => {
             var manager = new Shared.Config.ConfigurationManager();
-            new Shared.GlobalSettings(manager);
-            manager.Load("server_config.json");
+            manager.RegisterFromAssemblies(typeof(Shared.Config.ConfigKeys).Assembly);
+            manager.AddProvider(new Shared.Config.JsonConfigProvider("server_config.json"));
+            manager.AddProvider(new Shared.Config.EnvironmentConfigProvider());
+            manager.LoadAll();
             return manager;
         });
 

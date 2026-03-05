@@ -17,11 +17,13 @@ public class CVarAttribute : Attribute
     public string Name { get; }
     public CVarFlags Flags { get; }
     public string Description { get; }
+    public string Category { get; }
 
-    public CVarAttribute(string name, CVarFlags flags = CVarFlags.None, string description = "")
+    public CVarAttribute(string name, CVarFlags flags = CVarFlags.None, string description = "", string category = "General")
     {
         Name = name;
         Flags = flags;
         Description = description;
+        Category = category;
     }
 }

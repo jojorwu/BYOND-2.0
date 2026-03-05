@@ -12,7 +12,7 @@ public interface IConfigurationManager
 {
     T GetCVar<T>(string name);
     void SetCVar<T>(string name, T value);
-    void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General");
+    void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General", object? minValue = null, object? maxValue = null);
     CVar<T> GetCVarHandle<T>(string name);
     void AddProvider(IConfigProvider provider);
     void RegisterFromAssemblies(params Assembly[] assemblies);
@@ -32,6 +32,9 @@ public class CVarInfo
     public string Category { get; set; } = "General";
     public Type Type { get; set; } = null!;
     public object? Handle { get; set; }
+    public object? MinValue { get; set; }
+    public object? MaxValue { get; set; }
+    public bool IsLocked { get; set; }
 }
 
 public class ConfigurationManager : IConfigurationManager
@@ -60,6 +63,13 @@ public class ConfigurationManager : IConfigurationManager
     {
         if (_cvars.TryGetValue(name, out var info))
         {
+            // Simple validation for comparable types
+            if (value is IComparable comparable)
+            {
+                if (info.MinValue is IComparable min && comparable.CompareTo(min) < 0) value = (T)info.MinValue;
+                if (info.MaxValue is IComparable max && comparable.CompareTo(max) > 0) value = (T)info.MaxValue;
+            }
+
             T currentVal;
             if (info.Value is JsonElement element)
             {
@@ -94,7 +104,7 @@ public class ConfigurationManager : IConfigurationManager
         }
     }
 
-    public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General")
+    public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "", string category = "General", object? minValue = null, object? maxValue = null)
     {
         if (_cvars.TryGetValue(name, out var info))
         {
@@ -103,6 +113,8 @@ public class ConfigurationManager : IConfigurationManager
             info.Description = description;
             info.Category = category;
             info.Type = typeof(T);
+            info.MinValue = minValue;
+            info.MaxValue = maxValue;
 
             // Try to resolve existing value if it was loaded as a generic object or JsonElement
             if (info.Value is JsonElement element)
@@ -124,7 +136,9 @@ public class ConfigurationManager : IConfigurationManager
                 Flags = flags,
                 Description = description,
                 Category = category,
-                Type = typeof(T)
+                Type = typeof(T),
+                MinValue = minValue,
+                MaxValue = maxValue
             });
         }
     }
@@ -157,21 +171,34 @@ public class ConfigurationManager : IConfigurationManager
                     {
                         var defaultValue = field.GetValue(null);
                         var registerMethod = typeof(ConfigurationManager).GetMethod(nameof(RegisterCVar))!.MakeGenericMethod(field.FieldType);
-                        registerMethod.Invoke(this, new[] { attr.Name, defaultValue, attr.Flags, attr.Description, attr.Category });
+                        registerMethod.Invoke(this, new[] { attr.Name, defaultValue, attr.Flags, attr.Description, attr.Category, attr.MinValue, attr.MaxValue });
                     }
                 }
             }
         }
     }
 
-    public void AddProvider(IConfigProvider provider) => _providers.Add(provider);
+    public void AddProvider(IConfigProvider provider)
+    {
+        _providers.Add(provider);
+        _providers.Sort((a, b) => a.Priority.CompareTo(b.Priority));
+    }
 
     public void LoadAll()
     {
         var settings = new Dictionary<string, object>();
-        foreach (var provider in _providers)
+        var lockedKeys = new HashSet<string>();
+
+        foreach (var provider in _providers.OrderBy(p => p.Priority))
         {
-            provider.Load(settings);
+            var providerSettings = new Dictionary<string, object>();
+            provider.Load(providerSettings);
+            foreach (var kvp in providerSettings)
+            {
+                settings[kvp.Key] = kvp.Value;
+                if (!provider.CanSave) lockedKeys.Add(kvp.Key);
+                else lockedKeys.Remove(kvp.Key);
+            }
         }
 
         foreach (var kvp in settings)
@@ -188,11 +215,18 @@ public class ConfigurationManager : IConfigurationManager
                     catch { }
                 }
                 info.Value = val;
+                info.IsLocked = lockedKeys.Contains(kvp.Key);
                 OnCVarChanged?.Invoke(kvp.Key, val);
             }
             else
             {
-                _cvars.TryAdd(kvp.Key, new CVarInfo { Name = kvp.Key, Value = kvp.Value, Type = typeof(object) });
+                _cvars.TryAdd(kvp.Key, new CVarInfo
+                {
+                    Name = kvp.Key,
+                    Value = kvp.Value,
+                    Type = typeof(object),
+                    IsLocked = lockedKeys.Contains(kvp.Key)
+                });
             }
         }
     }

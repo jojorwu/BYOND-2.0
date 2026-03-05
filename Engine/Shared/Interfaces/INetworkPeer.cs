@@ -7,4 +7,6 @@ namespace Shared;
         ValueTask SendAsync(byte[] data);
         ValueTask SendAsync(System.ReadOnlyMemory<byte> data);
         System.Collections.Generic.IDictionary<long, long> LastSentVersions { get; }
+        string? Nickname { get; set; }
+        System.Net.IPEndPoint? EndPoint { get; }
     }

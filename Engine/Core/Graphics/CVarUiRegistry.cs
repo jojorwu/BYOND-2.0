@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using ImGuiNET;
 
-namespace Shared.Config;
+namespace Core.Graphics;
+
+using Shared.Config;
 
 public delegate void CVarUiDrawer(CVarInfo info, IConfigurationManager manager);
 
@@ -15,28 +17,34 @@ public static class CVarUiRegistry
         RegisterDrawer(typeof(bool), (info, manager) =>
         {
             bool val = (bool)info.Value;
+            ImGui.BeginDisabled(info.IsLocked);
             if (ImGui.Checkbox(info.Name, ref val))
             {
                 manager.SetCVar(info.Name, val);
             }
+            ImGui.EndDisabled();
         });
 
         RegisterDrawer(typeof(int), (info, manager) =>
         {
             int val = (int)info.Value;
+            ImGui.BeginDisabled(info.IsLocked);
             if (ImGui.InputInt(info.Name, ref val))
             {
                 manager.SetCVar(info.Name, val);
             }
+            ImGui.EndDisabled();
         });
 
         RegisterDrawer(typeof(string), (info, manager) =>
         {
             string val = (string)info.Value;
+            ImGui.BeginDisabled(info.IsLocked);
             if (ImGui.InputText(info.Name, ref val, 256))
             {
                 manager.SetCVar(info.Name, val);
             }
+            ImGui.EndDisabled();
         });
     }
 

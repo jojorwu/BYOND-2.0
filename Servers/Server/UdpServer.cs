@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging;
 using Shared.Services;
 using Shared.Interfaces;
 using Core;
+using Shared.Config;
+using System.Linq;
 
 namespace Server
 {
@@ -19,8 +21,9 @@ namespace Server
         private readonly BinarySnapshotService _binarySnapshotService;
         private readonly IInterestManager _interestManager;
         private readonly IJobSystem _jobSystem;
+        private readonly IConfigurationManager _configManager;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
@@ -28,6 +31,7 @@ namespace Server
             _binarySnapshotService = binarySnapshotService;
             _interestManager = interestManager;
             _jobSystem = jobSystem;
+            _configManager = configManager;
         }
 
         public override Task StartAsync(CancellationToken cancellationToken)
@@ -171,6 +175,24 @@ namespace Server
             writer.Write(objectId.HasValue);
             if (objectId.HasValue) writer.Write(objectId.Value);
             return ms.ToArray();
+        }
+
+        public void SendCVars(INetworkPeer peer)
+        {
+            var replicatedCVars = _configManager.GetRegisteredCVars()
+                .Where(c => (c.Flags & CVarFlags.Replicated) != 0)
+                .ToDictionary(c => c.Name, c => c.Value);
+
+            if (replicatedCVars.Count == 0) return;
+
+            using var ms = new System.IO.MemoryStream();
+            using var writer = new System.IO.BinaryWriter(ms);
+            writer.Write((byte)SnapshotMessageType.SyncCVars);
+
+            string json = System.Text.Json.JsonSerializer.Serialize(replicatedCVars);
+            writer.Write(json);
+
+            _ = peer.SendAsync(ms.ToArray());
         }
     }
 }

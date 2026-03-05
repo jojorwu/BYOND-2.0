@@ -216,6 +216,7 @@ new MyShader()
                     _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory);
                     _logicThread.SoundReceived += (sound) => _soundSystem.Play(sound);
                     _logicThread.StopSoundReceived += (file, objId) => _soundSystem.Stop(file, objId);
+                    _logicThread.CVarSyncReceived += (key, val) => _configManager.SetCVar(key, val);
                     _previousState = _logicThread.PreviousState;
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();

@@ -61,7 +61,14 @@ namespace Server
             services.AddSingleton<INetworkService>(p => p.GetRequiredService<NetworkService>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetworkService>());
 
-            services.AddSingleton<NetworkEventHandler>();
+            services.AddSingleton<NetworkEventHandler>(sp =>
+                new NetworkEventHandler(
+                    sp.GetRequiredService<INetworkService>(),
+                    sp.GetRequiredService<IServerContext>(),
+                    sp.GetRequiredService<IScriptHost>(),
+                    sp.GetRequiredService<IUdpServer>(),
+                    sp.GetRequiredService<ILogger<NetworkEventHandler>>()
+                ));
 
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());

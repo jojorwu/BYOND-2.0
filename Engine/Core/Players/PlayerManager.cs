@@ -96,5 +96,21 @@ namespace Core.Players
                 _lock.ExitReadLock();
             }
         }
+
+        public void ForEachPlayer(Action<INetworkPeer> action)
+        {
+            _lock.EnterReadLock();
+            try
+            {
+                foreach (var peer in _players.Keys)
+                {
+                    action(peer);
+                }
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+        }
     }
 }

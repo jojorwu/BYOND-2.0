@@ -34,7 +34,7 @@ public static class ConfigKeys
     public const string GraphicsVSync = "Graphics.VSync";
 
     // Server Settings
-    [CVar(ServerName, CVarFlags.Archive | CVarFlags.Server, "The name of the server.", "Server")]
+    [CVar(ServerName, CVarFlags.Archive | CVarFlags.Server | CVarFlags.Replicated, "The name of the server.", "Server")]
     public const string ServerName = "Server.Name";
 
     [CVar(ServerMaxPlayers, CVarFlags.Archive | CVarFlags.Server, "The maximum number of players allowed.", "Server")]

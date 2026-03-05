@@ -9,11 +9,13 @@ public class EnvironmentConfigProvider : IConfigProvider
 {
     private readonly string _prefix;
     public string Name => "Environment";
+    public int Priority { get; }
     public bool CanSave => false;
 
-    public EnvironmentConfigProvider(string prefix = "BYOND_")
+    public EnvironmentConfigProvider(string prefix = "BYOND_", int priority = 200)
     {
         _prefix = prefix;
+        Priority = priority;
     }
 
     public void Load(IDictionary<string, object> settings)

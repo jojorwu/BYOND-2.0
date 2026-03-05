@@ -10,6 +10,7 @@ public enum CVarFlags
     Server = 1 << 1,   // Server-side setting
     Client = 1 << 2,   // Client-side setting
     Cheat = 1 << 3,    // Requires cheats enabled
+    Replicated = 1 << 4, // Sent from server to client
 }
 
 public class CVarAttribute : Attribute
@@ -18,6 +19,8 @@ public class CVarAttribute : Attribute
     public CVarFlags Flags { get; }
     public string Description { get; }
     public string Category { get; }
+    public object? MinValue { get; set; }
+    public object? MaxValue { get; set; }
 
     public CVarAttribute(string name, CVarFlags flags = CVarFlags.None, string description = "", string category = "General")
     {

@@ -32,7 +32,10 @@ namespace Server
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Starting Server Application...");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            _logger.LogInformation("========================================");
+            _logger.LogInformation("BYOND 2.0 Server - Starting Up");
+            _logger.LogInformation("========================================");
 
             // Group by priority and start independent services in parallel
             var priorityGroups = _services
@@ -43,18 +46,23 @@ namespace Server
 
             foreach (var group in priorityGroups)
             {
-                _logger.LogDebug("Starting group of {Count} services (Priority: {Priority})", group.Count, group[0].Priority);
+                _logger.LogInformation("Starting Service Group (Priority: {Priority})...", group[0].Priority);
 
                 var tasks = group.Select(async service =>
                 {
                     try
                     {
+                        var serviceName = service.GetType().Name;
+                        _logger.LogInformation("  -> Loading {ServiceName}...", serviceName);
+                        var serviceSw = System.Diagnostics.Stopwatch.StartNew();
                         await service.InitializeAsync();
                         await service.StartAsync(cancellationToken);
+                        serviceSw.Stop();
+                        _logger.LogInformation("  [OK] {ServiceName} loaded in {Elapsed}ms", serviceName, serviceSw.ElapsedMilliseconds);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to start service: {ServiceName}", service.GetType().Name);
+                        _logger.LogError(ex, "  [FAIL] Failed to start service: {ServiceName}", service.GetType().Name);
                         if (service.IsCritical)
                         {
                             throw; // Rethrow to abort startup
@@ -65,7 +73,11 @@ namespace Server
                 await Task.WhenAll(tasks);
             }
 
-            _logger.LogInformation("Server Application started successfully.");
+            sw.Stop();
+            _logger.LogInformation("========================================");
+            _logger.LogInformation("Server started successfully in {Elapsed}ms", sw.ElapsedMilliseconds);
+            _logger.LogInformation("Ready for connections.");
+            _logger.LogInformation("========================================");
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)

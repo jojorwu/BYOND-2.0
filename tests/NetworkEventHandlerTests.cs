@@ -4,6 +4,7 @@ using Server;
 using Shared;
 using Shared.Interfaces;
 using LiteNetLib;
+using Microsoft.Extensions.Logging;
 
 namespace tests
 {
@@ -17,6 +18,7 @@ namespace tests
         private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
         private NetworkEventHandler _networkEventHandler = null!;
+        private Mock<IUdpServer> _udpServerMock = null!;
 
         [SetUp]
         public void SetUp()
@@ -30,8 +32,9 @@ namespace tests
             _serverContextMock.Setup(c => c.PlayerManager).Returns(_playerManagerMock.Object);
             _serverContextMock.Setup(c => c.InterestManager).Returns(_interestManagerMock.Object);
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
+            _udpServerMock = new Mock<IUdpServer>();
 
-            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object);
+            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object, _udpServerMock.Object, new Mock<ILogger<NetworkEventHandler>>().Object);
             _networkEventHandler.SubscribeToEvents();
         }
 

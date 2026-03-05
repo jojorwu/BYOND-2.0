@@ -9,11 +9,13 @@ public class JsonConfigProvider : IConfigProvider
 {
     private readonly string _path;
     public string Name => $"Json({_path})";
+    public int Priority { get; }
     public bool CanSave => true;
 
-    public JsonConfigProvider(string path)
+    public JsonConfigProvider(string path, int priority = 100)
     {
         _path = path;
+        Priority = priority;
     }
 
     public void Load(IDictionary<string, object> settings)

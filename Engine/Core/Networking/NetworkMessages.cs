@@ -7,7 +7,8 @@ namespace Core
         Binary,
         Json,
         Sound,
-        StopSound
+        StopSound,
+        SyncCVars
     }
 
     public enum DeltaActionType : byte

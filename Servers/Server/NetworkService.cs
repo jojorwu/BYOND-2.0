@@ -96,16 +96,33 @@ namespace Server
 
         public void Stop() => StopAsync(CancellationToken.None).Wait();
 
+        private readonly Dictionary<NetPeer, string> _pendingNicknames = new();
+
         private void OnConnectionRequest(ConnectionRequest request)
         {
             _logger.LogInformation($"Incoming connection from {request.RemoteEndPoint}");
-            request.AcceptIfKey(_context.Settings.Network.ConnectionKey);
+            var reader = request.Data;
+            var key = reader.GetString();
+            if (key == _context.Settings.Network.ConnectionKey)
+            {
+                var nickname = reader.GetString();
+                var peer = request.Accept();
+                if (peer != null) _pendingNicknames[peer] = nickname;
+            }
+            else
+            {
+                request.Reject();
+            }
         }
 
         private void OnPeerConnected(NetPeer peer)
         {
             _logger.LogInformation($"Client connected: {peer}");
             var networkPeer = new UdpNetworkPeer(peer, _writerPool);
+            if (_pendingNicknames.Remove(peer, out var nickname))
+            {
+                networkPeer.Nickname = nickname;
+            }
             _peers[peer] = networkPeer;
             PeerConnected?.Invoke(networkPeer);
         }

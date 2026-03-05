@@ -15,6 +15,8 @@ namespace Client.Graphics
         private readonly Framebuffer[] _bloomBuffers;
         private readonly SpriteRenderer _spriteRenderer;
         private readonly Shared.Config.IConfigurationManager _config;
+        private readonly Shared.Config.CVar<bool> _ssaoEnabled;
+        private readonly Shared.Config.CVar<bool> _bloomEnabled;
         private Framebuffer? _historyBuffer;
 
         public PostProcessPass(SSAOShader ssaoShader, BloomShader bloomShader, PostProcessShader postProcessShader, OccluderMap occluderMap, GBuffer gBuffer, Framebuffer sceneFramebuffer, Framebuffer[] bloomBuffers, SpriteRenderer spriteRenderer, Shared.Config.IConfigurationManager config)
@@ -28,6 +30,8 @@ namespace Client.Graphics
             _bloomBuffers = bloomBuffers;
             _spriteRenderer = spriteRenderer;
             _config = config;
+            _ssaoEnabled = config.GetCVarHandle<bool>(Shared.Config.ConfigKeys.GraphicsSSAOEnabled);
+            _bloomEnabled = config.GetCVarHandle<bool>(Shared.Config.ConfigKeys.GraphicsBloomEnabled);
         }
 
         public string Name => "PostProcess";
@@ -35,14 +39,13 @@ namespace Client.Graphics
         public void Execute(RenderContext context)
         {
             // SSAO
-            bool ssaoEnabled = _config.GetCVar<bool>(Shared.Config.ConfigKeys.GraphicsSSAOEnabled);
-            if (ssaoEnabled)
+            if (_ssaoEnabled)
             {
                 _ssaoShader.Use(_occluderMap.Texture, _gBuffer.DepthTexture, 2.0f);
             }
 
             // Bloom
-            bool bloomEnabled = _config.GetCVar<bool>(Shared.Config.ConfigKeys.GraphicsBloomEnabled);
+            bool bloomEnabled = _bloomEnabled;
             bool horizontal = true;
             if (bloomEnabled)
             {

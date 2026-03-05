@@ -2,6 +2,7 @@ using ImGuiNET;
 using Shared.Config;
 using System.Numerics;
 using System.Linq;
+using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared;
 
@@ -13,11 +14,23 @@ namespace Editor.UI
         public bool IsOpen { get; set; } = false;
 
         private readonly IConfigurationManager _manager;
+        private List<CVarInfo>? _cachedServerCVars;
+        private List<CVarInfo>? _cachedClientCVars;
+        private List<CVarInfo>? _cachedAllCVars;
 
         public ProjectSettingsPanel(IConfigurationManager manager)
         {
             _manager = manager;
             new Shared.GlobalSettings(_manager);
+            _manager.Load("project_config.json");
+            _manager.OnCVarChanged += (_, _) => ClearCache();
+        }
+
+        private void ClearCache()
+        {
+            _cachedServerCVars = null;
+            _cachedClientCVars = null;
+            _cachedAllCVars = null;
         }
 
         public void Draw()
@@ -32,17 +45,17 @@ namespace Editor.UI
                 {
                     if (ImGui.BeginTabItem("Server"))
                     {
-                        DrawFilteredCVars(CVarFlags.Server);
+                        DrawFilteredCVars(ref _cachedServerCVars, CVarFlags.Server);
                         ImGui.EndTabItem();
                     }
                     if (ImGui.BeginTabItem("Graphics"))
                     {
-                        DrawFilteredCVars(CVarFlags.Client);
+                        DrawFilteredCVars(ref _cachedClientCVars, CVarFlags.Client);
                         ImGui.EndTabItem();
                     }
                     if (ImGui.BeginTabItem("All"))
                     {
-                        DrawFilteredCVars(CVarFlags.None);
+                        DrawFilteredCVars(ref _cachedAllCVars, CVarFlags.None);
                         ImGui.EndTabItem();
                     }
                     ImGui.EndTabBar();
@@ -58,15 +71,19 @@ namespace Editor.UI
             IsOpen = isOpen;
         }
 
-        private void DrawFilteredCVars(CVarFlags filter)
+        private void DrawFilteredCVars(ref List<CVarInfo>? cache, CVarFlags filter)
         {
-            var cvars = _manager.GetRegisteredCVars();
-            if (filter != CVarFlags.None)
+            if (cache == null)
             {
-                cvars = cvars.Where(c => (c.Flags & filter) != 0);
+                var query = _manager.GetRegisteredCVars();
+                if (filter != CVarFlags.None)
+                {
+                    query = query.Where(c => (c.Flags & filter) != 0);
+                }
+                cache = query.OrderBy(c => c.Name).ToList();
             }
 
-            foreach (var info in cvars.OrderBy(c => c.Name))
+            foreach (var info in cache)
             {
                 if (info.Type == typeof(bool))
                 {

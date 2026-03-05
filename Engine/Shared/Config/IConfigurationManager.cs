@@ -13,6 +13,7 @@ public interface IConfigurationManager
     T GetCVar<T>(string name);
     void SetCVar<T>(string name, T value);
     void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "");
+    CVar<T> GetCVarHandle<T>(string name);
     void Load(string path);
     void Save(string path);
     event Action<string, object> OnCVarChanged;
@@ -27,6 +28,7 @@ public class CVarInfo
     public CVarFlags Flags { get; set; }
     public string Description { get; set; } = "";
     public Type Type { get; set; } = null!;
+    public object? Handle { get; set; }
 }
 
 public class ConfigurationManager : IConfigurationManager
@@ -75,6 +77,10 @@ public class ConfigurationManager : IConfigurationManager
             if (!EqualityComparer<T>.Default.Equals(currentVal, value))
             {
                 info.Value = value!;
+                if (info.Handle is CVar<T> handle)
+                {
+                    handle.Value = value!;
+                }
                 OnCVarChanged?.Invoke(name, value!);
             }
         }
@@ -86,15 +92,50 @@ public class ConfigurationManager : IConfigurationManager
 
     public void RegisterCVar<T>(string name, T defaultValue, CVarFlags flags = CVarFlags.None, string description = "")
     {
-        _cvars.TryAdd(name, new CVarInfo
+        if (_cvars.TryGetValue(name, out var info))
         {
-            Name = name,
-            Value = defaultValue!,
-            DefaultValue = defaultValue!,
-            Flags = flags,
-            Description = description,
-            Type = typeof(T)
-        });
+            info.DefaultValue = defaultValue!;
+            info.Flags = flags;
+            info.Description = description;
+            info.Type = typeof(T);
+
+            // Try to resolve existing value if it was loaded as a generic object or JsonElement
+            if (info.Value is JsonElement element)
+            {
+                try
+                {
+                    info.Value = element.Deserialize<T>()!;
+                }
+                catch { /* Stick with element if fail */ }
+            }
+        }
+        else
+        {
+            _cvars.TryAdd(name, new CVarInfo
+            {
+                Name = name,
+                Value = defaultValue!,
+                DefaultValue = defaultValue!,
+                Flags = flags,
+                Description = description,
+                Type = typeof(T)
+            });
+        }
+    }
+
+    public CVar<T> GetCVarHandle<T>(string name)
+    {
+        if (_cvars.TryGetValue(name, out var info))
+        {
+            if (info.Handle == null)
+            {
+                var handle = new CVar<T>(name, GetCVar<T>(name));
+                info.Handle = handle;
+                return handle;
+            }
+            return (CVar<T>)info.Handle;
+        }
+        throw new KeyNotFoundException($"CVar '{name}' not found.");
     }
 
     public void Load(string path)

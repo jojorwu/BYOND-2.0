@@ -2,6 +2,7 @@ using ImGuiNET;
 using Shared.Config;
 using System.Numerics;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace Client.UI
 {
@@ -11,10 +12,13 @@ namespace Client.UI
         public bool IsOpen = false;
 
         private readonly IConfigurationManager _manager;
+        private List<CVarInfo>? _cachedClientCVars;
+        private List<CVarInfo>? _cachedAllCVars;
 
         public SettingsPanel(IConfigurationManager manager)
         {
             _manager = manager;
+            _manager.OnCVarChanged += (_, _) => { _cachedClientCVars = null; _cachedAllCVars = null; };
         }
 
         public void Draw()
@@ -29,12 +33,12 @@ namespace Client.UI
                 {
                     if (ImGui.BeginTabItem("Client"))
                     {
-                        DrawFilteredCVars(CVarFlags.Client);
+                        DrawFilteredCVars(ref _cachedClientCVars, CVarFlags.Client);
                         ImGui.EndTabItem();
                     }
                     if (ImGui.BeginTabItem("All"))
                     {
-                        DrawFilteredCVars(CVarFlags.None);
+                        DrawFilteredCVars(ref _cachedAllCVars, CVarFlags.None);
                         ImGui.EndTabItem();
                     }
                     ImGui.EndTabBar();
@@ -54,15 +58,19 @@ namespace Client.UI
             }
         }
 
-        private void DrawFilteredCVars(CVarFlags filter)
+        private void DrawFilteredCVars(ref List<CVarInfo>? cache, CVarFlags filter)
         {
-            var cvars = _manager.GetRegisteredCVars();
-            if (filter != CVarFlags.None)
+            if (cache == null)
             {
-                cvars = cvars.Where(c => (c.Flags & filter) != 0);
+                var query = _manager.GetRegisteredCVars();
+                if (filter != CVarFlags.None)
+                {
+                    query = query.Where(c => (c.Flags & filter) != 0);
+                }
+                cache = query.OrderBy(c => c.Name).ToList();
             }
 
-            foreach (var info in cvars.OrderBy(c => c.Name))
+            foreach (var info in cache)
             {
                 if (info.Type == typeof(bool))
                 {

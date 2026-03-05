@@ -26,6 +26,12 @@ namespace Shared;
             set => _manager?.SetCVar(ConfigKeys.ServerMaxPlayers, value);
         }
 
+        public int Port
+        {
+            get => _manager?.GetCVar<int>(ConfigKeys.ServerPort) ?? 9050;
+            set => _manager?.SetCVar(ConfigKeys.ServerPort, value);
+        }
+
         public bool EnableVm { get; set; } = false;
         public int VmMaxInstructions { get; set; } = 1000000000;
 

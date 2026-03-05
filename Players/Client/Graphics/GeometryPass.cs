@@ -22,9 +22,15 @@ namespace Client.Graphics
             _gBuffer.Bind();
 
             context.GL.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-            context.GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            context.GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
+
+            // Enable depth testing for PBR/Geometry
+            context.GL.Enable(EnableCap.DepthTest);
+            context.GL.DepthFunc(DepthFunction.Lequal);
 
             _worldRenderer.Render(context.PreviousState, context.CurrentState, context.Alpha, context.CullRect, context.View, context.Projection);
+
+            context.GL.Disable(EnableCap.DepthTest);
 
             _gBuffer.Unbind();
         }

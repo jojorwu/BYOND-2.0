@@ -27,8 +27,11 @@ namespace Client.Graphics
             context.GL.Clear(ClearBufferMask.ColorBufferBit);
 
             _spriteRenderer.Begin(context.View, context.Projection);
-            foreach (var obj in context.CurrentState.GameObjects.Values)
+            var objList = context.CurrentState.GameObjects.Values.ToList();
+            var objSpan = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(objList);
+            for (int i = 0; i < objSpan.Length; i++)
             {
+                var obj = objSpan[i];
                 var opacity = obj.GetVariable("opacity");
                 if (opacity.Type == DreamValueType.Float && opacity.AsFloat() > 0)
                 {

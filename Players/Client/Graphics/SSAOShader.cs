@@ -25,34 +25,62 @@ void main() {
 out vec4 FragColor;
 in vec2 TexCoords;
 uniform sampler2D uOccluderMap;
+uniform sampler2D uDepthMap;
 uniform float uRadius;
+uniform float uTime;
+
+float rand(vec2 co) {
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
 
 void main() {
     float occlusion = 0.0;
     vec2 tex_offset = 1.0 / textureSize(uOccluderMap, 0);
+    float depth = texture(uDepthMap, TexCoords).r;
 
-    // Sample a small neighborhood
-    for (int x = -2; x <= 2; x++) {
-        for (int y = -2; y <= 2; y++) {
-            if (texture(uOccluderMap, TexCoords + vec2(x, y) * tex_offset).r > 0.5) {
-                occlusion += 0.04; // Weighted contribution
-            }
+    // Poisson disk-like sampling for softer AO
+    const int SAMPLES = 8;
+    vec2 samples[8] = vec2[](
+        vec2(1, 0), vec2(-1, 0), vec2(0, 1), vec2(0, -1),
+        vec2(0.7, 0.7), vec2(-0.7, 0.7), vec2(0.7, -0.7), vec2(-0.7, -0.7)
+    );
+
+    float noise = rand(TexCoords + uTime);
+
+    for (int i = 0; i < SAMPLES; i++) {
+        vec2 offset = samples[i] * uRadius * tex_offset;
+        // Rotate samples by noise
+        float s = sin(noise);
+        float c = cos(noise);
+        offset = vec2(offset.x * c - offset.y * s, offset.x * s + offset.y * c);
+
+        if (texture(uOccluderMap, TexCoords + offset).r > 0.5) {
+            float sampleDepth = texture(uDepthMap, TexCoords + offset).r;
+            float rangeCheck = smoothstep(0.0, 1.0, uRadius / abs(depth - sampleDepth));
+            occlusion += (1.0 / float(SAMPLES)) * rangeCheck;
         }
     }
 
-    float ao = 1.0 - clamp(occlusion, 0.0, 0.5);
+    float ao = 1.0 - clamp(occlusion * 2.0, 0.0, 0.8);
     FragColor = vec4(vec3(ao), 1.0);
 }";
 
             _shader = new Shader(_gl, vert, frag);
         }
 
-        public void Use(uint occluderMap)
+        public void Use(uint occluderMap, uint depthMap, float radius)
         {
             _shader.Use();
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, occluderMap);
             _shader.SetUniform("uOccluderMap", 0);
+
+            _gl.ActiveTexture(TextureUnit.Texture1);
+            _gl.BindTexture(TextureTarget.Texture2D, depthMap);
+            _shader.SetUniform("uDepthMap", 1);
+
+            _shader.SetUniform("uRadius", radius);
+            _shader.SetUniform("uTime", (float)DateTime.Now.TimeOfDay.TotalSeconds);
         }
 
         public void Dispose()

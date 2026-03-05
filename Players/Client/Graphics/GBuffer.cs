@@ -9,6 +9,8 @@ namespace Client.Graphics
         public uint Fbo { get; }
         public uint AlbedoTexture { get; }
         public uint NormalTexture { get; }
+        public uint PbrTexture { get; } // R: Metallic, G: Roughness
+        public uint DepthTexture { get; }
         public int Width { get; private set; }
         public int Height { get; private set; }
 
@@ -35,16 +37,36 @@ namespace Client.Graphics
             NormalTexture = _gl.GenTexture();
             _gl.BindTexture(TextureTarget.Texture2D, NormalTexture);
             unsafe {
-                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)width, (uint)height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, null);
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba16f, (uint)width, (uint)height, 0, PixelFormat.Rgba, PixelType.HalfFloat, null);
             }
             _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
             _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
             _gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, NormalTexture, 0);
 
-            var attachments = new GLEnum[] { GLEnum.ColorAttachment0, GLEnum.ColorAttachment1 };
+            // PBR (Metallic/Roughness)
+            PbrTexture = _gl.GenTexture();
+            _gl.BindTexture(TextureTarget.Texture2D, PbrTexture);
+            unsafe {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)width, (uint)height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, null);
+            }
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+            _gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment2, TextureTarget.Texture2D, PbrTexture, 0);
+
+            // Depth
+            DepthTexture = _gl.GenTexture();
+            _gl.BindTexture(TextureTarget.Texture2D, DepthTexture);
+            unsafe {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.DepthComponent24, (uint)width, (uint)height, 0, PixelFormat.DepthComponent, PixelType.UnsignedInt, null);
+            }
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Nearest);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
+            _gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, TextureTarget.Texture2D, DepthTexture, 0);
+
+            var attachments = new GLEnum[] { GLEnum.ColorAttachment0, GLEnum.ColorAttachment1, GLEnum.ColorAttachment2 };
             unsafe {
                 fixed (GLEnum* a = attachments)
-                    _gl.DrawBuffers(2, a);
+                    _gl.DrawBuffers(3, a);
             }
 
             if (_gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != GLEnum.FramebufferComplete)
@@ -76,7 +98,15 @@ namespace Client.Graphics
             }
             _gl.BindTexture(TextureTarget.Texture2D, NormalTexture);
             unsafe {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba16f, (uint)width, (uint)height, 0, PixelFormat.Rgba, PixelType.HalfFloat, null);
+            }
+            _gl.BindTexture(TextureTarget.Texture2D, PbrTexture);
+            unsafe {
                 _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)width, (uint)height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, null);
+            }
+            _gl.BindTexture(TextureTarget.Texture2D, DepthTexture);
+            unsafe {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.DepthComponent24, (uint)width, (uint)height, 0, PixelFormat.DepthComponent, PixelType.UnsignedInt, null);
             }
         }
 
@@ -85,6 +115,8 @@ namespace Client.Graphics
             _gl.DeleteFramebuffer(Fbo);
             _gl.DeleteTexture(AlbedoTexture);
             _gl.DeleteTexture(NormalTexture);
+            _gl.DeleteTexture(PbrTexture);
+            _gl.DeleteTexture(DepthTexture);
         }
     }
 }

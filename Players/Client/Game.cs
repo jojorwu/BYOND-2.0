@@ -131,7 +131,7 @@ namespace Client
             _renderPipeline.AddPass(new OccluderPass(_occluderMap, _spriteRenderer));
             _renderPipeline.AddPass(new GeometryPass(_gBuffer, _worldRenderer));
             _renderPipeline.AddPass(new LightingPass(_lightingRenderer, _gBuffer, _occluderMap, _sceneFramebuffer, _particleSystem));
-            _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _sceneFramebuffer, _bloomBuffers, _spriteRenderer));
+            _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer));
 
             LoadCSharpShader();
         }

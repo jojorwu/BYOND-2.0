@@ -30,6 +30,11 @@ namespace Shared;
         long Z { get; set; }
 
         /// <summary>
+        /// The direction the object is facing.
+        /// </summary>
+        int Dir { get; set; }
+
+        /// <summary>
         /// The location of this object (container or turf).
         /// </summary>
         IGameObject? Loc { get; set; }

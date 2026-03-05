@@ -53,7 +53,7 @@ namespace Client.Graphics
             }
 
             var worldBounds = new Box2(context.CullRect.Left * 32, context.CullRect.Top * 32, context.CullRect.Right * 32, context.CullRect.Bottom * 32);
-            _lightingRenderer.Render(context.View, context.Projection, _gBuffer.NormalTexture, _occluderMap.Texture, worldBounds);
+            _lightingRenderer.Render(context.View, context.Projection, _gBuffer.NormalTexture, _occluderMap.Texture, _gBuffer.AlbedoTexture, _gBuffer.PbrTexture, worldBounds);
 
             _particleSystem.Render(context.View, context.Projection);
 

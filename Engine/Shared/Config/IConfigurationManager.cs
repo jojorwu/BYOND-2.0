@@ -54,7 +54,25 @@ public class ConfigurationManager : IConfigurationManager
     {
         if (_cvars.TryGetValue(name, out var info))
         {
-            if (!EqualityComparer<T>.Default.Equals((T)info.Value, value))
+            T currentVal;
+            if (info.Value is JsonElement element)
+            {
+                try
+                {
+                    currentVal = element.Deserialize<T>()!;
+                    info.Value = currentVal;
+                }
+                catch
+                {
+                    currentVal = default!;
+                }
+            }
+            else
+            {
+                currentVal = (T)info.Value;
+            }
+
+            if (!EqualityComparer<T>.Default.Equals(currentVal, value))
             {
                 info.Value = value!;
                 OnCVarChanged?.Invoke(name, value!);
@@ -62,7 +80,7 @@ public class ConfigurationManager : IConfigurationManager
         }
         else
         {
-             RegisterCVar(name, value!);
+            RegisterCVar(name, value!);
         }
     }
 
@@ -93,8 +111,20 @@ public class ConfigurationManager : IConfigurationManager
                 {
                     if (_cvars.TryGetValue(kvp.Key, out var info))
                     {
-                         info.Value = kvp.Value;
-                         OnCVarChanged?.Invoke(kvp.Key, kvp.Value);
+                        object val = kvp.Value;
+                        if (val is JsonElement element && info.Type != typeof(object))
+                        {
+                            try
+                            {
+                                val = element.Deserialize(info.Type)!;
+                            }
+                            catch
+                            {
+                                // Fallback to element if deserialization fails
+                            }
+                        }
+                        info.Value = val;
+                        OnCVarChanged?.Invoke(kvp.Key, val);
                     }
                     else
                     {

@@ -31,9 +31,9 @@ public partial class DreamThread : IScriptThread, IDisposable
     public const int MaxCallStackDepth = 65536;
     public const int MaxStackSize = 10485760;
     internal DreamValue[] _stack;
-    internal volatile int _stackPtr = 0;
+    internal int _stackPtr = 0;
     internal CallFrame[] _callStack = new CallFrame[1024];
-    internal volatile int _callStackPtr = 0;
+    internal int _callStackPtr = 0;
     private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(1024);
     private int _tryStackPtr = 0;
 

@@ -41,6 +41,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
+    public List<IScriptThread>? ActiveThreads { get; set; }
+
     private IEngineUpdateListener? _updateListener;
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
@@ -729,6 +731,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         Version = 0;
         Archetype = null;
         ArchetypeIndex = -1;
+        ActiveThreads = null;
         NextInGridCell = null;
         PrevInGridCell = null;
         CurrentGridCellKey = null;

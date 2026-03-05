@@ -194,6 +194,19 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         for (int i = 0; i < 8; i++)
                         {
                             if (thread.State != DreamThreadState.Running) break;
+
+                            // Small budget extension (Micro-yielding mitigation):
+                            // If we're at the very end of our budget but about to execute a non-branching instruction,
+                            // allow one more to reduce context-switching on procs that are almost done.
+                            if (instructionsExecutedThisTick >= instructionBudget && i == 0)
+                            {
+                                var nextOp = (Opcode)state.BytecodePtr[state.PC];
+                                if (!OpcodeMetadataCache.IsBranch(nextOp) && !OpcodeMetadataCache.CanModifyCallStack(nextOp))
+                                {
+                                    // Allow this one instruction to proceed
+                                }
+                                else break;
+                            }
                             if (state.PC >= state.BytecodeArray.Length)
                             {
                                 thread._stackPtr = state.StackPtr;

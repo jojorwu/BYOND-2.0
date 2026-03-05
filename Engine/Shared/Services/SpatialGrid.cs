@@ -204,6 +204,9 @@ namespace Shared;
                 {
                     if (_grid.TryGetValue((x, y), out var cell))
                     {
+                        // Double-checked pattern to avoid locking empty cells
+                        if (Volatile.Read(ref cell.Head) == null) continue;
+
                         bool lockTaken = false;
                         try
                         {
@@ -241,6 +244,9 @@ namespace Shared;
                 {
                     if (_grid.TryGetValue((x, y), out var cell))
                     {
+                        // Double-checked pattern to avoid locking empty cells
+                        if (Volatile.Read(ref cell.Head) == null) continue;
+
                         bool lockTaken = false;
                         try
                         {
@@ -291,6 +297,45 @@ namespace Shared;
                     finally
                     {
                         if (lockTaken) cell.Lock.Exit(false);
+                    }
+                }
+            }
+        }
+
+        public void QueryBoxZ(Box2l box, long z, List<IGameObject> results)
+        {
+            long startGX = GetGridCoord(box.Left);
+            long startGY = GetGridCoord(box.Bottom);
+            long endGX = GetGridCoord(box.Right);
+            long endGY = GetGridCoord(box.Top);
+
+            for (long x = startGX; x <= endGX; x++)
+            {
+                for (long y = startGY; y <= endGY; y++)
+                {
+                    if (_grid.TryGetValue((x, y), out var cell))
+                    {
+                        if (Volatile.Read(ref cell.Head) == null) continue;
+
+                        bool lockTaken = false;
+                        try
+                        {
+                            cell.Lock.Enter(ref lockTaken);
+                            var current = cell.Head;
+                            while (current != null)
+                            {
+                                var next = current.NextInGridCell;
+                                if (current.Z == z && current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
+                                {
+                                    results.Add(current);
+                                }
+                                current = next;
+                            }
+                        }
+                        finally
+                        {
+                            if (lockTaken) cell.Lock.Exit(false);
+                        }
                     }
                 }
             }

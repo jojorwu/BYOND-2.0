@@ -42,10 +42,9 @@ namespace Shared;
             long endY = (Coords.Y + 1) * regionSizeInChunks * ChunkSize - 1;
 
             var box = new Box2l(startX, startY, endX, endY);
-            gameState.SpatialGrid.QueryBox(box, obj =>
-            {
-                if (obj.Z == Z) results.Add(obj);
-            });
+
+            // Fast non-allocating query path
+            gameState.SpatialGrid.QueryBoxZ(box, Z, results);
         }
 
         public IEnumerable<IGameObject> GetGameObjects(IGameState gameState, int regionSizeInChunks = 8)

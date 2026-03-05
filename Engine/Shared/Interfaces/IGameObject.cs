@@ -117,6 +117,11 @@ namespace Shared;
         void SetVariable(int index, DreamValue value);
 
         /// <summary>
+        /// Internal: Gets the list of active script threads associated with this object.
+        /// </summary>
+        List<IScriptThread>? ActiveThreads { get; set; }
+
+        /// <summary>
         /// Gets all components attached to this object.
         /// </summary>
         IEnumerable<IComponent> GetComponents();

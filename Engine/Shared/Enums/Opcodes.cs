@@ -412,6 +412,7 @@ public struct OpcodeMetadata {
 public static class OpcodeMetadataCache {
     private static readonly OpcodeMetadata[] MetadataCache = new OpcodeMetadata[256];
     private static readonly bool[] CanModifyCallStackCache = new bool[256];
+    private static readonly bool[] IsBranchCache = new bool[256];
 
     static OpcodeMetadataCache() {
         for (int i = 0; i < 256; i++) MetadataCache[i] = new OpcodeMetadata();
@@ -419,8 +420,31 @@ public static class OpcodeMetadataCache {
             var field = typeof(Opcode).GetField(opcode.ToString());
             var attribute = Attribute.GetCustomAttribute(field!, typeof(OpcodeMetadataAttribute));
             var metadataAttribute = (OpcodeMetadataAttribute?)attribute;
-            MetadataCache[(byte)opcode] = metadataAttribute?.Metadata ?? new OpcodeMetadata();
-            CanModifyCallStackCache[(byte)opcode] = MetadataCache[(byte)opcode].CanModifyCallStack;
+            var metadata = metadataAttribute?.Metadata ?? new OpcodeMetadata();
+            MetadataCache[(byte)opcode] = metadata;
+            CanModifyCallStackCache[(byte)opcode] = metadata.CanModifyCallStack;
+
+            IsBranchCache[(byte)opcode] = opcode switch {
+                Opcode.Jump => true,
+                Opcode.JumpIfFalse => true,
+                Opcode.JumpIfNull => true,
+                Opcode.JumpIfNullNoPop => true,
+                Opcode.JumpIfTrueReference => true,
+                Opcode.JumpIfFalseReference => true,
+                Opcode.JumpIfReferenceFalse => true,
+                Opcode.SwitchCase => true,
+                Opcode.SwitchCaseRange => true,
+                Opcode.SwitchOnFloat => true,
+                Opcode.SwitchOnString => true,
+                Opcode.LocalJumpIfFalse => true,
+                Opcode.LocalJumpIfTrue => true,
+                Opcode.BooleanAnd => true,
+                Opcode.BooleanOr => true,
+                Opcode.Enumerate => true,
+                Opcode.EnumerateAssoc => true,
+                Opcode.EnumerateNoAssign => true,
+                _ => false
+            };
         }
     }
 
@@ -430,5 +454,9 @@ public static class OpcodeMetadataCache {
 
     public static bool CanModifyCallStack(Opcode opcode) {
         return CanModifyCallStackCache[(byte)opcode];
+    }
+
+    public static bool IsBranch(Opcode opcode) {
+        return IsBranchCache[(byte)opcode];
     }
 }

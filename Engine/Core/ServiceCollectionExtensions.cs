@@ -53,6 +53,7 @@ namespace Core
             services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
             services.AddSingleton<IGameApi, GameApi>();
             services.AddSingleton<IRegionApi, RegionApi>();
+            services.AddSingleton<ISoundApi, SoundApi>();
 
             return services;
         }
@@ -62,7 +63,7 @@ namespace Core
             services.AddSingleton<IBytecodeInterpreter, BytecodeInterpreter>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();
-            services.AddSingleton<INativeProcProvider, Core.VM.Procs.SystemNativeProcProvider>();
+            services.AddSingleton<INativeProcProvider>(p => new Core.VM.Procs.SystemNativeProcProvider(p.GetService<ISoundApi>()));
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
 

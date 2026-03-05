@@ -78,9 +78,9 @@ namespace Server
             _envManager.UpdateActiveThreads(threads);
         }
 
-        public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null)
+        public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null, bool forceSequential = false)
         {
-            return _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals, objectIds);
+            return _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals, objectIds, forceSequential);
         }
 
         public void EnqueueCommand(string command, Action<string> onResult)

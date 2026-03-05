@@ -9,13 +9,15 @@ namespace Core.Api
         public IMapApi Map { get; }
         public IObjectApi Objects { get; }
         public IScriptApi Scripts { get; }
+        public ISoundApi Sounds { get; }
         public IStandardLibraryApi StdLib { get; }
 
-        public GameApi(IMapApi mapApi, IObjectApi objectApi, IScriptApi scriptApi, IStandardLibraryApi standardLibraryApi)
+        public GameApi(IMapApi mapApi, IObjectApi objectApi, IScriptApi scriptApi, ISoundApi soundApi, IStandardLibraryApi standardLibraryApi)
         {
             Map = mapApi;
             Objects = objectApi;
             Scripts = scriptApi;
+            Sounds = soundApi;
             StdLib = standardLibraryApi;
         }
     }

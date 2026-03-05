@@ -50,6 +50,7 @@ void main() {
             string frag = @"#version 330 core
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
+layout (location = 2) out vec4 gPbr;
 in vec2 TexCoord;
 in vec4 vColor;
 uniform sampler2D uTexture;
@@ -58,6 +59,7 @@ void main() {
     if(texColor.a < 0.01) discard;
     gAlbedo = texColor * vColor;
     gNormal = vec4(0.5, 0.5, 1.0, 1.0);
+    gPbr = vec4(0.0, 1.0, 0.0, 1.0); // Metallic = 0, Roughness = 1
 }";
             _chunkShader = new Shader(_gl, vert, frag);
 
@@ -113,6 +115,13 @@ void main() {
                 var layer = GetLayer(obj);
                 if (layer != 2.0f) // Non-turf layer
                 {
+                    // Frustum Culling
+                    if (obj.X < cullRect.Left - 1 || obj.X > cullRect.Right + 1 ||
+                        obj.Y < cullRect.Top - 1 || obj.Y > cullRect.Bottom + 1)
+                    {
+                        continue;
+                    }
+
                     var icon = GetIcon(obj);
                     if (!string.IsNullOrEmpty(icon))
                     {

@@ -61,17 +61,22 @@ void main() {
             string frag = @"#version 330 core
 layout (location = 0) out vec4 gAlbedo;
 layout (location = 1) out vec4 gNormal;
+layout (location = 2) out vec4 gPbr;
 in vec2 TexCoords;
 in vec4 vColor;
 uniform sampler2D uTexture;
 uniform sampler2D uNormalMap;
 uniform bool uHasNormalMap;
+uniform float uMetallic;
+uniform float uRoughness;
+
 void main() {
     vec4 texColor = texture(uTexture, TexCoords);
     if(texColor.a < 0.01) discard;
     gAlbedo = texColor * vColor;
     if(uHasNormalMap) gNormal = texture(uNormalMap, TexCoords);
     else gNormal = vec4(0.5, 0.5, 1.0, 1.0);
+    gPbr = vec4(uMetallic, uRoughness, 0.0, 1.0);
 }";
 
             _shader = new Shader(_gl, vert, frag);
@@ -170,12 +175,18 @@ void main() {
             if (_instanceCount == 0) return;
 
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
+
+            // Optimization: Buffer Orphanage to avoid synchronization stalls
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_maxInstances * sizeof(InstanceData)), null, BufferUsageARB.StreamDraw);
+
             fixed(InstanceData* p = _instanceData)
                 _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_instanceCount * sizeof(InstanceData)), p);
 
             _shader.Use();
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
+            _shader.SetUniform("uMetallic", 0.0f); // Default for sprites
+            _shader.SetUniform("uRoughness", 1.0f);
 
             _gl.BindVertexArray(_vao);
 

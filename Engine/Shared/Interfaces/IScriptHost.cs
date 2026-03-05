@@ -46,5 +46,5 @@ namespace Shared;
         /// Executes the specified collection of script threads.
         /// </summary>
         /// <returns>A collection of threads that are still active after execution.</returns>
-        System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null);
+        System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null, bool forceSequential = false);
     }

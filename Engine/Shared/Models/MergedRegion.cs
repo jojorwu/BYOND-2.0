@@ -11,18 +11,18 @@ namespace Shared;
             Regions = regions;
         }
 
-        public void GetGameObjects(List<IGameObject> results)
+        public void GetGameObjects(IGameState gameState, List<IGameObject> results, int regionSizeInChunks = 8)
         {
             foreach (var region in Regions)
             {
-                region.GetGameObjects(results);
+                region.GetGameObjects(gameState, results, regionSizeInChunks);
             }
         }
 
-        public IEnumerable<IGameObject> GetGameObjects()
+        public IEnumerable<IGameObject> GetGameObjects(IGameState gameState, int regionSizeInChunks = 8)
         {
             var results = new List<IGameObject>();
-            GetGameObjects(results);
+            GetGameObjects(gameState, results, regionSizeInChunks);
             return results;
         }
     }

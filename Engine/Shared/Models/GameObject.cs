@@ -41,6 +41,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
 
+    public List<IScriptThread>? ActiveThreads { get; set; }
+
     private IEngineUpdateListener? _updateListener;
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
@@ -212,6 +214,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
+    private double _opacity = 0;
+    public double Opacity
+    {
+        get => Volatile.Read(ref _opacity);
+        set { lock (_lock) { if (_opacity != value) { _opacity = value; var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+    }
+
     /// <summary>
     /// Commits the current state to the read-only buffer.
     /// </summary>
@@ -347,6 +356,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "icon": return new DreamValue(_icon);
                 case "icon_state": return new DreamValue(_iconState);
                 case "dir": return new DreamValue((double)_dir);
+                case "opacity": return new DreamValue(_opacity);
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
                 case "name":
                     var n = base.GetVariable(name);
@@ -376,6 +386,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
                 case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
                 case "dir": Dir = (int)value.GetValueAsDouble(); return;
+                case "opacity": Opacity = value.GetValueAsDouble(); return;
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
                     else Loc = null;
@@ -418,6 +429,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     case BuiltinVar.Layer: return new DreamValue(_layer);
                     case BuiltinVar.PixelX: return new DreamValue(_pixelX);
                     case BuiltinVar.PixelY: return new DreamValue(_pixelY);
+                    case BuiltinVar.Opacity: return new DreamValue(_opacity);
                     case BuiltinVar.Loc: return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
                 }
             }
@@ -450,6 +462,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                         case BuiltinVar.Layer: _layer = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelX: _pixelX = value.GetValueAsDouble(); break;
                         case BuiltinVar.PixelY: _pixelY = value.GetValueAsDouble(); break;
+                        case BuiltinVar.Opacity: _opacity = value.GetValueAsDouble(); break;
                         case BuiltinVar.X: X = value.RawLong; break;
                         case BuiltinVar.Y: Y = value.RawLong; break;
                         case BuiltinVar.Z: Z = value.RawLong; break;
@@ -712,11 +725,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _layer = 2.0;
             _pixelX = 0;
             _pixelY = 0;
+            _opacity = 0;
             _isDirty = 0;
         }
         Version = 0;
         Archetype = null;
         ArchetypeIndex = -1;
+        ActiveThreads = null;
         NextInGridCell = null;
         PrevInGridCell = null;
         CurrentGridCellKey = null;

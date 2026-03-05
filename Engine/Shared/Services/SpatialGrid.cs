@@ -15,7 +15,7 @@ namespace Shared;
         {
             public IGameObject? Head;
             public int Count;
-            public readonly ReaderWriterLockSlim Lock = new(LockRecursionPolicy.NoRecursion);
+            public SpinLock Lock = new(false);
 
             public void Clear()
             {
@@ -34,7 +34,6 @@ namespace Shared;
 
             public void Dispose()
             {
-                Lock.Dispose();
             }
         }
 
@@ -69,25 +68,10 @@ namespace Shared;
 
         private Cell GetOrCreateCell((long X, long Y) key)
         {
-            while (true)
-            {
-                var cell = _grid.GetOrAdd(key, _ => {
-                    if (!_cellPool.TryPop(out var pooled)) pooled = new Cell();
-                    return pooled;
-                });
-                cell.Lock.EnterReadLock();
-                try
-                {
-                    if (_grid.TryGetValue(key, out var current) && current == cell)
-                    {
-                        return cell;
-                    }
-                }
-                finally
-                {
-                    cell.Lock.ExitReadLock();
-                }
-            }
+            return _grid.GetOrAdd(key, _ => {
+                if (!_cellPool.TryPop(out var pooled)) pooled = new Cell();
+                return pooled;
+            });
         }
 
         public void Add(IGameObject obj)
@@ -105,58 +89,49 @@ namespace Shared;
                 // Consistent lock ordering to avoid deadlocks
                 if (CompareKeys(oldKey, key) < 0)
                 {
-                    oldCell.Lock.EnterWriteLock();
+                    bool lock1 = false, lock2 = false;
                     try
                     {
-                        cell.Lock.EnterWriteLock();
-                        try
-                        {
-                            RemoveInternal(obj, oldCell);
-                            AddInternal(obj, cell, key);
-                        }
-                        finally
-                        {
-                            cell.Lock.ExitWriteLock();
-                        }
+                        oldCell.Lock.Enter(ref lock1);
+                        cell.Lock.Enter(ref lock2);
+                        RemoveInternal(obj, oldCell);
+                        AddInternal(obj, cell, key);
                     }
                     finally
                     {
-                        oldCell.Lock.ExitWriteLock();
+                        if (lock2) cell.Lock.Exit(false);
+                        if (lock1) oldCell.Lock.Exit(false);
                     }
                 }
                 else
                 {
-                    cell.Lock.EnterWriteLock();
+                    bool lock1 = false, lock2 = false;
                     try
                     {
-                        oldCell.Lock.EnterWriteLock();
-                        try
-                        {
-                            RemoveInternal(obj, oldCell);
-                            AddInternal(obj, cell, key);
-                        }
-                        finally
-                        {
-                            oldCell.Lock.ExitWriteLock();
-                        }
+                        cell.Lock.Enter(ref lock1);
+                        oldCell.Lock.Enter(ref lock2);
+                        RemoveInternal(obj, oldCell);
+                        AddInternal(obj, cell, key);
                     }
                     finally
                     {
-                        cell.Lock.ExitWriteLock();
+                        if (lock2) oldCell.Lock.Exit(false);
+                        if (lock1) cell.Lock.Exit(false);
                     }
                 }
             }
             else
             {
                 var cell = GetOrCreateCell(key);
-                cell.Lock.EnterWriteLock();
+                bool lockTaken = false;
                 try
                 {
+                    cell.Lock.Enter(ref lockTaken);
                     AddInternal(obj, cell, key);
                 }
                 finally
                 {
-                    cell.Lock.ExitWriteLock();
+                    if (lockTaken) cell.Lock.Exit(false);
                 }
             }
         }
@@ -177,14 +152,15 @@ namespace Shared;
             if (obj.CurrentGridCellKey == null) return;
             if (_grid.TryGetValue(obj.CurrentGridCellKey.Value, out var cell))
             {
-                cell.Lock.EnterWriteLock();
+                bool lockTaken = false;
                 try
                 {
+                    cell.Lock.Enter(ref lockTaken);
                     RemoveInternal(obj, cell);
                 }
                 finally
                 {
-                    cell.Lock.ExitWriteLock();
+                    if (lockTaken) cell.Lock.Exit(false);
                 }
             }
         }
@@ -228,9 +204,13 @@ namespace Shared;
                 {
                     if (_grid.TryGetValue((x, y), out var cell))
                     {
-                        cell.Lock.EnterReadLock();
+                        // Double-checked pattern to avoid locking empty cells
+                        if (Volatile.Read(ref cell.Head) == null) continue;
+
+                        bool lockTaken = false;
                         try
                         {
+                            cell.Lock.Enter(ref lockTaken);
                             var current = cell.Head;
                             while (current != null)
                             {
@@ -244,7 +224,7 @@ namespace Shared;
                         }
                         finally
                         {
-                            cell.Lock.ExitReadLock();
+                            if (lockTaken) cell.Lock.Exit(false);
                         }
                     }
                 }
@@ -264,9 +244,13 @@ namespace Shared;
                 {
                     if (_grid.TryGetValue((x, y), out var cell))
                     {
-                        cell.Lock.EnterReadLock();
+                        // Double-checked pattern to avoid locking empty cells
+                        if (Volatile.Read(ref cell.Head) == null) continue;
+
+                        bool lockTaken = false;
                         try
                         {
+                            cell.Lock.Enter(ref lockTaken);
                             var current = cell.Head;
                             while (current != null)
                             {
@@ -280,7 +264,7 @@ namespace Shared;
                         }
                         finally
                         {
-                            cell.Lock.ExitReadLock();
+                            if (lockTaken) cell.Lock.Exit(false);
                         }
                     }
                 }
@@ -294,9 +278,10 @@ namespace Shared;
                 var cell = kvp.Value;
                 if (cell.Count == 0)
                 {
-                    cell.Lock.EnterWriteLock();
+                    bool lockTaken = false;
                     try
                     {
+                        cell.Lock.Enter(ref lockTaken);
                         if (cell.Count == 0)
                         {
                             if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
@@ -311,7 +296,46 @@ namespace Shared;
                     }
                     finally
                     {
-                        cell.Lock.ExitWriteLock();
+                        if (lockTaken) cell.Lock.Exit(false);
+                    }
+                }
+            }
+        }
+
+        public void QueryBoxZ(Box2l box, long z, List<IGameObject> results)
+        {
+            long startGX = GetGridCoord(box.Left);
+            long startGY = GetGridCoord(box.Bottom);
+            long endGX = GetGridCoord(box.Right);
+            long endGY = GetGridCoord(box.Top);
+
+            for (long x = startGX; x <= endGX; x++)
+            {
+                for (long y = startGY; y <= endGY; y++)
+                {
+                    if (_grid.TryGetValue((x, y), out var cell))
+                    {
+                        if (Volatile.Read(ref cell.Head) == null) continue;
+
+                        bool lockTaken = false;
+                        try
+                        {
+                            cell.Lock.Enter(ref lockTaken);
+                            var current = cell.Head;
+                            while (current != null)
+                            {
+                                var next = current.NextInGridCell;
+                                if (current.Z == z && current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
+                                {
+                                    results.Add(current);
+                                }
+                                current = next;
+                            }
+                        }
+                        finally
+                        {
+                            if (lockTaken) cell.Lock.Exit(false);
+                        }
                     }
                 }
             }
@@ -332,8 +356,6 @@ namespace Shared;
 
         public void Dispose()
         {
-            foreach (var cell in _grid.Values) cell.Dispose();
-            foreach (var cell in _cellPool) cell.Dispose();
             _grid.Clear();
             _cellPool.Clear();
             GC.SuppressFinalize(this);

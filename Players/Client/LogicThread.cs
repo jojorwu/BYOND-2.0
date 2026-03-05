@@ -27,6 +27,9 @@ namespace Client
         private readonly IObjectFactory _objectFactory;
         private readonly Shared.Services.BinarySnapshotService _binaryService;
 
+        public event Action<SoundData>? SoundReceived;
+        public event Action<string, long?>? StopSoundReceived;
+
         public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
         {
             PreviousState = new GameState();
@@ -113,6 +116,30 @@ namespace Client
                     PreviousState = CurrentState; // This is a bit simplified for deltas
                     _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
                 }
+            }
+            else if (messageType == SnapshotMessageType.Sound)
+            {
+                var sound = new SoundData();
+                sound.File = reader.GetString();
+                sound.Volume = reader.GetFloat();
+                sound.Pitch = reader.GetFloat();
+                sound.Repeat = reader.GetBool();
+
+                if (reader.GetBool()) sound.X = reader.GetLong();
+                if (reader.GetBool()) sound.Y = reader.GetLong();
+                if (reader.GetBool()) sound.Z = reader.GetLong();
+                if (reader.GetBool()) sound.ObjectId = reader.GetLong();
+
+                sound.Falloff = reader.GetFloat();
+
+                SoundReceived?.Invoke(sound);
+            }
+            else if (messageType == SnapshotMessageType.StopSound)
+            {
+                var file = reader.GetString();
+                long? objectId = null;
+                if (reader.GetBool()) objectId = reader.GetLong();
+                StopSoundReceived?.Invoke(file, objectId);
             }
             else if (messageType == SnapshotMessageType.Full)
             {

@@ -10,16 +10,19 @@ namespace Client.Graphics
         private readonly BloomShader _bloomShader;
         private readonly PostProcessShader _postProcessShader;
         private readonly OccluderMap _occluderMap;
+        private readonly GBuffer _gBuffer;
         private readonly Framebuffer _sceneFramebuffer;
         private readonly Framebuffer[] _bloomBuffers;
         private readonly SpriteRenderer _spriteRenderer;
+        private Framebuffer? _historyBuffer;
 
-        public PostProcessPass(SSAOShader ssaoShader, BloomShader bloomShader, PostProcessShader postProcessShader, OccluderMap occluderMap, Framebuffer sceneFramebuffer, Framebuffer[] bloomBuffers, SpriteRenderer spriteRenderer)
+        public PostProcessPass(SSAOShader ssaoShader, BloomShader bloomShader, PostProcessShader postProcessShader, OccluderMap occluderMap, GBuffer gBuffer, Framebuffer sceneFramebuffer, Framebuffer[] bloomBuffers, SpriteRenderer spriteRenderer)
         {
             _ssaoShader = ssaoShader;
             _bloomShader = bloomShader;
             _postProcessShader = postProcessShader;
             _occluderMap = occluderMap;
+            _gBuffer = gBuffer;
             _sceneFramebuffer = sceneFramebuffer;
             _bloomBuffers = bloomBuffers;
             _spriteRenderer = spriteRenderer;
@@ -30,7 +33,7 @@ namespace Client.Graphics
         public void Execute(RenderContext context)
         {
             // SSAO
-            _ssaoShader.Use(_occluderMap.Texture);
+            _ssaoShader.Use(_occluderMap.Texture, _gBuffer.DepthTexture, 2.0f);
 
             // Bloom
             _bloomBuffers[0].Resize(context.Width / 2, context.Height / 2);
@@ -53,11 +56,23 @@ namespace Client.Graphics
             // Final Composite
             context.GL.Clear(ClearBufferMask.ColorBufferBit);
 
-            _postProcessShader.Use(_sceneFramebuffer.Texture);
+            // TAA History Management
+            if (_historyBuffer == null) _historyBuffer = new Framebuffer(context.GL, context.Width, context.Height);
+            _historyBuffer.Resize(context.Width, context.Height);
+
+            _postProcessShader.Use(_sceneFramebuffer.Texture, _historyBuffer.Texture, new Vector2(1.0f / context.Width, 1.0f / context.Height), 0.9f);
+
+            // Render to history buffer and screen
+            var currentFbo = context.GL.GetInteger(GLEnum.FramebufferBinding);
+            _historyBuffer.Bind();
+            DrawSimpleQuad(context.GL);
+            _historyBuffer.Unbind();
+
+            context.GL.BindFramebuffer(FramebufferTarget.Framebuffer, (uint)currentFbo);
+            DrawSimpleQuad(context.GL);
+
             context.GL.Enable(EnableCap.Blend);
             context.GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
-
-            DrawSimpleQuad(context.GL);
 
             context.GL.BindTexture(TextureTarget.Texture2D, _bloomBuffers[horizontal ? 0 : 1].Texture);
             DrawSimpleQuad(context.GL);

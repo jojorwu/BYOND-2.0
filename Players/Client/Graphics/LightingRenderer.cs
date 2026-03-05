@@ -48,6 +48,8 @@ uniform vec2 uLightPos;
 uniform float uRadius;
 uniform sampler2D uNormalBuffer;
 uniform sampler2D uOccluderMap;
+uniform sampler2D uAlbedoBuffer;
+uniform sampler2D uPbrBuffer;
 uniform vec4 uScreenBounds; // left, top, right, bottom
 
 void main() {
@@ -55,15 +57,26 @@ void main() {
     if (dist > 0.5) discard;
 
     float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-
-    // Normal Mapping Shading
     vec2 screenUV = (WorldPos - uScreenBounds.xy) / (uScreenBounds.zw - uScreenBounds.xy);
+
+    // PBR Shading
+    vec3 albedo = texture(uAlbedoBuffer, screenUV).rgb;
     vec3 normal = texture(uNormalBuffer, screenUV).rgb * 2.0 - 1.0;
-    vec3 lightDir = normalize(vec3(uLightPos - WorldPos, 32.0)); // Assume lights are 32 units 'above' the plane
+    vec2 pbr = texture(uPbrBuffer, screenUV).rg;
+    float metallic = pbr.r;
+    float roughness = pbr.g;
+
+    vec3 lightDir = normalize(vec3(uLightPos - WorldPos, 32.0));
+    vec3 viewDir = vec3(0.0, 0.0, 1.0); // Orthographic view
+    vec3 halfDir = normalize(lightDir + viewDir);
+
     float diff = max(dot(normal, lightDir), 0.0);
 
-    // Optimization: Early exit for dim areas
-    float intensity = alpha * diff;
+    // Simple Cook-Torrance subset
+    float NDF = pow(max(dot(normal, halfDir), 0.0), mix(100.0, 1.0, roughness));
+    float spec = NDF * metallic;
+
+    float intensity = alpha * (diff + spec);
     if (intensity < 0.01) discard;
 
     // Simple Shadow Raycasting
@@ -122,7 +135,7 @@ void main() {
             _lights.Add(new LightSource { Position = position, Radius = radius, Color = color });
         }
 
-        public void Render(Matrix4x4 view, Matrix4x4 projection, uint normalBuffer, uint occluderMap, Box2 screenBounds)
+        public void Render(Matrix4x4 view, Matrix4x4 projection, uint normalBuffer, uint occluderMap, uint albedoBuffer, uint pbrBuffer, Box2 screenBounds)
         {
             if (_lights.Count == 0) return;
 
@@ -131,12 +144,18 @@ void main() {
             _lightingShader.SetUniform("uView", view);
             _lightingShader.SetUniform("uNormalBuffer", 0);
             _lightingShader.SetUniform("uOccluderMap", 1);
+            _lightingShader.SetUniform("uAlbedoBuffer", 2);
+            _lightingShader.SetUniform("uPbrBuffer", 3);
             _lightingShader.SetUniform("uScreenBounds", new Vector4(screenBounds.Left, screenBounds.Top, screenBounds.Right, screenBounds.Bottom));
 
             _gl.ActiveTexture(TextureUnit.Texture0);
             _gl.BindTexture(TextureTarget.Texture2D, normalBuffer);
             _gl.ActiveTexture(TextureUnit.Texture1);
             _gl.BindTexture(TextureTarget.Texture2D, occluderMap);
+            _gl.ActiveTexture(TextureUnit.Texture2);
+            _gl.BindTexture(TextureTarget.Texture2D, albedoBuffer);
+            _gl.ActiveTexture(TextureUnit.Texture3);
+            _gl.BindTexture(TextureTarget.Texture2D, pbrBuffer);
 
             _gl.BindVertexArray(_vao);
             _gl.Enable(EnableCap.Blend);

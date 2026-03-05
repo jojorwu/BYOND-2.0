@@ -9,7 +9,9 @@ namespace Core.VM.Runtime
     public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 100000000;
-        private readonly ReaderWriterLockSlim _globalLock = new();
+        private SpinLock _globalsLock = new(false);
+        private SpinLock _procsLock = new(false);
+        private SpinLock _stringsLock = new(false);
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
@@ -26,37 +28,43 @@ namespace Core.VM.Runtime
         public DreamValue GetGlobal(int index)
         {
             if (index < 0) return DreamValue.Null;
-            _globalLock.EnterReadLock();
+            bool lockTaken = false;
             try
             {
+                _globalsLock.Enter(ref lockTaken);
                 return (index < Globals.Count) ? Globals[index] : DreamValue.Null;
             }
             finally
             {
-                _globalLock.ExitReadLock();
+                if (lockTaken) _globalsLock.Exit(false);
             }
         }
 
         public void SetGlobal(int index, DreamValue value)
         {
             if (index < 0 || index >= MaxGlobals) return;
-            _globalLock.EnterWriteLock();
+            bool lockTaken = false;
             try
             {
+                _globalsLock.Enter(ref lockTaken);
                 while (Globals.Count <= index) Globals.Add(DreamValue.Null);
                 Globals[index] = value;
             }
             finally
             {
-                _globalLock.ExitWriteLock();
+                if (lockTaken) _globalsLock.Exit(false);
             }
         }
 
         public void Reset()
         {
-            _globalLock.EnterWriteLock();
+            bool gLockTaken = false, pLockTaken = false, sLockTaken = false;
             try
             {
+                _globalsLock.Enter(ref gLockTaken);
+                _procsLock.Enter(ref pLockTaken);
+                _stringsLock.Enter(ref sLockTaken);
+
                 Strings.Clear();
                 Procs.Clear();
                 AllProcs.Clear();
@@ -66,19 +74,15 @@ namespace Core.VM.Runtime
             }
             finally
             {
-                _globalLock.ExitWriteLock();
+                if (sLockTaken) _stringsLock.Exit(false);
+                if (pLockTaken) _procsLock.Exit(false);
+                if (gLockTaken) _globalsLock.Exit(false);
             }
         }
 
         public void Dispose()
         {
-            _globalLock.Dispose();
             GC.SuppressFinalize(this);
-        }
-
-        ~DreamVMContext()
-        {
-            _globalLock?.Dispose();
         }
     }
 }

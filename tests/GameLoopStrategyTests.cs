@@ -29,6 +29,7 @@ namespace tests
         {
             _scriptHostMock = new Mock<IScriptHost>();
             _gameStateMock = new Mock<IGameState>();
+            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object));
             _udpServerMock = new Mock<IUdpServer>();
             _regionManagerMock = new Mock<IRegionManager>();
             _regionActivationStrategyMock = new Mock<IRegionActivationStrategy>();

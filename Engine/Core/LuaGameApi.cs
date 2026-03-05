@@ -47,5 +47,11 @@ namespace Core
         public System.Collections.Generic.List<string> ListScriptFiles() => _gameApi.Scripts.ListScriptFiles();
         public bool ScriptFileExists(string filename) => _gameApi.Scripts.ScriptFileExists(filename);
         public string ReadScriptFile(string filename) => _gameApi.Scripts.ReadScriptFile(filename);
+
+        public void PlaySound(string file, float volume = 100f, float pitch = 1f, bool repeat = false) => _gameApi.Sounds.Play(file, volume, pitch, repeat);
+        public void PlaySoundAt(string file, long x, long y, long z, float volume = 100f, float pitch = 1f, float falloff = 1f) => _gameApi.Sounds.PlayAt(file, x, y, z, volume, pitch, falloff);
+        public void PlaySoundOn(string file, GameObject obj, float volume = 100f, float pitch = 1f, float falloff = 1f) => _gameApi.Sounds.PlayOn(file, obj, volume, pitch, falloff);
+        public void StopSound(string file) => _gameApi.Sounds.Stop(file);
+        public void StopSoundOn(string file, GameObject obj) => _gameApi.Sounds.StopOn(file, obj);
     }
 }

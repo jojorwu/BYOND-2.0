@@ -23,7 +23,7 @@ namespace Server
             _jobSystem = jobSystem;
         }
 
-        public async System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null)
+        public async System.Threading.Tasks.Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null, bool forceSequential = false)
         {
             if (objectIds == null)
             {
@@ -38,56 +38,100 @@ namespace Server
             var budgetMs = 1000.0 / _settings.Performance.TickRate * _settings.Performance.TimeBudgeting.ScriptHost.BudgetPercent;
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var sortedThreads = threads
-                .OrderByDescending(t => t.Priority)
-                .ThenByDescending(t => t.WaitTicks)
-                .ToList();
+            // Use faster manual sorting to avoid LINQ overhead for large thread counts
+            var sortedThreads = threads as List<IScriptThread> ?? threads.ToList();
+            sortedThreads.Sort((a, b) =>
+            {
+                int res = b.Priority.CompareTo(a.Priority);
+                if (res != 0) return res;
+                return b.WaitTicks.CompareTo(a.WaitTicks);
+            });
 
             var budgetExceeded = 0; // 0 = false, 1 = true
+            const int BatchSize = 64;
 
-            foreach (var thread in sortedThreads)
+            if (forceSequential)
             {
-                var jobPriority = MapPriority(thread.Priority);
-
-                // Smart Boost: If a thread is heavy and has been waiting, give it a temporary boost
-                if (thread.TotalInstructionsExecuted > 100000 && thread.WaitTicks > 5)
-                {
-                    jobPriority = JobPriority.High;
-                }
-
-                // Adaptive Weighting: Heavier scripts get more weight in the job system
-                // to balance them against many small jobs.
-                int jobWeight = 1;
-                if (thread.TotalInstructionsExecuted > 500000) jobWeight = 10;
-                else if (thread.TotalInstructionsExecuted > 100000) jobWeight = 5;
-                else if (thread.TotalInstructionsExecuted > 10000) jobWeight = 2;
-
-                _jobSystem.Schedule(() =>
+                foreach (var thread in sortedThreads)
                 {
                     if (Interlocked.CompareExchange(ref budgetExceeded, 0, 0) == 1 || (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled))
                     {
                         Interlocked.Exchange(ref budgetExceeded, 1);
                         thread.WaitTicks++;
                         nextThreads.Add(thread);
-                        return;
+                        continue;
                     }
 
-                    // Calculate adaptive instruction slice based on priority
-                    int instructionSlice = _settings.Performance.VmInstructionSlice;
-                    if (thread.Priority == ScriptThreadPriority.High) instructionSlice *= 2;
-                    else if (thread.Priority == ScriptThreadPriority.Low) instructionSlice /= 2;
-
-                    // Apply carry-over balance from previous ticks (rewarding yielding, penalizing over-consumption)
-                    instructionSlice += thread.InstructionQuotaBalance;
-                    instructionSlice = Math.Max(100, instructionSlice); // Minimum slice
-
+                    int instructionSlice = CalculateInstructionSlice(thread);
                     ProcessThread(thread, processGlobals, objectIds, nextThreads, instructionSlice);
-                }, priority: jobPriority, weight: jobWeight);
+                }
+            }
+            else
+            {
+                // Parallel path: Process in batches to reduce JobSystem overhead
+                for (int i = 0; i < sortedThreads.Count; i += BatchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + BatchSize, sortedThreads.Count);
+                    var batch = sortedThreads.GetRange(start, end - start);
+
+                    // Use priority of first thread in batch (they are sorted by priority)
+                    var jobPriority = MapPriority(batch[0].Priority);
+
+                    // Weight batch by instruction count of heaviest thread
+                    int maxWeight = 1;
+                    foreach (var t in batch)
+                    {
+                        if (t.TotalInstructionsExecuted > 500000) maxWeight = Math.Max(maxWeight, 10);
+                        else if (t.TotalInstructionsExecuted > 100000) maxWeight = Math.Max(maxWeight, 5);
+                        else if (t.TotalInstructionsExecuted > 10000) maxWeight = Math.Max(maxWeight, 2);
+                    }
+
+                    _jobSystem.Schedule(() =>
+                    {
+                        foreach (var thread in batch)
+                        {
+                            if (Interlocked.CompareExchange(ref budgetExceeded, 0, 0) == 1 || (stopwatch.Elapsed.TotalMilliseconds >= budgetMs && _settings.Performance.TimeBudgeting.ScriptHost.Enabled))
+                            {
+                                Interlocked.Exchange(ref budgetExceeded, 1);
+                                thread.WaitTicks++;
+                                nextThreads.Add(thread);
+                                continue;
+                            }
+
+                            int instructionSlice = CalculateInstructionSlice(thread);
+                            ProcessThread(thread, processGlobals, objectIds, nextThreads, instructionSlice);
+                        }
+                    }, priority: jobPriority, weight: maxWeight);
+                }
             }
 
-            await _jobSystem.CompleteAllAsync();
+            if (!forceSequential)
+                await _jobSystem.CompleteAllAsync();
 
             return nextThreads;
+        }
+
+        private int CalculateInstructionSlice(IScriptThread thread)
+        {
+            int instructionSlice = _settings.Performance.VmInstructionSlice;
+            if (thread.Priority == ScriptThreadPriority.High) instructionSlice *= 2;
+            else if (thread.Priority == ScriptThreadPriority.Low) instructionSlice /= 2;
+
+            // Hot Path Detection: Scripts that are running heavy tasks get more airtime
+            // to finish their work faster and reduce context-switch frequency.
+            if (thread.TotalInstructionsExecuted > 1000000)
+            {
+                instructionSlice *= 4;
+            }
+            else if (thread.TotalInstructionsExecuted > 100000)
+            {
+                instructionSlice *= 2;
+            }
+
+            // Apply carry-over balance from previous ticks (rewarding yielding, penalizing over-consumption)
+            instructionSlice += thread.InstructionQuotaBalance;
+            return Math.Max(100, instructionSlice); // Minimum slice
         }
 
         private void ProcessThread(IScriptThread thread, bool processGlobals, HashSet<long>? objectIds, ConcurrentBag<IScriptThread> nextThreads, int instructionSlice)

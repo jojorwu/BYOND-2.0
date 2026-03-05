@@ -17,4 +17,5 @@ namespace Shared.Interfaces;
 
         // Foundation for future heavy computations
         Task<T[]> DispatchAsync<T>(string kernelName, T[] data) where T : struct;
+        void CalculateDistancesSIMD(ReadOnlySpan<long> x1, ReadOnlySpan<long> y1, ReadOnlySpan<long> x2, ReadOnlySpan<long> y2, Span<double> results);
     }

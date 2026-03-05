@@ -528,10 +528,7 @@ namespace Shared;
         {
             if (Type != other.Type) return false;
 
-            if (Type == DreamValueType.Float)
-                return BitConverter.DoubleToInt64Bits(_floatValue) == BitConverter.DoubleToInt64Bits(other._floatValue);
-
-            if (Type == DreamValueType.Integer)
+            if (Type <= DreamValueType.Integer)
                 return _longValue == other._longValue;
 
             return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue != null && _objectValue.Equals(other._objectValue));
@@ -540,10 +537,9 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
-            // Use bit-level representation for floats to avoid fuzzy hash issues in collections
-            // while maintaining speed.
-            if (Type == DreamValueType.Float) return _floatValue.GetHashCode();
-            if (Type == DreamValueType.Integer) return _longValue.GetHashCode();
+            // Use bit-level representation for both numeric types (they share the same offset).
+            // This is safe because DreamValueType ensures we don't alias across types.
+            if (Type <= DreamValueType.Integer) return _longValue.GetHashCode();
             if (Type == DreamValueType.Null) return 0;
 
             return HashCode.Combine(Type, _objectValue);
@@ -552,11 +548,15 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
+            // Hot path: identical memory layout (same type and value/reference)
             if (a.Type == b.Type)
             {
-                if (a.Type == DreamValueType.Float)
+                if (a.Type <= DreamValueType.Integer)
+                {
+                    if (a.Type == DreamValueType.Integer) return a._longValue == b._longValue;
                     return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 0.00001;
-                return a.Equals(b);
+                }
+                return ReferenceEquals(a._objectValue, b._objectValue);
             }
 
             // DM Parity: null == 0
@@ -564,17 +564,20 @@ namespace Shared;
             {
                 if (b.Type == DreamValueType.Float) return b._floatValue == 0 || Math.Abs(b._floatValue) < 0.00001;
                 if (b.Type == DreamValueType.Integer) return b._longValue == 0;
+                return false;
             }
             if (b.Type == DreamValueType.Null)
             {
                 if (a.Type == DreamValueType.Float) return a._floatValue == 0 || Math.Abs(a._floatValue) < 0.00001;
                 if (a.Type == DreamValueType.Integer) return a._longValue == 0;
+                return false;
             }
 
-            if (a.Type == DreamValueType.Float && b.Type == DreamValueType.Integer)
-                return a._floatValue == b._longValue || Math.Abs(a._floatValue - b._longValue) < 0.00001;
-            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Float)
-                return a._longValue == b._floatValue || Math.Abs(a._longValue - b._floatValue) < 0.00001;
+            // Mixed numeric equality
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+            {
+                return a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001;
+            }
 
             return false;
         }

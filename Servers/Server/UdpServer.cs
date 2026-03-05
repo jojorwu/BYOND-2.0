@@ -95,5 +95,82 @@ namespace Server
                 }
             });
         }
+
+        public void SendSound(INetworkPeer peer, SoundData sound)
+        {
+            byte[] data = SerializeSound(sound);
+            _ = peer.SendAsync(data);
+        }
+
+        public void BroadcastSound(SoundData sound)
+        {
+            byte[] data = SerializeSound(sound);
+            _networkService.BroadcastSnapshot(data); // Using BroadcastSnapshot for general byte broadcast
+        }
+
+        public void BroadcastSound(SoundData sound, Region region)
+        {
+            byte[] data = SerializeSound(sound);
+            _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+        }
+
+        public void BroadcastSound(SoundData sound, MergedRegion mergedRegion)
+        {
+            byte[] data = SerializeSound(sound);
+            foreach (var r in mergedRegion.Regions)
+            {
+                _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(data));
+            }
+        }
+
+        private byte[] SerializeSound(SoundData sound)
+        {
+            using var ms = new System.IO.MemoryStream();
+            using var writer = new System.IO.BinaryWriter(ms);
+            writer.Write((byte)SnapshotMessageType.Sound);
+            writer.Write(sound.File);
+            writer.Write(sound.Volume);
+            writer.Write(sound.Pitch);
+            writer.Write(sound.Repeat);
+            writer.Write(sound.X.HasValue);
+            if (sound.X.HasValue) writer.Write(sound.X.Value);
+            writer.Write(sound.Y.HasValue);
+            if (sound.Y.HasValue) writer.Write(sound.Y.Value);
+            writer.Write(sound.Z.HasValue);
+            if (sound.Z.HasValue) writer.Write(sound.Z.Value);
+            writer.Write(sound.ObjectId.HasValue);
+            if (sound.ObjectId.HasValue) writer.Write(sound.ObjectId.Value);
+            writer.Write(sound.Falloff);
+            return ms.ToArray();
+        }
+
+        public void StopSound(string file, Region? region = null)
+        {
+            byte[] data = SerializeStopSound(file, null);
+            if (region != null)
+                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+            else
+                _networkService.BroadcastSnapshot(data);
+        }
+
+        public void StopSoundOn(string file, long objectId, Region? region = null)
+        {
+            byte[] data = SerializeStopSound(file, objectId);
+            if (region != null)
+                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+            else
+                _networkService.BroadcastSnapshot(data);
+        }
+
+        private byte[] SerializeStopSound(string file, long? objectId)
+        {
+            using var ms = new System.IO.MemoryStream();
+            using var writer = new System.IO.BinaryWriter(ms);
+            writer.Write((byte)SnapshotMessageType.StopSound);
+            writer.Write(file);
+            writer.Write(objectId.HasValue);
+            if (objectId.HasValue) writer.Write(objectId.Value);
+            return ms.ToArray();
+        }
     }
 }

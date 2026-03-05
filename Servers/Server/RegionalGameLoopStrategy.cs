@@ -22,6 +22,12 @@ namespace Server
         private readonly ServerSettings _settings;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<(long X, long Y, int Z), (long AggregateVersion, string Snapshot)> _snapshotCache = new();
 
+        private List<MergedRegion> _mergedRegionsCache = new();
+        private HashSet<Region> _activeRegionsCache = new();
+
+        private static readonly Shared.Services.SharedPool<HashSet<long>> _idSetPool = new(() => new HashSet<long>(1024));
+        private static readonly Shared.Services.SharedPool<List<IScriptThread>> _threadListPool = new(() => new List<IScriptThread>(128));
+
         public RegionalGameLoopStrategy(IScriptHost scriptHost, IRegionManager regionManager, IRegionActivationStrategy regionActivationStrategy, IUdpServer udpServer, IGameState gameState, IGameStateSnapshotter gameStateSnapshotter, IJobSystem jobSystem, IOptions<ServerSettings> settings)
         {
             _scriptHost = scriptHost;
@@ -37,8 +43,7 @@ namespace Server
         public async Task TickAsync(CancellationToken cancellationToken)
         {
             var allThreads = _scriptHost.GetThreads();
-            var globals = new List<IScriptThread>();
-            var objectThreads = new Dictionary<long, List<IScriptThread>>();
+            var globals = _threadListPool.Rent();
 
             foreach (var thread in allThreads)
             {
@@ -48,20 +53,33 @@ namespace Server
                 }
                 else
                 {
-                    long objId = thread.AssociatedObject.Id;
-                    if (!objectThreads.TryGetValue(objId, out var threads))
+                    var obj = thread.AssociatedObject;
+                    if (obj.ActiveThreads == null)
                     {
-                        threads = new List<IScriptThread>();
-                        objectThreads[objId] = threads;
+                        obj.ActiveThreads = _threadListPool.Rent();
                     }
-                    threads.Add(thread);
+                    obj.ActiveThreads.Add(thread);
                 }
             }
 
             var remainingGlobals = await _scriptHost.ExecuteThreadsAsync(globals, System.Linq.Enumerable.Empty<IGameObject>(), processGlobals: true);
 
+            globals.Clear();
+            _threadListPool.Return(globals);
+
             var activeRegions = _regionActivationStrategy.GetActiveRegions();
-            var mergedRegions = MergeRegions(activeRegions);
+            List<MergedRegion> mergedRegions;
+
+            if (activeRegions.SetEquals(_activeRegionsCache))
+            {
+                mergedRegions = _mergedRegionsCache;
+            }
+            else
+            {
+                mergedRegions = MergeRegions(activeRegions);
+                _activeRegionsCache = new HashSet<Region>(activeRegions);
+                _mergedRegionsCache = mergedRegions;
+            }
 
             // Batch regions by workload to reduce scheduling overhead
             var batchedRegions = new List<List<(MergedRegion Region, List<IGameObject> Objects)>>();
@@ -69,10 +87,11 @@ namespace Server
             int currentBatchObjects = 0;
             const int TargetObjectsPerBatch = 500;
 
+            int regionSize = _settings.Performance.RegionalProcessing.RegionSize;
             foreach (var region in mergedRegions)
             {
                 var objs = new List<IGameObject>();
-                region.GetGameObjects(objs);
+                region.GetGameObjects(_gameState, objs, regionSize);
                 if (currentBatchObjects + objs.Count > TargetObjectsPerBatch && currentBatch.Count > 0)
                 {
                     batchedRegions.Add(currentBatch);
@@ -92,32 +111,47 @@ namespace Server
             {
                 foreach (var (mergedRegion, gameObjects) in batch)
                 {
-                    var objectIds = new HashSet<long>(gameObjects.Count);
-                    var threadsForRegion = new List<IScriptThread>();
+                    var objectIds = _idSetPool.Rent();
+                    var threadsForRegion = _threadListPool.Rent();
 
-                    foreach (var obj in gameObjects)
+                    try
                     {
-                        objectIds.Add(obj.Id);
-                        if (objectThreads.TryGetValue(obj.Id, out var threads))
+                        var objSpan = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(gameObjects);
+                        for (int i = 0; i < objSpan.Length; i++)
                         {
-                            threadsForRegion.AddRange(threads);
+                            var obj = objSpan[i];
+                            objectIds.Add(obj.Id);
+                            if (obj.ActiveThreads != null)
+                            {
+                                threadsForRegion.AddRange(obj.ActiveThreads);
+                                obj.ActiveThreads.Clear();
+                                _threadListPool.Return(obj.ActiveThreads);
+                                obj.ActiveThreads = null;
+                            }
                         }
+
+                        // Execute threads for this region sequentially within this parallel job
+                        var remainingRegionThreads = await _scriptHost.ExecuteThreadsAsync(threadsForRegion, gameObjects, objectIds: objectIds, forceSequential: true);
+                        nextThreadsCollection.Add(remainingRegionThreads);
+                    }
+                    finally
+                    {
+                        objectIds.Clear();
+                        _idSetPool.Return(objectIds);
+                        threadsForRegion.Clear();
+                        _threadListPool.Return(threadsForRegion);
                     }
 
-                    // Execute threads for this region
-                    var remainingRegionThreads = await _scriptHost.ExecuteThreadsAsync(threadsForRegion, gameObjects, objectIds: objectIds);
-                    nextThreadsCollection.Add(remainingRegionThreads);
+                    // Update region versions after potential turf changes during script execution
+                    foreach (var r in mergedRegion.Regions) r.UpdateVersion();
 
-                    // Calculate aggregate version for cache check
+                    // Optimized aggregate version calculation
                     long aggregateVersion = 0;
-                    foreach (var obj in gameObjects) aggregateVersion += obj.Version;
-                    foreach (var r in mergedRegion.Regions)
-                    {
-                        foreach (var chunk in r.GetChunks())
-                        {
-                            aggregateVersion += chunk.Version;
-                        }
-                    }
+                    var gameObjectSpan = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(gameObjects);
+                    for (int i = 0; i < gameObjectSpan.Length; i++) aggregateVersion += gameObjectSpan[i].Version;
+
+                    var regSpan = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(mergedRegion.Regions);
+                    for (int i = 0; i < regSpan.Length; i++) aggregateVersion += regSpan[i].Version;
 
                     // Use merged region's first region as a cache key for simplicity
                     var firstRegion = mergedRegion.Regions[0];

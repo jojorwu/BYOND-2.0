@@ -108,7 +108,8 @@ public partial class DreamThread : IScriptThread, IDisposable
     public IEnumerable<CallFrame> CallStack => _callStack.Take(_callStackPtr).Reverse();
 
     public DreamProc CurrentProc => _callStack[_callStackPtr - 1].Proc;
-    public DreamThreadState State { get; internal set; } = DreamThreadState.Running;
+    private volatile int _state = (int)DreamThreadState.Running;
+    public DreamThreadState State { get => (DreamThreadState)_state; internal set => _state = (int)value; }
     public DateTime SleepUntil { get; internal set; }
     public IGameObject? AssociatedObject { get; }
     public DreamObject? Usr { get; set; }
@@ -130,9 +131,17 @@ public partial class DreamThread : IScriptThread, IDisposable
         _maxInstructions = maxInstructions;
         _interpreter = interpreter ?? new BytecodeInterpreter();
         AssociatedObject = associatedObject;
-        _stack = ArrayPool<DreamValue>.Shared.Rent(1024);
+        _stack = ArrayPool<DreamValue>.Shared.Rent(Math.Max(1024, proc.LocalVariableCount));
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
+
+        // Initialize locals for the entry-point frame
+        int localCount = proc.LocalVariableCount;
+        if (localCount > 0)
+        {
+            _stack.AsSpan(0, localCount).Fill(DreamValue.Null);
+            _stackPtr = localCount;
+        }
     }
 
     public DreamThread(DreamThread other, int pc)
@@ -151,9 +160,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
     }
 
-    public void Sleep(float seconds)
+    public void Sleep(double seconds)
     {
-        if (float.IsNaN(seconds) || seconds <= 0) seconds = 0;
+        if (double.IsNaN(seconds) || seconds <= 0) seconds = 0;
         // Max 1 year to prevent DateTime overflow
         if (seconds > 31536000) seconds = 31536000;
 
@@ -176,11 +185,25 @@ public partial class DreamThread : IScriptThread, IDisposable
         if (_stackPtr >= _stack.Length)
         {
             var newStack = ArrayPool<DreamValue>.Shared.Rent(_stack.Length * 2);
-            Array.Copy(_stack, newStack, _stack.Length);
+            Array.Copy(_stack, newStack, _stackPtr);
             ArrayPool<DreamValue>.Shared.Return(_stack, true);
             _stack = newStack;
         }
         _stack[_stackPtr++] = value;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void EnsureStackCapacity(int count)
+    {
+        if ((uint)(_stackPtr + count) >= (uint)MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
+        if (_stackPtr + count >= _stack.Length)
+        {
+            int newSize = Math.Max(_stack.Length * 2, _stackPtr + count + 1024);
+            var newStack = ArrayPool<DreamValue>.Shared.Rent(newSize);
+            Array.Copy(_stack, newStack, _stackPtr);
+            ArrayPool<DreamValue>.Shared.Return(_stack, true);
+            _stack = newStack;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -226,12 +249,12 @@ public partial class DreamThread : IScriptThread, IDisposable
         return value;
     }
 
-    internal float ReadSingle(DreamProc proc, ref int pc)
+    internal double ReadDouble(DreamProc proc, ref int pc)
     {
-        if (pc + 4 > proc.Bytecode.Length)
+        if (pc + 8 > proc.Bytecode.Length)
             throw new Exception("Attempted to read past the end of the bytecode.");
-        var value = BinaryPrimitives.ReadSingleLittleEndian(proc.Bytecode.AsSpan(pc));
-        pc += 4;
+        var value = BinaryPrimitives.ReadDoubleLittleEndian(proc.Bytecode.AsSpan(pc));
+        pc += 8;
         return value;
     }
 
@@ -243,9 +266,10 @@ public partial class DreamThread : IScriptThread, IDisposable
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void PushCallFrame(CallFrame frame)
     {
-        if (_callStackPtr >= MaxCallStackDepth)
+        if ((uint)_callStackPtr >= (uint)MaxCallStackDepth)
             throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, this);
 
         if (_callStackPtr >= _callStack.Length)
@@ -255,6 +279,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         _callStack[_callStackPtr++] = frame;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public CallFrame PopCallFrame()
     {
         if (_callStackPtr <= 0) throw new Exception("Call stack underflow");

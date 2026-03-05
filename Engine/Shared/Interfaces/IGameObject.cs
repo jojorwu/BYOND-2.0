@@ -30,6 +30,11 @@ namespace Shared;
         long Z { get; set; }
 
         /// <summary>
+        /// The direction the object is facing.
+        /// </summary>
+        int Dir { get; set; }
+
+        /// <summary>
         /// The location of this object (container or turf).
         /// </summary>
         IGameObject? Loc { get; set; }
@@ -115,6 +120,11 @@ namespace Shared;
         /// Sets a variable value by its flattened index.
         /// </summary>
         void SetVariable(int index, DreamValue value);
+
+        /// <summary>
+        /// Internal: Gets the list of active script threads associated with this object.
+        /// </summary>
+        List<IScriptThread>? ActiveThreads { get; set; }
 
         /// <summary>
         /// Gets all components attached to this object.

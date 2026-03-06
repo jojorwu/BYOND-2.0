@@ -36,6 +36,40 @@ public static class CVarUiRegistry
             ImGui.EndDisabled();
         });
 
+        RegisterDrawer(typeof(long), (info, manager) =>
+        {
+            long val = (long)info.Value;
+            int intVal = (int)val;
+            ImGui.BeginDisabled(info.IsLocked);
+            if (ImGui.InputInt(info.Name, ref intVal))
+            {
+                manager.SetCVar(info.Name, (long)intVal);
+            }
+            ImGui.EndDisabled();
+        });
+
+        RegisterDrawer(typeof(double), (info, manager) =>
+        {
+            double val = (double)info.Value;
+            ImGui.BeginDisabled(info.IsLocked);
+            if (ImGui.InputDouble(info.Name, ref val))
+            {
+                manager.SetCVar(info.Name, val);
+            }
+            ImGui.EndDisabled();
+        });
+
+        RegisterDrawer(typeof(float), (info, manager) =>
+        {
+            float val = (float)info.Value;
+            ImGui.BeginDisabled(info.IsLocked);
+            if (ImGui.InputFloat(info.Name, ref val))
+            {
+                manager.SetCVar(info.Name, val);
+            }
+            ImGui.EndDisabled();
+        });
+
         RegisterDrawer(typeof(string), (info, manager) =>
         {
             string val = (string)info.Value;

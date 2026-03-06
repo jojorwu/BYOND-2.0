@@ -9,4 +9,9 @@ public interface ISoundApi
     void PlayOn(string file, IGameObject obj, float volume = 100f, float pitch = 1f, float falloff = 1f);
     void Stop(string file);
     void StopOn(string file, IGameObject obj);
+
+    // Named sound support via registry
+    void PlayNamed(string soundName);
+    void PlayNamedAt(string soundName, long x, long y, long z);
+    void PlayNamedOn(string soundName, IGameObject obj);
 }

@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging;
 using Shared.Services;
 using Shared.Interfaces;
 using Core;
+using Shared.Config;
+using System.Linq;
 
 namespace Server
 {
@@ -19,8 +21,10 @@ namespace Server
         private readonly BinarySnapshotService _binarySnapshotService;
         private readonly IInterestManager _interestManager;
         private readonly IJobSystem _jobSystem;
+        private readonly IConfigurationManager _configManager;
+        private readonly NetDataWriterPool _writerPool;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, NetDataWriterPool writerPool)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
@@ -28,6 +32,8 @@ namespace Server
             _binarySnapshotService = binarySnapshotService;
             _interestManager = interestManager;
             _jobSystem = jobSystem;
+            _configManager = configManager;
+            _writerPool = writerPool;
         }
 
         public override Task StartAsync(CancellationToken cancellationToken)
@@ -125,23 +131,29 @@ namespace Server
 
         private byte[] SerializeSound(SoundData sound)
         {
-            using var ms = new System.IO.MemoryStream();
-            using var writer = new System.IO.BinaryWriter(ms);
-            writer.Write((byte)SnapshotMessageType.Sound);
-            writer.Write(sound.File);
-            writer.Write(sound.Volume);
-            writer.Write(sound.Pitch);
-            writer.Write(sound.Repeat);
-            writer.Write(sound.X.HasValue);
-            if (sound.X.HasValue) writer.Write(sound.X.Value);
-            writer.Write(sound.Y.HasValue);
-            if (sound.Y.HasValue) writer.Write(sound.Y.Value);
-            writer.Write(sound.Z.HasValue);
-            if (sound.Z.HasValue) writer.Write(sound.Z.Value);
-            writer.Write(sound.ObjectId.HasValue);
-            if (sound.ObjectId.HasValue) writer.Write(sound.ObjectId.Value);
-            writer.Write(sound.Falloff);
-            return ms.ToArray();
+            var writer = _writerPool.Rent();
+            try
+            {
+                writer.Put((byte)SnapshotMessageType.Sound);
+                writer.Put(sound.File);
+                writer.Put(sound.Volume);
+                writer.Put(sound.Pitch);
+                writer.Put(sound.Repeat);
+                writer.Put(sound.X.HasValue);
+                if (sound.X.HasValue) writer.Put(sound.X.Value);
+                writer.Put(sound.Y.HasValue);
+                if (sound.Y.HasValue) writer.Put(sound.Y.Value);
+                writer.Put(sound.Z.HasValue);
+                if (sound.Z.HasValue) writer.Put(sound.Z.Value);
+                writer.Put(sound.ObjectId.HasValue);
+                if (sound.ObjectId.HasValue) writer.Put(sound.ObjectId.Value);
+                writer.Put(sound.Falloff);
+                return writer.CopyData();
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
         }
 
         public void StopSound(string file, Region? region = null)
@@ -164,13 +176,41 @@ namespace Server
 
         private byte[] SerializeStopSound(string file, long? objectId)
         {
-            using var ms = new System.IO.MemoryStream();
-            using var writer = new System.IO.BinaryWriter(ms);
-            writer.Write((byte)SnapshotMessageType.StopSound);
-            writer.Write(file);
-            writer.Write(objectId.HasValue);
-            if (objectId.HasValue) writer.Write(objectId.Value);
-            return ms.ToArray();
+            var writer = _writerPool.Rent();
+            try
+            {
+                writer.Put((byte)SnapshotMessageType.StopSound);
+                writer.Put(file);
+                writer.Put(objectId.HasValue);
+                if (objectId.HasValue) writer.Put(objectId.Value);
+                return writer.CopyData();
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
+        }
+
+        public void SendCVars(INetworkPeer peer)
+        {
+            var replicatedCVars = _configManager.GetRegisteredCVars()
+                .Where(c => (c.Flags & CVarFlags.Replicated) != 0)
+                .ToDictionary(c => c.Name, c => c.Value);
+
+            if (replicatedCVars.Count == 0) return;
+
+            var writer = _writerPool.Rent();
+            try
+            {
+                writer.Put((byte)SnapshotMessageType.SyncCVars);
+                string json = System.Text.Json.JsonSerializer.Serialize(replicatedCVars);
+                writer.Put(json);
+                _ = peer.SendAsync(writer.CopyData());
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
         }
     }
 }

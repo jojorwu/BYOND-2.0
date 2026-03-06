@@ -5,6 +5,7 @@ using Shared;
 using Shared.Interfaces;
 using Shared.Services;
 using Core.Regions;
+using Microsoft.Extensions.Logging;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -109,11 +110,13 @@ namespace tests
 
             var udpServer = new UdpServer(
                 new Mock<INetworkService>().Object,
-                new Mock<NetworkEventHandler>(new Mock<INetworkService>().Object, contextMock.Object, new Mock<IScriptHost>().Object).Object,
+                new NetworkEventHandler(new Mock<INetworkService>().Object, contextMock.Object, new Mock<IScriptHost>().Object, new Mock<IUdpServer>().Object, new Mock<Shared.Config.IConsoleCommandManager>().Object, new Mock<ILogger<NetworkEventHandler>>().Object),
                 contextMock.Object,
                 snapshotServiceMock.Object,
                 interestManagerMock.Object,
-                _jobSystemMock.Object);
+                _jobSystemMock.Object,
+                new Mock<Shared.Config.IConfigurationManager>().Object,
+                new NetDataWriterPool());
 
             var region = new Region((0L, 0L), 0);
             var mergedRegion = new MergedRegion(new List<Region> { region });

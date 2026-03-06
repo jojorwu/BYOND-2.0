@@ -1,9 +1,37 @@
+using Shared.Config;
+
 namespace Shared;
     public class ServerSettings
     {
-        public string ServerName { get; set; } = "BYOND 2.0 Server";
+        private readonly IConfigurationManager? _manager;
+
+        public ServerSettings() { }
+
+        public ServerSettings(IConfigurationManager manager)
+        {
+            _manager = manager;
+        }
+
+        public string ServerName
+        {
+            get => _manager?.GetCVar<string>(ConfigKeys.ServerName) ?? "BYOND 2.0 Server";
+            set => _manager?.SetCVar(ConfigKeys.ServerName, value);
+        }
+
         public string ServerDescription { get; set; } = "A default server instance.";
-        public int MaxPlayers { get; set; } = 65536;
+
+        public int MaxPlayers
+        {
+            get => _manager?.GetCVar<int>(ConfigKeys.ServerMaxPlayers) ?? 65536;
+            set => _manager?.SetCVar(ConfigKeys.ServerMaxPlayers, value);
+        }
+
+        public int Port
+        {
+            get => _manager?.GetCVar<int>(ConfigKeys.ServerPort) ?? 9050;
+            set => _manager?.SetCVar(ConfigKeys.ServerPort, value);
+        }
+
         public bool EnableVm { get; set; } = false;
         public int VmMaxInstructions { get; set; } = 1000000000;
 

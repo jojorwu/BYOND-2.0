@@ -10,6 +10,8 @@ namespace Server
         private readonly NetPeer _peer;
         private readonly NetDataWriterPool _writerPool;
         public System.Collections.Generic.IDictionary<long, long> LastSentVersions { get; } = new System.Collections.Concurrent.ConcurrentDictionary<long, long>();
+        public string? Nickname { get; set; }
+        public System.Net.IPEndPoint? EndPoint => _peer.Address != null ? new System.Net.IPEndPoint(_peer.Address, _peer.Port) : null;
 
         public UdpNetworkPeer(NetPeer peer, NetDataWriterPool writerPool)
         {

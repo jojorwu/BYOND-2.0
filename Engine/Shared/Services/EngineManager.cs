@@ -108,43 +108,13 @@ namespace Shared.Services;
             _logger?.LogInformation("Requesting installation of component: {Component}", component);
         }
 
-        public async Task InitializeAsync()
+        public Task InitializeAsync()
         {
-            _logger?.LogInformation("Initializing engine services...");
-            foreach (var service in _initializableServices)
-            {
-                _logger?.LogDebug("Initializing service: {ServiceType}", service.GetType().Name);
-                await service.InitializeAsync();
-            }
-            _logger?.LogInformation("Engine initialization complete.");
+            return Task.CompletedTask;
         }
 
-        public async Task ShutdownAsync()
+        public Task ShutdownAsync()
         {
-            _logger?.LogInformation("Shutting down engine services...");
-
-            // Reverse order for shutdown to satisfy dependencies
-            var reversedServices = _initializableServices.Reverse();
-
-            foreach (var service in reversedServices)
-            {
-                try
-                {
-                    if (service is IAsyncDisposable asyncDisposable)
-                    {
-                        await asyncDisposable.DisposeAsync();
-                    }
-                    else if (service is IDisposable disposable)
-                    {
-                        disposable.Dispose();
-                    }
-                }
-                catch (Exception e)
-                {
-                    _logger?.LogError(e, "Error during shutdown of service {ServiceType}", service.GetType().Name);
-                }
-            }
-
-            _logger?.LogInformation("Engine shutdown complete.");
+            return Task.CompletedTask;
         }
     }

@@ -15,7 +15,8 @@ namespace Launcher
             {
                 FileName = fileName,
                 Arguments = arguments ?? string.Empty,
-                UseShellExecute = true
+                UseShellExecute = fileName.EndsWith(".exe") || fileName.EndsWith(".sh") || fileName.EndsWith(".py") || fileName.EndsWith(".dll") ? false : true,
+                CreateNoWindow = false
             };
             Process.Start(startInfo);
         }

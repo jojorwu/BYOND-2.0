@@ -19,11 +19,4 @@ namespace Shared.Models;
             Payload = payload;
         }
 
-        [Obsolete("Use ReadOnlyMemory version")]
-        public PacketContext(INetworkPeer peer, byte typeId, string payload)
-        {
-            Peer = peer;
-            TypeId = typeId;
-            Payload = System.Text.Encoding.UTF8.GetBytes(payload).AsMemory();
-        }
     }

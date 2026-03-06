@@ -12,4 +12,5 @@ namespace Shared;
         void BroadcastSound(SoundData sound, MergedRegion mergedRegion);
         void StopSound(string file, Region? region = null);
         void StopSoundOn(string file, long objectId, Region? region = null);
+        void SendCVars(INetworkPeer peer);
     }

@@ -29,6 +29,7 @@ namespace Client
 
         public event Action<SoundData>? SoundReceived;
         public event Action<string, long?>? StopSoundReceived;
+        public event Action<string, object>? CVarSyncReceived;
 
         public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
         {
@@ -54,7 +55,10 @@ namespace Client
             var host = parts[0];
             var port = parts.Length > 1 ? int.Parse(parts[1]) : 9050; // Default port
 
-            _netManager.Connect(host, port, "BYOND2.0");
+            var writer = new LiteNetLib.Utils.NetDataWriter();
+            writer.Put("BYOND2.0");
+            writer.Put("Player" + Random.Shared.Next(100, 999)); // Example nickname
+            _netManager.Connect(host, port, writer);
             _thread.Start();
         }
 
@@ -140,6 +144,18 @@ namespace Client
                 long? objectId = null;
                 if (reader.GetBool()) objectId = reader.GetLong();
                 StopSoundReceived?.Invoke(file, objectId);
+            }
+            else if (messageType == SnapshotMessageType.SyncCVars)
+            {
+                var json = reader.GetString();
+                var cvars = JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
+                if (cvars != null)
+                {
+                    foreach (var kvp in cvars)
+                    {
+                        CVarSyncReceived?.Invoke(kvp.Key, kvp.Value);
+                    }
+                }
             }
             else if (messageType == SnapshotMessageType.Full)
             {

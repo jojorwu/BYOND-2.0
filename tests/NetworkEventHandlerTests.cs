@@ -4,6 +4,7 @@ using Server;
 using Shared;
 using Shared.Interfaces;
 using LiteNetLib;
+using Microsoft.Extensions.Logging;
 
 namespace tests
 {
@@ -17,6 +18,8 @@ namespace tests
         private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
         private NetworkEventHandler _networkEventHandler = null!;
+        private Mock<IUdpServer> _udpServerMock = null!;
+        private Mock<Shared.Config.IConsoleCommandManager> _commandManagerMock = null!;
 
         [SetUp]
         public void SetUp()
@@ -30,8 +33,10 @@ namespace tests
             _serverContextMock.Setup(c => c.PlayerManager).Returns(_playerManagerMock.Object);
             _serverContextMock.Setup(c => c.InterestManager).Returns(_interestManagerMock.Object);
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
+            _udpServerMock = new Mock<IUdpServer>();
+            _commandManagerMock = new Mock<Shared.Config.IConsoleCommandManager>();
 
-            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object);
+            _networkEventHandler = new NetworkEventHandler(_networkServiceMock.Object, _serverContextMock.Object, _scriptHostMock.Object, _udpServerMock.Object, _commandManagerMock.Object, new Mock<ILogger<NetworkEventHandler>>().Object);
             _networkEventHandler.SubscribeToEvents();
         }
 
@@ -64,17 +69,21 @@ namespace tests
         }
 
         [Test]
-        public void CommandReceived_EnqueuesCommand()
+        public void CommandReceived_ExecutesCommand()
         {
             // Arrange
             var peerMock = new Mock<INetworkPeer>();
             var command = "test_command";
+            _commandManagerMock.Setup(c => c.ExecuteCommand(command)).ReturnsAsync("success");
 
             // Act
             _networkServiceMock.Raise(ns => ns.CommandReceived += null, peerMock.Object, command);
 
             // Assert
-            _scriptHostMock.Verify(sh => sh.EnqueueCommand(command, It.IsAny<Action<string>>()), Times.Once);
+            // Use a small delay since it runs in Task.Run
+            Thread.Sleep(100);
+            _commandManagerMock.Verify(c => c.ExecuteCommand(command), Times.Once);
+            peerMock.Verify(p => p.SendAsync("success"), Times.Once);
         }
     }
 }

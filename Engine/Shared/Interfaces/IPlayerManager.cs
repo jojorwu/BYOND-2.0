@@ -7,4 +7,5 @@ namespace Shared;
         void RemovePlayer(INetworkPeer peer);
         void ForEachPlayerInRegion(Region region, Action<INetworkPeer> action);
         void ForEachPlayerObject(Action<IGameObject> action);
+        void ForEachPlayer(Action<INetworkPeer> action);
     }

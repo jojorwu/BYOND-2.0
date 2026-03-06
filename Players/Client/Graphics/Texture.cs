@@ -54,9 +54,6 @@ namespace Client.Graphics
             _gl.GenerateMipmap(TextureTarget.Texture2D);
         }
 
-        // Legacy constructor for compatibility if needed, but should be avoided
-        public unsafe Texture(GL gl, string path) : this(gl, new RawTextureData(path)) { }
-
         public void Dispose()
         {
             _gl.DeleteTexture(Id);

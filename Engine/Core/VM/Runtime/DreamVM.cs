@@ -1,5 +1,6 @@
 using Shared;
 using Shared.Interfaces;
+using Shared.Services;
 using System.Collections.Generic;
 using System.Linq;
 using Core.VM.Procs;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Core.VM.Runtime
 {
-    public class DreamVM : IDreamVM, IDisposable
+    public class DreamVM : EngineService, IDreamVM, IDisposable
     {
         public DreamVMContext Context { get; } = new();
         public List<string> Strings => Context.Strings;
@@ -26,9 +27,12 @@ namespace Core.VM.Runtime
         private readonly IBytecodeInterpreter _interpreter;
         private readonly IObjectFactory? _objectFactory;
 
+        private readonly int _maxInstructions;
+
         public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
         {
             _settings = settings.Value;
+            _maxInstructions = _settings.VmMaxInstructions;
             _logger = logger;
             _nativeProcProviders = nativeProcProviders;
             _objectFactory = objectFactory;
@@ -40,6 +44,12 @@ namespace Core.VM.Runtime
         {
             _logger.LogInformation("Initializing Dream VM...");
             RegisterNativeProcs();
+        }
+
+        public override Task InitializeAsync()
+        {
+            Initialize();
+            return Task.CompletedTask;
         }
 
         private void RegisterNativeProcs()
@@ -65,7 +75,7 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, interpreter: _interpreter);
+                return new DreamThread(dreamProc, Context, _maxInstructions, interpreter: _interpreter);
             }
             _logger.LogError("/world/proc/New not found. Is the script compiled correctly?");
             return null;
@@ -75,7 +85,7 @@ namespace Core.VM.Runtime
         {
             if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
-                return new DreamThread(dreamProc, Context, _settings.VmMaxInstructions, associatedObject, _interpreter);
+                return new DreamThread(dreamProc, Context, _maxInstructions, associatedObject, _interpreter);
             }
 
             _logger.LogWarning("Could not find proc '{ProcName}' to create a thread.", procName);

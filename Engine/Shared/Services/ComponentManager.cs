@@ -8,6 +8,8 @@ namespace Shared.Services;
     public class ComponentManager : IComponentManager
     {
         private readonly IArchetypeManager _archetypeManager;
+        private readonly Dictionary<string, Type> _componentTypesByName = new();
+
         public IArchetypeManager ArchetypeManager => _archetypeManager;
 
         public event EventHandler<ComponentEventArgs>? ComponentAdded;
@@ -16,6 +18,27 @@ namespace Shared.Services;
         public ComponentManager(IArchetypeManager archetypeManager)
         {
             _archetypeManager = archetypeManager;
+
+            // Cache all component types for faster lookup by name
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (var type in assembly.GetTypes())
+                {
+                    if (typeof(IComponent).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
+                    {
+                        _componentTypesByName[type.Name.ToLowerInvariant()] = type;
+                    }
+                }
+            }
+        }
+
+        public IComponent? CreateComponent(string componentName)
+        {
+            if (_componentTypesByName.TryGetValue(componentName.ToLowerInvariant(), out var type))
+            {
+                return (IComponent?)Activator.CreateInstance(type);
+            }
+            return null;
         }
 
         public void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent

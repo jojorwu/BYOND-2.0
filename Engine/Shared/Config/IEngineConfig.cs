@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+
 namespace Shared.Config;
 
 public interface IEngineConfig
@@ -9,24 +15,33 @@ public interface IEngineConfig
 
 public class EngineConfig : IEngineConfig
 {
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> _settings = new();
+    private readonly IConfigurationManager _manager;
+
+    public EngineConfig(IConfigurationManager manager)
+    {
+        _manager = manager;
+    }
 
     public T Get<T>(string key, T defaultValue = default!)
     {
-        if (_settings.TryGetValue(key, out var value))
+        try
         {
-            return (T)value;
+            return _manager.GetCVar<T>(key);
         }
-        return defaultValue;
+        catch (KeyNotFoundException)
+        {
+            _manager.RegisterCVar(key, defaultValue);
+            return defaultValue;
+        }
     }
 
     public void Set<T>(string key, T value)
     {
-        _settings[key] = value!;
+        _manager.SetCVar(key, value);
     }
 
     public bool Has(string key)
     {
-        return _settings.ContainsKey(key);
+        return _manager.GetRegisteredCVars().Any(c => c.Name == key);
     }
 }

@@ -1,5 +1,6 @@
 using Shared;
 using NUnit.Framework;
+using Moq;
 using Core;
 using Shared.Services;
 using Core.Maps;
@@ -38,8 +39,8 @@ namespace Core.Tests
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool);
-            _scriptApi = new ScriptApi(_project);
+            _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool, componentManager);
+            _scriptApi = new ScriptApi(_project, new Mock<IScriptManager>().Object);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, _mapApi);
             _standardLibraryApi = new StandardLibraryApi(spatialQueryApi, _mapApi);
             _mapApi.SetMap(new Map());

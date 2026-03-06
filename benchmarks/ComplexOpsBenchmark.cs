@@ -41,6 +41,7 @@ public class ComplexOpsBenchmark
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IMap, Map>();
         services.AddSingleton<IRegionManager, Core.Regions.RegionManager>();
+        services.AddSingleton<Shared.Config.ISoundRegistry, Shared.Config.SoundRegistry>();
         services.AddSingleton<ISoundApi, SoundApi>();
         services.AddSingleton<IUdpServer>(new Moq.Mock<IUdpServer>().Object);
         services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ServerSettings()));

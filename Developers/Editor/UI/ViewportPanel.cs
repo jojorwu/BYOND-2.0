@@ -98,15 +98,15 @@ namespace Editor.UI
                 var topLeftWorld = Camera.ScreenToWorld(Vector2.Zero, projectionMatrix);
                 var bottomRightWorld = Camera.ScreenToWorld(windowSize, projectionMatrix);
 
-                int minTileX = (int)Math.Floor(topLeftWorld.X / EditorConstants.TileSize);
-                int maxTileX = (int)Math.Ceiling(bottomRightWorld.X / EditorConstants.TileSize);
-                int minTileY = (int)Math.Floor(topLeftWorld.Y / EditorConstants.TileSize);
-                int maxTileY = (int)Math.Ceiling(bottomRightWorld.Y / EditorConstants.TileSize);
+                long minTileX = (long)Math.Floor(topLeftWorld.X / EditorConstants.TileSize);
+                long maxTileX = (long)Math.Ceiling(bottomRightWorld.X / EditorConstants.TileSize);
+                long minTileY = (long)Math.Floor(topLeftWorld.Y / EditorConstants.TileSize);
+                long maxTileY = (long)Math.Ceiling(bottomRightWorld.Y / EditorConstants.TileSize);
 
                 foreach (var (chunkCoords, chunk) in currentMap.GetChunks(_editorContext.CurrentZLevel))
                 {
-                    int chunkWorldX = chunkCoords.X * Chunk.ChunkSize;
-                    int chunkWorldY = chunkCoords.Y * Chunk.ChunkSize;
+                    long chunkWorldX = chunkCoords.X * Chunk.ChunkSize;
+                    long chunkWorldY = chunkCoords.Y * Chunk.ChunkSize;
 
                     if (chunkWorldX + Chunk.ChunkSize < minTileX || chunkWorldX > maxTileX ||
                         chunkWorldY + Chunk.ChunkSize < minTileY || chunkWorldY > maxTileY)
@@ -114,12 +114,12 @@ namespace Editor.UI
 
                     for (int y = 0; y < Chunk.ChunkSize; y++)
                     {
-                        int worldY = chunkWorldY + y;
+                        long worldY = chunkWorldY + y;
                         if (worldY < minTileY || worldY > maxTileY) continue;
 
                         for (int x = 0; x < Chunk.ChunkSize; x++)
                         {
-                            int worldX = chunkWorldX + x;
+                            long worldX = chunkWorldX + x;
                             if (worldX < minTileX || worldX > maxTileX) continue;
 
                             var turf = chunk.GetTurf(x, y);
@@ -135,7 +135,7 @@ namespace Editor.UI
                                         {
                                             var color = _selectionManager.IsSelected(gameObject) ? new Vector4(1, 0.5f, 0, 1) : Vector4.One;
                                             _spriteRenderer.Draw(textureId,
-                                                new Vector2(worldX * EditorConstants.TileSize, worldY * EditorConstants.TileSize),
+                                                new Vector2((float)worldX * EditorConstants.TileSize, (float)worldY * EditorConstants.TileSize),
                                                 new Vector2(EditorConstants.TileSize, EditorConstants.TileSize),
                                                 color, new Box2(0, 0, 1, 1));
                                         }

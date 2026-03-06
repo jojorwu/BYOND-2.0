@@ -9,13 +9,15 @@ namespace Core.Api
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;
         private readonly IObjectPool<GameObject> _gameObjectPool;
+        private readonly IComponentManager _componentManager;
 
-        public ObjectApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi, IObjectPool<GameObject> gameObjectPool)
+        public ObjectApi(IGameState gameState, IObjectTypeManager objectTypeManager, IMapApi mapApi, IObjectPool<GameObject> gameObjectPool, IComponentManager componentManager)
         {
             _gameState = gameState;
             _objectTypeManager = objectTypeManager;
             _mapApi = mapApi;
             _gameObjectPool = gameObjectPool;
+            _componentManager = componentManager;
         }
 
         public GameObject? CreateObject(int typeId, long x, long y, long z)
@@ -77,6 +79,78 @@ namespace Core.Api
                     _gameState.Map?.AddObjectToTurf(gameObject);
                 }
             }
+        }
+
+        public System.Collections.Generic.List<GameObject> FindObjectsByType(string typePath)
+        {
+            var results = new System.Collections.Generic.List<GameObject>();
+            var targetType = _objectTypeManager.GetObjectType(typePath);
+            if (targetType == null) return results;
+
+            using (_gameState.ReadLock())
+            {
+                foreach (var obj in _gameState.GameObjects.Values)
+                {
+                    if (obj is GameObject gameObj && gameObj.ObjectType != null)
+                    {
+                        var current = gameObj.ObjectType;
+                        while (current != null)
+                        {
+                            if (current == targetType)
+                            {
+                                results.Add(gameObj);
+                                break;
+                            }
+                            if (current.ParentName == null) break;
+                            current = _objectTypeManager.GetObjectType(current.ParentName);
+                        }
+                    }
+                }
+            }
+            return results;
+        }
+
+        public void AddComponent(long objectId, string componentType)
+        {
+            using (_gameState.WriteLock())
+            {
+                if (_gameState.GameObjects.TryGetValue(objectId, out var obj))
+                {
+                    var component = _componentManager.CreateComponent(componentType);
+                    if (component != null)
+                    {
+                        obj.AddComponent(component);
+                    }
+                }
+            }
+        }
+
+        public void RemoveComponent(long objectId, string componentType)
+        {
+            using (_gameState.WriteLock())
+            {
+                if (_gameState.GameObjects.TryGetValue(objectId, out var obj))
+                {
+                    // Find component by type name via reflection since IComponent doesn't expose its name directly
+                    var component = obj.GetComponents().FirstOrDefault(c => c.GetType().Name.Equals(componentType, System.StringComparison.OrdinalIgnoreCase));
+                    if (component != null)
+                    {
+                        obj.RemoveComponent(component.GetType());
+                    }
+                }
+            }
+        }
+
+        public bool HasComponent(long objectId, string componentType)
+        {
+            using (_gameState.ReadLock())
+            {
+                if (_gameState.GameObjects.TryGetValue(objectId, out var obj))
+                {
+                    return obj.GetComponents().Any(c => c.GetType().Name.Equals(componentType, System.StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            return false;
         }
     }
 }

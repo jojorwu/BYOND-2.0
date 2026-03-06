@@ -295,6 +295,16 @@ namespace Shared;
         }
 
         /// <summary>
+        /// Highly optimized direct access to the float field.
+        /// Use only when you have already verified the Type.
+        /// </summary>
+        public double UnsafeRawDouble
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _floatValue;
+        }
+
+        /// <summary>
         /// Retrieves the raw 64-bit integer bits regardless of the numeric tag.
         /// Useful for bitwise operations and exact ID comparisons.
         /// </summary>
@@ -302,6 +312,16 @@ namespace Shared;
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => (Type == DreamValueType.Float) ? (long)_floatValue : _longValue;
+        }
+
+        /// <summary>
+        /// Highly optimized direct access to the long field.
+        /// Use only when you have already verified the Type.
+        /// </summary>
+        public long UnsafeRawLong
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _longValue;
         }
 
         public float RawFloat

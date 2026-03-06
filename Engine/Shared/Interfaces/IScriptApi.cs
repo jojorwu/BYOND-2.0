@@ -8,4 +8,9 @@ namespace Shared;
         string ReadScriptFile(string filename);
         void WriteScriptFile(string filename, string content);
         void DeleteScriptFile(string filename);
+
+        /// <summary>
+        /// Triggers a hot-reload of all engine scripts.
+        /// </summary>
+        Task HotReloadAsync();
     }

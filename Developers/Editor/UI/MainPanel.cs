@@ -20,6 +20,7 @@ namespace Editor.UI
         private readonly ObjectBrowserPanel _objectBrowserPanel;
         private readonly AssetBrowserPanel _assetBrowserPanel;
         private readonly SceneHierarchyPanel _sceneHierarchyPanel;
+        private readonly ProjectSettingsPanel _projectSettingsPanel;
         private readonly EditorContext _editorContext;
         private readonly IUIService _uiService;
 
@@ -32,6 +33,7 @@ namespace Editor.UI
             ObjectBrowserPanel objectBrowserPanel,
             AssetBrowserPanel assetBrowserPanel,
             SceneHierarchyPanel sceneHierarchyPanel,
+            ProjectSettingsPanel projectSettingsPanel,
             EditorContext editorContext,
             EditorLaunchOptions launchOptions,
             IUIService uiService)
@@ -44,6 +46,7 @@ namespace Editor.UI
             _objectBrowserPanel = objectBrowserPanel;
             _assetBrowserPanel = assetBrowserPanel;
             _sceneHierarchyPanel = sceneHierarchyPanel;
+            _projectSettingsPanel = projectSettingsPanel;
             _editorContext = editorContext;
             _uiService = uiService;
 
@@ -116,6 +119,14 @@ namespace Editor.UI
         {
             if (ImGui.BeginMenuBar())
             {
+                if (ImGui.BeginMenu("File"))
+                {
+                    if (ImGui.MenuItem("Project Settings"))
+                    {
+                        _projectSettingsPanel.IsOpen = true;
+                    }
+                    ImGui.EndMenu();
+                }
                 if (ImGui.BeginMenu("View")) // Using a menu for tabs for now
                 {
                     if (ImGui.MenuItem("Projects", "", _uiService.GetActiveTab() == EditorTab.Projects))

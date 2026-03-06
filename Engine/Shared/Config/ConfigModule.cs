@@ -11,6 +11,8 @@ public class ConfigModule : BaseModule
 
     public override void RegisterServices(IServiceCollection services)
     {
+        services.AddSingleton<IConfigurationManager, ConfigurationManager>();
         services.AddSingleton<IEngineConfig, EngineConfig>();
+        services.AddSingleton<IConsoleCommandManager, ConsoleCommandManager>();
     }
 }

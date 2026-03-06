@@ -36,6 +36,12 @@ namespace Server
         private static IServiceCollection AddServerCoreServices(this IServiceCollection services)
         {
             services.AddSingleton<IServerContext, ServerContext>();
+            services.AddSingleton<CVarReplicator>(sp =>
+                new CVarReplicator(
+                    sp.GetRequiredService<Shared.Config.IConfigurationManager>(),
+                    sp.GetRequiredService<NetDataWriterPool>(),
+                    sp.GetRequiredService<IServerContext>().PlayerManager
+                ));
 
             services.AddSingleton<IScriptWatcher, ScriptWatcher>();
             services.AddSingleton<IScriptEnvironmentManager, ScriptEnvironmentManager>();
@@ -61,7 +67,15 @@ namespace Server
             services.AddSingleton<INetworkService>(p => p.GetRequiredService<NetworkService>());
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetworkService>());
 
-            services.AddSingleton<NetworkEventHandler>();
+            services.AddSingleton<NetworkEventHandler>(sp =>
+                new NetworkEventHandler(
+                    sp.GetRequiredService<INetworkService>(),
+                    sp.GetRequiredService<IServerContext>(),
+                    sp.GetRequiredService<IScriptHost>(),
+                    sp.GetRequiredService<IUdpServer>(),
+                    sp.GetRequiredService<Shared.Config.IConsoleCommandManager>(),
+                    sp.GetRequiredService<ILogger<NetworkEventHandler>>()
+                ));
 
             services.AddSingleton<UdpServer>();
             services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());

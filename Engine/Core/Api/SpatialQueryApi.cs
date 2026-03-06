@@ -20,6 +20,25 @@ namespace Core.Api
             _mapApi = mapApi;
         }
 
+        public bool CanMove(GameObject obj, long targetX, long targetY, long targetZ)
+        {
+             using (_gameState.ReadLock())
+             {
+                 var turf = _mapApi.GetTurf(targetX, targetY, targetZ);
+                 if (turf == null) return false;
+
+                 // Check density of other objects in the target turf
+                 foreach (var content in turf.Contents)
+                 {
+                     if (content != obj && content is GameObject other && other.Density)
+                     {
+                         return false;
+                     }
+                 }
+                 return true;
+             }
+        }
+
         public GameObject? Locate(string typePath, List<GameObject> container)
         {
             var targetType = _objectTypeManager.GetObjectType(typePath);
@@ -42,53 +61,69 @@ namespace Core.Api
             return null;
         }
 
+        private struct RangeState
+        {
+            public List<GameObject> Results;
+            public int Distance;
+            public long CenterX;
+            public long CenterY;
+            public long CenterZ;
+        }
+
         public List<GameObject> Range(int distance, long centerX, long centerY, long centerZ)
         {
+            var results = new List<GameObject>();
+            var state = new RangeState { Results = results, Distance = distance, CenterX = centerX, CenterY = centerY, CenterZ = centerZ };
+
             using (_gameState.ReadLock())
             {
                 var box = new Box2l(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
-                var potentialObjects = _gameState.SpatialGrid.GetObjectsInBox(box);
-                var results = new List<GameObject>(potentialObjects.Count);
-
-                foreach (var obj in potentialObjects)
+                _gameState.SpatialGrid.QueryBox(box, ref state, static (IGameObject obj, ref RangeState s) =>
                 {
-                    if (obj.Z == centerZ && obj is GameObject gameObj)
+                    if (obj.Z == s.CenterZ && obj is GameObject gameObj)
                     {
                         // BYOND range() uses Chebyshev distance: max(|x1-x2|, |y1-y2|)
-                        if (Math.Max(Math.Abs(gameObj.X - centerX), Math.Abs(gameObj.Y - centerY)) <= distance)
+                        if (Math.Max(Math.Abs(gameObj.X - s.CenterX), Math.Abs(gameObj.Y - s.CenterY)) <= s.Distance)
                         {
-                            results.Add(gameObj);
+                            s.Results.Add(gameObj);
                         }
                     }
-                }
-                return results;
+                });
             }
+            return results;
+        }
+
+        private struct ViewState
+        {
+            public List<GameObject> Results;
+            public int Distance;
+            public GameObject Viewer;
+            public SpatialQueryApi Api;
         }
 
         public List<GameObject> View(int distance, GameObject viewer)
         {
+            var results = new List<GameObject>();
+            var state = new ViewState { Results = results, Distance = distance, Viewer = viewer, Api = this };
+
             using (_gameState.ReadLock())
             {
                 var box = new Box2l(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
-                var potentialObjects = _gameState.SpatialGrid.GetObjectsInBox(box);
-                var results = new List<GameObject>(potentialObjects.Count);
-
-                foreach (var obj in potentialObjects)
+                _gameState.SpatialGrid.QueryBox(box, ref state, static (IGameObject obj, ref ViewState s) =>
                 {
-                    if (obj is GameObject gameObj && gameObj.Z == viewer.Z)
+                    if (obj is GameObject gameObj && gameObj.Z == s.Viewer.Z)
                     {
-                        // BYOND view() uses Chebyshev distance: max(|x1-x2|, |y1-y2|)
-                        if (Math.Max(Math.Abs(gameObj.X - viewer.X), Math.Abs(gameObj.Y - viewer.Y)) <= distance)
+                        if (Math.Max(Math.Abs(gameObj.X - s.Viewer.X), Math.Abs(gameObj.Y - s.Viewer.Y)) <= s.Distance)
                         {
-                            if (gameObj == viewer || HasLineOfSight(viewer, gameObj))
+                            if (gameObj == s.Viewer || s.Api.HasLineOfSight(s.Viewer, gameObj))
                             {
-                                results.Add(gameObj);
+                                s.Results.Add(gameObj);
                             }
                         }
                     }
-                }
-                return results;
+                });
             }
+            return results;
         }
 
         private bool HasLineOfSight(GameObject from, GameObject to)

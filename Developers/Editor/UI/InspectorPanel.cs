@@ -74,10 +74,10 @@ namespace Editor.UI
 
                     if (ImGui.CollapsingHeader("Transform", ImGuiTreeNodeFlags.DefaultOpen))
                     {
-                        int[] position = { selectedObject.X, selectedObject.Y, selectedObject.Z };
+                        int[] position = { (int)selectedObject.X, (int)selectedObject.Y, (int)selectedObject.Z };
                         if (ImGui.InputInt3("Position", ref position[0], ImGuiInputTextFlags.EnterReturnsTrue))
                         {
-                            var command = new MoveObjectCommand(selectedObject, selectedObject.X, selectedObject.Y, selectedObject.Z, position[0], position[1], position[2]);
+                            var command = new MoveObjectCommand(selectedObject, selectedObject.X, selectedObject.Y, selectedObject.Z, (long)position[0], (long)position[1], (long)position[2]);
                             _historyManager.ExecuteCommand(command);
                         }
                     }

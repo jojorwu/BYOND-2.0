@@ -9,9 +9,7 @@ namespace Core.VM.Runtime
     public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 100000000;
-        private SpinLock _globalsLock = new(false);
-        private SpinLock _procsLock = new(false);
-        private SpinLock _stringsLock = new(false);
+        private readonly ReaderWriterLockSlim _contextLock = new(LockRecursionPolicy.SupportsRecursion);
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
@@ -28,60 +26,54 @@ namespace Core.VM.Runtime
         public DreamValue GetGlobal(int index)
         {
             if (index < 0) return DreamValue.Null;
-            bool lockTaken = false;
+            _contextLock.EnterReadLock();
             try
             {
-                _globalsLock.Enter(ref lockTaken);
                 return (index < Globals.Count) ? Globals[index] : DreamValue.Null;
             }
             finally
             {
-                if (lockTaken) _globalsLock.Exit(false);
+                _contextLock.ExitReadLock();
             }
         }
 
         public void SetGlobal(int index, DreamValue value)
         {
             if (index < 0 || index >= MaxGlobals) return;
-            bool lockTaken = false;
+            _contextLock.EnterWriteLock();
             try
             {
-                _globalsLock.Enter(ref lockTaken);
                 while (Globals.Count <= index) Globals.Add(DreamValue.Null);
                 Globals[index] = value;
             }
             finally
             {
-                if (lockTaken) _globalsLock.Exit(false);
+                _contextLock.ExitWriteLock();
             }
         }
 
         public void Reset()
         {
-            bool gLockTaken = false, pLockTaken = false, sLockTaken = false;
+            _contextLock.EnterWriteLock();
             try
             {
-                _globalsLock.Enter(ref gLockTaken);
-                _procsLock.Enter(ref pLockTaken);
-                _stringsLock.Enter(ref sLockTaken);
-
                 Strings.Clear();
                 Procs.Clear();
                 AllProcs.Clear();
                 Globals.Clear();
                 GlobalNames.Clear();
                 ListType = null;
+                World = null;
             }
             finally
             {
-                if (sLockTaken) _stringsLock.Exit(false);
-                if (pLockTaken) _procsLock.Exit(false);
-                if (gLockTaken) _globalsLock.Exit(false);
+                _contextLock.ExitWriteLock();
             }
         }
 
         public void Dispose()
         {
+            _contextLock.Dispose();
             GC.SuppressFinalize(this);
         }
     }

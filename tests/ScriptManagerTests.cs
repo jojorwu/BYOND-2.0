@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Core;
 using System;
 using System.IO;
+using System.Linq;
 using Moq;
 using Core.VM.Runtime;
 using Server;
@@ -26,15 +27,15 @@ namespace Core.Tests
         private MapLoader _mapLoader = null!;
         private Project _project = null!;
         private DreamVM _dreamVM = null!;
-        private string _scriptsPath = null!;
+        private IScriptApi _scriptApi = null!;
 
         [SetUp]
         public void SetUp()
         {
             var projectPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             Directory.CreateDirectory(projectPath);
-            _scriptsPath = Path.Combine(projectPath, "scripts");
-            Directory.CreateDirectory(_scriptsPath);
+            var scriptsPath = Path.Combine(projectPath, "scripts");
+            Directory.CreateDirectory(scriptsPath);
 
             // Create a dummy compiled json file for DmSystem to load
             var compiledJson = new Shared.Compiler.CompiledJson { Strings = new(), Types = Array.Empty<Shared.Compiler.DreamTypeJson>(), Procs = Array.Empty<Shared.Compiler.ProcDefinitionJson>() };
@@ -53,27 +54,31 @@ namespace Core.Tests
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() }, objectFactory);
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool);
-            var scriptApi = new ScriptApi(_project);
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool, componentManager);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
             var soundApi = new Mock<ISoundApi>().Object;
-            _gameApi = new GameApi(mapApi, objectApi, scriptApi, soundApi, standardLibraryApi);
+            var soundRegistry = new Shared.Config.SoundRegistry();
+            var commandManager = new Shared.Config.ConsoleCommandManager();
+            var timeApi = new Mock<ITimeApi>().Object;
+            var eventApi = new Mock<IEventApi>().Object;
 
             var serviceProviderMock = new Mock<IServiceProvider>();
             var scriptHostMock = new Mock<IScriptHost>();
             serviceProviderMock.Setup(sp => sp.GetService(typeof(IScriptHost))).Returns(scriptHostMock.Object);
 
-            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, new CompiledJsonService(_gameApi), _gameState, _dreamVM);
+            var dreamMakerLoader = new DreamMakerLoader(_objectTypeManager, new CompiledJsonService(new Mock<IGameApi>().Object), _gameState, _dreamVM);
             var loggerMock = new Mock<ILogger<Core.Scripting.DM.DmSystem>>();
 
             var systems = new IScriptSystem[]
             {
-                new Core.Scripting.CSharp.CSharpSystem(_gameApi),
-                new Core.Scripting.LuaSystem.LuaSystem(_gameApi),
+                new Core.Scripting.CSharp.CSharpSystem(new Mock<IGameApi>().Object),
+                new Core.Scripting.LuaSystem.LuaSystem(new Mock<IGameApi>().Object),
                 new Core.Scripting.DM.DmSystem(_objectTypeManager, dreamMakerLoader, _dreamVM, new Lazy<IScriptHost>(() => serviceProviderMock.Object.GetRequiredService<IScriptHost>()), loggerMock.Object)
             };
             _scriptManager = new ScriptManager(_project, systems, NullLogger<ScriptManager>.Instance);
+            _scriptApi = new ScriptApi(_project, _scriptManager);
+            _gameApi = new GameApi(mapApi, objectApi, _scriptApi, soundApi, soundRegistry, standardLibraryApi, commandManager, timeApi, eventApi);
         }
 
         [TearDown]
@@ -91,9 +96,10 @@ namespace Core.Tests
         public void ScriptManager_InitializesAndLoadsAllScriptTypes()
         {
             // Arrange
-            File.WriteAllText(Path.Combine(_scriptsPath, "test.lua"), "print('lua loaded')");
-            File.WriteAllText(Path.Combine(_scriptsPath, "test.dm"), "/mob/player");
-            File.WriteAllText(Path.Combine(_scriptsPath, "test.cs"), "Console.WriteLine(\"csharp loaded\");");
+            var scriptsPath = Path.Combine(_project.RootPath, "scripts");
+            File.WriteAllText(Path.Combine(scriptsPath, "test.lua"), "print('lua loaded')");
+            File.WriteAllText(Path.Combine(scriptsPath, "test.dm"), "/mob/player");
+            File.WriteAllText(Path.Combine(scriptsPath, "test.cs"), "Console.WriteLine(\"csharp loaded\");");
 
             // Act & Assert
             Assert.DoesNotThrowAsync(async () => {
@@ -117,7 +123,8 @@ namespace Core.Tests
         public void ScriptManager_InvokesGlobalEvents()
         {
              // Arrange
-            File.WriteAllText(Path.Combine(_scriptsPath, "test.lua"), "function MyEvent() print('event handled') end");
+            var scriptsPath = Path.Combine(_project.RootPath, "scripts");
+            File.WriteAllText(Path.Combine(scriptsPath, "test.lua"), "function MyEvent() print('event handled') end");
             _scriptManager.InitializeAsync().Wait();
 
             // Act & Assert

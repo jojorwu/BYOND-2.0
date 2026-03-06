@@ -8,9 +8,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Shared.Interfaces;
 
 namespace Shared;
-    public class GameState : IGameState, IEngineUpdateListener
+    public class GameState : Shared.Services.EngineService, IGameState, IEngineUpdateListener
     {
         private IMap? _map;
+        private readonly ReaderWriterLockSlim _worldLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
         public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
@@ -32,29 +33,38 @@ namespace Shared;
 
         public IDisposable ReadLock()
         {
-            return new DisposableAction(() => { });
+            _worldLock.EnterReadLock();
+            return new DisposableAction(() => _worldLock.ExitReadLock());
         }
 
         public IDisposable WriteLock()
         {
-            return new DisposableAction(() => { });
+            _worldLock.EnterWriteLock();
+            return new DisposableAction(() => _worldLock.ExitWriteLock());
         }
 
         public void Dispose()
         {
             SpatialGrid.Dispose();
+            _worldLock.Dispose();
         }
 
         public IEnumerable<IGameObject> GetAllGameObjects()
         {
-            return GameObjects.Values;
+            using (ReadLock())
+            {
+                return GameObjects.Values.ToList();
+            }
         }
 
         public void ForEachGameObject(Action<IGameObject> action)
         {
-            foreach (var obj in GameObjects.Values)
+            using (ReadLock())
             {
-                action(obj);
+                foreach (var obj in GameObjects.Values)
+                {
+                    action(obj);
+                }
             }
         }
 

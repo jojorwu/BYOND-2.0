@@ -30,7 +30,9 @@ namespace Core
 
         private static IServiceCollection AddCoreStateServices(this IServiceCollection services)
         {
-            services.AddSingleton<IGameState, GameState>();
+            services.AddSingleton<GameState>();
+            services.AddSingleton<IGameState>(p => p.GetRequiredService<GameState>());
+            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameState>());
 
             services.AddSingleton<MapLoader>();
             services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());
@@ -69,6 +71,7 @@ namespace Core
             services.AddSingleton<INativeProcProvider>(p => new Core.VM.Procs.SystemNativeProcProvider(p.GetService<ISoundApi>()));
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
+            services.AddSingleton<IEngineService>(provider => provider.GetRequiredService<DreamVM>());
 
             services.AddSingleton<ITypeSystemPopulator, TypeSystemPopulator>();
             services.AddSingleton<CompiledJsonService>();

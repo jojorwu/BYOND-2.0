@@ -58,6 +58,18 @@ namespace Core
         public void PlayNamedSoundAt(string soundName, long x, long y, long z) => _gameApi.Sounds.PlayNamedAt(soundName, x, y, z);
         public void PlayNamedSoundOn(string soundName, GameObject obj) => _gameApi.Sounds.PlayNamedOn(soundName, obj);
 
+        public double GetTime() => _gameApi.Time.Time;
+        public void Spawn(int ms, NLua.LuaFunction func) => _gameApi.Time.Spawn(ms, () => func.Call());
+
+        public void PublishEvent(string name, params object[] args) => _gameApi.Events.Publish(name, args);
+        public void SubscribeEvent(string name, NLua.LuaFunction func) => _gameApi.Events.Subscribe(name, args => func.Call(args));
+        public bool CanMove(GameObject obj, long x, long y, long z) => _gameApi.Map.CanMove(obj, x, y, z);
+
+        public List<GameObject> FindObjectsByType(string typePath) => _gameApi.Objects.FindObjectsByType(typePath);
+        public void AddComponent(long id, string type) => _gameApi.Objects.AddComponent(id, type);
+        public void RemoveComponent(long id, string type) => _gameApi.Objects.RemoveComponent(id, type);
+        public bool HasComponent(long id, string type) => _gameApi.Objects.HasComponent(id, type);
+
         public void RegisterSound(string name, string filePath, float volume = 100f, float pitch = 1f, float falloff = 1f)
         {
             _gameApi.SoundRegistry.RegisterSound(name, new Shared.Config.SoundDefinition(filePath, volume, pitch, falloff));

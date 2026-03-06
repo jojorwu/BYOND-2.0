@@ -11,4 +11,6 @@ namespace Shared;
         Shared.Config.ISoundRegistry SoundRegistry { get; }
         IStandardLibraryApi StdLib { get; }
         Shared.Config.IConsoleCommandManager Commands { get; }
+        ITimeApi Time { get; }
+        IEventApi Events { get; }
     }

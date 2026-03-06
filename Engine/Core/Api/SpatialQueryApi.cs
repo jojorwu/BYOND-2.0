@@ -20,6 +20,25 @@ namespace Core.Api
             _mapApi = mapApi;
         }
 
+        public bool CanMove(GameObject obj, long targetX, long targetY, long targetZ)
+        {
+             using (_gameState.ReadLock())
+             {
+                 var turf = _mapApi.GetTurf(targetX, targetY, targetZ);
+                 if (turf == null) return false;
+
+                 // Check density of other objects in the target turf
+                 foreach (var content in turf.Contents)
+                 {
+                     if (content != obj && content is GameObject other && other.Density)
+                     {
+                         return false;
+                     }
+                 }
+                 return true;
+             }
+        }
+
         public GameObject? Locate(string typePath, List<GameObject> container)
         {
             var targetType = _objectTypeManager.GetObjectType(typePath);

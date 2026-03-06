@@ -221,6 +221,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set { lock (_lock) { if (_opacity != value) { _opacity = value; var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
     }
 
+    private bool _density = true;
+    public bool Density
+    {
+        get => Volatile.Read(ref _density);
+        set { lock (_lock) { if (_density != value) { _density = value; IncrementVersion(); } } }
+    }
+
     /// <summary>
     /// Commits the current state to the read-only buffer.
     /// </summary>

@@ -53,14 +53,16 @@ namespace tests
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() }, objectFactory);
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
-            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool);
+            var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool, componentManager);
             var scriptApi = new ScriptApi(_project);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
             var soundApi = new Mock<ISoundApi>().Object;
             var soundRegistry = new Shared.Config.SoundRegistry();
             var commandManager = new Shared.Config.ConsoleCommandManager();
-            _gameApi = new GameApi(mapApi, objectApi, scriptApi, soundApi, soundRegistry, standardLibraryApi, commandManager);
+            var timeApi = new Mock<ITimeApi>().Object;
+            var eventApi = new Mock<IEventApi>().Object;
+            _gameApi = new GameApi(mapApi, objectApi, scriptApi, soundApi, soundRegistry, standardLibraryApi, commandManager, timeApi, eventApi);
 
             var serviceProviderMock = new Mock<IServiceProvider>();
             var scriptHostMock = new Mock<IScriptHost>();

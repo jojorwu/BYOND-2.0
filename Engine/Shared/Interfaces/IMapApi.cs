@@ -30,4 +30,9 @@ namespace Shared;
         /// Gets all game objects of a specific type (and its subtypes) within a specified rectangular area.
         /// </summary>
         IEnumerable<IGameObject> GetObjectsInArea(long x1, long y1, long x2, long y2, long z, string typePath);
+
+        /// <summary>
+        /// Checks if an object can move to the specified coordinates.
+        /// </summary>
+        bool CanMove(GameObject obj, long x, long y, long z);
     }

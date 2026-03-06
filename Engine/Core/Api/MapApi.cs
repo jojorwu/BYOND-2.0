@@ -131,5 +131,23 @@ namespace Core.Api
                     .ToList(); // ToList to execute the query inside the lock
             }
         }
+
+        public bool CanMove(GameObject obj, long x, long y, long z)
+        {
+            using (_gameState.ReadLock())
+            {
+                var turf = _gameState.Map?.GetTurf(x, y, z);
+                if (turf == null) return false;
+
+                foreach (var content in turf.Contents)
+                {
+                    if (content != obj && content is GameObject other && other.Density)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
     }
 }

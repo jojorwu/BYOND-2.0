@@ -52,6 +52,8 @@ namespace Core
             services.AddSingleton<IScriptApi, ScriptApi>();
             services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
             services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
+            services.AddSingleton<ITimeApi, TimeApi>();
+            services.AddSingleton<IEventApi, EventApi>();
             services.AddSingleton<IGameApi, GameApi>();
             services.AddSingleton<IRegionApi, RegionApi>();
             services.AddSingleton<ISoundApi, SoundApi>();

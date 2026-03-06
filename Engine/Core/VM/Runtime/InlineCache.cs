@@ -6,5 +6,6 @@ namespace Core.VM.Runtime
     {
         public ObjectType? Type;
         public int Index;
+        public object? CachedObject;
     }
 }

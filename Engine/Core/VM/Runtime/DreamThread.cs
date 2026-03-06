@@ -195,10 +195,11 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureStackCapacity(int count)
     {
-        if ((uint)(_stackPtr + count) >= (uint)MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
         if (_stackPtr + count >= _stack.Length)
         {
-            int newSize = Math.Max(_stack.Length * 2, _stackPtr + count + 1024);
+            int newSize = Math.Min(MaxStackSize, Math.Max(_stack.Length * 2, _stackPtr + count + 1024));
+            if (newSize <= _stack.Length) return; // Cannot expand further within MaxStackSize
+
             var newStack = ArrayPool<DreamValue>.Shared.Rent(newSize);
             Array.Copy(_stack, newStack, _stackPtr);
             ArrayPool<DreamValue>.Shared.Return(_stack, true);

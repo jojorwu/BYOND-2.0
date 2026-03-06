@@ -10,6 +10,24 @@ namespace Shared.Services;
 
 public static class SharedServiceCollectionExtensions
 {
+    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services)
+        where TImplementation : class, IEngineService
+    {
+        services.AddSingleton<TImplementation>();
+        services.AddSingleton<IEngineService>(p => p.GetRequiredService<TImplementation>());
+        return services;
+    }
+
+    public static IServiceCollection AddEngineService<TInterface, TImplementation>(this IServiceCollection services)
+        where TInterface : class
+        where TImplementation : class, TInterface, IEngineService
+    {
+        services.AddSingleton<TImplementation>();
+        services.AddSingleton<TInterface>(p => p.GetRequiredService<TImplementation>());
+        services.AddSingleton<IEngineService>(p => p.GetRequiredService<TImplementation>());
+        return services;
+    }
+
     public static IServiceCollection AddSharedEngineServices(this IServiceCollection services)
     {
         services.AddSingleton<Shared.Config.IConfigurationManager, Shared.Config.ConfigurationManager>();
@@ -30,9 +48,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<ProfilingService>();
         services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
-        services.AddSingleton<ObjectTypeManager>();
-        services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
-        services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
+        services.AddEngineService<IObjectTypeManager, ObjectTypeManager>();
         services.AddSingleton<StringInterner>();
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
         services.AddSingleton<IObjectFactory, ObjectFactory>();

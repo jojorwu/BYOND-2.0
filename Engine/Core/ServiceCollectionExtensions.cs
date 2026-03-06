@@ -30,13 +30,8 @@ namespace Core
 
         private static IServiceCollection AddCoreStateServices(this IServiceCollection services)
         {
-            services.AddSingleton<GameState>();
-            services.AddSingleton<IGameState>(p => p.GetRequiredService<GameState>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameState>());
-
-            services.AddSingleton<MapLoader>();
-            services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<MapLoader>());
+            services.AddEngineService<IGameState, GameState>();
+            services.AddEngineService<IMapLoader, MapLoader>();
 
             services.AddSingleton<IPlayerManager, PlayerManager>();
 
@@ -69,27 +64,18 @@ namespace Core
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();
             services.AddSingleton<INativeProcProvider>(p => new Core.VM.Procs.SystemNativeProcProvider(p.GetService<ISoundApi>()));
-            services.AddSingleton<DreamVM>();
-            services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
-            services.AddSingleton<IEngineService>(provider => provider.GetRequiredService<DreamVM>());
+            services.AddEngineService<IDreamVM, DreamVM>();
 
             services.AddSingleton<ITypeSystemPopulator, TypeSystemPopulator>();
-            services.AddSingleton<CompiledJsonService>();
-            services.AddSingleton<ICompiledJsonService>(p => p.GetRequiredService<CompiledJsonService>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<CompiledJsonService>());
-
-            services.AddSingleton<DreamMakerLoader>();
-            services.AddSingleton<IDreamMakerLoader>(p => p.GetRequiredService<DreamMakerLoader>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<DreamMakerLoader>());
+            services.AddEngineService<ICompiledJsonService, CompiledJsonService>();
+            services.AddEngineService<IDreamMakerLoader, DreamMakerLoader>();
 
             return services;
         }
 
         private static IServiceCollection AddCoreScriptingServices(this IServiceCollection services)
         {
-            services.AddSingleton<ScriptManager>();
-            services.AddSingleton<IScriptManager>(p => p.GetRequiredService<ScriptManager>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptManager>());
+            services.AddEngineService<IScriptManager, ScriptManager>();
 
             services.AddSingleton<IScriptSystem, Core.Scripting.CSharp.CSharpSystem>();
             services.AddSingleton<IScriptSystem, Core.Scripting.LuaSystem.LuaSystem>();

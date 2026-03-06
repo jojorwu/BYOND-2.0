@@ -28,8 +28,7 @@ namespace Server
 
         private static IServiceCollection AddServerDiagnosticServices(this IServiceCollection services)
         {
-            services.AddSingleton<PerformanceMonitor>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<PerformanceMonitor>());
+            services.AddEngineService<PerformanceMonitor>();
             return services;
         }
 
@@ -48,9 +47,7 @@ namespace Server
             services.AddSingleton<IScriptScheduler, ScriptScheduler>();
             services.AddSingleton<IScriptCommandProcessor, ScriptCommandProcessor>();
 
-            services.AddSingleton<ScriptHost>();
-            services.AddSingleton<IScriptHost>(provider => provider.GetRequiredService<ScriptHost>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<ScriptHost>());
+            services.AddEngineService<IScriptHost, ScriptHost>();
 
             services.AddSingleton<ISystemManager, SystemManager>();
 
@@ -59,13 +56,10 @@ namespace Server
 
         private static IServiceCollection AddServerNetworkingServices(this IServiceCollection services)
         {
-            services.AddSingleton<NetDataWriterPool>();
+            services.AddEngineService<NetDataWriterPool>();
             services.AddSingleton<IShrinkable>(p => p.GetRequiredService<NetDataWriterPool>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetDataWriterPool>());
 
-            services.AddSingleton<NetworkService>();
-            services.AddSingleton<INetworkService>(p => p.GetRequiredService<NetworkService>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<NetworkService>());
+            services.AddEngineService<INetworkService, NetworkService>();
 
             services.AddSingleton<NetworkEventHandler>(sp =>
                 new NetworkEventHandler(
@@ -77,18 +71,14 @@ namespace Server
                     sp.GetRequiredService<ILogger<NetworkEventHandler>>()
                 ));
 
-            services.AddSingleton<UdpServer>();
-            services.AddSingleton<IUdpServer>(provider => provider.GetRequiredService<UdpServer>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<UdpServer>());
+            services.AddEngineService<IUdpServer, UdpServer>();
 
             return services;
         }
 
         private static IServiceCollection AddServerGameLoopServices(this IServiceCollection services)
         {
-            services.AddSingleton<GameStateSnapshotter>();
-            services.AddSingleton<IGameStateSnapshotter>(p => p.GetRequiredService<GameStateSnapshotter>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameStateSnapshotter>());
+            services.AddEngineService<IGameStateSnapshotter, GameStateSnapshotter>();
 
             services.AddSingleton(provider => new GlobalGameLoopStrategy(
                 provider.GetRequiredService<IScriptHost>(),
@@ -108,16 +98,14 @@ namespace Server
                     : (IGameLoopStrategy)provider.GetRequiredService<GlobalGameLoopStrategy>();
             });
 
-            services.AddSingleton<GameLoop>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameLoop>());
+            services.AddEngineService<GameLoop>();
 
             return services;
         }
 
         private static IServiceCollection AddServerApplicationServices(this IServiceCollection services)
         {
-            services.AddSingleton<HttpServer>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<HttpServer>());
+            services.AddEngineService<HttpServer>();
 
             services.AddSingleton<ServerApplication>();
             services.AddHostedService(provider => provider.GetRequiredService<ServerApplication>());

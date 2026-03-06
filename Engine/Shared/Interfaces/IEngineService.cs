@@ -30,5 +30,5 @@ namespace Shared.Interfaces;
         /// <summary>
         /// Current status of the service.
         /// </summary>
-        ServiceStatus Status => ServiceStatus.Stopped;
+        ServiceStatus Status { get; }
     }

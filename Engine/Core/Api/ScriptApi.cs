@@ -8,10 +8,12 @@ namespace Core.Api
     public class ScriptApi : IScriptApi
     {
         private readonly IProject _project;
+        private readonly IScriptManager _scriptManager;
 
-        public ScriptApi(IProject project)
+        public ScriptApi(IProject project, IScriptManager scriptManager)
         {
             _project = project;
+            _scriptManager = scriptManager;
         }
 
         public List<string> ListScriptFiles()
@@ -54,6 +56,11 @@ namespace Core.Api
         {
             var safePath = PathSanitizer.Sanitize(_project, filename, Constants.ScriptsRoot);
             File.Delete(safePath);
+        }
+
+        public async Task HotReloadAsync()
+        {
+            await _scriptManager.ReloadAll();
         }
     }
 }

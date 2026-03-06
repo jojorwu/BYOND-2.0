@@ -118,8 +118,16 @@ public partial class DreamThread
 
         if (!message.IsNull)
         {
-            // TODO: Proper output routing based on target
-            Console.WriteLine(message.ToString());
+            // If target is world, broadcast to all. If target is a client-related object, send to that client.
+            // For now, we still log to console but this is the hook for network routing.
+            if (target.IsNull)
+            {
+                Console.WriteLine($"[WORLD] {message}");
+            }
+            else
+            {
+                Console.WriteLine($"[OUTPUT] {target} << {message}");
+            }
         }
     }
 

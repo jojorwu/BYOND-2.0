@@ -52,23 +52,48 @@ namespace tests
         }
 
         [Test]
+        public void BytecodeOptimizer_OptimizesLocalPushDereferenceCall()
+        {
+            // Pattern: PushLocal(0), DereferenceCall(nameId=10, argType=1, argDelta=2)
+            byte[] bytecode = new byte[16];
+            bytecode[0] = (byte)Opcode.PushReferenceValue;
+            bytecode[1] = (byte)DMReference.Type.Local;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
+            bytecode[6] = (byte)Opcode.DereferenceCall;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(7), 10);
+            bytecode[11] = 1;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(12), 2);
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalPushDereferenceCall));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
+            Assert.That(BitConverter.ToInt32(optimized, 5), Is.EqualTo(10));
+            Assert.That(optimized[9], Is.EqualTo(1));
+            Assert.That(BitConverter.ToInt32(optimized, 10), Is.EqualTo(2));
+        }
+
+        [Test]
         public void BytecodeOptimizer_OptimizesLocalJumpIfTrue()
         {
             // Pattern: PushLocal(0), BooleanNot, JumpIfFalse(target)
-            byte[] bytecode = new byte[12];
+            byte[] bytecode = new byte[13];
             bytecode[0] = (byte)Opcode.PushReferenceValue;
             bytecode[1] = (byte)DMReference.Type.Local;
             BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
             bytecode[6] = (byte)Opcode.BooleanNot;
             bytecode[7] = (byte)Opcode.JumpIfFalse;
-            BitConverter.TryWriteBytes(bytecode.AsSpan(8), 20);
+            BitConverter.TryWriteBytes(bytecode.AsSpan(8), 12);
+            bytecode[12] = (byte)Opcode.Return;
 
             byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
 
             // 1+4+4 = 9 bytes
             Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalJumpIfTrue));
             Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
-            // Target is fixed up later in actual scenarios, but here it remains 20 as it's out of bounds
+
+            // Original target 12 (Return) should be at 9 in optimized
+            Assert.That(BitConverter.ToInt32(optimized, 5), Is.EqualTo(9));
         }
 
         [Test]
@@ -167,6 +192,99 @@ namespace tests
 
             optimized = BytecodeOptimizer.Optimize(bytecode);
             Assert.That(optimized[0], Is.EqualTo((byte)Opcode.ReturnFalse));
+        }
+
+        [Test]
+        public void BytecodeOptimizer_OptimizesLocalPushDereferenceField()
+        {
+            // Pattern: PushLocal(0), DereferenceField("test")
+            byte[] bytecode = new byte[11];
+            bytecode[0] = (byte)Opcode.PushReferenceValue;
+            bytecode[1] = (byte)DMReference.Type.Local;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
+            bytecode[6] = (byte)Opcode.DereferenceField;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(7), 42); // stringId
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalPushDereferenceField));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
+            Assert.That(BitConverter.ToInt32(optimized, 5), Is.EqualTo(42));
+        }
+
+        [Test]
+        public void BytecodeOptimizer_OptimizesLocalIncrementDecrement()
+        {
+            // Pattern: Increment(Local, 0)
+            byte[] bytecode = new byte[6];
+            bytecode[0] = (byte)Opcode.Increment;
+            bytecode[1] = (byte)DMReference.Type.Local;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalIncrement));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
+
+            // Pattern: Decrement(Local, 1)
+            bytecode[0] = (byte)Opcode.Decrement;
+            bytecode[1] = (byte)DMReference.Type.Local;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 1);
+
+            optimized = BytecodeOptimizer.Optimize(bytecode);
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalDecrement));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void BytecodeOptimizer_OptimizesLocalCompareJump()
+        {
+            // Pattern: LocalCompareEquals(0, 1), JumpIfFalse(14)
+            // 14 is the end of this bytecode
+            byte[] bytecode = new byte[15];
+            bytecode[0] = (byte)Opcode.LocalCompareEquals;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(1), 0);
+            BitConverter.TryWriteBytes(bytecode.AsSpan(5), 1);
+            bytecode[9] = (byte)Opcode.JumpIfFalse;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(10), 14);
+            bytecode[14] = (byte)Opcode.Return;
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalCompareEqualsJumpIfFalse));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
+            Assert.That(BitConverter.ToInt32(optimized, 5), Is.EqualTo(1));
+
+            // The return opcode starts at 14 in original, and should be at 13 in optimized
+            // (A7 (1) + 4 + 4 + 0C (1) + 4 = 14) -> (B4 (1) + 4 + 4 + 4 = 13)
+            Assert.That(BitConverter.ToInt32(optimized, 9), Is.EqualTo(13));
+        }
+
+        [Test]
+        public void BytecodeOptimizer_PreventsOptimizationOnJumpTarget()
+        {
+            // Pattern: LocalCompareEquals(0, 1), JumpIfFalse(14)
+            // But we add 9 (JumpIfFalse) as a jump target
+            byte[] bytecode = new byte[15];
+            bytecode[0] = (byte)Opcode.LocalCompareEquals;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(1), 0);
+            BitConverter.TryWriteBytes(bytecode.AsSpan(5), 1);
+            bytecode[9] = (byte)Opcode.JumpIfFalse;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(10), 14);
+            bytecode[14] = (byte)Opcode.Return;
+
+            // We simulate a jump to 9 by having another jump point to it
+            byte[] bytecodeWithJump = new byte[20];
+            bytecodeWithJump[0] = (byte)Opcode.Jump;
+            BitConverter.TryWriteBytes(bytecodeWithJump.AsSpan(1), 14); // Jump to the middle
+            bytecode.CopyTo(bytecodeWithJump.AsSpan(5));
+            // Original JumpIfFalse is now at 5 + 9 = 14.
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecodeWithJump);
+
+            // In optimized bytecode, it should NOT have LocalCompareEqualsJumpIfFalse
+            bool found = false;
+            foreach (byte b in optimized) if (b == (byte)Opcode.LocalCompareEqualsJumpIfFalse) found = true;
+
+            Assert.That(found, Is.False, "Should not optimize when target is in the middle of pattern");
         }
     }
 }

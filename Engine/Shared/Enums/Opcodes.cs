@@ -344,6 +344,22 @@ public enum Opcode : byte {
     LocalPushLocalPushDiv = 0xAF,
     [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalCompareNotEquals = 0xB0,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.String)]
+    LocalPushDereferenceField = 0xB1,
+    [OpcodeMetadata(1, OpcodeArgType.Int)]
+    LocalIncrement = 0xB2,
+    [OpcodeMetadata(1, OpcodeArgType.Int)]
+    LocalDecrement = 0xB3,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareEqualsJumpIfFalse = 0xB4,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareNotEqualsJumpIfFalse = 0xB5,
+    [OpcodeMetadata(0, true, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    LocalPushDereferenceCall = 0xB6,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalJumpIfNull = 0xB7,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalJumpIfNotNull = 0xB8,
 }
 
 public enum OpcodeArgType {
@@ -446,6 +462,10 @@ public static class OpcodeMetadataCache {
                 Opcode.SwitchOnString => true,
                 Opcode.LocalJumpIfFalse => true,
                 Opcode.LocalJumpIfTrue => true,
+                Opcode.LocalCompareEqualsJumpIfFalse => true,
+                Opcode.LocalCompareNotEqualsJumpIfFalse => true,
+                Opcode.LocalJumpIfNull => true,
+                Opcode.LocalJumpIfNotNull => true,
                 Opcode.BooleanAnd => true,
                 Opcode.BooleanOr => true,
                 Opcode.Enumerate => true,

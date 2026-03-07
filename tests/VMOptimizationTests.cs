@@ -52,6 +52,45 @@ namespace tests
         }
 
         [Test]
+        public void BytecodeOptimizer_OptimizesLocalJumpIfTrue()
+        {
+            // Pattern: PushLocal(0), BooleanNot, JumpIfFalse(target)
+            byte[] bytecode = new byte[12];
+            bytecode[0] = (byte)Opcode.PushReferenceValue;
+            bytecode[1] = (byte)DMReference.Type.Local;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
+            bytecode[6] = (byte)Opcode.BooleanNot;
+            bytecode[7] = (byte)Opcode.JumpIfFalse;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(8), 20);
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+
+            // 1+4+4 = 9 bytes
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalJumpIfTrue));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
+            // Target is fixed up later in actual scenarios, but here it remains 20 as it's out of bounds
+        }
+
+        [Test]
+        public void BytecodeOptimizer_OptimizesLocalAddFloat()
+        {
+            // Pattern: PushLocal(0), PushFloat(5.0), Add
+            byte[] bytecode = new byte[16];
+            bytecode[0] = (byte)Opcode.PushReferenceValue;
+            bytecode[1] = (byte)DMReference.Type.Local;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
+            bytecode[6] = (byte)Opcode.PushFloat;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(7), 5.0);
+            bytecode[15] = (byte)Opcode.Add;
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.LocalAddFloat));
+            Assert.That(BitConverter.ToInt32(optimized, 1), Is.EqualTo(0));
+            Assert.That(BitConverter.ToDouble(optimized, 5), Is.EqualTo(5.0));
+        }
+
+        [Test]
         public void BytecodeOptimizer_HandlesSuperInstructionsWithJumps()
         {
             // Pattern:
@@ -106,6 +145,28 @@ namespace tests
             Assert.That(optimized[0], Is.EqualTo((byte)Opcode.PushNRefs));
             Assert.That(optimized[5], Is.EqualTo((byte)DMReference.Type.Local));
             Assert.That(BitConverter.ToInt32(optimized, 6), Is.EqualTo(5));
+        }
+
+        [Test]
+        public void BytecodeOptimizer_OptimizesReturnBooleans()
+        {
+            // Pattern: PushFloat(1.0), Return
+            byte[] bytecode = new byte[10];
+            bytecode[0] = (byte)Opcode.PushFloat;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(1), 1.0);
+            bytecode[9] = (byte)Opcode.Return;
+
+            byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.ReturnTrue));
+            Assert.That(optimized.Length, Is.EqualTo(1));
+
+            // Pattern: PushFloat(0.0), Return
+            bytecode[0] = (byte)Opcode.PushFloat;
+            BitConverter.TryWriteBytes(bytecode.AsSpan(1), 0.0);
+            bytecode[9] = (byte)Opcode.Return;
+
+            optimized = BytecodeOptimizer.Optimize(bytecode);
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.ReturnFalse));
         }
     }
 }

@@ -27,6 +27,10 @@ public interface IBytecodeInterpreter
 /// By using a ref struct and capturing the current Frame as a ref, we eliminate
 /// struct copying overhead during tight execution loops.
 /// </summary>
+/// <remarks>
+/// This struct is intended for internal use within the <see cref="BytecodeInterpreter"/>.
+/// It utilizes <see langword="unsafe"/> pointers for fast bytecode access and pinned memory operations.
+/// </remarks>
 internal unsafe ref struct InterpreterState
 {
     public DreamThread Thread;
@@ -142,10 +146,25 @@ internal unsafe ref struct InterpreterState
     }
 }
 
+/// <summary>
+/// Provides a high-performance execution engine for Dream bytecode.
+/// </summary>
+/// <remarks>
+/// The interpreter uses several optimization techniques:
+/// <list type="bullet">
+/// <item><description>Pinned bytecode pointer to avoid bounds checking.</description></item>
+/// <item><description>Fast-path switch statement for high-frequency opcodes.</description></item>
+/// <item><description>Dispatch table using function pointers for extended opcodes.</description></item>
+/// <item><description>Inline caching for field and procedure lookups.</description></item>
+/// <item><description>Super-instruction support for pattern fusion.</description></item>
+/// </list>
+/// </remarks>
 public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 {
+    /// <summary> Table of function pointers for secondary opcode dispatch. </summary>
     private static readonly delegate*<ref InterpreterState, void>[] _dispatchTable = CreateDispatchTable();
 
+    /// <inheritdoc/>
     public DreamThreadState Run(DreamThread thread, int instructionBudget)
     {
         if (thread.State != DreamThreadState.Running)
@@ -241,6 +260,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                             // Fast-path switch for hot opcodes to enable better JIT branch prediction
                             switch (opcode)
                             {
+                                // --- VARIABLE & STACK ACCESS ---
                                 case Opcode.PushLocal:
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
@@ -275,6 +295,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 case Opcode.PushNull:
                                     state.Push(DreamValue.Null);
                                     break;
+
+                                // --- ARITHMETIC & LOGIC ---
                                 case Opcode.Add:
                                     {
                                         var b = state.Stack[--state.StackPtr];
@@ -290,6 +312,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 case Opcode.Jump:
                                     state.PC = *(int*)(state.BytecodePtr + state.PC);
                                     break;
+
+                                // --- CONTROL FLOW ---
                                 case Opcode.JumpIfFalse:
                                     {
                                         int address = *(int*)(state.BytecodePtr + state.PC);
@@ -471,6 +495,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     state.Stack = thread._stack;
                                     state.StackPtr = thread._stackPtr;
                                     goto FrameChanged;
+
+                                // --- CALLS & DEREFERENCE ---
                                 case Opcode.CallStatement:
                                     {
                                         var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
@@ -520,7 +546,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             IDreamProc? targetProc = null;
                                             if (ot != null)
                                             {
-                                                ref var cache = ref state.Proc._inlineCache[state.PC - 10];
+                                                int cacheIdx = state.PC - 10;
+#if DEBUG
+                                                if (cacheIdx < 0 || cacheIdx >= state.Proc._inlineCache.Length) throw new ScriptRuntimeException("Inline cache index out of bounds", state.Proc, state.PC, thread);
+#endif
+                                                ref var cache = ref state.Proc._inlineCache[cacheIdx];
                                                 if (cache.Type == ot) targetProc = (IDreamProc?)cache.CachedObject;
                                                 else
                                                 {
@@ -637,7 +667,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 var ot = inst.ObjectType;
                                                 if (ot != null)
                                                 {
-                                                    ref var cache = ref state.Proc._inlineCache[state.PC - 5];
+                                                    int cacheIdx = state.PC - 5;
+#if DEBUG
+                                                    if (cacheIdx < 0 || cacheIdx >= state.Proc._inlineCache.Length) throw new ScriptRuntimeException("Inline cache index out of bounds", state.Proc, state.PC, thread);
+#endif
+                                                    ref var cache = ref state.Proc._inlineCache[cacheIdx];
                                                     int idx;
                                                     if (cache.Type == ot) idx = cache.Index;
                                                     else
@@ -887,7 +921,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 var ot = inst.ObjectType;
                                                 if (ot != null)
                                                 {
-                                                    ref var cache = ref state.Proc._inlineCache[state.PC - 5];
+                                                    int cacheIdx = state.PC - 5;
+#if DEBUG
+                                                    if (cacheIdx < 0 || cacheIdx >= state.Proc._inlineCache.Length) throw new ScriptRuntimeException("Inline cache index out of bounds", state.Proc, state.PC, thread);
+#endif
+                                                    ref var cache = ref state.Proc._inlineCache[cacheIdx];
                                                     int idx;
                                                     if (cache.Type == ot) idx = cache.Index;
                                                     else
@@ -920,7 +958,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             var ot = obj.ObjectType;
                                             if (ot != null)
                                             {
-                                                ref var cache = ref state.Proc._inlineCache[state.PC - 5];
+                                                int cacheIdx = state.PC - 5;
+#if DEBUG
+                                                if (cacheIdx < 0 || cacheIdx >= state.Proc._inlineCache.Length) throw new ScriptRuntimeException("Inline cache index out of bounds", state.Proc, state.PC, thread);
+#endif
+                                                ref var cache = ref state.Proc._inlineCache[cacheIdx];
                                                 int idx;
                                                 if (cache.Type == ot) idx = cache.Index;
                                                 else
@@ -990,7 +1032,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             var ot = inst.ObjectType;
                                             if (ot != null)
                                             {
-                                                ref var cache = ref state.Proc._inlineCache[state.PC - 5];
+                                                int cacheIdx = state.PC - 5;
+#if DEBUG
+                                                if (cacheIdx < 0 || cacheIdx >= state.Proc._inlineCache.Length) throw new ScriptRuntimeException("Inline cache index out of bounds", state.Proc, state.PC, thread);
+#endif
+                                                ref var cache = ref state.Proc._inlineCache[cacheIdx];
                                                 int idx;
                                                 if (cache.Type == ot)
                                                 {
@@ -1021,7 +1067,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             var ot = inst.ObjectType;
                                             if (ot != null)
                                             {
-                                                ref var cache = ref state.Proc._inlineCache[state.PC - 5];
+                                                int cacheIdx = state.PC - 5;
+#if DEBUG
+                                                if (cacheIdx < 0 || cacheIdx >= state.Proc._inlineCache.Length) throw new ScriptRuntimeException("Inline cache index out of bounds", state.Proc, state.PC, thread);
+#endif
+                                                ref var cache = ref state.Proc._inlineCache[cacheIdx];
                                                 int idx;
                                                 if (cache.Type == ot)
                                                 {
@@ -1094,6 +1144,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         }
                                     }
                                     break;
+                                // --- OPTIMIZED SUPER-INSTRUCTIONS ---
                                 case Opcode.LocalPushLocalPushSub:
                                     {
                                         int idx1 = *(int*)(state.BytecodePtr + state.PC); state.PC += 4;

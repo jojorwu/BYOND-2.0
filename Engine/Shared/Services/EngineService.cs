@@ -7,18 +7,44 @@ namespace Shared.Services;
     {
         public virtual int Priority => 0;
 
+        private ServiceStatus _status = ServiceStatus.Stopped;
+        public ServiceStatus Status => _status;
+
         public virtual Task InitializeAsync()
         {
             return Task.CompletedTask;
         }
 
-        public virtual Task StartAsync(CancellationToken cancellationToken)
+        public virtual async Task StartAsync(CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            _status = ServiceStatus.Starting;
+            try
+            {
+                await OnStartAsync(cancellationToken);
+                _status = ServiceStatus.Running;
+            }
+            catch
+            {
+                _status = ServiceStatus.Failed;
+                throw;
+            }
         }
 
-        public virtual Task StopAsync(CancellationToken cancellationToken)
+        public virtual async Task StopAsync(CancellationToken cancellationToken)
         {
-            return Task.CompletedTask;
+            _status = ServiceStatus.Stopping;
+            try
+            {
+                await OnStopAsync(cancellationToken);
+                _status = ServiceStatus.Stopped;
+            }
+            catch
+            {
+                _status = ServiceStatus.Failed;
+                throw;
+            }
         }
+
+        protected virtual Task OnStartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        protected virtual Task OnStopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

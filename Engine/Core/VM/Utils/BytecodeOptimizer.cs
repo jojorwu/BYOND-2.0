@@ -5,6 +5,10 @@ using Shared;
 
 namespace Core.VM.Utils
 {
+    /// <summary>
+    /// Provides tools for optimizing Dream VM bytecode by fusing common instruction patterns into super-instructions
+    /// and pre-calculating jump targets.
+    /// </summary>
     public static class BytecodeOptimizer
     {
         [ThreadStatic]
@@ -16,6 +20,12 @@ namespace Core.VM.Utils
         [ThreadStatic]
         private static HashSet<int>? _jumpTargets;
 
+        /// <summary>
+        /// Optimizes the provided bytecode array.
+        /// </summary>
+        /// <param name="bytecode">The original bytecode to optimize.</param>
+        /// <param name="strings">Optional string list for built-in variable optimization.</param>
+        /// <returns>The optimized bytecode array.</returns>
         public static byte[] Optimize(byte[] bytecode, IReadOnlyList<string>? strings = null)
         {
             if (bytecode == null || bytecode.Length == 0) return bytecode ?? Array.Empty<byte>();
@@ -45,218 +55,12 @@ namespace Core.VM.Utils
 
             while (pc < bytecode.Length)
             {
-                int currentOriginalPc = pc;
-                int currentOptimizedPc = optimized.Count;
-
-                // Check if any part of the potential patterns is a jump target
-                bool IsJumpTarget(int start, int count)
-                {
-                    if (_jumpTargets == null) return false;
-                    for (int i = 1; i < count; i++) // i=1 because jumping to the START of a pattern is okay
-                    {
-                        if (_jumpTargets.Contains(start + i)) return true;
-                    }
-                    return false;
-                }
-
-                // Pattern: PushReferenceValue(Local, idx)
-                if (IsPushLocal(bytecode, pc, out int idx) && !IsJumpTarget(pc, 6))
-                {
-                    // Peek for next instruction
-                    int nextPc = pc + 6;
-                    if (IsPushLocal(bytecode, nextPc, out int idx2) && !IsJumpTarget(nextPc, 6))
-                    {
-                        int nextNextPc = nextPc + 6;
-                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.CompareEquals && !IsJumpTarget(nextNextPc, 1))
-                        {
-                            MarkPcMap(pc, nextNextPc + 1, optimized.Count);
-                            optimized.Add((byte)Opcode.LocalCompareEquals);
-                            optimized.AddRange(BitConverter.GetBytes(idx));
-                            optimized.AddRange(BitConverter.GetBytes(idx2));
-                            pc = nextNextPc + 1;
-                            continue;
-                        }
-
-                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Add && !IsJumpTarget(nextNextPc, 1))
-                        {
-                            MarkPcMap(pc, nextNextPc + 1, optimized.Count);
-                            optimized.Add((byte)Opcode.LocalPushLocalPushAdd);
-                            optimized.AddRange(BitConverter.GetBytes(idx));
-                            optimized.AddRange(BitConverter.GetBytes(idx2));
-                            pc = nextNextPc + 1;
-                            continue;
-                        }
-
-                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Multiply && !IsJumpTarget(nextNextPc, 1))
-                        {
-                            int thirdPc = nextNextPc + 1;
-                            if (IsPushLocal(bytecode, thirdPc, out int idx3) && !IsJumpTarget(thirdPc, 6))
-                            {
-                                int fourthPc = thirdPc + 6;
-                                if (fourthPc < bytecode.Length && bytecode[fourthPc] == (byte)Opcode.Add && !IsJumpTarget(fourthPc, 1))
-                                {
-                                    MarkPcMap(pc, fourthPc + 1, optimized.Count);
-                                    optimized.Add((byte)Opcode.LocalMulAdd);
-                                    optimized.AddRange(BitConverter.GetBytes(idx));
-                                    optimized.AddRange(BitConverter.GetBytes(idx2));
-                                    optimized.AddRange(BitConverter.GetBytes(idx3));
-                                    pc = fourthPc + 1;
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-
-                    if (pc + 6 + 9 < bytecode.Length && bytecode[pc + 6] == (byte)Opcode.PushFloat && !IsJumpTarget(pc + 6, 9))
-                    {
-                        int addPc = pc + 6 + 9;
-                        if (addPc < bytecode.Length && bytecode[addPc] == (byte)Opcode.Add && !IsJumpTarget(addPc, 1))
-                        {
-                            MarkPcMap(pc, addPc + 1, optimized.Count);
-                            optimized.Add((byte)Opcode.LocalAddFloat);
-                            optimized.AddRange(BitConverter.GetBytes(idx));
-                            optimized.AddRange(bytecode.AsSpan(pc + 7, 8)); // Copy float
-                            pc = addPc + 1;
-                            continue;
-                        }
-                    }
-
-                    // Peek for next instruction
-                    int postPushPc = pc + 6;
-                    if (postPushPc + 5 < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(postPushPc, 5))
-                    {
-                        MarkPcMap(pc, postPushPc + 5, optimized.Count);
-                        optimized.Add((byte)Opcode.LocalJumpIfFalse);
-                        optimized.AddRange(BitConverter.GetBytes(idx));
-                        _labelLocations.Add(optimized.Count);
-                        optimized.AddRange(bytecode.AsSpan(postPushPc + 1, 4));
-                        pc = postPushPc + 5;
-                        continue;
-                    }
-
-
-                    if (postPushPc < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.Return && !IsJumpTarget(postPushPc, 1))
-                    {
-                        MarkPcMap(pc, postPushPc + 1, optimized.Count);
-                        optimized.Add((byte)Opcode.LocalPushReturn);
-                        optimized.AddRange(BitConverter.GetBytes(idx));
-                        pc = postPushPc + 1;
-                        continue;
-                    }
-
-                    // Otherwise just optimize to PushLocal
-                    MarkPcMap(pc, pc + 6, optimized.Count);
-                    optimized.Add((byte)Opcode.PushLocal);
-                    optimized.AddRange(BitConverter.GetBytes(idx));
-                    pc += 6;
-                    continue;
-                }
-
-                // Pattern: PushReferenceValue(Argument, idx)
-                if (IsPushArgument(bytecode, pc, out int argIdx))
-                {
-                    MarkPcMap(pc, pc + 6, optimized.Count);
-                    optimized.Add((byte)Opcode.PushArgument);
-                    optimized.AddRange(BitConverter.GetBytes(argIdx));
-                    pc += 6;
-                    continue;
-                }
-
-                // Pattern: PushNull/True/False, Return
-                if (pc + 1 < bytecode.Length && (bytecode[pc] == (byte)Opcode.PushNull || bytecode[pc] == (byte)Opcode.PushFloat) && bytecode[pc+1] == (byte)Opcode.Return && !IsJumpTarget(pc + 1, 1))
-                {
-                    if (bytecode[pc] == (byte)Opcode.PushNull)
-                    {
-                        MarkPcMap(pc, pc + 2, optimized.Count);
-                        optimized.Add((byte)Opcode.ReturnNull);
-                        pc += 2;
-                        continue;
-                    }
-                    else if (bytecode[pc] == (byte)Opcode.PushFloat)
-                    {
-                        if (pc + 9 < bytecode.Length && bytecode[pc + 9] == (byte)Opcode.Return && !IsJumpTarget(pc + 9, 1))
-                        {
-                            double val = BitConverter.ToDouble(bytecode, pc + 1);
-                            if (val == 1.0)
-                            {
-                                MarkPcMap(pc, pc + 10, optimized.Count);
-                                optimized.Add((byte)Opcode.ReturnTrue);
-                                pc += 10;
-                                continue;
-                            }
-                            else if (val == 0.0)
-                            {
-                                MarkPcMap(pc, pc + 10, optimized.Count);
-                                optimized.Add((byte)Opcode.ReturnFalse);
-                                pc += 10;
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                // Pattern: Assign(Local, idx)
-                if (IsAssignLocal(bytecode, pc, out int assignIdx))
-                {
-                    MarkPcMap(pc, pc + 6, optimized.Count);
-                    optimized.Add((byte)Opcode.AssignLocal);
-                    optimized.AddRange(BitConverter.GetBytes(assignIdx));
-                    pc += 6;
-                    continue;
-                }
-
-                // Pattern: GetVariable(stringId) where stringId is a built-in
-                if (strings != null && pc + 4 < bytecode.Length && bytecode[pc] == (byte)Opcode.GetVariable)
-                {
-                    int stringId = BitConverter.ToInt32(bytecode, pc + 1);
-                    if (stringId >= 0 && stringId < strings.Count)
-                    {
-                        var builtin = GetBuiltinVarType(strings[stringId]);
-                        if (builtin.HasValue)
-                        {
-                            MarkPcMap(pc, pc + 5, optimized.Count);
-                            optimized.Add((byte)Opcode.GetBuiltinVar);
-                            optimized.Add((byte)builtin.Value);
-                            pc += 5;
-                            continue;
-                        }
-                    }
-                }
-
-                // Pattern: SetVariable(stringId) where stringId is a built-in
-                if (strings != null && pc + 4 < bytecode.Length && bytecode[pc] == (byte)Opcode.SetVariable)
-                {
-                    int stringId = BitConverter.ToInt32(bytecode, pc + 1);
-                    if (stringId >= 0 && stringId < strings.Count)
-                    {
-                        var builtin = GetBuiltinVarType(strings[stringId]);
-                        if (builtin.HasValue)
-                        {
-                            MarkPcMap(pc, pc + 5, optimized.Count);
-                            optimized.Add((byte)Opcode.SetBuiltinVar);
-                            optimized.Add((byte)builtin.Value);
-                            pc += 5;
-                            continue;
-                        }
-                    }
-                }
-
-                // Pattern: PushReferenceValue(ref), JumpIfFalse(label) -> JumpIfReferenceFalse(ref, label)
-                if (pc + 1 < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue && !IsJumpTarget(pc, 1 + GetReferenceSize(bytecode, pc + 1)))
-                {
-                    int refSize = GetReferenceSize(bytecode, pc + 1);
-                    int jumpPc = pc + 1 + refSize;
-                    if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(jumpPc, 5))
-                    {
-                        MarkPcMap(pc, jumpPc + 5, optimized.Count);
-                        optimized.Add((byte)Opcode.JumpIfReferenceFalse);
-                        optimized.AddRange(bytecode.AsSpan(pc + 1, refSize));
-                        _labelLocations.Add(optimized.Count);
-                        optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
-                        pc = jumpPc + 5;
-                        continue;
-                    }
-                }
+                if (TryOptimizePushLocalPattern(bytecode, ref pc, optimized, _labelLocations, _jumpTargets)) continue;
+                if (TryOptimizePushArgumentPattern(bytecode, ref pc, optimized, _jumpTargets)) continue;
+                if (TryOptimizeReturnPattern(bytecode, ref pc, optimized, _jumpTargets)) continue;
+                if (TryOptimizeAssignLocalPattern(bytecode, ref pc, optimized, _jumpTargets)) continue;
+                if (TryOptimizeBuiltinVarPattern(bytecode, ref pc, optimized, strings, _jumpTargets)) continue;
+                if (TryOptimizeReferenceJumpPattern(bytecode, ref pc, optimized, _labelLocations, _jumpTargets)) continue;
 
                 // Default: Copy opcode and arguments, tracking labels
                 _pcMap[pc] = optimized.Count;
@@ -391,6 +195,281 @@ namespace Core.VM.Utils
             };
         }
 
+        private static bool TryOptimizePushLocalPattern(byte[] bytecode, ref int pc, List<byte> optimized, List<int> labelLocations, HashSet<int> jumpTargets)
+        {
+            if (!IsPushLocal(bytecode, pc, out int idx) || IsAnyPartJumpTarget(pc, 6, jumpTargets)) return false;
+
+            int originalPc = pc;
+            int nextPc = pc + 6;
+
+            // Pattern: PushLocal(idx), PushLocal(idx2)
+            if (IsPushLocal(bytecode, nextPc, out int idx2) && !IsAnyPartJumpTarget(nextPc, 6, jumpTargets))
+            {
+                int nextNextPc = nextPc + 6;
+                if (nextNextPc < bytecode.Length && !IsAnyPartJumpTarget(nextNextPc, 1, jumpTargets))
+                {
+                    Opcode op = (Opcode)bytecode[nextNextPc];
+                    Opcode superOp = op switch
+                    {
+                        Opcode.Add => Opcode.LocalPushLocalPushAdd,
+                        Opcode.Subtract => Opcode.LocalPushLocalPushSub,
+                        Opcode.Multiply => Opcode.LocalPushLocalPushMul,
+                        Opcode.Divide => Opcode.LocalPushLocalPushDiv,
+                        Opcode.CompareEquals => Opcode.LocalCompareEquals,
+                        Opcode.CompareNotEquals => Opcode.LocalCompareNotEquals,
+                        _ => Opcode.Error
+                    };
+
+                    if (superOp != Opcode.Error)
+                    {
+                        // Check for LocalMulAdd
+                        if (superOp == Opcode.LocalPushLocalPushMul)
+                        {
+                            int thirdPc = nextNextPc + 1;
+                            if (IsPushLocal(bytecode, thirdPc, out int idx3) && !IsAnyPartJumpTarget(thirdPc, 6, jumpTargets))
+                            {
+                                int fourthPc = thirdPc + 6;
+                                if (fourthPc < bytecode.Length && bytecode[fourthPc] == (byte)Opcode.Add && !IsAnyPartJumpTarget(fourthPc, 1, jumpTargets))
+                                {
+                                    MarkPcMap(originalPc, fourthPc + 1, optimized.Count);
+                                    optimized.Add((byte)Opcode.LocalMulAdd);
+                                    optimized.AddRange(BitConverter.GetBytes(idx));
+                                    optimized.AddRange(BitConverter.GetBytes(idx2));
+                                    optimized.AddRange(BitConverter.GetBytes(idx3));
+                                    pc = fourthPc + 1;
+                                    return true;
+                                }
+                            }
+                        }
+
+                        MarkPcMap(originalPc, nextNextPc + 1, optimized.Count);
+                        optimized.Add((byte)superOp);
+                        optimized.AddRange(BitConverter.GetBytes(idx));
+                        optimized.AddRange(BitConverter.GetBytes(idx2));
+                        pc = nextNextPc + 1;
+                        return true;
+                    }
+                }
+            }
+
+            // Pattern: PushLocal(idx), PushFloat(val), Add
+            if (pc + 6 + 9 < bytecode.Length && bytecode[pc + 6] == (byte)Opcode.PushFloat && !IsAnyPartJumpTarget(pc + 6, 9, jumpTargets))
+            {
+                int addPc = pc + 6 + 9;
+                if (addPc < bytecode.Length && bytecode[addPc] == (byte)Opcode.Add && !IsAnyPartJumpTarget(addPc, 1, jumpTargets))
+                {
+                    MarkPcMap(originalPc, addPc + 1, optimized.Count);
+                    optimized.Add((byte)Opcode.LocalAddFloat);
+                    optimized.AddRange(BitConverter.GetBytes(idx));
+                    optimized.AddRange(bytecode.AsSpan(pc + 7, 8)); // Copy float
+                    pc = addPc + 1;
+                    return true;
+                }
+            }
+
+            // Pattern: PushLocal(idx), JumpIfFalse
+            int postPushPc = pc + 6;
+            if (postPushPc + 5 < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.JumpIfFalse && !IsAnyPartJumpTarget(postPushPc, 5, jumpTargets))
+            {
+                MarkPcMap(originalPc, postPushPc + 5, optimized.Count);
+                optimized.Add((byte)Opcode.LocalJumpIfFalse);
+                optimized.AddRange(BitConverter.GetBytes(idx));
+                labelLocations.Add(optimized.Count);
+                optimized.AddRange(bytecode.AsSpan(postPushPc + 1, 4));
+                pc = postPushPc + 5;
+                return true;
+            }
+
+            // Pattern: PushLocal(idx), BooleanNot, JumpIfFalse -> LocalJumpIfTrue
+            if (postPushPc + 1 + 5 <= bytecode.Length && bytecode[postPushPc] == (byte)Opcode.BooleanNot && bytecode[postPushPc + 1] == (byte)Opcode.JumpIfFalse && !IsAnyPartJumpTarget(postPushPc, 1, jumpTargets) && !IsAnyPartJumpTarget(postPushPc + 1, 5, jumpTargets))
+            {
+                MarkPcMap(originalPc, postPushPc + 6, optimized.Count);
+                optimized.Add((byte)Opcode.LocalJumpIfTrue);
+                optimized.AddRange(BitConverter.GetBytes(idx));
+                labelLocations.Add(optimized.Count);
+                optimized.AddRange(bytecode.AsSpan(postPushPc + 2, 4));
+                pc = postPushPc + 6;
+                return true;
+            }
+
+            // Pattern: PushLocal(idx), Return
+            if (postPushPc < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.Return && !IsAnyPartJumpTarget(postPushPc, 1, jumpTargets))
+            {
+                MarkPcMap(originalPc, postPushPc + 1, optimized.Count);
+                optimized.Add((byte)Opcode.LocalPushReturn);
+                optimized.AddRange(BitConverter.GetBytes(idx));
+                pc = postPushPc + 1;
+                return true;
+            }
+
+            // Otherwise just optimize to PushLocal
+            MarkPcMap(originalPc, pc + 6, optimized.Count);
+            optimized.Add((byte)Opcode.PushLocal);
+            optimized.AddRange(BitConverter.GetBytes(idx));
+            pc += 6;
+            return true;
+        }
+
+        private static bool TryOptimizePushArgumentPattern(byte[] bytecode, ref int pc, List<byte> optimized, HashSet<int> jumpTargets)
+        {
+            if (IsPushArgument(bytecode, pc, out int argIdx))
+            {
+                MarkPcMap(pc, pc + 6, optimized.Count);
+                optimized.Add((byte)Opcode.PushArgument);
+                optimized.AddRange(BitConverter.GetBytes(argIdx));
+                pc += 6;
+                return true;
+            }
+            return false;
+        }
+
+        private static bool TryOptimizeReturnPattern(byte[] bytecode, ref int pc, List<byte> optimized, HashSet<int> jumpTargets)
+        {
+            if (bytecode[pc] == (byte)Opcode.Return) return false;
+
+            if (bytecode[pc] == (byte)Opcode.PushNull)
+            {
+                if (pc + 1 < bytecode.Length && bytecode[pc + 1] == (byte)Opcode.Return && !IsAnyPartJumpTarget(pc + 1, 1, jumpTargets))
+                {
+                    MarkPcMap(pc, pc + 2, optimized.Count);
+                    optimized.Add((byte)Opcode.ReturnNull);
+                    pc += 2;
+                    return true;
+                }
+            }
+            else if (bytecode[pc] == (byte)Opcode.PushFloat)
+            {
+                if (pc + 9 < bytecode.Length && bytecode[pc + 9] == (byte)Opcode.Return && !IsAnyPartJumpTarget(pc + 9, 1, jumpTargets))
+                {
+                    double val = BitConverter.ToDouble(bytecode, pc + 1);
+                    if (val == 1.0)
+                    {
+                        MarkPcMap(pc, pc + 10, optimized.Count);
+                        optimized.Add((byte)Opcode.ReturnTrue);
+                        pc += 10;
+                        return true;
+                    }
+                    else if (val == 0.0)
+                    {
+                        MarkPcMap(pc, pc + 10, optimized.Count);
+                        optimized.Add((byte)Opcode.ReturnFalse);
+                        pc += 10;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static bool TryOptimizeAssignLocalPattern(byte[] bytecode, ref int pc, List<byte> optimized, HashSet<int> jumpTargets)
+        {
+            if (IsAssignLocal(bytecode, pc, out int assignIdx))
+            {
+                MarkPcMap(pc, pc + 6, optimized.Count);
+                optimized.Add((byte)Opcode.AssignLocal);
+                optimized.AddRange(BitConverter.GetBytes(assignIdx));
+                pc += 6;
+                return true;
+            }
+            return false;
+        }
+
+        private static bool TryOptimizeBuiltinVarPattern(byte[] bytecode, ref int pc, List<byte> optimized, IReadOnlyList<string>? strings, HashSet<int> jumpTargets)
+        {
+            if (strings == null) return false;
+
+            if (pc + 4 < bytecode.Length && (bytecode[pc] == (byte)Opcode.GetVariable || bytecode[pc] == (byte)Opcode.SetVariable))
+            {
+                int stringId = BitConverter.ToInt32(bytecode, pc + 1);
+                if (stringId >= 0 && stringId < strings.Count)
+                {
+                    var builtin = GetBuiltinVarType(strings[stringId]);
+                    if (builtin.HasValue)
+                    {
+                        Opcode superOp = bytecode[pc] == (byte)Opcode.GetVariable ? Opcode.GetBuiltinVar : Opcode.SetBuiltinVar;
+                        MarkPcMap(pc, pc + 5, optimized.Count);
+                        optimized.Add((byte)superOp);
+                        optimized.Add((byte)builtin.Value);
+                        pc += 5;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static bool TryOptimizeReferenceJumpPattern(byte[] bytecode, ref int pc, List<byte> optimized, List<int> labelLocations, HashSet<int> jumpTargets)
+        {
+            // Pattern: PushReferenceValue(ref), JumpIfFalse(label) -> JumpIfReferenceFalse(ref, label)
+            if (pc + 1 < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue && !IsAnyPartJumpTarget(pc, 1 + GetReferenceSize(bytecode, pc + 1), jumpTargets))
+            {
+                int refSize = GetReferenceSize(bytecode, pc + 1);
+                int jumpPc = pc + 1 + refSize;
+                if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsAnyPartJumpTarget(jumpPc, 5, jumpTargets))
+                {
+                    if (bytecode[pc + 1] == (byte)DMReference.Type.Local)
+                    {
+                        int lIdx = BitConverter.ToInt32(bytecode, pc + 2);
+                        MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                        optimized.Add((byte)Opcode.LocalJumpIfFalse);
+                        optimized.AddRange(BitConverter.GetBytes(lIdx));
+                        labelLocations.Add(optimized.Count);
+                        optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
+                    }
+                    else
+                    {
+                        MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                        optimized.Add((byte)Opcode.JumpIfReferenceFalse);
+                        optimized.AddRange(bytecode.AsSpan(pc + 1, refSize));
+                        labelLocations.Add(optimized.Count);
+                        optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
+                    }
+                    pc = jumpPc + 5;
+                    return true;
+                }
+            }
+
+            // Pattern: JumpIfTrueReference(Local, ...) -> LocalJumpIfTrue
+            if (bytecode[pc] == (byte)Opcode.JumpIfTrueReference && pc + 1 < bytecode.Length && bytecode[pc + 1] == (byte)DMReference.Type.Local)
+            {
+                int lIdx = BitConverter.ToInt32(bytecode, pc + 2);
+                MarkPcMap(pc, pc + 10, optimized.Count);
+                optimized.Add((byte)Opcode.LocalJumpIfTrue);
+                optimized.AddRange(BitConverter.GetBytes(lIdx));
+                labelLocations.Add(optimized.Count);
+                optimized.AddRange(bytecode.AsSpan(pc + 6, 4));
+                pc += 10;
+                return true;
+            }
+
+            // Pattern: JumpIfFalseReference(Local, ...) -> LocalJumpIfFalse
+            if (bytecode[pc] == (byte)Opcode.JumpIfFalseReference && pc + 1 < bytecode.Length && bytecode[pc + 1] == (byte)DMReference.Type.Local)
+            {
+                int lIdx = BitConverter.ToInt32(bytecode, pc + 2);
+                MarkPcMap(pc, pc + 10, optimized.Count);
+                optimized.Add((byte)Opcode.LocalJumpIfFalse);
+                optimized.AddRange(BitConverter.GetBytes(lIdx));
+                labelLocations.Add(optimized.Count);
+                optimized.AddRange(bytecode.AsSpan(pc + 6, 4));
+                pc += 10;
+                return true;
+            }
+
+            // Pattern: JumpIfReferenceFalse(Local, ...) -> LocalJumpIfFalse
+            if (bytecode[pc] == (byte)Opcode.JumpIfReferenceFalse && pc + 1 < bytecode.Length && bytecode[pc + 1] == (byte)DMReference.Type.Local)
+            {
+                int lIdx = BitConverter.ToInt32(bytecode, pc + 2);
+                MarkPcMap(pc, pc + 10, optimized.Count);
+                optimized.Add((byte)Opcode.LocalJumpIfFalse);
+                optimized.AddRange(BitConverter.GetBytes(lIdx));
+                labelLocations.Add(optimized.Count);
+                optimized.AddRange(bytecode.AsSpan(pc + 6, 4));
+                pc += 10;
+                return true;
+            }
+            return false;
+        }
+
         private static bool IsPushLocal(byte[] bytecode, int pc, out int index)
         {
             index = 0;
@@ -399,6 +478,16 @@ namespace Core.VM.Utils
             {
                 index = BitConverter.ToInt32(bytecode, pc + 2);
                 return true;
+            }
+            return false;
+        }
+
+        private static bool IsAnyPartJumpTarget(int pc, int count, HashSet<int>? jumpTargets)
+        {
+            if (jumpTargets == null) return false;
+            for (int i = 1; i < count; i++) // i=1 because jumping to the START of a pattern is okay
+            {
+                if (jumpTargets.Contains(pc + i)) return true;
             }
             return false;
         }

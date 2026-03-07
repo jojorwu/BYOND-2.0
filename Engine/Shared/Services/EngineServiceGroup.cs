@@ -14,6 +14,8 @@ namespace Shared.Services;
         private readonly ILogger? _logger;
 
         public int Priority { get; }
+        private ServiceStatus _status = ServiceStatus.Stopped;
+        public ServiceStatus Status => _status;
 
         public EngineServiceGroup(string groupName, int priority, IEnumerable<IEngineService> services, ILogger? logger = null)
         {
@@ -34,6 +36,7 @@ namespace Shared.Services;
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
+            _status = ServiceStatus.Starting;
             _logger?.LogInformation("Starting Service Group: {GroupName}", _groupName);
 
             // Start services within the group in parallel if they share priority
@@ -45,10 +48,12 @@ namespace Shared.Services;
             {
                 await Task.WhenAll(group.Select(s => s.StartAsync(cancellationToken)));
             }
+            _status = ServiceStatus.Running;
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
+            _status = ServiceStatus.Stopping;
             _logger?.LogInformation("Stopping Service Group: {GroupName}", _groupName);
 
             // Stop in reverse priority

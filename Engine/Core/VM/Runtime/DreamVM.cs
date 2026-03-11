@@ -21,7 +21,6 @@ namespace Core.VM.Runtime
         public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
         public IGameApi? GameApi { get => Context.GameApi; set => Context.GameApi = value; }
 
-        private readonly ServerSettings _settings;
         private readonly ILogger<DreamVM> _logger;
         private readonly IEnumerable<INativeProcProvider> _nativeProcProviders;
         private readonly IBytecodeInterpreter _interpreter;
@@ -31,8 +30,8 @@ namespace Core.VM.Runtime
 
         public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
         {
-            _settings = settings.Value;
-            _maxInstructions = _settings.VmMaxInstructions;
+            var config = settings.Value;
+            _maxInstructions = config.VmMaxInstructions;
             _logger = logger;
             _nativeProcProviders = nativeProcProviders;
             _objectFactory = objectFactory;

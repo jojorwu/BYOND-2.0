@@ -11,24 +11,34 @@ namespace Shared.Interfaces;
         Failed
     }
 
+    /// <summary>
+    /// Defines the lifecycle and metadata for an engine-level service.
+    /// </summary>
     public interface IEngineService : IAsyncInitializable
     {
+        /// <summary>
+        /// Starts the service asynchronously.
+        /// </summary>
         Task StartAsync(CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Stops the service asynchronously.
+        /// </summary>
         Task StopAsync(CancellationToken cancellationToken);
 
         /// <summary>
         /// Priority of the service. Higher priority services start first and stop last.
         /// </summary>
-        int Priority => 0;
+        int Priority { get; }
 
         /// <summary>
         /// Whether the service is critical to the engine's operation.
         /// If a critical service fails to start, the engine will shut down.
         /// </summary>
-        bool IsCritical => true;
+        bool IsCritical { get; }
 
         /// <summary>
         /// Current status of the service.
         /// </summary>
-        ServiceStatus Status => ServiceStatus.Stopped;
+        ServiceStatus Status { get; }
     }

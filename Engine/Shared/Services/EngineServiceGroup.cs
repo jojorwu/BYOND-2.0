@@ -14,6 +14,10 @@ namespace Shared.Services;
         private readonly ILogger? _logger;
 
         public int Priority { get; }
+        public bool IsCritical => _services.Any(s => s.IsCritical);
+        public ServiceStatus Status => _services.Any(s => s.Status == ServiceStatus.Failed) ? ServiceStatus.Failed :
+                                      _services.All(s => s.Status == ServiceStatus.Stopped) ? ServiceStatus.Stopped :
+                                      ServiceStatus.Running;
 
         public EngineServiceGroup(string groupName, int priority, IEnumerable<IEngineService> services, ILogger? logger = null)
         {

@@ -1,0 +1,129 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Shared.Interfaces;
+
+namespace Shared.Services;
+
+/// <summary>
+/// Base class for engine-based applications (Server, Client, Editor)
+/// that manages a collection of <see cref="IEngineService"/> components.
+/// </summary>
+public abstract class EngineApplication : IHostedService
+{
+    protected readonly ILogger _logger;
+    protected readonly List<IEngineService> _services;
+
+    protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services)
+    {
+        _logger = logger;
+        _services = services.ToList();
+        _logger.LogInformation("{AppName} initialized with {Count} services.", GetType().Name, _services.Count);
+    }
+
+    /// <summary>
+    /// Starts all registered services in order of their priority.
+    /// Services with the same priority are initialized and started in parallel.
+    /// </summary>
+    public virtual async Task StartAsync(CancellationToken cancellationToken)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        _logger.LogInformation("Starting {AppName} Lifecycle...", GetType().Name);
+
+        // Group by priority and start independent services in parallel
+        var priorityGroups = _services
+            .GroupBy(s => s.Priority)
+            .OrderByDescending(g => g.Key)
+            .Select(g => g.ToList())
+            .ToList();
+
+        foreach (var group in priorityGroups)
+        {
+            _logger.LogInformation("  Starting Service Group (Priority: {Priority})...", group[0].Priority);
+
+            var tasks = group.Select(async service =>
+            {
+                var serviceName = service.GetType().Name;
+                try
+                {
+                    _logger.LogDebug("    -> Loading {ServiceName}...", serviceName);
+                    var serviceSw = System.Diagnostics.Stopwatch.StartNew();
+
+                    await service.InitializeAsync();
+                    await service.StartAsync(cancellationToken);
+
+                    serviceSw.Stop();
+                    _logger.LogInformation("    [OK] {ServiceName} loaded in {Elapsed}ms", serviceName, serviceSw.ElapsedMilliseconds);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "    [FAIL] Failed to start service: {ServiceName}", serviceName);
+                    if (service.IsCritical)
+                    {
+                        throw; // Rethrow to abort startup
+                    }
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }
+
+        sw.Stop();
+        _logger.LogInformation("{AppName} lifecycle started successfully in {Elapsed}ms", GetType().Name, sw.ElapsedMilliseconds);
+
+        await OnStartAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Stops all registered services in reverse order of their priority.
+    /// </summary>
+    public virtual async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Stopping {AppName} Lifecycle...", GetType().Name);
+
+        await OnStopAsync(cancellationToken);
+
+        // Stop in reverse order of startup (lower priority group stops first)
+        var priorityGroups = _services
+            .GroupBy(s => s.Priority)
+            .OrderBy(g => g.Key)
+            .Select(g => g.ToList())
+            .ToList();
+
+        foreach (var group in priorityGroups)
+        {
+            _logger.LogDebug("  Stopping Service Group (Priority: {Priority})...", group[0].Priority);
+
+            var tasks = group.Select(async service =>
+            {
+                var serviceName = service.GetType().Name;
+                try
+                {
+                    await service.StopAsync(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "    Error stopping service: {ServiceName}", serviceName);
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }
+
+        _logger.LogInformation("{AppName} lifecycle stopped.", GetType().Name);
+    }
+
+    /// <summary>
+    /// Hook for derived classes to perform actions after all services have started.
+    /// </summary>
+    protected virtual Task OnStartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Hook for derived classes to perform actions before services begin stopping.
+    /// </summary>
+    protected virtual Task OnStopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}

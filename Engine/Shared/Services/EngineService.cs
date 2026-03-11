@@ -20,7 +20,7 @@ namespace Shared.Services;
         private ServiceStatus _status = ServiceStatus.Stopped;
 
         /// <inheritdoc />
-        public ServiceStatus Status
+        public virtual ServiceStatus Status
         {
             get => _status;
             protected set => _status = value;
@@ -68,5 +68,17 @@ namespace Shared.Services;
         protected void SetStopping()
         {
             Status = ServiceStatus.Stopping;
+        }
+
+        /// <inheritdoc />
+        public virtual Dictionary<string, object> GetDiagnosticInfo()
+        {
+            return new Dictionary<string, object>
+            {
+                { "Name", Name },
+                { "Status", Status.ToString() },
+                { "Priority", Priority },
+                { "IsCritical", IsCritical }
+            };
         }
     }

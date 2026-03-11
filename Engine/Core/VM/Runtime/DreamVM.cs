@@ -97,5 +97,15 @@ namespace Core.VM.Runtime
         {
             Context.Dispose();
         }
+
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            info["ProcCount"] = AllProcs.Count;
+            info["GlobalCount"] = Globals.Count;
+            info["StringCount"] = Strings.Count;
+            info["MaxInstructions"] = _maxInstructions;
+            return info;
+        }
     }
 }

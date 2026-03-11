@@ -7,16 +7,16 @@ using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class EngineServiceGroup : IEngineService
+    public class EngineServiceGroup : EngineService, IEngineService
     {
         private readonly string _groupName;
         private readonly List<IEngineService> _services;
         private readonly ILogger? _logger;
 
-        public string Name => _groupName;
-        public int Priority { get; }
-        public bool IsCritical => _services.Any(s => s.IsCritical);
-        public ServiceStatus Status => _services.Any(s => s.Status == ServiceStatus.Failed) ? ServiceStatus.Failed :
+        public override string Name => _groupName;
+        public override int Priority { get; }
+        public override bool IsCritical => _services.Any(s => s.IsCritical);
+        public override ServiceStatus Status => _services.Any(s => s.Status == ServiceStatus.Failed) ? ServiceStatus.Failed :
                                       _services.All(s => s.Status == ServiceStatus.Stopped) ? ServiceStatus.Stopped :
                                       ServiceStatus.Running;
 
@@ -28,7 +28,7 @@ namespace Shared.Services;
             _logger = logger;
         }
 
-        public async Task InitializeAsync()
+        public override async Task InitializeAsync()
         {
             _logger?.LogInformation("Initializing Service Group: {GroupName}", _groupName);
             foreach (var service in _services)
@@ -37,7 +37,7 @@ namespace Shared.Services;
             }
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public override async Task StartAsync(CancellationToken cancellationToken)
         {
             _logger?.LogInformation("Starting Service Group: {GroupName}", _groupName);
 
@@ -52,7 +52,15 @@ namespace Shared.Services;
             }
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            var serviceStates = _services.ToDictionary(s => s.Name, s => s.Status.ToString());
+            info["Services"] = serviceStates;
+            return info;
+        }
+
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
             _logger?.LogInformation("Stopping Service Group: {GroupName}", _groupName);
 

@@ -35,6 +35,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
         services.AddSingleton<StringInterner>();
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
+        services.AddSingleton<IEntityRegistry, EntityRegistry>();
         services.AddSingleton<IObjectFactory, ObjectFactory>();
         services.AddSingleton<IArenaAllocator, ArenaProxy>();
         return services;
@@ -51,6 +52,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
 
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
+        services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
         services.AddSingleton<ISystemManager, SystemManager>();
         services.AddSingleton<IArchetypeManager, ArchetypeManager>();
         services.AddSingleton<ComponentManager>();

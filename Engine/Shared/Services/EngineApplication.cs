@@ -17,6 +17,7 @@ public abstract class EngineApplication : IHostedService
 {
     protected readonly ILogger _logger;
     protected readonly List<IEngineService> _services;
+    protected virtual TimeSpan StartupTimeout => TimeSpan.FromSeconds(30);
 
     protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services)
     {
@@ -45,6 +46,9 @@ public abstract class EngineApplication : IHostedService
         {
             _logger.LogInformation("  Starting Service Group (Priority: {Priority})...", group[0].Priority);
 
+            var groupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            groupCts.CancelAfter(StartupTimeout);
+
             var tasks = group.Select(async service =>
             {
                 var serviceName = service.GetType().Name;
@@ -54,10 +58,15 @@ public abstract class EngineApplication : IHostedService
                     var serviceSw = System.Diagnostics.Stopwatch.StartNew();
 
                     await service.InitializeAsync();
-                    await service.StartAsync(cancellationToken);
+                    await service.StartAsync(groupCts.Token);
 
                     serviceSw.Stop();
                     _logger.LogInformation("    [OK] {ServiceName} loaded in {Elapsed}ms", serviceName, serviceSw.ElapsedMilliseconds);
+                }
+                catch (OperationCanceledException) when (groupCts.IsCancellationRequested)
+                {
+                    _logger.LogError("    [TIMEOUT] Service {ServiceName} failed to start within {Timeout}ms", serviceName, StartupTimeout.TotalMilliseconds);
+                    if (service.IsCritical) throw new TimeoutException($"Critical service {serviceName} timed out during startup.");
                 }
                 catch (Exception ex)
                 {

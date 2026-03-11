@@ -290,8 +290,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.RawLong + b.RawLong);
-                                            else a = new DreamValue(a.RawDouble + b.RawDouble);
+                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong);
+                                            else a = new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble);
                                         }
                                         else a = a + b;
                                     }
@@ -314,8 +314,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             if (a.Type <= DreamValueType.Integer)
                                             {
-                                                if (a.Type == DreamValueType.Integer) a = (a.RawLong == b.RawLong) ? DreamValue.True : DreamValue.False;
-                                                else a = (a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
+                                                if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
+                                                else a = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
                                             }
                                             else a = (a.Equals(b)) ? DreamValue.True : DreamValue.False;
                                         }
@@ -330,8 +330,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             if (a.Type <= DreamValueType.Integer)
                                             {
-                                                if (a.Type == DreamValueType.Integer) a = (a.RawLong != b.RawLong) ? DreamValue.True : DreamValue.False;
-                                                else a = (a.RawDouble != b.RawDouble && Math.Abs(a.RawDouble - b.RawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
+                                                if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
+                                                else a = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
                                             }
                                             else a = (!a.Equals(b)) ? DreamValue.True : DreamValue.False;
                                         }
@@ -344,7 +344,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong < b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong < b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble < b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a < b) ? DreamValue.True : DreamValue.False;
@@ -356,7 +356,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong > b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong > b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble > b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a > b) ? DreamValue.True : DreamValue.False;
@@ -368,7 +368,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong <= b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong <= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble <= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a <= b) ? DreamValue.True : DreamValue.False;
@@ -380,7 +380,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong >= b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong >= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble >= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a >= b) ? DreamValue.True : DreamValue.False;
@@ -392,8 +392,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.RawLong - b.RawLong);
-                                            else a = new DreamValue(a.RawDouble - b.RawDouble);
+                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong);
+                                            else a = new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble);
                                         }
                                         else a = a - b;
                                     }
@@ -404,8 +404,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.RawLong * b.RawLong);
-                                            else a = new DreamValue(a.RawDouble * b.RawDouble);
+                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
+                                            else a = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
                                         }
                                         else a = a * b;
                                     }
@@ -414,8 +414,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         var b = state.Stack[--state.StackPtr];
                                         ref var a = ref state.Stack[state.StackPtr - 1];
-                                        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
-                                        a = (db != 0) ? new DreamValue((a.Type == DreamValueType.Float ? a.RawDouble : a.GetValueAsDouble()) / db) : new DreamValue(0.0);
+                                        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
+                                        a = (db != 0) ? new DreamValue((a.Type == DreamValueType.Float ? a.UnsafeRawDouble : a.GetValueAsDouble()) / db) : new DreamValue(0.0);
                                     }
                                     break;
                                 case Opcode.Modulus:
@@ -426,13 +426,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             if (a.Type == DreamValueType.Integer)
                                             {
-                                                long lb = b.RawLong;
-                                                a = (lb != 0) ? new DreamValue(a.RawLong % lb) : new DreamValue(0L);
+                                                long lb = b.UnsafeRawLong;
+                                                a = (lb != 0) ? new DreamValue(a.UnsafeRawLong % lb) : new DreamValue(0L);
                                             }
                                             else
                                             {
-                                                double db = b.RawDouble;
-                                                a = (db != 0) ? new DreamValue(a.RawDouble % db) : new DreamValue(0.0);
+                                                double db = b.UnsafeRawDouble;
+                                                a = (db != 0) ? new DreamValue(a.UnsafeRawDouble % db) : new DreamValue(0.0);
                                             }
                                         }
                                         else a = a % b;
@@ -891,7 +891,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                                                 state.Push(new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong));
                                             else
-                                                state.Push(new DreamValue(a.RawDouble + b.RawDouble));
+                                                state.Push(new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble));
                                         }
                                         else state.Push(a + b);
                                     }
@@ -909,7 +909,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                                                 state.Push(new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong));
                                             else
-                                                state.Push(new DreamValue(a.RawDouble - b.RawDouble));
+                                                state.Push(new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble));
                                         }
                                         else state.Push(a - b);
                                     }
@@ -922,7 +922,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 8;
                                         var a = state.Locals[idx];
                                         if (a.Type <= DreamValueType.Integer)
-                                            state.Push(new DreamValue(a.RawDouble + val));
+                                            state.Push(new DreamValue(a.UnsafeRawDouble + val));
                                         else
                                             state.Push(a + val);
                                     }
@@ -943,7 +943,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer && c.Type == DreamValueType.Integer)
                                                 state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong + c.UnsafeRawLong));
                                             else
-                                                state.Push(new DreamValue(a.RawDouble * b.RawDouble + c.RawDouble));
+                                                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble + c.UnsafeRawDouble));
                                         }
                                         else state.Push(a * b + c);
                                     }
@@ -1265,7 +1265,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                                                 a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
                                             else
-                                                a = new DreamValue(a.RawDouble * b.RawDouble);
+                                                a = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
                                         }
                                         else a = a * b;
                                     }
@@ -1278,11 +1278,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         ref var a = ref state.Locals[idx1];
                                         var b = state.Locals[idx2];
-                                        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+                                        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
                                         if (db != 0)
                                         {
                                             if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
-                                                a = new DreamValue(a.RawDouble / db);
+                                                a = new DreamValue(a.UnsafeRawDouble / db);
                                             else a = a / b;
                                         }
                                         else a = new DreamValue(0.0);
@@ -1295,7 +1295,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         double val = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
                                         ref var a = ref state.Locals[idx];
-                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble * val);
+                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble * val);
                                         else a = a * val;
                                     }
                                     break;
@@ -1308,7 +1308,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Locals[idx];
                                         if (val != 0)
                                         {
-                                            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble / val);
+                                            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble / val);
                                             else a = a / val;
                                         }
                                         else a = new DreamValue(0.0);
@@ -1321,7 +1321,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         double val = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
                                         var a = state.Locals[idx];
-                                        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble * val));
+                                        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble * val));
                                         else state.Push(a * val);
                                     }
                                     break;
@@ -1334,7 +1334,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         var a = state.Locals[idx];
                                         if (val != 0)
                                         {
-                                            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble / val));
+                                            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble / val));
                                             else state.Push(a / val);
                                         }
                                         else state.Push(new DreamValue(0.0));
@@ -1353,7 +1353,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                                                 state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong));
                                             else
-                                                state.Push(new DreamValue(a.RawDouble * b.RawDouble));
+                                                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble));
                                         }
                                         else state.Push(a * b);
                                     }
@@ -1366,11 +1366,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         var a = state.Locals[idx1];
                                         var b = state.Locals[idx2];
-                                        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+                                        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
                                         if (db != 0)
                                         {
                                             if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
-                                                state.Push(new DreamValue(a.RawDouble / db));
+                                                state.Push(new DreamValue(a.UnsafeRawDouble / db));
                                             else
                                                 state.Push(a / b);
                                         }
@@ -1391,7 +1391,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         double val = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
                                         ref var a = ref state.Locals[idx];
-                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble + val);
+                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble + val);
                                         else a = a + val;
                                     }
                                     break;
@@ -1709,9 +1709,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawLong + b.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawDouble + b.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = a + b;
@@ -1725,9 +1725,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawLong - b.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawDouble - b.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = a - b;
@@ -1741,9 +1741,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawLong * b.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawDouble * b.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = a * b;
@@ -1756,8 +1756,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var a = state.Stack[state.StackPtr - 1];
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
-            var db = b.RawDouble;
-            state.Stack[state.StackPtr - 1] = new DreamValue(db != 0 ? a.RawDouble / db : 0);
+            var db = b.UnsafeRawDouble;
+            state.Stack[state.StackPtr - 1] = new DreamValue(db != 0 ? a.UnsafeRawDouble / db : 0);
         }
         else
             state.Stack[state.StackPtr - 1] = a / b;
@@ -1771,9 +1771,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong == b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a == b) ? DreamValue.True : DreamValue.False;
@@ -1787,9 +1787,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong != b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble != b.RawDouble && Math.Abs(a.RawDouble - b.RawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a != b) ? DreamValue.True : DreamValue.False;
@@ -1803,9 +1803,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong < b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong < b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble < b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble < b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a < b) ? DreamValue.True : DreamValue.False;
@@ -1819,9 +1819,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong > b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong > b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble > b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble > b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a > b) ? DreamValue.True : DreamValue.False;
@@ -1835,9 +1835,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong <= b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong <= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble <= b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble <= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a <= b) ? DreamValue.True : DreamValue.False;
@@ -1851,9 +1851,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong >= b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong >= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble >= b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble >= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a >= b) ? DreamValue.True : DreamValue.False;
@@ -1867,9 +1867,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong == b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = a.Equals(b) ? DreamValue.True : DreamValue.False;
@@ -1883,9 +1883,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong != b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble != b.RawDouble && Math.Abs(a.RawDouble - b.RawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = !a.Equals(b) ? DreamValue.True : DreamValue.False;
@@ -1898,9 +1898,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(-a.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(-a.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(-a.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(-a.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = -a;
@@ -2693,8 +2693,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetLocal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double db = value.RawDouble;
-                        val = (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False;
+                        double db = value.UnsafeRawDouble;
+                        val = (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False;
                     }
                     else val = val % value;
                 }
@@ -2706,8 +2706,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetArgument(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double db = value.RawDouble;
-                        val = (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False;
+                        double db = value.UnsafeRawDouble;
+                        val = (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False;
                     }
                     else val = val % value;
                 }
@@ -2719,8 +2719,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var val = state.Thread.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double db = value.RawDouble;
-                        state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False);
+                        double db = value.UnsafeRawDouble;
+                        state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False);
                     }
                     else state.Thread.Context.SetGlobal(idx, val % value);
                 }
@@ -2736,8 +2736,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         DreamValue newVal;
                         if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                         {
-                            double db = value.RawDouble;
-                            newVal = (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False;
+                            double db = value.UnsafeRawDouble;
+                            newVal = (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False;
                         }
                         else newVal = val % value;
                         if (idx != -1) gameObject.SetVariableDirect(idx, newVal);
@@ -2784,8 +2784,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
                     ref var val = ref state.GetLocal(idx);
-                    double da = val.RawDouble;
-                    double db = value.RawDouble;
+                    double da = val.UnsafeRawDouble;
+                    double db = value.UnsafeRawDouble;
                     val = (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False;
                 }
                 break;
@@ -2794,8 +2794,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
                     ref var val = ref state.GetArgument(idx);
-                    double da = val.RawDouble;
-                    double db = value.RawDouble;
+                    double da = val.UnsafeRawDouble;
+                    double db = value.UnsafeRawDouble;
                     val = (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False;
                 }
                 break;
@@ -2804,8 +2804,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
-                    double da = val.RawDouble;
-                    double db = value.RawDouble;
+                    double da = val.UnsafeRawDouble;
+                    double db = value.UnsafeRawDouble;
                     state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False);
                 }
                 break;
@@ -2817,8 +2817,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         var name = state.Thread.Context.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
-                        double da = val.RawDouble;
-                        double db = value.RawDouble;
+                        double da = val.UnsafeRawDouble;
+                        double db = value.UnsafeRawDouble;
                         var newVal = (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False;
                         if (idx != -1) gameObject.SetVariableDirect(idx, newVal);
                         else gameObject.SetVariable(name, newVal);
@@ -2930,7 +2930,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         {
             if (index.Type <= DreamValueType.Integer)
             {
-                int i = (int)index.RawDouble - 1;
+                int i = (int)index.UnsafeRawDouble - 1;
                 if (i >= 0 && i < list.Values.Count) val = list.Values[i];
             }
             else val = list.GetValue(index);
@@ -2939,7 +2939,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         {
             if (index.Type <= DreamValueType.Integer)
             {
-                int i = (int)index.RawDouble - 1;
+                int i = (int)index.UnsafeRawDouble - 1;
                 if (i >= 0 && i < str.Length) val = new DreamValue(str[i].ToString());
             }
         }
@@ -3363,9 +3363,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            val = new DreamValue(val.RawLong * value.RawLong);
+                            val = new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong);
                         else
-                            val = new DreamValue(val.RawDouble * value.RawDouble);
+                            val = new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble);
                     }
                     else
                         val = val * value;
@@ -3378,9 +3378,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            val = new DreamValue(val.RawLong * value.RawLong);
+                            val = new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong);
                         else
-                            val = new DreamValue(val.RawDouble * value.RawDouble);
+                            val = new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble);
                     }
                     else
                         val = val * value;
@@ -3393,9 +3393,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.RawLong * value.RawLong));
+                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong));
                         else
-                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.RawDouble * value.RawDouble));
+                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble));
                     }
                     else
                         state.Thread.Context.SetGlobal(idx, val * value);
@@ -3413,9 +3413,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                         {
                             if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                                newVal = new DreamValue(val.RawLong * value.RawLong);
+                                newVal = new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong);
                             else
-                                newVal = new DreamValue(val.RawDouble * value.RawDouble);
+                                newVal = new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble);
                         }
                         else
                             newVal = val * value;
@@ -3463,8 +3463,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetLocal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double dv = value.RawDouble;
-                        val = (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0);
+                        double dv = value.UnsafeRawDouble;
+                        val = (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0);
                     }
                     else
                         val = val / value;
@@ -3476,8 +3476,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetArgument(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double dv = value.RawDouble;
-                        val = (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0);
+                        double dv = value.UnsafeRawDouble;
+                        val = (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0);
                     }
                     else
                         val = val / value;
@@ -3489,8 +3489,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var val = state.Thread.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double dv = value.RawDouble;
-                        state.Thread.Context.SetGlobal(idx, (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0));
+                        double dv = value.UnsafeRawDouble;
+                        state.Thread.Context.SetGlobal(idx, (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0));
                     }
                     else
                         state.Thread.Context.SetGlobal(idx, val / value);
@@ -3507,8 +3507,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         DreamValue newVal;
                         if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                         {
-                            double dv = value.RawDouble;
-                            newVal = (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0);
+                            double dv = value.UnsafeRawDouble;
+                            newVal = (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0);
                         }
                         else
                             newVal = val / value;
@@ -3640,8 +3640,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         if (val.Type <= DreamValueType.Integer && min.Type <= DreamValueType.Integer && max.Type <= DreamValueType.Integer)
         {
-            double dv = val.RawDouble;
-            state.Push(dv >= min.RawDouble && dv <= max.RawDouble ? DreamValue.True : DreamValue.False);
+            double dv = val.UnsafeRawDouble;
+            state.Push(dv >= min.UnsafeRawDouble && dv <= max.UnsafeRawDouble ? DreamValue.True : DreamValue.False);
         }
         else
         {
@@ -3781,7 +3781,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var value = state.ReadDouble();
         var jumpAddress = state.ReadInt32();
         var switchValue = state.Stack[state.StackPtr - 1];
-        if (switchValue.Type <= DreamValueType.Integer && switchValue.RawDouble == value) state.PC = jumpAddress;
+        if (switchValue.Type <= DreamValueType.Integer && switchValue.UnsafeRawDouble == value) state.PC = jumpAddress;
     }
 
     private static void HandleSwitchOnString(ref InterpreterState state)
@@ -3982,9 +3982,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawLong + b.RawLong));
+                state.Push(new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong));
             else
-                state.Push(new DreamValue(a.RawDouble + b.RawDouble));
+                state.Push(new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble));
         }
         else
             state.Push(a + b);
@@ -3997,7 +3997,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         var a = state.GetLocal(idx);
         if (a.Type <= DreamValueType.Integer)
-            state.Push(new DreamValue(a.RawDouble + val));
+            state.Push(new DreamValue(a.UnsafeRawDouble + val));
         else
             state.Push(a + val);
     }
@@ -4015,9 +4015,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer && c.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer && c.Type == DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawLong * b.RawLong + c.RawLong));
+                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong + c.UnsafeRawLong));
             else
-                state.Push(new DreamValue(a.RawDouble * b.RawDouble + c.RawDouble));
+                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble + c.UnsafeRawDouble));
         }
         else
             state.Push(a * b + c);
@@ -4296,7 +4296,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                 a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
             else
-                a = new DreamValue(a.RawDouble * b.RawDouble);
+                a = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
         }
         else a = a * b;
     }
@@ -4307,11 +4307,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int idx2 = state.ReadInt32();
         ref var a = ref state.GetLocal(idx1);
         var b = state.GetLocal(idx2);
-        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
         if (db != 0)
         {
             if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
-                a = new DreamValue(a.RawDouble / db);
+                a = new DreamValue(a.UnsafeRawDouble / db);
             else a = a / b;
         }
         else a = new DreamValue(0.0);
@@ -4322,7 +4322,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         ref var a = ref state.GetLocal(idx);
-        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble * val);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble * val);
         else a = a * val;
     }
 
@@ -4333,7 +4333,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         ref var a = ref state.GetLocal(idx);
         if (val != 0)
         {
-            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble / val);
+            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble / val);
             else a = a / val;
         }
         else a = new DreamValue(0.0);
@@ -4350,7 +4350,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         var a = state.GetLocal(idx);
-        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble * val));
+        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble * val));
         else state.Push(a * val);
     }
 
@@ -4361,7 +4361,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var a = state.GetLocal(idx);
         if (val != 0)
         {
-            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble / val));
+            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble / val));
             else state.Push(a / val);
         }
         else state.Push(new DreamValue(0.0));
@@ -4376,9 +4376,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawLong * b.RawLong));
+                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong));
             else
-                state.Push(new DreamValue(a.RawDouble * b.RawDouble));
+                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble));
         }
         else state.Push(a * b);
     }
@@ -4389,11 +4389,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int idx2 = state.ReadInt32();
         var a = state.GetLocal(idx1);
         var b = state.GetLocal(idx2);
-        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
         if (db != 0)
         {
             if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawDouble / db));
+                state.Push(new DreamValue(a.UnsafeRawDouble / db));
             else
                 state.Push(a / b);
         }
@@ -4405,7 +4405,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         ref var a = ref state.GetLocal(idx);
-        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble + val);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble + val);
         else a = a + val;
     }
 

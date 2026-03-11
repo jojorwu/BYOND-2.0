@@ -715,6 +715,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public virtual void Reset()
     {
+        if (_componentManager != null)
+        {
+            var toRemove = GetComponents().ToList();
+            foreach (var component in toRemove)
+            {
+                _componentManager.RemoveComponent(this, component.GetType());
+            }
+        }
+
         SetLocInternal(null, false);
         lock (_lock)
         {
@@ -743,25 +752,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         PrevInGridCell = null;
         CurrentGridCellKey = null;
 
-        if (_componentManager != null)
-        {
-            // We need to notify manager about component removals during reset
-            var toRemove = GetComponents().ToList();
-            foreach (var component in toRemove)
-            {
-                _componentManager.RemoveComponent(this, component.GetType());
-            }
-        }
-
         lock (_contentsLock)
         {
             _contents = System.Array.Empty<IGameObject>();
         }
 
         _updateListener = null;
-
-        // We don't reset Id as it should be unique for the lifetime of its registration
-        // but we could if we manage IDs in the pool.
     }
 }
 

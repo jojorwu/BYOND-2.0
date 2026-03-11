@@ -42,6 +42,17 @@ namespace Shared;
             CleanupEmptyCells();
         }
 
+        public Dictionary<string, object> GetDiagnosticInfo()
+        {
+            return new Dictionary<string, object>
+            {
+                { "CellCount", _grid.Count },
+                { "ActiveCellCount", _activeCells.Count },
+                { "PooledCellCount", _cellPool.Count },
+                { "CellSize", _cellSize }
+            };
+        }
+
         private readonly ConcurrentDictionary<(long X, long Y), Cell> _grid = new();
         private readonly ConcurrentQueue<Cell> _activeCells = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();

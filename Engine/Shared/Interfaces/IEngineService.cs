@@ -46,4 +46,9 @@ namespace Shared.Interfaces;
         /// Current status of the service.
         /// </summary>
         ServiceStatus Status { get; }
+
+        /// <summary>
+        /// Retrieves diagnostic information about the service for monitoring and debugging.
+        /// </summary>
+        Dictionary<string, object> GetDiagnosticInfo();
     }

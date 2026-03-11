@@ -47,7 +47,8 @@ namespace Core.Tests
             var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var componentManager = new ComponentManager(archetypeManager);
-            var objectFactory = new Shared.Services.ObjectFactory(pool, componentManager);
+            var entityRegistry = new EntityRegistry(pool, componentManager);
+            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
             _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance), objectFactory);
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);

@@ -404,6 +404,27 @@ namespace Shared.Services;
             GC.SuppressFinalize(this);
         }
 
+        public Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var workers = _workers;
+            int busyCount = 0;
+            int totalPending = 0;
+            foreach (var worker in workers)
+            {
+                if (worker.IsBusy) busyCount++;
+                totalPending += worker.JobCount;
+            }
+
+            return new Dictionary<string, object>
+            {
+                { "WorkerCount", workers.Length },
+                { "BusyWorkers", busyCount },
+                { "PendingJobs", totalPending },
+                { "MinWorkers", _minWorkers },
+                { "MaxWorkers", _maxWorkers }
+            };
+        }
+
         private class TrackingJob : IJob
         {
             private readonly IJob _inner;

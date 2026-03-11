@@ -348,6 +348,14 @@ public enum Opcode : byte {
     LocalAddLocalAssign = 0xB1,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalSubLocalAssign = 0xB2,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalJumpIfNull = 0xB3,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalJumpIfNotNull = 0xB4,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareEqualsJumpIfFalse = 0xB5,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareNotEqualsJumpIfFalse = 0xB6,
 }
 
 public enum OpcodeArgType {
@@ -450,6 +458,10 @@ public static class OpcodeMetadataCache {
                 Opcode.SwitchOnString => true,
                 Opcode.LocalJumpIfFalse => true,
                 Opcode.LocalJumpIfTrue => true,
+                Opcode.LocalJumpIfNull => true,
+                Opcode.LocalJumpIfNotNull => true,
+                Opcode.LocalCompareEqualsJumpIfFalse => true,
+                Opcode.LocalCompareNotEqualsJumpIfFalse => true,
                 Opcode.BooleanAnd => true,
                 Opcode.BooleanOr => true,
                 Opcode.Enumerate => true,

@@ -4167,9 +4167,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawLong - b.RawLong));
+                state.Push(new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong));
             else
-                state.Push(new DreamValue(a.RawDouble - b.RawDouble));
+                state.Push(new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble));
         }
         else
             state.Push(a - b);

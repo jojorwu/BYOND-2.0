@@ -17,6 +17,11 @@ namespace Shared.Interfaces;
     public interface IEngineService : IAsyncInitializable
     {
         /// <summary>
+        /// Human-readable name of the service.
+        /// </summary>
+        string Name { get; }
+
+        /// <summary>
         /// Starts the service asynchronously.
         /// </summary>
         Task StartAsync(CancellationToken cancellationToken);

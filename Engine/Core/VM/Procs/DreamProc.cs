@@ -14,12 +14,27 @@ namespace Core.VM.Procs
 
     public class DreamProc : IDreamProc
     {
+        private static readonly IDreamProc NoParentSentinel = new NativeProc("__no_parent__", (t, i, a) => DreamValue.Null);
+
         public byte[] Bytecode { get; }
         public string Name { get; }
         public string[] Arguments { get; }
         public int LocalVariableCount { get; }
 
-        public IDreamProc? ParentProc { get; set; }
+        private IDreamProc? _parentProc;
+        private bool _parentProcSearched;
+
+        public IDreamProc? ParentProc
+        {
+            get => _parentProc == NoParentSentinel ? null : _parentProc;
+            set
+            {
+                _parentProc = value ?? NoParentSentinel;
+                _parentProcSearched = true;
+            }
+        }
+
+        public bool ParentProcSearched => _parentProcSearched;
 
         internal InlineCacheEntry[] _inlineCache;
 

@@ -65,6 +65,11 @@ namespace Core
 
         private static IServiceCollection AddCoreVmServices(this IServiceCollection services)
         {
+            services.AddOptions<DreamVmConfiguration>().Configure<IOptions<ServerSettings>>((config, settings) =>
+            {
+                config.MaxInstructions = settings.Value.VmMaxInstructions;
+            });
+
             services.AddSingleton<IBytecodeInterpreter, BytecodeInterpreter>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();

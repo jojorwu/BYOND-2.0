@@ -15,8 +15,11 @@ namespace Core.VM.Runtime
         public DreamVMContext Context { get; } = new();
         public List<string> Strings => Context.Strings;
         public Dictionary<string, IDreamProc> Procs => Context.Procs;
+        public List<IDreamProc> AllProcs => Context.AllProcs;
         public List<DreamValue> Globals => Context.Globals;
+        public Dictionary<string, int> GlobalNames => Context.GlobalNames;
         public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
+        public DreamObject? World { get => Context.World; set => Context.World = value; }
         public IObjectTypeManager? ObjectTypeManager { get => Context.ObjectTypeManager; set => Context.ObjectTypeManager = value; }
         public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
         public IGameApi? GameApi { get => Context.GameApi; set => Context.GameApi = value; }
@@ -28,10 +31,9 @@ namespace Core.VM.Runtime
 
         private readonly int _maxInstructions;
 
-        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
+        public DreamVM(IOptions<DreamVmConfiguration> config, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
         {
-            var config = settings.Value;
-            _maxInstructions = config.VmMaxInstructions;
+            _maxInstructions = config.Value.MaxInstructions;
             _logger = logger;
             _nativeProcProviders = nativeProcProviders;
             _objectFactory = objectFactory;

@@ -23,7 +23,7 @@ namespace tests
             _gameState = new GameState();
             _typeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
 
-            var settings = Options.Create(new ServerSettings());
+            var settings = Options.Create(new DreamVmConfiguration());
             _vm = new DreamVM(settings, NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new StandardNativeProcProvider() });
             _vm.GameState = _gameState;
             _vm.ObjectTypeManager = _typeManager;

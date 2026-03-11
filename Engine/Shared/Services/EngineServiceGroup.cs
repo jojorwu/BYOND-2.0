@@ -13,6 +13,7 @@ namespace Shared.Services;
         private readonly List<IEngineService> _services;
         private readonly ILogger? _logger;
 
+        public string Name => _groupName;
         public int Priority { get; }
         public bool IsCritical => _services.Any(s => s.IsCritical);
         public ServiceStatus Status => _services.Any(s => s.Status == ServiceStatus.Failed) ? ServiceStatus.Failed :

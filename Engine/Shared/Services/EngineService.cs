@@ -9,6 +9,9 @@ namespace Shared.Services;
     public abstract class EngineService : IEngineService
     {
         /// <inheritdoc />
+        public virtual string Name => GetType().Name;
+
+        /// <inheritdoc />
         public virtual int Priority => 0;
 
         /// <inheritdoc />

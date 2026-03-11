@@ -48,10 +48,7 @@ namespace Core
 
             // Load procs
             dreamVM.Procs.Clear();
-            if (dreamVM is DreamVM vm)
-            {
-                vm.Context.AllProcs.Clear();
-            }
+            dreamVM.AllProcs.Clear();
 
             if (json.Procs != null)
             {
@@ -78,11 +75,7 @@ namespace Core
                         dreamVM.Strings
                     );
 
-                    if (dreamVM is DreamVM vm2)
-                    {
-                        vm2.Context.AllProcs.Add(newProc);
-                    }
-
+                    dreamVM.AllProcs.Add(newProc);
                     dreamVM.Procs[newProc.Name] = newProc;
                 }
             }
@@ -109,9 +102,9 @@ namespace Core
                     dreamVM.ListType = newType;
                 }
 
-                if (newType.Name == "/world" && dreamVM is DreamVM vm6)
+                if (newType.Name == "/world")
                 {
-                    vm6.Context.World = new DreamObject(newType);
+                    dreamVM.World = new DreamObject(newType);
                 }
             }
 
@@ -130,12 +123,12 @@ namespace Core
             }
 
             // Map procs to types
-            if (json.Procs != null && dreamVM is DreamVM vm5)
+            if (json.Procs != null)
             {
                 for (int i = 0; i < json.Procs.Length; i++)
                 {
                     var procJson = json.Procs[i];
-                    var proc = vm5.Context.AllProcs[i];
+                    var proc = dreamVM.AllProcs[i];
                     if (procJson.OwningTypeId >= 0 && procJson.OwningTypeId < objectTypes.Length)
                     {
                         objectTypes[procJson.OwningTypeId].Procs[proc.Name] = proc;
@@ -148,10 +141,7 @@ namespace Core
 
             // Load globals
             dreamVM.Globals.Clear();
-            if (dreamVM is DreamVM vm3)
-            {
-                vm3.Context.GlobalNames.Clear();
-            }
+            dreamVM.GlobalNames.Clear();
 
             if (json.Globals != null)
             {
@@ -163,11 +153,11 @@ namespace Core
                     dreamVM.Globals.Add(DreamValue.Null);
                 }
 
-                if (json.Globals.Names != null && dreamVM is DreamVM vm4)
+                if (json.Globals.Names != null)
                 {
                     for (int i = 0; i < json.Globals.Names.Count; i++)
                     {
-                        vm4.Context.GlobalNames[json.Globals.Names[i]] = i;
+                        dreamVM.GlobalNames[json.Globals.Names[i]] = i;
                     }
                 }
 

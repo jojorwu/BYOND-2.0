@@ -8,6 +8,7 @@ namespace Core.Api
 {
     public class MapApi : IMapApi
     {
+        public string Name => "Map";
         private readonly IGameState _gameState;
         private readonly IMapLoader _mapLoader;
         private readonly IProject _project;

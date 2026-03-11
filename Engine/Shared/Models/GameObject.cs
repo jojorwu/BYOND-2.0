@@ -238,6 +238,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             Interlocked.Exchange(ref _committedX, _x);
             Interlocked.Exchange(ref _committedY, _y);
             Interlocked.Exchange(ref _committedZ, _z);
+
+            // Bulk commit of all properties for consistent reading by network/rendering
+            if (_variableValues.Length != _committedValues.Length)
+            {
+                _committedValues = new DreamValue[_variableValues.Length];
+            }
+            System.Array.Copy(_variableValues, _committedValues, _variableValues.Length);
         }
     }
 
@@ -450,7 +457,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
         lock (_lock)
         {
-            base.SetVariableDirect(index, value);
+            var currentValues = _variableValues;
+            if (index >= currentValues.Length)
+            {
+                var newValues = new DreamValue[index + 1];
+                System.Array.Copy(currentValues, newValues, currentValues.Length);
+                newValues[index] = value;
+                _variableValues = newValues;
+                IncrementVersion();
+            }
+            else if (!currentValues[index].Equals(value))
+            {
+                currentValues[index] = value;
+                IncrementVersion();
+            }
 
             // Use the pre-calculated VariableToBuiltin map for O(1) side-effect dispatch
             var builtinMap = ObjectType?.VariableToBuiltin;

@@ -68,7 +68,13 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<IPluginManager, PluginManager>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
-        services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
+        services.AddSingleton<LoggingPacketMiddleware>();
+        services.AddSingleton<IPacketDispatcher>(sp =>
+        {
+            var dispatcher = new PacketDispatcher(sp.GetRequiredService<IJobSystem>());
+            dispatcher.AddMiddleware(sp.GetRequiredService<LoggingPacketMiddleware>());
+            return dispatcher;
+        });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
         services.AddSingleton<BinarySnapshotService>();
         services.AddSingleton<SpatialGrid>();
@@ -81,6 +87,13 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddSingleton<IJobSystem, JobSystem>();
+        services.AddSingleton<SoundResourceProvider>();
+        services.AddSingleton<IResourceSystem>(sp =>
+        {
+            var system = new ResourceSystem();
+            system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
+            return system;
+        });
         return services;
     }
 

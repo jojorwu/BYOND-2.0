@@ -5,6 +5,7 @@ namespace Core.Api
 
     public class ObjectApi : IObjectApi
     {
+        public string Name => "Objects";
         private readonly IGameState _gameState;
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IMapApi _mapApi;

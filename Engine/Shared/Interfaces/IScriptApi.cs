@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 
+using Shared.Interfaces;
+
 namespace Shared;
-    public interface IScriptApi
+    public interface IScriptApi : IApiProvider
     {
         List<string> ListScriptFiles();
         bool ScriptFileExists(string filename);

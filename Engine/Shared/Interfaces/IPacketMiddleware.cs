@@ -1,17 +1,15 @@
 using System.Threading.Tasks;
-using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Interfaces;
+
+/// <summary>
+/// A middleware for processing incoming network packets.
+/// </summary>
+public interface IPacketMiddleware
+{
     /// <summary>
-    /// Middleware for processing network packets before they reach their handlers.
+    /// Processes the packet context. Returns true to continue the pipeline, false to abort.
     /// </summary>
-    public interface IPacketMiddleware
-    {
-        /// <summary>
-        /// Processes a packet context.
-        /// </summary>
-        /// <param name="context">The context of the packet being processed.</param>
-        /// <returns>True if the processing should continue; otherwise, false.</returns>
-        Task<bool> ProcessAsync(PacketContext context);
-    }
+    Task<bool> ProcessAsync(PacketContext context);
+}

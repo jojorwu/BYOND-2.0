@@ -1,5 +1,7 @@
+using Shared.Interfaces;
+
 namespace Shared;
-    public interface IObjectApi
+    public interface IObjectApi : IApiProvider
     {
         GameObject? CreateObject(int typeId, long x, long y, long z);
         GameObject? GetObject(long id);

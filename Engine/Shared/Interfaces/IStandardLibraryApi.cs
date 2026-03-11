@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 
+using Shared.Interfaces;
+
 namespace Shared;
-    public interface IStandardLibraryApi
+    public interface IStandardLibraryApi : IApiProvider
     {
         GameObject? Locate(string typePath, List<GameObject> container);
         void Sleep(int milliseconds);

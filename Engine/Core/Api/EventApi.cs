@@ -7,6 +7,7 @@ namespace Core.Api;
 
 public class EventApi : IEventApi
 {
+    public string Name => "Events";
     private readonly ConcurrentDictionary<string, List<Action<object[]>>> _subscribers = new();
 
     public void Publish(string eventName, params object[] args)

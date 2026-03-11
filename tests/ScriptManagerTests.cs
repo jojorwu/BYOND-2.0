@@ -79,7 +79,24 @@ namespace Core.Tests
             };
             _scriptManager = new ScriptManager(_project, systems, NullLogger<ScriptManager>.Instance);
             _scriptApi = new ScriptApi(_project, _scriptManager);
-            _gameApi = new GameApi(mapApi, objectApi, _scriptApi, soundApi, soundRegistry, standardLibraryApi, commandManager, timeApi, eventApi);
+
+            var registry = new ApiRegistry();
+            var mockSoundApi = new Mock<ISoundApi>();
+            mockSoundApi.Setup(s => s.Name).Returns("Sounds");
+            var mockTimeApi = new Mock<ITimeApi>();
+            mockTimeApi.Setup(t => t.Name).Returns("Time");
+            var mockEventApi = new Mock<IEventApi>();
+            mockEventApi.Setup(e => e.Name).Returns("Events");
+
+            registry.Register(mapApi);
+            registry.Register(objectApi);
+            registry.Register(_scriptApi);
+            registry.Register(mockSoundApi.Object);
+            registry.Register(standardLibraryApi);
+            registry.Register(mockTimeApi.Object);
+            registry.Register(mockEventApi.Object);
+
+            _gameApi = new GameApi(registry, soundRegistry, commandManager);
         }
 
         [TearDown]

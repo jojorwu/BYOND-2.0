@@ -1,8 +1,9 @@
 using Shared;
+using Shared.Interfaces;
 
 namespace Shared;
 
-public interface ISoundApi
+public interface ISoundApi : IApiProvider
 {
     void Play(string file, float volume = 100f, float pitch = 1f, bool repeat = false);
     void PlayAt(string file, long x, long y, long z, float volume = 100f, float pitch = 1f, float falloff = 1f);

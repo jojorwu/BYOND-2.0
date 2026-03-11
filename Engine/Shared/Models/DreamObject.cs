@@ -10,6 +10,7 @@ namespace Shared;
         protected readonly object _lock = new();
         public virtual ObjectType? ObjectType { get; set; }
         protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
+        protected volatile DreamValue[] _committedValues = System.Array.Empty<DreamValue>();
         private long _version;
         public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }
         protected virtual void IncrementVersion() => Interlocked.Increment(ref _version);
@@ -29,20 +30,21 @@ namespace Shared;
                 if (defaults != null)
                 {
                     int count = defaults.Length;
-                    if (_variableValues == null || _variableValues.Length < count)
-                    {
-                        _variableValues = new DreamValue[count];
-                    }
+                    _variableValues = new DreamValue[count];
+                    _committedValues = new DreamValue[count];
                     System.Array.Copy(defaults, _variableValues, count);
+                    System.Array.Copy(defaults, _committedValues, count);
                 }
                 else
                 {
                     _variableValues = System.Array.Empty<DreamValue>();
+                    _committedValues = System.Array.Empty<DreamValue>();
                 }
             }
             else
             {
                 _variableValues = System.Array.Empty<DreamValue>();
+                _committedValues = System.Array.Empty<DreamValue>();
             }
         }
 

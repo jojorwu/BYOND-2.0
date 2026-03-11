@@ -336,6 +336,18 @@ public enum Opcode : byte {
     ReturnTrue = 0xAB,
     [OpcodeMetadata(0, true)]
     ReturnFalse = 0xAC,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalCompareNotEquals = 0xAD,
+    [OpcodeMetadata(0, OpcodeArgType.Int)]
+    LocalIncrement = 0xAE,
+    [OpcodeMetadata(0, OpcodeArgType.Int)]
+    LocalDecrement = 0xAF,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalPushLocalPushSub = 0xB0,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalAddLocalAssign = 0xB1,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalSubLocalAssign = 0xB2,
 }
 
 public enum OpcodeArgType {

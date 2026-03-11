@@ -77,10 +77,60 @@ namespace Core.VM.Utils
                             continue;
                         }
 
-                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Add && !IsJumpTarget(nextNextPc, 1))
+                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.CompareNotEquals && !IsJumpTarget(nextNextPc, 1))
                         {
                             MarkPcMap(pc, nextNextPc + 1, optimized.Count);
+                            optimized.Add((byte)Opcode.LocalCompareNotEquals);
+                            optimized.AddRange(BitConverter.GetBytes(idx));
+                            optimized.AddRange(BitConverter.GetBytes(idx2));
+                            pc = nextNextPc + 1;
+                            continue;
+                        }
+
+                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Add && !IsJumpTarget(nextNextPc, 1))
+                        {
+                            int assignPc = nextNextPc + 1;
+                            if (IsAssignLocal(bytecode, assignPc, out int targetIdx) && targetIdx == idx && !IsJumpTarget(assignPc, 6))
+                            {
+                                int popPc = assignPc + 6;
+                                if (popPc < bytecode.Length && bytecode[popPc] == (byte)Opcode.Pop && !IsJumpTarget(popPc, 1))
+                                {
+                                    MarkPcMap(pc, popPc + 1, optimized.Count);
+                                    optimized.Add((byte)Opcode.LocalAddLocalAssign);
+                                    optimized.AddRange(BitConverter.GetBytes(idx));
+                                    optimized.AddRange(BitConverter.GetBytes(idx2));
+                                    pc = popPc + 1;
+                                    continue;
+                                }
+                            }
+
+                            MarkPcMap(pc, nextNextPc + 1, optimized.Count);
                             optimized.Add((byte)Opcode.LocalPushLocalPushAdd);
+                            optimized.AddRange(BitConverter.GetBytes(idx));
+                            optimized.AddRange(BitConverter.GetBytes(idx2));
+                            pc = nextNextPc + 1;
+                            continue;
+                        }
+
+                        if (nextNextPc < bytecode.Length && bytecode[nextNextPc] == (byte)Opcode.Subtract && !IsJumpTarget(nextNextPc, 1))
+                        {
+                            int assignPc = nextNextPc + 1;
+                            if (IsAssignLocal(bytecode, assignPc, out int targetIdx) && targetIdx == idx && !IsJumpTarget(assignPc, 6))
+                            {
+                                int popPc = assignPc + 6;
+                                if (popPc < bytecode.Length && bytecode[popPc] == (byte)Opcode.Pop && !IsJumpTarget(popPc, 1))
+                                {
+                                    MarkPcMap(pc, popPc + 1, optimized.Count);
+                                    optimized.Add((byte)Opcode.LocalSubLocalAssign);
+                                    optimized.AddRange(BitConverter.GetBytes(idx));
+                                    optimized.AddRange(BitConverter.GetBytes(idx2));
+                                    pc = popPc + 1;
+                                    continue;
+                                }
+                            }
+
+                            MarkPcMap(pc, nextNextPc + 1, optimized.Count);
+                            optimized.Add((byte)Opcode.LocalPushLocalPushSub);
                             optimized.AddRange(BitConverter.GetBytes(idx));
                             optimized.AddRange(BitConverter.GetBytes(idx2));
                             pc = nextNextPc + 1;
@@ -134,6 +184,21 @@ namespace Core.VM.Utils
                         continue;
                     }
 
+                    if (postPushPc + 6 < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.BooleanNot && !IsJumpTarget(postPushPc, 1))
+                    {
+                        int jumpPc = postPushPc + 1;
+                        if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(jumpPc, 5))
+                        {
+                            MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                            optimized.Add((byte)Opcode.LocalJumpIfTrue);
+                            optimized.AddRange(BitConverter.GetBytes(idx));
+                            _labelLocations.Add(optimized.Count);
+                            optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
+                            pc = jumpPc + 5;
+                            continue;
+                        }
+                    }
+
 
                     if (postPushPc < bytecode.Length && bytecode[postPushPc] == (byte)Opcode.Return && !IsJumpTarget(postPushPc, 1))
                     {
@@ -150,6 +215,34 @@ namespace Core.VM.Utils
                     optimized.AddRange(BitConverter.GetBytes(idx));
                     pc += 6;
                     continue;
+                }
+
+                // Pattern: Increment(Local, idx), Pop -> LocalIncrement(idx)
+                if (pc + 6 < bytecode.Length && bytecode[pc] == (byte)Opcode.Increment && bytecode[pc + 1] == (byte)DMReference.Type.Local && !IsJumpTarget(pc, 6))
+                {
+                    int idxInc = BitConverter.ToInt32(bytecode, pc + 2);
+                    if (pc + 6 < bytecode.Length && bytecode[pc + 6] == (byte)Opcode.Pop && !IsJumpTarget(pc + 6, 1))
+                    {
+                        MarkPcMap(pc, pc + 7, optimized.Count);
+                        optimized.Add((byte)Opcode.LocalIncrement);
+                        optimized.AddRange(BitConverter.GetBytes(idxInc));
+                        pc += 7;
+                        continue;
+                    }
+                }
+
+                // Pattern: Decrement(Local, idx), Pop -> LocalDecrement(idx)
+                if (pc + 6 < bytecode.Length && bytecode[pc] == (byte)Opcode.Decrement && bytecode[pc + 1] == (byte)DMReference.Type.Local && !IsJumpTarget(pc, 6))
+                {
+                    int idxDec = BitConverter.ToInt32(bytecode, pc + 2);
+                    if (pc + 6 < bytecode.Length && bytecode[pc + 6] == (byte)Opcode.Pop && !IsJumpTarget(pc + 6, 1))
+                    {
+                        MarkPcMap(pc, pc + 7, optimized.Count);
+                        optimized.Add((byte)Opcode.LocalDecrement);
+                        optimized.AddRange(BitConverter.GetBytes(idxDec));
+                        pc += 7;
+                        continue;
+                    }
                 }
 
                 // Pattern: PushReferenceValue(Argument, idx)

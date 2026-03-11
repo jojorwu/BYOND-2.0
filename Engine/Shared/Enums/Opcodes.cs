@@ -316,6 +316,10 @@ public enum Opcode : byte {
     LocalPushLocalPushAdd = 0xA1,
     [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Float)]
     LocalAddFloat = 0xA2,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalMulFloat = 0xC6,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalDivFloat = 0xC7,
     [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalMulAdd = 0xA3,
     [OpcodeMetadata(1, OpcodeArgType.ArgType)]
@@ -344,6 +348,10 @@ public enum Opcode : byte {
     LocalDecrement = 0xAF,
     [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalPushLocalPushSub = 0xB0,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalPushLocalPushMul = 0xC8,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalPushLocalPushDiv = 0xC9,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
     LocalAddLocalAssign = 0xB1,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
@@ -356,6 +364,36 @@ public enum Opcode : byte {
     LocalCompareEqualsJumpIfFalse = 0xB5,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
     LocalCompareNotEqualsJumpIfFalse = 0xB6,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalAddFloatAssign = 0xB7,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalCompareLessThan = 0xB8,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalCompareGreaterThan = 0xB9,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalCompareLessThanOrEqual = 0xBA,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalCompareGreaterThanOrEqual = 0xBB,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalMulLocalAssign = 0xBC,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int)]
+    LocalDivLocalAssign = 0xBD,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalMulFloatAssign = 0xBE,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalDivFloatAssign = 0xBF,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareLessThanJumpIfFalse = 0xC0,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareGreaterThanJumpIfFalse = 0xC1,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareLessThanOrEqualJumpIfFalse = 0xC2,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Int, OpcodeArgType.Label)]
+    LocalCompareGreaterThanOrEqualJumpIfFalse = 0xC3,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.String)]
+    LocalPushDereferenceField = 0xC4,
+    [OpcodeMetadata(0, OpcodeArgType.Int)]
+    PopN = 0xC5,
 }
 
 public enum OpcodeArgType {
@@ -462,6 +500,10 @@ public static class OpcodeMetadataCache {
                 Opcode.LocalJumpIfNotNull => true,
                 Opcode.LocalCompareEqualsJumpIfFalse => true,
                 Opcode.LocalCompareNotEqualsJumpIfFalse => true,
+                Opcode.LocalCompareLessThanJumpIfFalse => true,
+                Opcode.LocalCompareGreaterThanJumpIfFalse => true,
+                Opcode.LocalCompareLessThanOrEqualJumpIfFalse => true,
+                Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse => true,
                 Opcode.BooleanAnd => true,
                 Opcode.BooleanOr => true,
                 Opcode.Enumerate => true,

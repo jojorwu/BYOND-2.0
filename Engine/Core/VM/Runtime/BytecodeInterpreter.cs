@@ -1176,6 +1176,261 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         if (state.Locals[idx1] == state.Locals[idx2]) state.PC = address;
                                     }
                                     break;
+                                case Opcode.LocalCompareLessThanJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] < state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThanJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] > state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThanOrEqualJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] <= state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] >= state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalPushDereferenceField:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
+                                        state.PC += 4;
+                                        var objValue = state.Locals[idx];
+                                        DreamValue val = DreamValue.Null;
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType)
+                                            {
+                                                val = obj.GetVariableDirect(cache.VariableIndex);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[nameId];
+                                                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (varIdx != -1)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.VariableIndex = varIdx;
+                                                    val = obj.GetVariableDirect(varIdx);
+                                                }
+                                                else val = obj.GetVariable(name);
+                                            }
+                                        }
+                                        state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.LocalMulLocalAssign:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        ref var a = ref state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                                                a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
+                                            else
+                                                a = new DreamValue(a.RawDouble * b.RawDouble);
+                                        }
+                                        else a = a * b;
+                                    }
+                                    break;
+                                case Opcode.LocalDivLocalAssign:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        ref var a = ref state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+                                        if (db != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                                a = new DreamValue(a.RawDouble / db);
+                                            else a = a / b;
+                                        }
+                                        else a = new DreamValue(0.0);
+                                    }
+                                    break;
+                                case Opcode.LocalMulFloatAssign:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        ref var a = ref state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble * val);
+                                        else a = a * val;
+                                    }
+                                    break;
+                                case Opcode.LocalDivFloatAssign:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        ref var a = ref state.Locals[idx];
+                                        if (val != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble / val);
+                                            else a = a / val;
+                                        }
+                                        else a = new DreamValue(0.0);
+                                    }
+                                    break;
+                                case Opcode.LocalMulFloat:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        var a = state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble * val));
+                                        else state.Push(a * val);
+                                    }
+                                    break;
+                                case Opcode.LocalDivFloat:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        var a = state.Locals[idx];
+                                        if (val != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble / val));
+                                            else state.Push(a / val);
+                                        }
+                                        else state.Push(new DreamValue(0.0));
+                                    }
+                                    break;
+                                case Opcode.LocalPushLocalPushMul:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong));
+                                            else
+                                                state.Push(new DreamValue(a.RawDouble * b.RawDouble));
+                                        }
+                                        else state.Push(a * b);
+                                    }
+                                    break;
+                                case Opcode.LocalPushLocalPushDiv:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+                                        if (db != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.RawDouble / db));
+                                            else
+                                                state.Push(a / b);
+                                        }
+                                        else state.Push(new DreamValue(0.0));
+                                    }
+                                    break;
+                                case Opcode.PopN:
+                                    {
+                                        int count = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.StackPtr -= count;
+                                    }
+                                    break;
+                                case Opcode.LocalAddFloatAssign:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        ref var a = ref state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble + val);
+                                        else a = a + val;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThan:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] < state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThan:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] > state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThanOrEqual:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] <= state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThanOrEqual:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] >= state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
                                 default:
                                     _dispatchTable[(byte)opcode](ref state);
                                     if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
@@ -1399,6 +1654,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.LocalJumpIfNotNull] = &HandleLocalJumpIfNotNull;
         table[(byte)Opcode.LocalCompareEqualsJumpIfFalse] = &HandleLocalCompareEqualsJumpIfFalse;
         table[(byte)Opcode.LocalCompareNotEqualsJumpIfFalse] = &HandleLocalCompareNotEqualsJumpIfFalse;
+        table[(byte)Opcode.LocalCompareLessThanJumpIfFalse] = &HandleLocalCompareLessThanJumpIfFalse;
+        table[(byte)Opcode.LocalCompareGreaterThanJumpIfFalse] = &HandleLocalCompareGreaterThanJumpIfFalse;
+        table[(byte)Opcode.LocalCompareLessThanOrEqualJumpIfFalse] = &HandleLocalCompareLessThanOrEqualJumpIfFalse;
+        table[(byte)Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualJumpIfFalse;
+        table[(byte)Opcode.LocalPushDereferenceField] = &HandleLocalPushDereferenceField;
+        table[(byte)Opcode.LocalMulLocalAssign] = &HandleLocalMulLocalAssign;
+        table[(byte)Opcode.LocalDivLocalAssign] = &HandleLocalDivLocalAssign;
+        table[(byte)Opcode.LocalMulFloatAssign] = &HandleLocalMulFloatAssign;
+        table[(byte)Opcode.LocalDivFloatAssign] = &HandleLocalDivFloatAssign;
+        table[(byte)Opcode.PopN] = &HandlePopN;
+        table[(byte)Opcode.LocalAddFloatAssign] = &HandleLocalAddFloatAssign;
+        table[(byte)Opcode.LocalCompareLessThan] = &HandleLocalCompareLessThan;
+        table[(byte)Opcode.LocalCompareGreaterThan] = &HandleLocalCompareGreaterThan;
+        table[(byte)Opcode.LocalCompareLessThanOrEqual] = &HandleLocalCompareLessThanOrEqual;
+        table[(byte)Opcode.LocalCompareGreaterThanOrEqual] = &HandleLocalCompareGreaterThanOrEqual;
 
         return table;
     }
@@ -3951,5 +4221,219 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
         if (state.GetLocal(idx1) == state.GetLocal(idx2)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) < state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) > state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanOrEqualJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) <= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqualJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) >= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalPushDereferenceField(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int pcForCache = state.PC - 5;
+        var objValue = state.GetLocal(idx);
+        DreamValue val = DreamValue.Null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType)
+            {
+                val = obj.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    val = obj.GetVariableDirect(varIdx);
+                }
+                else val = obj.GetVariable(name);
+            }
+        }
+        state.Push(val);
+    }
+
+    private static void HandleLocalMulLocalAssign(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        ref var a = ref state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+        {
+            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
+            else
+                a = new DreamValue(a.RawDouble * b.RawDouble);
+        }
+        else a = a * b;
+    }
+
+    private static void HandleLocalDivLocalAssign(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        ref var a = ref state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+        if (db != 0)
+        {
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                a = new DreamValue(a.RawDouble / db);
+            else a = a / b;
+        }
+        else a = new DreamValue(0.0);
+    }
+
+    private static void HandleLocalMulFloatAssign(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble * val);
+        else a = a * val;
+    }
+
+    private static void HandleLocalDivFloatAssign(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (val != 0)
+        {
+            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble / val);
+            else a = a / val;
+        }
+        else a = new DreamValue(0.0);
+    }
+
+    private static void HandlePopN(ref InterpreterState state)
+    {
+        int count = state.ReadInt32();
+        state.StackPtr -= count;
+    }
+
+    private static void HandleLocalMulFloat(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        var a = state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble * val));
+        else state.Push(a * val);
+    }
+
+    private static void HandleLocalDivFloat(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        var a = state.GetLocal(idx);
+        if (val != 0)
+        {
+            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.RawDouble / val));
+            else state.Push(a / val);
+        }
+        else state.Push(new DreamValue(0.0));
+    }
+
+    private static void HandleLocalPushLocalPushMul(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        var a = state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+        {
+            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                state.Push(new DreamValue(a.RawLong * b.RawLong));
+            else
+                state.Push(new DreamValue(a.RawDouble * b.RawDouble));
+        }
+        else state.Push(a * b);
+    }
+
+    private static void HandleLocalPushLocalPushDiv(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        var a = state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
+        if (db != 0)
+        {
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                state.Push(new DreamValue(a.RawDouble / db));
+            else
+                state.Push(a / b);
+        }
+        else state.Push(new DreamValue(0.0));
+    }
+
+    private static void HandleLocalAddFloatAssign(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.RawDouble + val);
+        else a = a + val;
+    }
+
+    private static void HandleLocalCompareLessThan(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) < state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalCompareGreaterThan(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) > state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalCompareLessThanOrEqual(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) <= state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqual(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) >= state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
     }
 }

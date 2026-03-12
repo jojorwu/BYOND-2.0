@@ -10,8 +10,8 @@ namespace Shared.Services;
     {
         private class QueryResult : IEntityQuery
         {
-            public readonly List<Archetype> Archetypes = new();
-            public readonly object Lock = new();
+            private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
+            private readonly object _lock = new();
             private readonly IGameState? _gameState;
 
             public QueryResult(IGameState? gameState)
@@ -21,33 +21,46 @@ namespace Shared.Services;
 
             public IReadOnlyList<IGameObject> Snapshot => BuildSnapshot();
 
-            public IEnumerable<Archetype> GetMatchingArchetypes()
+            public void AddArchetype(Archetype archetype)
             {
-                lock (Lock)
+                lock (_lock)
                 {
-                    return Archetypes.ToList();
+                    var updated = new Archetype[_archetypes.Length + 1];
+                    Array.Copy(_archetypes, updated, _archetypes.Length);
+                    updated[_archetypes.Length] = archetype;
+                    _archetypes = updated;
                 }
             }
 
+            public void AddArchetypes(IEnumerable<Archetype> matching)
+            {
+                lock (_lock)
+                {
+                    var matchingArray = matching.ToArray();
+                    var updated = new Archetype[_archetypes.Length + matchingArray.Length];
+                    Array.Copy(_archetypes, updated, _archetypes.Length);
+                    Array.Copy(matchingArray, 0, updated, _archetypes.Length, matchingArray.Length);
+                    _archetypes = updated;
+                }
+            }
+
+            public IEnumerable<Archetype> GetMatchingArchetypes() => _archetypes;
+
             private IReadOnlyList<IGameObject> BuildSnapshot()
             {
+                var archetypes = _archetypes;
                 var results = new List<IGameObject>();
-                lock (Lock)
+                foreach (var arch in archetypes)
                 {
-                    foreach (var arch in Archetypes)
-                    {
-                        results.AddRange(arch.GetEntitiesSnapshot());
-                    }
+                    results.AddRange(arch.GetEntitiesSnapshot());
                 }
                 return results;
             }
 
             public IEnumerator<IGameObject> GetEnumerator()
             {
-                List<Archetype> archetypesCopy;
-                lock (Lock) archetypesCopy = Archetypes.ToList();
-
-                foreach (var arch in archetypesCopy)
+                var archetypes = _archetypes;
+                foreach (var arch in archetypes)
                 {
                     foreach (var entity in arch.GetEntitiesSnapshot())
                     {
@@ -104,10 +117,7 @@ namespace Shared.Services;
             if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
             {
                 var matchingArchetypes = am.GetArchetypesWithComponents(componentTypes);
-                lock (queryResult.Lock)
-                {
-                    queryResult.Archetypes.AddRange(matchingArchetypes);
-                }
+                queryResult.AddArchetypes(matchingArchetypes);
             }
 
             if (_queryCache.TryAdd(key, queryResult))
@@ -127,10 +137,7 @@ namespace Shared.Services;
 
                 if (archetype.Signature.Mask.ContainsAll(key.Mask))
                 {
-                    lock (queryResult.Lock)
-                    {
-                        queryResult.Archetypes.Add(archetype);
-                    }
+                    queryResult.AddArchetype(archetype);
                 }
             }
         }

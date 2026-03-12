@@ -19,6 +19,7 @@ namespace Server
         private readonly IScriptCommandProcessor _commandProcessor;
         private readonly ILogger<ScriptHost> _logger;
         private readonly IGameState _gameState;
+        private readonly HashSet<long> _activeObjectIds = new();
 
         public ScriptHost(
             IScriptEnvironmentManager envManager,
@@ -50,11 +51,11 @@ namespace Server
         {
             ProcessCommandQueue();
 
-            var objectIds = new HashSet<long>();
-            _gameState.ForEachGameObject(o => objectIds.Add(o.Id));
+            _activeObjectIds.Clear();
+            _gameState.ForEachGameObject(o => _activeObjectIds.Add(o.Id));
 
             var threads = _envManager.GetActiveThreads();
-            var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, Array.Empty<IGameObject>(), true, objectIds);
+            var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, Array.Empty<IGameObject>(), true, _activeObjectIds);
             _envManager.UpdateActiveThreads(remainingThreads);
         }
 

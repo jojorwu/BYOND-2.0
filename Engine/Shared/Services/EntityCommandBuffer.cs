@@ -34,7 +34,7 @@ namespace Shared.Services;
 
             public CommandList()
             {
-                Commands = ArrayPool<Command>.Shared.Rent(128);
+                Commands = ArrayPool<Command>.Shared.Rent(256);
                 Count = 0;
             }
 
@@ -42,10 +42,11 @@ namespace Shared.Services;
             {
                 if (Count == Commands.Length)
                 {
-                    var newArr = ArrayPool<Command>.Shared.Rent(Commands.Length * 2);
-                    Array.Copy(Commands, newArr, Commands.Length);
-                    ArrayPool<Command>.Shared.Return(Commands);
+                    var oldArr = Commands;
+                    var newArr = ArrayPool<Command>.Shared.Rent(oldArr.Length * 2);
+                    Array.Copy(oldArr, newArr, oldArr.Length);
                     Commands = newArr;
+                    ArrayPool<Command>.Shared.Return(oldArr);
                 }
                 Commands[Count++] = cmd;
             }
@@ -57,10 +58,11 @@ namespace Shared.Services;
 
             public void Dispose()
             {
-                if (Commands != null)
+                var arr = Commands;
+                if (arr != null)
                 {
-                    ArrayPool<Command>.Shared.Return(Commands);
                     Commands = null!;
+                    ArrayPool<Command>.Shared.Return(arr);
                 }
             }
         }

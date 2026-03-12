@@ -53,22 +53,18 @@ namespace Shared;
                 if (_values.Capacity < initialValues.Length)
                     _values.Capacity = initialValues.Length;
 
+                foreach (var val in initialValues)
+                {
+                    _values.Add(val);
+                }
+
                 if (initialValues.Length >= DictionaryThreshold)
                 {
                     _valueCounts = counts = new Dictionary<DreamValue, int>(initialValues.Length);
-                    for (int i = 0; i < initialValues.Length; i++)
+                    foreach (var val in initialValues)
                     {
-                        var val = initialValues[i];
-                        _values.Add(val);
                         if (counts.TryGetValue(val, out int c)) counts[val] = c + 1;
                         else counts[val] = 1;
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < initialValues.Length; i++)
-                    {
-                        _values.Add(initialValues[i]);
                     }
                 }
             }
@@ -123,21 +119,26 @@ namespace Shared;
         {
             lock (_lock)
             {
-                int removedCount = 0;
-                var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
-                for (int i = _values.Count - 1; i >= 0; i--)
+                int writeIndex = 0;
+                bool found = false;
+                for (int readIndex = 0; readIndex < _values.Count; readIndex++)
                 {
-                    if (span[i] == value)
+                    if (_values[readIndex] == value)
                     {
-                        _values.RemoveAt(i);
-                        removedCount++;
-                        // After RemoveAt, we need to refresh span if we use it, but we are iterating backwards
-                        // and span index i remains valid for elements before i.
+                        found = true;
+                        continue;
                     }
+
+                    if (writeIndex != readIndex)
+                    {
+                        _values[writeIndex] = _values[readIndex];
+                    }
+                    writeIndex++;
                 }
 
-                if (removedCount > 0)
+                if (found)
                 {
+                    _values.RemoveRange(writeIndex, _values.Count - writeIndex);
                     if (_valueCounts != null) _valueCounts.Remove(value);
                     if (_associativeValues != null) _associativeValues.Remove(value);
                 }

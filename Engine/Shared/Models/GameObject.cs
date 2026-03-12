@@ -471,10 +471,14 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (index < 0) return;
 
+        long oldX = -1, oldY = -1, oldZ = -1;
+        bool posChanged = false;
+
         lock (_lock)
         {
             var current = _variableStore.Get(index);
-            if (!current.Equals(value))
+            bool valueChanged = !current.Equals(value);
+            if (valueChanged)
             {
                 _variableStore.Set(index, value);
                 _changeMask.Set(index);
@@ -490,20 +494,53 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     switch (builtin)
                     {
-                        case BuiltinVar.X: Interlocked.Exchange(ref _x, value.RawLong); break;
-                        case BuiltinVar.Y: Interlocked.Exchange(ref _y, value.RawLong); break;
-                        case BuiltinVar.Z: Interlocked.Exchange(ref _z, value.RawLong); break;
+                        case BuiltinVar.X:
+                            if (Interlocked.Read(ref _x) != value.RawLong)
+                            {
+                                oldX = _x; oldY = _y; oldZ = _z;
+                                Interlocked.Exchange(ref _x, value.RawLong);
+                                posChanged = true;
+                            }
+                            break;
+                        case BuiltinVar.Y:
+                            if (Interlocked.Read(ref _y) != value.RawLong)
+                            {
+                                oldX = _x; oldY = _y; oldZ = _z;
+                                Interlocked.Exchange(ref _y, value.RawLong);
+                                posChanged = true;
+                            }
+                            break;
+                        case BuiltinVar.Z:
+                            if (Interlocked.Read(ref _z) != value.RawLong)
+                            {
+                                oldX = _x; oldY = _y; oldZ = _z;
+                                Interlocked.Exchange(ref _z, value.RawLong);
+                                posChanged = true;
+                            }
+                            break;
                         case BuiltinVar.Loc:
                             if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                                 SetLocInternal(loc, false);
                             else
                                 SetLocInternal(null, false);
                             break;
-                        // For other visual properties, they are now directly derived from _variableStore
                     }
-                    return;
                 }
             }
+
+            if (valueChanged)
+            {
+                var binding = _bindingService;
+                if (binding != null)
+                {
+                    binding.NotifyPropertyChanged(this, index, value);
+                }
+            }
+        }
+
+        if (posChanged)
+        {
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 

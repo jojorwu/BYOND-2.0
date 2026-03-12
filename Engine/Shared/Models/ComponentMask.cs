@@ -68,16 +68,15 @@ public struct ComponentMask : IEquatable<ComponentMask>
         {
             if (_m0 != 0)
             {
-                int bit = BitOperations.TrailingZeroCount(_m0);
-                _current = bit;
-                _m0 &= ~(1UL << bit);
+                _current = BitOperations.TrailingZeroCount(_m0);
+                _m0 &= _m0 - 1;
                 return true;
             }
             if (_m1 != 0)
             {
-                int bit = BitOperations.TrailingZeroCount(_m1);
-                _current = bit + 64;
-                _m1 &= ~(1UL << bit);
+                _current = BitOperations.TrailingZeroCount(_m1);
+                _m1 &= _m1 - 1;
+                _current += 64;
                 return true;
             }
             return false;

@@ -13,6 +13,7 @@ namespace Shared.Services;
             private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
             private readonly object _lock = new();
             private readonly IGameState? _gameState;
+            private IGameObject[]? _cachedSnapshot;
 
             public QueryResult(IGameState? gameState)
             {
@@ -29,6 +30,7 @@ namespace Shared.Services;
                     Array.Copy(_archetypes, updated, _archetypes.Length);
                     updated[_archetypes.Length] = archetype;
                     _archetypes = updated;
+                    _cachedSnapshot = null;
                 }
             }
 
@@ -41,6 +43,7 @@ namespace Shared.Services;
                     Array.Copy(_archetypes, updated, _archetypes.Length);
                     Array.Copy(matchingArray, 0, updated, _archetypes.Length, matchingArray.Length);
                     _archetypes = updated;
+                    _cachedSnapshot = null;
                 }
             }
 
@@ -49,12 +52,26 @@ namespace Shared.Services;
             private IReadOnlyList<IGameObject> BuildSnapshot()
             {
                 var archetypes = _archetypes;
-                var results = new List<IGameObject>();
-                foreach (var arch in archetypes)
+                var snapshot = _cachedSnapshot;
+                if (snapshot != null) return snapshot;
+
+                lock (_lock)
                 {
-                    results.AddRange(arch.GetEntitiesSnapshot());
+                    if (_cachedSnapshot != null) return _cachedSnapshot;
+
+                    int totalCount = 0;
+                    foreach (var arch in archetypes) totalCount += arch.EntityCount;
+
+                    var results = new IGameObject[totalCount];
+                    int offset = 0;
+                    foreach (var arch in archetypes)
+                    {
+                        arch.CopyEntitiesTo(results, offset);
+                        offset += arch.EntityCount;
+                    }
+                    _cachedSnapshot = results;
+                    return results;
                 }
-                return results;
             }
 
             public IEnumerator<IGameObject> GetEnumerator()

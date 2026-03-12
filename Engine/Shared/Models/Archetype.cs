@@ -329,4 +329,12 @@ public class Archetype
             return snapshot;
         }
     }
+
+    public void CopyEntitiesTo(IGameObject[] destination, int offset)
+    {
+        lock (_lock)
+        {
+            Array.Copy(_entities, 0, destination, offset, _count);
+        }
+    }
 }

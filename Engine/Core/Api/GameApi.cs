@@ -14,7 +14,7 @@ namespace Core.Api
         public IScriptApi Scripts => _registry.Get<IScriptApi>("Scripts");
         public ISoundApi Sounds => _registry.Get<ISoundApi>("Sounds");
         public Shared.Config.ISoundRegistry SoundRegistry { get; }
-        public IStandardLibraryApi StdLib => _registry.Get<IStandardLibraryApi>("StdLib");
+        public IStandardLibraryApi StdLib => _registry.Get<IStandardLibraryApi>("StandardLibrary");
         public Shared.Config.IConsoleCommandManager Commands { get; }
         public ITimeApi Time => _registry.Get<ITimeApi>("Time");
         public IEventApi Events => _registry.Get<IEventApi>("Events");

@@ -40,7 +40,7 @@ public abstract class EngineApplication : IHostedService
 
         try
         {
-            await graph.InitializeParallelAsync(async service =>
+            await graph.ExecuteParallelAsync(async service =>
             {
                 var serviceName = service.GetType().Name;
                 try

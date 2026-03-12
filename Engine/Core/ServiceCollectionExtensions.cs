@@ -53,37 +53,38 @@ namespace Core
 
             services.AddSingleton<MapApi>();
             services.AddSingleton<IMapApi>(sp => sp.GetRequiredService<MapApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<MapApi>());
 
             services.AddSingleton<ObjectApi>();
             services.AddSingleton<IObjectApi>(sp => sp.GetRequiredService<ObjectApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<ObjectApi>());
 
             services.AddSingleton<ScriptApi>();
             services.AddSingleton<IScriptApi>(sp => sp.GetRequiredService<ScriptApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<ScriptApi>());
 
             services.AddSingleton<StandardLibraryApi>();
             services.AddSingleton<IStandardLibraryApi>(sp => sp.GetRequiredService<StandardLibraryApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<StandardLibraryApi>());
 
             services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
 
             services.AddSingleton<TimeApi>();
             services.AddSingleton<ITimeApi>(sp => sp.GetRequiredService<TimeApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<TimeApi>());
 
             services.AddSingleton<EventApi>();
             services.AddSingleton<IEventApi>(sp => sp.GetRequiredService<EventApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<EventApi>());
 
             services.AddSingleton<SoundApi>();
             services.AddSingleton<ISoundApi>(sp => sp.GetRequiredService<SoundApi>());
+            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<SoundApi>());
 
             services.AddSingleton<IGameApi>(sp =>
             {
                 var registry = sp.GetRequiredService<IApiRegistry>();
-                registry.Register(sp.GetRequiredService<MapApi>());
-                registry.Register(sp.GetRequiredService<ObjectApi>());
-                registry.Register(sp.GetRequiredService<ScriptApi>());
-                registry.Register(sp.GetRequiredService<StandardLibraryApi>());
-                registry.Register(sp.GetRequiredService<TimeApi>());
-                registry.Register(sp.GetRequiredService<EventApi>());
-                registry.Register(sp.GetRequiredService<SoundApi>());
+                registry.RegisterAll(sp);
 
                 return new GameApi(
                     registry,

@@ -11,5 +11,5 @@ public interface IPacketMiddleware
     /// <summary>
     /// Processes the packet context. Returns true to continue the pipeline, false to abort.
     /// </summary>
-    Task<bool> ProcessAsync(PacketContext context);
+    ValueTask<bool> ProcessAsync(PacketContext context);
 }

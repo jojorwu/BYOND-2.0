@@ -22,14 +22,20 @@ public class ServiceDependencyGraph
 
     private void BuildGraph()
     {
-        var nameToService = new Dictionary<string, IEngineService>();
+        var nameToService = new Dictionary<string, IEngineService>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in _services)
         {
-            if (s.Name != null)
+            if (!string.IsNullOrEmpty(s.Name))
+            {
+                if (nameToService.ContainsKey(s.Name))
+                {
+                    // If multiple services have the same name, we can't reliably depend on them by name.
+                    // This might happen if someone registers the same service twice under different interfaces.
+                    continue;
+                }
                 nameToService[s.Name] = s;
+            }
         }
-
-        var sortedByPriority = _services.OrderByDescending(s => s.Priority).ToList();
 
         foreach (var service in _services)
         {
@@ -44,19 +50,21 @@ public class ServiceDependencyGraph
                 }
             }
 
-            // Implicit priority-based dependencies:
-            // Services with lower priority depend on all services with higher priority
-            int myIndex = sortedByPriority.IndexOf(service);
-            for (int i = 0; i < myIndex; i++)
+            // Priority-based dependency: only depend on services with strictly higher priority.
+            // This allows services with the same priority to be truly parallel.
+            foreach (var other in _services)
             {
-                deps.Add(sortedByPriority[i]);
+                if (other.Priority > service.Priority)
+                {
+                    deps.Add(other);
+                }
             }
 
             _dependencies[service] = deps.ToList();
         }
     }
 
-    public async Task InitializeParallelAsync(Func<IEngineService, Task> initAction)
+    public async Task ExecuteParallelAsync(Func<IEngineService, Task> action)
     {
         var completed = new HashSet<IEngineService>();
         var remaining = new HashSet<IEngineService>(_services);
@@ -67,21 +75,30 @@ public class ServiceDependencyGraph
             List<IEngineService> ready;
             lock (lockObj)
             {
-                ready = remaining.Where(s => _dependencies[s].All(d => completed.Contains(d))).ToList();
+                ready = remaining
+                    .Where(s => _dependencies[s].All(d => completed.Contains(d)))
+                    .OrderByDescending(s => s.Priority)
+                    .ToList();
             }
 
             if (ready.Count == 0 && remaining.Count > 0)
             {
-                throw new InvalidOperationException("Circular dependency or stalled graph in service initialization.");
+                throw new InvalidOperationException("Circular dependency or stalled graph in service execution.");
             }
 
             var tasks = ready.Select(async s =>
             {
-                await initAction(s);
-                lock (lockObj)
+                try
                 {
-                    completed.Add(s);
-                    remaining.Remove(s);
+                    await action(s);
+                }
+                finally
+                {
+                    lock (lockObj)
+                    {
+                        completed.Add(s);
+                        remaining.Remove(s);
+                    }
                 }
             });
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
@@ -11,6 +12,15 @@ public class ApiRegistry : IApiRegistry
     public void Register<T>(T provider) where T : class, IApiProvider
     {
         _providers[provider.Name.ToLowerInvariant()] = provider;
+    }
+
+    public void RegisterAll(System.IServiceProvider serviceProvider)
+    {
+        var providers = serviceProvider.GetServices<IApiProvider>();
+        foreach (var provider in providers)
+        {
+            Register(provider);
+        }
     }
 
     public T Get<T>(string name) where T : class, IApiProvider

@@ -91,7 +91,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldY = _y; oldZ = _z;
                 _x = value;
                 var type = ObjectType;
-                if (type != null && type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(value));
+                if (type != null && type.XIndex != -1)
+                {
+                    _variableStore.Set(type.XIndex, new DreamValue(value));
+                    _changeMask.Set(type.XIndex);
+                }
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -122,7 +126,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldZ = _z;
                 _y = value;
                 var type = ObjectType;
-                if (type != null && type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(value));
+                if (type != null && type.YIndex != -1)
+                {
+                    _variableStore.Set(type.YIndex, new DreamValue(value));
+                    _changeMask.Set(type.YIndex);
+                }
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -153,7 +161,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldY = _y;
                 _z = value;
                 var type = ObjectType;
-                if (type != null && type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(value));
+                if (type != null && type.ZIndex != -1)
+                {
+                    _variableStore.Set(type.ZIndex, new DreamValue(value));
+                    _changeMask.Set(type.ZIndex);
+                }
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -608,9 +620,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             var type = ObjectType;
             if (type != null)
             {
-                if (type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(x));
-                if (type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(y));
-                if (type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(z));
+                if (type.XIndex != -1)
+                {
+                    _variableStore.Set(type.XIndex, new DreamValue(x));
+                    _changeMask.Set(type.XIndex);
+                }
+                if (type.YIndex != -1)
+                {
+                    _variableStore.Set(type.YIndex, new DreamValue(y));
+                    _changeMask.Set(type.YIndex);
+                }
+                if (type.ZIndex != -1)
+                {
+                    _variableStore.Set(type.ZIndex, new DreamValue(z));
+                    _changeMask.Set(type.ZIndex);
+                }
             }
             IncrementVersion();
         }

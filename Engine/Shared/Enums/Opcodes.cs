@@ -392,6 +392,10 @@ public enum Opcode : byte {
     LocalCompareGreaterThanOrEqualJumpIfFalse = 0xC3,
     [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.String)]
     LocalPushDereferenceField = 0xC4,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    LocalPushDereferenceCall = 0xCA,
+    [OpcodeMetadata(1, OpcodeArgType.Int)]
+    LocalPushDereferenceIndex = 0xCB,
     [OpcodeMetadata(0, OpcodeArgType.Int)]
     PopN = 0xC5,
 }

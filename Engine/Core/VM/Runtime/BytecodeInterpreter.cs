@@ -630,7 +630,34 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
-                                            thread.Context.SetGlobal(idx, value);
+                                            thread.Context.Globals[idx] = value;
+                                        }
+                                        else if (refType == DMReference.Type.SrcField)
+                                        {
+                                            int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                            int pcForCache = state.PC - 1;
+                                            state.PC += 4;
+                                            var instance = state.Frame.Instance;
+                                            if (instance != null)
+                                            {
+                                                ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                                if (cache.ObjectType == instance.ObjectType)
+                                                {
+                                                    instance.SetVariableDirect(cache.VariableIndex, value);
+                                                }
+                                                else
+                                                {
+                                                    var name = state.Strings[nameId];
+                                                    int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                    if (varIdx != -1)
+                                                    {
+                                                        cache.ObjectType = instance.ObjectType;
+                                                        cache.VariableIndex = varIdx;
+                                                        instance.SetVariableDirect(varIdx, value);
+                                                    }
+                                                    else instance.SetVariable(name, value);
+                                                }
+                                            }
                                         }
                                         else
                                         {
@@ -1114,6 +1141,73 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 }
                                                 else val = obj.GetVariable(name);
                                             }
+                                        }
+                                        state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.LocalPushDereferenceCall:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
+                                        state.PC += 4;
+                                        var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
+                                        int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var objValue = state.Locals[idx];
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            IDreamProc? targetProc;
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
+                                            {
+                                                targetProc = cache.CachedProc;
+                                            }
+                                            else
+                                            {
+                                                var procName = state.Strings[nameId];
+                                                targetProc = obj.ObjectType?.GetProc(procName);
+                                                if (targetProc == null)
+                                                {
+                                                    var varValue = obj.GetVariable(procName);
+                                                    if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                                                }
+                                                if (targetProc != null)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.CachedProc = targetProc;
+                                                }
+                                            }
+
+                                            if (targetProc != null)
+                                            {
+                                                state.Thread.SavePC(state.PC);
+                                                int argCount = argStackDelta;
+                                                state.Thread._stackPtr = state.StackPtr;
+                                                state.Thread.PerformCall(targetProc, obj, argCount, argCount);
+                                                goto FrameChanged;
+                                            }
+                                        }
+                                        state.StackPtr -= argStackDelta;
+                                        state.Push(DreamValue.Null);
+                                    }
+                                    break;
+                                case Opcode.LocalPushDereferenceIndex:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var index = state.Stack[--state.StackPtr];
+                                        var objValue = state.Locals[idx];
+                                        DreamValue val = DreamValue.Null;
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+                                        {
+                                            if (index.Type <= DreamValueType.Integer)
+                                            {
+                                                int listIdx = (int)index.UnsafeRawDouble - 1;
+                                                if (listIdx >= 0 && listIdx < list.Values.Count) val = list.Values[listIdx];
+                                            }
+                                            else val = list.GetValue(index);
                                         }
                                         state.Push(val);
                                     }
@@ -1659,6 +1753,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.LocalCompareLessThanOrEqualJumpIfFalse] = &HandleLocalCompareLessThanOrEqualJumpIfFalse;
         table[(byte)Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualJumpIfFalse;
         table[(byte)Opcode.LocalPushDereferenceField] = &HandleLocalPushDereferenceField;
+        table[(byte)Opcode.LocalPushDereferenceCall] = &HandleLocalPushDereferenceCall;
+        table[(byte)Opcode.LocalPushDereferenceIndex] = &HandleLocalPushDereferenceIndex;
         table[(byte)Opcode.LocalMulLocalAssign] = &HandleLocalMulLocalAssign;
         table[(byte)Opcode.LocalDivLocalAssign] = &HandleLocalDivLocalAssign;
         table[(byte)Opcode.LocalMulFloatAssign] = &HandleLocalMulFloatAssign;
@@ -2407,6 +2503,70 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Push(val);
     }
 
+    private static void HandleLocalPushDereferenceCall(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int pcForCache = state.PC - 5;
+        var argType = (DMCallArgumentsType)state.ReadByte();
+        int argStackDelta = state.ReadInt32();
+
+        var objValue = state.GetLocal(idx);
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            IDreamProc? targetProc;
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
+            {
+                targetProc = cache.CachedProc;
+            }
+            else
+            {
+                var procName = state.Strings[nameId];
+                targetProc = obj.ObjectType?.GetProc(procName);
+                if (targetProc == null)
+                {
+                    var varValue = obj.GetVariable(procName);
+                    if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                }
+                if (targetProc != null)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.CachedProc = targetProc;
+                }
+            }
+
+            if (targetProc != null)
+            {
+                state.Thread.SavePC(state.PC);
+                int argCount = argStackDelta;
+                state.Thread._stackPtr = state.StackPtr;
+                state.Thread.PerformCall(targetProc, obj, argCount, argCount);
+                return;
+            }
+        }
+        state.StackPtr -= argStackDelta;
+        state.Push(DreamValue.Null);
+    }
+
+    private static void HandleLocalPushDereferenceIndex(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        var index = state.Pop();
+        var objValue = state.GetLocal(idx);
+        DreamValue val = DreamValue.Null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+        {
+            if (index.Type <= DreamValueType.Integer)
+            {
+                int i = (int)index.UnsafeRawDouble - 1;
+                if (i >= 0 && i < list.Values.Count) val = list.Values[i];
+            }
+            else val = list.GetValue(index);
+        }
+        state.Push(val);
+    }
+
     private static void HandleSetVariable(ref InterpreterState state)
     {
         var nameId = state.ReadInt32();
@@ -2429,21 +2589,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.GetLocal(idx));
+                    state.Push(state.Locals[idx]);
                 }
                 break;
             case DMReference.Type.Argument:
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.GetArgument(idx));
+                    state.Push(state.Arguments[idx]);
                 }
                 break;
             case DMReference.Type.Global:
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.Thread.Context.GetGlobal(globalIdx));
+                    state.Push(state.Thread.Context.Globals[globalIdx]);
                 }
                 break;
             case DMReference.Type.Src:
@@ -2451,6 +2611,35 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 break;
             case DMReference.Type.World:
                 state.Push(state.Thread.Context.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
+                break;
+            case DMReference.Type.SrcField:
+                {
+                    int nameId = *(int*)(state.BytecodePtr + state.PC);
+                    int pcForCache = state.PC - 1;
+                    state.PC += 4;
+                    var instance = state.Frame.Instance;
+                    if (instance != null)
+                    {
+                        ref var cache = ref state.Proc._inlineCache[pcForCache];
+                        if (cache.ObjectType == instance.ObjectType)
+                        {
+                            state.Push(instance.GetVariableDirect(cache.VariableIndex));
+                        }
+                        else
+                        {
+                            var name = state.Strings[nameId];
+                            int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                            if (varIdx != -1)
+                            {
+                                cache.ObjectType = instance.ObjectType;
+                                cache.VariableIndex = varIdx;
+                                state.Push(instance.GetVariableDirect(varIdx));
+                            }
+                            else state.Push(instance.GetVariable(name));
+                        }
+                    }
+                    else state.Push(DreamValue.Null);
+                }
                 break;
             default:
                 {

@@ -398,6 +398,18 @@ public enum Opcode : byte {
     LocalPushDereferenceIndex = 0xCB,
     [OpcodeMetadata(0, OpcodeArgType.Int)]
     PopN = 0xC5,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float, OpcodeArgType.Label)]
+    LocalCompareLessThanFloatJumpIfFalse = 0xCC,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float, OpcodeArgType.Label)]
+    LocalCompareGreaterThanFloatJumpIfFalse = 0xCD,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float, OpcodeArgType.Label)]
+    LocalCompareLessThanOrEqualFloatJumpIfFalse = 0xCE,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float, OpcodeArgType.Label)]
+    LocalCompareGreaterThanOrEqualFloatJumpIfFalse = 0xCF,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label)]
+    LocalJumpIfFieldFalse = 0xD0,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label)]
+    LocalJumpIfFieldTrue = 0xD1,
 }
 
 public enum OpcodeArgType {

@@ -44,24 +44,32 @@ namespace Shared;
             lock (_lock)
             {
                 _values.Clear();
-                _valueCounts?.Clear();
                 _associativeValues?.Clear();
+                var counts = _valueCounts;
+                counts?.Clear();
 
                 if (initialValues.IsEmpty) return;
-
-                if (initialValues.Length >= DictionaryThreshold)
-                {
-                    _valueCounts ??= new Dictionary<DreamValue, int>(initialValues.Length);
-                }
 
                 if (_values.Capacity < initialValues.Length)
                     _values.Capacity = initialValues.Length;
 
-                for (int i = 0; i < initialValues.Length; i++)
+                if (initialValues.Length >= DictionaryThreshold)
                 {
-                    var val = initialValues[i];
-                    _values.Add(val);
-                    AddCount(val);
+                    _valueCounts = counts = new Dictionary<DreamValue, int>(initialValues.Length);
+                    for (int i = 0; i < initialValues.Length; i++)
+                    {
+                        var val = initialValues[i];
+                        _values.Add(val);
+                        if (counts.TryGetValue(val, out int c)) counts[val] = c + 1;
+                        else counts[val] = 1;
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < initialValues.Length; i++)
+                    {
+                        _values.Add(initialValues[i]);
+                    }
                 }
             }
         }
@@ -115,17 +123,20 @@ namespace Shared;
         {
             lock (_lock)
             {
-                bool removedAny = false;
+                int removedCount = 0;
+                var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
                 for (int i = _values.Count - 1; i >= 0; i--)
                 {
-                    if (_values[i] == value)
+                    if (span[i] == value)
                     {
                         _values.RemoveAt(i);
-                        removedAny = true;
+                        removedCount++;
+                        // After RemoveAt, we need to refresh span if we use it, but we are iterating backwards
+                        // and span index i remains valid for elements before i.
                     }
                 }
 
-                if (removedAny)
+                if (removedCount > 0)
                 {
                     if (_valueCounts != null) _valueCounts.Remove(value);
                     if (_associativeValues != null) _associativeValues.Remove(value);
@@ -189,8 +200,9 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ContainsInternal(DreamValue value)
         {
-            if (_valueCounts != null)
-                return _valueCounts.ContainsKey(value);
+            var counts = _valueCounts;
+            if (counts != null)
+                return counts.ContainsKey(value);
 
             // Linear search for small lists
             var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);

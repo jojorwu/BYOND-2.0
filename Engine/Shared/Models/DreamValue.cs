@@ -445,19 +445,24 @@ namespace Shared;
             {
                 if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                     return new DreamValue(a._longValue + b._longValue);
-                return new DreamValue(a.RawDouble + b.RawDouble);
+
+                double da = a.Type == DreamValueType.Float ? a._floatValue : (double)a._longValue;
+                double db = b.Type == DreamValueType.Float ? b._floatValue : (double)b._longValue;
+                return new DreamValue(da + db);
             }
 
             // String concatenation
             if (a.Type == DreamValueType.String || b.Type == DreamValueType.String)
             {
-                var sA = a.ToString();
-                var sB = b.ToString();
+                var sb = _concatStringBuilder.Value!;
+                sb.Clear();
+                a.AppendTo(sb);
+                b.AppendTo(sb);
 
-                if ((long)sA.Length + sB.Length > 1073741824)
+                if (sb.Length > 1073741824)
                     throw new System.InvalidOperationException("Maximum string length exceeded during concatenation");
 
-                return new DreamValue(sA + sB);
+                return new DreamValue(sb.ToString());
             }
 
             // List addition
@@ -487,7 +492,10 @@ namespace Shared;
             {
                 if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                     return new DreamValue(a._longValue - b._longValue);
-                return new DreamValue(a.RawDouble - b.RawDouble);
+
+                double da = a.Type == DreamValueType.Float ? a._floatValue : (double)a._longValue;
+                double db = b.Type == DreamValueType.Float ? b._floatValue : (double)b._longValue;
+                return new DreamValue(da - db);
             }
 
             // List subtraction
@@ -516,7 +524,10 @@ namespace Shared;
             {
                 if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
                     return new DreamValue(a._longValue * b._longValue);
-                return new DreamValue(a.RawDouble * b.RawDouble);
+
+                double da = a.Type == DreamValueType.Float ? a._floatValue : (double)a._longValue;
+                double db = b.Type == DreamValueType.Float ? b._floatValue : (double)b._longValue;
+                return new DreamValue(da * db);
             }
             return new DreamValue(a.GetValueAsDouble() * b.GetValueAsDouble());
         }
@@ -571,6 +582,10 @@ namespace Shared;
             return HashCode.Combine(Type, _objectValue);
         }
 
+        [ThreadStatic]
+        private static System.Text.StringBuilder? _concatStringBuilderInstance;
+        private static ThreadLocal<System.Text.StringBuilder> _concatStringBuilder = new(() => _concatStringBuilderInstance ??= new System.Text.StringBuilder(128));
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
@@ -580,7 +595,8 @@ namespace Shared;
                 if (a.Type <= DreamValueType.Integer)
                 {
                     if (a.Type == DreamValueType.Integer) return a._longValue == b._longValue;
-                    return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 0.00001;
+                    // Use a standard epsilon for DM float equality (1e-5)
+                    return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 1e-5;
                 }
                 return ReferenceEquals(a._objectValue, b._objectValue);
             }
@@ -588,13 +604,13 @@ namespace Shared;
             // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)
             {
-                if (b.Type == DreamValueType.Float) return b._floatValue == 0 || Math.Abs(b._floatValue) < 0.00001;
+                if (b.Type == DreamValueType.Float) return b._floatValue == 0 || Math.Abs(b._floatValue) < 1e-5;
                 if (b.Type == DreamValueType.Integer) return b._longValue == 0;
                 return false;
             }
             if (b.Type == DreamValueType.Null)
             {
-                if (a.Type == DreamValueType.Float) return a._floatValue == 0 || Math.Abs(a._floatValue) < 0.00001;
+                if (a.Type == DreamValueType.Float) return a._floatValue == 0 || Math.Abs(a._floatValue) < 1e-5;
                 if (a.Type == DreamValueType.Integer) return a._longValue == 0;
                 return false;
             }
@@ -602,7 +618,9 @@ namespace Shared;
             // Mixed numeric equality
             if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
             {
-                return a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001;
+                double da = a.Type == DreamValueType.Float ? a._floatValue : (double)a._longValue;
+                double db = b.Type == DreamValueType.Float ? b._floatValue : (double)b._longValue;
+                return da == db || Math.Abs(da - db) < 1e-5;
             }
 
             return false;

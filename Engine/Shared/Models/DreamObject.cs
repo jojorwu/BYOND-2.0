@@ -94,7 +94,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void SetVariableDirect(int index, DreamValue value)
         {
-            if (index < 0) return;
+            if ((uint)index >= 1000000) return; // Basic sanity check
 
             // Note: SetVariableDirect still uses a lock for consistency when updating and notifying
             lock (_lock)

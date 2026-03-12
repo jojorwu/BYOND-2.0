@@ -47,26 +47,45 @@ public struct ComponentMask : IEquatable<ComponentMask>
     }
 
     /// <summary>
-    /// Enumerates indices of all set bits in the mask.
-    /// Optimized using bit manipulation instructions.
+    /// Enumerates indices of all set bits in the mask without heap allocations.
     /// </summary>
-    public IEnumerable<int> GetSetBits()
+    public Enumerator GetSetBits() => new Enumerator(_mask0, _mask1);
+
+    public struct Enumerator
     {
-        ulong m0 = _mask0;
-        while (m0 != 0)
+        private ulong _m0;
+        private ulong _m1;
+        private int _current;
+
+        public Enumerator(ulong m0, ulong m1)
         {
-            int bit = BitOperations.TrailingZeroCount(m0);
-            yield return bit;
-            m0 &= ~(1UL << bit);
+            _m0 = m0;
+            _m1 = m1;
+            _current = -1;
         }
 
-        ulong m1 = _mask1;
-        while (m1 != 0)
+        public bool MoveNext()
         {
-            int bit = BitOperations.TrailingZeroCount(m1);
-            yield return bit + 64;
-            m1 &= ~(1UL << bit);
+            if (_m0 != 0)
+            {
+                int bit = BitOperations.TrailingZeroCount(_m0);
+                _current = bit;
+                _m0 &= ~(1UL << bit);
+                return true;
+            }
+            if (_m1 != 0)
+            {
+                int bit = BitOperations.TrailingZeroCount(_m1);
+                _current = bit + 64;
+                _m1 &= ~(1UL << bit);
+                return true;
+            }
+            return false;
         }
+
+        public int Current => _current;
+
+        public Enumerator GetEnumerator() => this;
     }
 
     public bool Equals(ComponentMask other)

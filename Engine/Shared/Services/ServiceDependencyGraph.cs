@@ -66,77 +66,124 @@ public class ServiceDependencyGraph
 
     public async Task ExecuteParallelAsync(Func<IEngineService, Task> action)
     {
-        var completed = new HashSet<IEngineService>();
-        var remaining = new HashSet<IEngineService>(_services);
+        var dependencyCounts = _services.ToDictionary(s => s, s => _dependencies[s].Count);
+        var dependents = _services.ToDictionary(s => s, _ => new List<IEngineService>());
+        foreach (var kvp in _dependencies)
+        {
+            foreach (var dep in kvp.Value)
+            {
+                dependents[dep].Add(kvp.Key);
+            }
+        }
+
+        var ready = new Queue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderByDescending(s => s.Priority));
+        int processedCount = 0;
         var lockObj = new object();
 
-        while (remaining.Count > 0)
+        while (ready.Count > 0)
         {
-            List<IEngineService> ready;
+            List<IEngineService> currentBatch;
             lock (lockObj)
             {
-                ready = remaining
-                    .Where(s => _dependencies[s].All(d => completed.Contains(d)))
-                    .OrderByDescending(s => s.Priority)
-                    .ToList();
+                currentBatch = ready.ToList();
+                ready.Clear();
             }
 
-            if (ready.Count == 0 && remaining.Count > 0)
-            {
-                throw new InvalidOperationException("Circular dependency or stalled graph in service execution.");
-            }
-
-            var tasks = ready.Select(async s =>
+            var tasks = currentBatch.Select(async s =>
             {
                 try
                 {
                     await action(s);
+                    Interlocked.Increment(ref processedCount);
+
+                    var nextBatch = new List<IEngineService>();
+                    foreach (var dependent in dependents[s])
+                    {
+                        if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent)) == 0)
+                        {
+                            nextBatch.Add(dependent);
+                        }
+                    }
+
+                    if (nextBatch.Count > 0)
+                    {
+                        lock (lockObj)
+                        {
+                            foreach (var n in nextBatch.OrderByDescending(x => x.Priority)) ready.Enqueue(n);
+                        }
+                    }
                 }
-                finally
+                catch (Exception)
+                {
+                    if (s.IsCritical) throw;
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }
+
+        if (processedCount < _services.Count)
+        {
+            throw new InvalidOperationException("Circular dependency detected in service graph.");
+        }
+    }
+
+    public async Task ShutdownParallelAsync(Func<IEngineService, Task> shutdownAction)
+    {
+        // Inverse graph for shutdown
+        var dependencyCounts = _services.ToDictionary(s => s, s => 0);
+        var dependents = _services.ToDictionary(s => s, s => _dependencies[s]);
+
+        foreach (var s in _services)
+        {
+            foreach (var dep in _dependencies[s])
+            {
+                dependencyCounts[dep]++;
+            }
+        }
+
+        var ready = new Queue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderBy(s => s.Priority));
+        int processedCount = 0;
+        var lockObj = new object();
+
+        while (ready.Count > 0)
+        {
+            List<IEngineService> currentBatch;
+            lock (lockObj)
+            {
+                currentBatch = ready.ToList();
+                ready.Clear();
+            }
+
+            var tasks = currentBatch.Select(async s =>
+            {
+                await shutdownAction(s);
+                Interlocked.Increment(ref processedCount);
+
+                var nextBatch = new List<IEngineService>();
+                foreach (var dep in dependents[s])
+                {
+                    if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dep)) == 0)
+                    {
+                        nextBatch.Add(dep);
+                    }
+                }
+
+                if (nextBatch.Count > 0)
                 {
                     lock (lockObj)
                     {
-                        completed.Add(s);
-                        remaining.Remove(s);
+                        foreach (var n in nextBatch.OrderBy(x => x.Priority)) ready.Enqueue(n);
                     }
                 }
             });
 
             await Task.WhenAll(tasks);
         }
-    }
 
-    public async Task ShutdownParallelAsync(Func<IEngineService, Task> shutdownAction)
-    {
-        var completed = new HashSet<IEngineService>();
-        var remaining = new HashSet<IEngineService>(_services);
-        var lockObj = new object();
-
-        while (remaining.Count > 0)
+        if (processedCount < _services.Count)
         {
-            List<IEngineService> ready;
-            lock (lockObj)
-            {
-                // A service is ready to shutdown if no OTHER remaining service depends on it
-                ready = remaining.Where(s => !remaining.Any(other => other != s && _dependencies[other].Contains(s))).ToList();
-            }
-
-            if (ready.Count == 0 && remaining.Count > 0)
-            {
-                throw new InvalidOperationException("Circular dependency or stalled graph in service shutdown.");
-            }
-
-            var tasks = ready.Select(async s =>
-            {
-                await shutdownAction(s);
-                lock (lockObj)
-                {
-                    completed.Add(s);
-                    remaining.Remove(s);
-                }
-            });
-
-            await Task.WhenAll(tasks);
+            throw new InvalidOperationException("Circular dependency detected during service shutdown.");
         }
     }
 }

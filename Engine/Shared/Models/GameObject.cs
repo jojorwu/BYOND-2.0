@@ -524,6 +524,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                             else
                                 SetLocInternal(null, false);
                             break;
+                        case BuiltinVar.Density:
+                            Interlocked.Exchange(ref _densityVal, value.IsFalse() ? 0 : 1);
+                            break;
                     }
                 }
             }

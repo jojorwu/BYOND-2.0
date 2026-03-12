@@ -895,8 +895,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             int nameId = *(int*)(state.BytecodePtr + state.PC);
                                             int pcForCache = state.PC - 1;
                                             state.PC += 4;
-                                            var objValue = state.Stack[state.StackPtr - 2];
-                                            if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                            var objValue = state.Stack[state.StackPtr - 1]; // Value is at StackPtr-1, Target Object is at StackPtr-2
+                                            var targetObjValue = state.Stack[state.StackPtr - 2];
+                                            if (targetObjValue.TryGetValue(out DreamObject? obj) && obj != null)
                                             {
                                                 ref var cache = ref state.Proc._inlineCache[pcForCache];
                                                 if (cache.ObjectType == obj.ObjectType)
@@ -1894,7 +1895,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             }
                                             if (val.IsFalse()) state.PC = address;
                                         }
-                                        else state.PC = address;
+                                        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, thread);
                                     }
                                     break;
                                 case Opcode.LocalJumpIfFieldTrue:
@@ -1921,6 +1922,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             }
                                             if (!val.IsFalse()) state.PC = address;
                                         }
+                                        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, thread);
                                     }
                                     break;
                                 default:
@@ -2163,8 +2165,76 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.LocalCompareGreaterThan] = &HandleLocalCompareGreaterThan;
         table[(byte)Opcode.LocalCompareLessThanOrEqual] = &HandleLocalCompareLessThanOrEqual;
         table[(byte)Opcode.LocalCompareGreaterThanOrEqual] = &HandleLocalCompareGreaterThanOrEqual;
+        table[(byte)Opcode.LocalCompareLessThanFloatJumpIfFalse] = &HandleLocalCompareLessThanFloatJumpIfFalse;
+        table[(byte)Opcode.LocalCompareGreaterThanFloatJumpIfFalse] = &HandleLocalCompareGreaterThanFloatJumpIfFalse;
+        table[(byte)Opcode.LocalCompareLessThanOrEqualFloatJumpIfFalse] = &HandleLocalCompareLessThanOrEqualFloatJumpIfFalse;
+        table[(byte)Opcode.LocalCompareGreaterThanOrEqualFloatJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse;
+        table[(byte)Opcode.LocalJumpIfFieldFalse] = &HandleLocalJumpIfFieldFalse;
+        table[(byte)Opcode.LocalJumpIfFieldTrue] = &HandleLocalJumpIfFieldTrue;
 
         return table;
+    }
+
+    private static void HandleLocalCompareLessThanFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] < val)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] > val)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanOrEqualFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] <= val)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] >= val)) state.PC = address;
+    }
+
+    private static void HandleLocalJumpIfFieldFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int address = state.ReadInt32();
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+    }
+
+    private static void HandleLocalJumpIfFieldTrue(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int address = state.ReadInt32();
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (!val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
     }
 
     private static void HandleUnknownOpcode(ref InterpreterState state)

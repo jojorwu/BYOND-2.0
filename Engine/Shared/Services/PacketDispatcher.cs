@@ -50,12 +50,12 @@ namespace Shared.Services;
         {
             if (string.IsNullOrEmpty(data)) return;
 
-            int byteCount = System.Text.Encoding.UTF8.GetByteCount(data);
-            var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(byteCount);
+            int maxByteCount = System.Text.Encoding.UTF8.GetMaxByteCount(data.Length);
+            var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(maxByteCount);
             try
             {
-                System.Text.Encoding.UTF8.GetBytes(data, 0, data.Length, buffer, 0);
-                await DispatchAsync(peer, new ReadOnlyMemory<byte>(buffer, 0, byteCount));
+                int actualByteCount = System.Text.Encoding.UTF8.GetBytes(data, buffer);
+                await DispatchAsync(peer, new ReadOnlyMemory<byte>(buffer, 0, actualByteCount));
             }
             finally
             {

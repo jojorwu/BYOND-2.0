@@ -45,11 +45,12 @@ namespace Shared.Services;
 
                 if (obj.ObjectType != null)
                 {
-                    var varNames = obj.ObjectType.VariableNames;
-                    offset += WriteVarInt(destination.Slice(offset), varNames.Count);
-                    for (int i = 0; i < varNames.Count; i++)
+                    var delta = obj.GetDeltaState();
+                    offset += WriteVarInt(destination.Slice(offset), delta.ChangedVariables.Count);
+                    foreach (var kvp in delta.ChangedVariables)
                     {
-                        var val = obj.GetVariable(i);
+                        int propIdx = kvp.Key;
+                        var val = kvp.Value;
                         int valueSize = val.GetWriteSize();
                         // 5 for property index varint max + value size
                         if (offset + 5 + valueSize > destination.Length)
@@ -60,7 +61,7 @@ namespace Shared.Services;
                             goto Done;
                         }
 
-                        offset += WriteVarInt(destination.Slice(offset), i);
+                        offset += WriteVarInt(destination.Slice(offset), propIdx);
                         offset += val.WriteTo(destination.Slice(offset));
                     }
                 }

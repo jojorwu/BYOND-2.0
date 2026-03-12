@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+using Shared.Interfaces;
+
 namespace Shared;
-    public interface IMapApi
+    public interface IMapApi : IApiProvider
     {
         IMap? GetMap();
         ITurf? GetTurf(long x, long y, long z);

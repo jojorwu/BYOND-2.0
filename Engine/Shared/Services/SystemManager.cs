@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,9 +19,10 @@ public interface ISystemManager
 
 public class SystemManager : ISystemManager, IAsyncDisposable
 {
-    private static readonly ExecutionPhase[] Phases = System.Enum.GetValues<ExecutionPhase>();
+    private static readonly ExecutionPhase[] Phases = Enum.GetValues<ExecutionPhase>();
     private readonly ISystemRegistry _registry;
-    private readonly List<List<ISystem>>?[] _phaseExecutionLayers = new List<List<ISystem>>[Phases.Length];
+    private readonly ISystemExecutionPlanner _planner;
+    private List<List<ISystem>>?[] _phaseExecutionLayers = new List<List<ISystem>>[Phases.Length];
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
     private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
@@ -30,9 +32,20 @@ public class SystemManager : ISystemManager, IAsyncDisposable
     private readonly IComponentQueryService _queryService;
     private bool _isDirty = true;
 
-    public SystemManager(ISystemRegistry registry, IProfilingService profilingService, IJobSystem jobSystem, IObjectPool<EntityCommandBuffer> ecbPool, IEnumerable<IShrinkable> shrinkables, IEnumerable<IEngineModule> modules, IEnumerable<ISystem> systems, ILoggerFactory loggerFactory, IComponentQueryService queryService)
+    public SystemManager(
+        ISystemRegistry registry,
+        ISystemExecutionPlanner planner,
+        IProfilingService profilingService,
+        IJobSystem jobSystem,
+        IObjectPool<EntityCommandBuffer> ecbPool,
+        IEnumerable<IShrinkable> shrinkables,
+        IEnumerable<IEngineModule> modules,
+        IEnumerable<ISystem> systems,
+        ILoggerFactory loggerFactory,
+        IComponentQueryService queryService)
     {
         _registry = registry;
+        _planner = planner;
         _profilingService = profilingService;
         _jobSystem = jobSystem;
         _ecbPool = ecbPool;
@@ -77,171 +90,17 @@ public class SystemManager : ISystemManager, IAsyncDisposable
     {
         if (queryType.IsGenericType)
         {
-            var genericArgs = queryType.GetGenericArguments();
             return (EntityQuery)Activator.CreateInstance(queryType, _queryService)!;
         }
-
-        // For non-generic EntityQuery, it needs types passed to constructor which we don't know from attribute alone
-        // unless we add them to attribute. But generic is preferred.
-        return (EntityQuery)Activator.CreateInstance(queryType, _queryService, System.Array.Empty<Type>())!;
+        return (EntityQuery)Activator.CreateInstance(queryType, _queryService, Array.Empty<Type>())!;
     }
 
     public void MarkDirty() => _isDirty = true;
 
     private void RebuildExecutionLayers()
     {
-        System.Array.Clear(_phaseExecutionLayers);
-        var allSystems = _registry.GetSystems().Where(s => s.Enabled).ToList();
-
-        for (int i = 0; i < Phases.Length; i++)
-        {
-            var phase = Phases[i];
-            var systemsInPhase = allSystems.Where(s => s.Phase == phase).ToList();
-            if (systemsInPhase.Count > 0)
-            {
-                _phaseExecutionLayers[i] = CalculateExecutionLayers(systemsInPhase);
-            }
-        }
+        _phaseExecutionLayers = _planner.PlanExecution(_registry.GetSystems(), Phases);
         _isDirty = false;
-    }
-
-    private List<List<ISystem>> CalculateExecutionLayers(IEnumerable<ISystem> systems)
-    {
-        var layers = new List<List<ISystem>>();
-        var systemList = systems.ToList();
-        if (systemList.Count == 0) return layers;
-
-        var remaining = new HashSet<ISystem>(systemList);
-        var completedNames = new HashSet<string>();
-        var completedGroups = new HashSet<string>();
-
-        // Pre-calculate group memberships for faster checks
-        var groupSystems = systemList.Where(s => s.Group != null).ToLookup(s => s.Group!);
-
-        while (remaining.Count > 0)
-        {
-            // Find systems whose dependencies are met (both system-level and group-level)
-            var readySystems = new List<ISystem>();
-            foreach (var system in remaining)
-            {
-                bool dependenciesMet = true;
-                foreach (var dep in system.Dependencies)
-                {
-                    // Dependencies are only tracked WITHIN the same phase for now.
-                    // If a dependency is in a previous phase, it is guaranteed to be finished.
-                    if (systemList.Any(s => s.Name == dep || s.Group == dep))
-                    {
-                        if (!completedNames.Contains(dep) && !completedGroups.Contains(dep))
-                        {
-                            dependenciesMet = false;
-                            break;
-                        }
-                    }
-                }
-
-                if (dependenciesMet)
-                {
-                    readySystems.Add(system);
-                }
-            }
-
-            if (readySystems.Count == 0)
-            {
-                var names = string.Join(", ", remaining.Select(s => s.Name));
-                throw new System.InvalidOperationException($"Circular dependency detected among systems in phase: {names}");
-            }
-
-            // Further refine readySystems into sub-layers based on resource conflicts
-            var subLayers = ResolveResourceConflicts(readySystems);
-            layers.AddRange(subLayers);
-
-            foreach (var system in readySystems)
-            {
-                remaining.Remove(system);
-                completedNames.Add(system.Name);
-
-                // If all systems in a group are completed, mark group as completed
-                if (system.Group != null)
-                {
-                    var members = groupSystems[system.Group];
-                    bool allDone = true;
-                    foreach (var member in members)
-                    {
-                        if (!completedNames.Contains(member.Name))
-                        {
-                            allDone = false;
-                            break;
-                        }
-                    }
-                    if (allDone) completedGroups.Add(system.Group);
-                }
-            }
-        }
-
-        return layers;
-    }
-
-    private List<List<ISystem>> ResolveResourceConflicts(List<ISystem> systems)
-    {
-        if (systems.Count <= 1) return new List<List<ISystem>> { systems };
-
-        var subLayers = new List<List<ISystem>>();
-        var remaining = new List<ISystem>(systems);
-
-        while (remaining.Count > 0)
-        {
-            var currentSubLayer = new List<ISystem>();
-            var lockedForRead = new HashSet<System.Type>();
-            var lockedForWrite = new HashSet<System.Type>();
-
-            for (int i = 0; i < remaining.Count; i++)
-            {
-                var system = remaining[i];
-                bool hasConflict = false;
-
-                foreach (var res in system.WriteResources)
-                {
-                    if (lockedForWrite.Contains(res) || lockedForRead.Contains(res))
-                    {
-                        hasConflict = true;
-                        break;
-                    }
-                }
-
-                if (!hasConflict)
-                {
-                    foreach (var res in system.ReadResources)
-                    {
-                        if (lockedForWrite.Contains(res))
-                        {
-                            hasConflict = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!hasConflict)
-                {
-                    currentSubLayer.Add(system);
-                    foreach (var res in system.WriteResources) lockedForWrite.Add(res);
-                    foreach (var res in system.ReadResources) lockedForRead.Add(res);
-                    remaining.RemoveAt(i);
-                    i--;
-                }
-            }
-
-            if (currentSubLayer.Count > 0)
-            {
-                subLayers.Add(currentSubLayer);
-            }
-            else
-            {
-                subLayers.Add(new List<ISystem>(remaining));
-                remaining.Clear();
-            }
-        }
-
-        return subLayers;
     }
 
     public async Task TickAsync()
@@ -344,7 +203,32 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         using (_profilingService.Measure($"System.{system.Name}"))
         {
             system.PreTick();
-            system.Tick(ecb);
+
+            // Batch processing: if the system has queries, execute against matching archetypes
+            var type = system.GetType();
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            bool batchHandled = false;
+
+            foreach (var field in fields)
+            {
+                if (field.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(field.FieldType))
+                {
+                    if (field.GetValue(system) is IEntityQuery query)
+                    {
+                        foreach (var archetype in query.GetMatchingArchetypes())
+                        {
+                            system.Tick(archetype, ecb);
+                            batchHandled = true;
+                        }
+                    }
+                }
+            }
+
+            if (!batchHandled)
+            {
+                system.Tick(ecb);
+            }
+
             system.PostTick();
 
             var jobs = system.CreateJobs();

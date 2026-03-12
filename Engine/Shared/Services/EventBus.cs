@@ -17,7 +17,7 @@ namespace Shared.Services;
             SubscribeInternal(typeof(T), handler);
         }
 
-        public void SubscribeAsync<T>(Func<T, Task> handler)
+        public void SubscribeAsync<T>(Func<T, ValueTask> handler)
         {
             SubscribeInternal(typeof(T), handler);
         }
@@ -43,7 +43,7 @@ namespace Shared.Services;
             UnsubscribeInternal(typeof(T), handler);
         }
 
-        public void UnsubscribeAsync<T>(Func<T, Task> handler)
+        public void UnsubscribeAsync<T>(Func<T, ValueTask> handler)
         {
             UnsubscribeInternal(typeof(T), handler);
         }
@@ -85,7 +85,7 @@ namespace Shared.Services;
                     {
                         action(eventData);
                     }
-                    else if (handler is Func<T, Task> asyncAction)
+                    else if (handler is Func<T, ValueTask> asyncAction)
                     {
                         _ = asyncAction(eventData);
                     }
@@ -93,7 +93,7 @@ namespace Shared.Services;
             }
         }
 
-        public async Task PublishAsync<T>(T eventData)
+        public async ValueTask PublishAsync<T>(T eventData)
         {
             if (_handlers.TryGetValue(typeof(T), out var handlers))
             {
@@ -107,7 +107,7 @@ namespace Shared.Services;
                     {
                         action(eventData);
                     }
-                    else if (handler is Func<T, Task> asyncAction)
+                    else if (handler is Func<T, ValueTask> asyncAction)
                     {
                         await asyncAction(eventData);
                     }
@@ -115,7 +115,7 @@ namespace Shared.Services;
                 }
 
                 // Collect tasks for multiple handlers
-                List<Task>? tasks = null;
+                List<ValueTask>? tasks = null;
                 for (int i = 0; i < span.Length; i++)
                 {
                     var handler = span[i];
@@ -123,16 +123,16 @@ namespace Shared.Services;
                     {
                         action(eventData);
                     }
-                    else if (handler is Func<T, Task> asyncAction)
+                    else if (handler is Func<T, ValueTask> asyncAction)
                     {
-                        tasks ??= new List<Task>(span.Length);
+                        tasks ??= new List<ValueTask>(span.Length);
                         tasks.Add(asyncAction(eventData));
                     }
                 }
 
                 if (tasks != null)
                 {
-                    await Task.WhenAll(tasks);
+                    foreach (var task in tasks) await task;
                 }
             }
         }

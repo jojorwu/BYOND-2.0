@@ -35,6 +35,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
         services.AddSingleton<StringInterner>();
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
+        services.AddSingleton<IEntityRegistry, EntityRegistry>();
         services.AddSingleton<IObjectFactory, ObjectFactory>();
         services.AddSingleton<IArenaAllocator, ArenaProxy>();
         return services;
@@ -51,6 +52,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
 
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
+        services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
         services.AddSingleton<ISystemManager, SystemManager>();
         services.AddSingleton<IArchetypeManager, ArchetypeManager>();
         services.AddSingleton<ComponentManager>();
@@ -64,9 +66,17 @@ public static class SharedServiceCollectionExtensions
 
     public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
     {
+        services.AddSingleton<IDiagnosticBus, DiagnosticBus>();
         services.AddSingleton<IPluginManager, PluginManager>();
+        services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
-        services.AddSingleton<IPacketDispatcher, PacketDispatcher>();
+        services.AddSingleton<LoggingPacketMiddleware>();
+        services.AddSingleton<IPacketDispatcher>(sp =>
+        {
+            var dispatcher = new PacketDispatcher(sp.GetRequiredService<IJobSystem>());
+            dispatcher.AddMiddleware(sp.GetRequiredService<LoggingPacketMiddleware>());
+            return dispatcher;
+        });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
         services.AddSingleton<BinarySnapshotService>();
         services.AddSingleton<SpatialGrid>();
@@ -79,6 +89,13 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddSingleton<IJobSystem, JobSystem>();
+        services.AddSingleton<SoundResourceProvider>();
+        services.AddSingleton<IResourceSystem>(sp =>
+        {
+            var system = new ResourceSystem();
+            system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
+            return system;
+        });
         return services;
     }
 

@@ -45,12 +45,13 @@ namespace tests
             var pool = new Shared.Services.ObjectPool<GameObject>(() => new GameObject());
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var componentManager = new ComponentManager(archetypeManager);
-            var objectFactory = new Shared.Services.ObjectFactory(pool, componentManager);
+            var entityRegistry = new EntityRegistry(pool, componentManager);
+            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
             _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance), objectFactory);
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
-            _dreamVM = new DreamVM(Options.Create(new ServerSettings()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() }, objectFactory);
+            _dreamVM = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() }, objectFactory);
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool, componentManager);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);
@@ -75,7 +76,24 @@ namespace tests
             };
             _scriptManager = new ScriptManager(_project, systems, NullLogger<ScriptManager>.Instance);
             var scriptApi = new ScriptApi(_project, _scriptManager);
-            _gameApi = new GameApi(mapApi, objectApi, scriptApi, soundApi, soundRegistry, standardLibraryApi, commandManager, timeApi, eventApi);
+
+            var registry = new ApiRegistry();
+            var mockSoundApi = new Mock<ISoundApi>();
+            mockSoundApi.Setup(s => s.Name).Returns("Sounds");
+            var mockTimeApi = new Mock<ITimeApi>();
+            mockTimeApi.Setup(t => t.Name).Returns("Time");
+            var mockEventApi = new Mock<IEventApi>();
+            mockEventApi.Setup(e => e.Name).Returns("Events");
+
+            registry.Register(mapApi);
+            registry.Register(objectApi);
+            registry.Register(scriptApi);
+            registry.Register(mockSoundApi.Object);
+            registry.Register(standardLibraryApi);
+            registry.Register(mockTimeApi.Object);
+            registry.Register(mockEventApi.Object);
+
+            _gameApi = new GameApi(registry, soundRegistry, commandManager);
         }
 
         [TearDown]

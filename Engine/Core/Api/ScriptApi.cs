@@ -7,6 +7,7 @@ namespace Core.Api
 {
     public class ScriptApi : IScriptApi
     {
+        public string Name => "Scripts";
         private readonly IProject _project;
         private readonly IScriptManager _scriptManager;
 

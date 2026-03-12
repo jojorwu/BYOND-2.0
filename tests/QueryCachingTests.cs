@@ -37,7 +37,8 @@ namespace tests
             _componentManager = new ComponentManager(archetypeManager);
             _queryService = new ComponentQueryService(_componentManager);
             var pool = new SharedPool<GameObject>(() => new GameObject());
-            _objectFactory = new ObjectFactory(pool, _componentManager);
+            var entityRegistry = new EntityRegistry(pool, _componentManager);
+            _objectFactory = new ObjectFactory(entityRegistry);
         }
 
         [Test]

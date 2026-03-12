@@ -1,8 +1,10 @@
 using System;
 
+using Shared.Interfaces;
+
 namespace Shared;
 
-public interface IEventApi
+public interface IEventApi : IApiProvider
 {
     /// <summary>
     /// Publishes a custom event to all subscribers.

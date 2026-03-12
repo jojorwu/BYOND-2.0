@@ -36,15 +36,17 @@ internal unsafe ref struct InterpreterState
     public ref CallFrame Frame;
     public DreamProc Proc;
     public int PC;
-    public DreamValue[] Stack;
+    public Span<DreamValue> Stack;
+    public Span<DreamValue> Locals;
+    public Span<DreamValue> Arguments;
+    public int LocalBase;
+    public int ArgumentBase;
     public int StackPtr;
     public byte[] BytecodeArray;
     /// <summary>
     /// Fixed pointer to the bytecode array to bypass Bounds Checks and BinaryPrimitives overhead.
     /// </summary>
     public byte* BytecodePtr;
-    public int LocalBase;
-    public int ArgumentBase;
     public List<string> Strings;
     public List<DreamValue> Globals;
     public Dictionary<string, IDreamProc> Procs;
@@ -58,13 +60,24 @@ internal unsafe ref struct InterpreterState
         {
             Thread._stackPtr = StackPtr;
             Thread.Push(value);
-            Stack = Thread._stack;
+            RefreshSpans();
             StackPtr = Thread._stackPtr;
         }
         else
         {
-            Stack[StackPtr++] = value;
+            Stack[StackPtr] = value;
+            StackPtr++;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RefreshSpans()
+    {
+        Stack = Thread._stack;
+        LocalBase = Frame.LocalBase;
+        ArgumentBase = Frame.ArgumentBase;
+        Locals = Stack.Slice(LocalBase, Proc.LocalVariableCount);
+        Arguments = Stack.Slice(ArgumentBase, Proc.Arguments.Length);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -102,15 +115,13 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref DreamValue GetLocal(int index)
     {
-        if (index < 0 || index >= Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", Proc, PC, Thread);
-        return ref Stack[LocalBase + index];
+        return ref Locals[index];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref DreamValue GetArgument(int index)
     {
-        if (index < 0 || index >= Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", Proc, PC, Thread);
-        return ref Stack[ArgumentBase + index];
+        return ref Arguments[index];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -151,18 +162,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (thread.State != DreamThreadState.Running)
             return thread.State;
 
+        ref var currentFrame = ref thread._callStack[thread._callStackPtr - 1];
         var state = new InterpreterState
         {
             Thread = thread,
-            Frame = ref thread._callStack[thread._callStackPtr - 1],
-            Proc = thread._callStack[thread._callStackPtr - 1].Proc,
-            PC = thread._callStack[thread._callStackPtr - 1].PC,
+            Frame = ref currentFrame,
+            Proc = currentFrame.Proc,
+            PC = currentFrame.PC,
             Stack = thread._stack,
+            Locals = thread._stack.AsSpan(currentFrame.LocalBase, currentFrame.Proc.LocalVariableCount),
+            Arguments = thread._stack.AsSpan(currentFrame.ArgumentBase, currentFrame.Proc.Arguments.Length),
+            LocalBase = currentFrame.LocalBase,
+            ArgumentBase = currentFrame.ArgumentBase,
             StackPtr = thread._stackPtr,
-            BytecodeArray = thread._callStack[thread._callStackPtr - 1].Proc.Bytecode,
+            BytecodeArray = currentFrame.Proc.Bytecode,
             BytecodePtr = null, // Initialized in fixed block
-            LocalBase = thread._callStack[thread._callStackPtr - 1].LocalBase,
-            ArgumentBase = thread._callStack[thread._callStackPtr - 1].ArgumentBase,
             Strings = thread.Context.Strings,
             Globals = thread.Context.Globals,
             Procs = thread.Context.Procs,
@@ -222,12 +236,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     if (state.Proc.Bytecode != state.BytecodeArray)
                                     {
                                         state.BytecodeArray = state.Proc.Bytecode;
-                                        state.LocalBase = state.Frame.LocalBase;
-                                        state.ArgumentBase = state.Frame.ArgumentBase;
+                                        state.RefreshSpans();
                                         goto RePin;
                                     }
-                                    state.LocalBase = state.Frame.LocalBase;
-                                    state.ArgumentBase = state.Frame.ArgumentBase;
+                                    state.RefreshSpans();
                                     break; // Break for loop to re-check budget and bytecode
                                 }
                                 goto Done;
@@ -245,24 +257,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, thread);
-                                        state.Push(state.Stack[state.LocalBase + idx]);
+                                        state.Push(state.Locals[idx]);
                                     }
                                     break;
                                 case Opcode.AssignLocal:
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, thread);
-                                        state.Stack[state.LocalBase + idx] = state.Stack[state.StackPtr - 1];
+                                        state.Locals[idx] = state.Stack[state.StackPtr - 1];
                                     }
                                     break;
                                 case Opcode.PushArgument:
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if ((uint)idx >= (uint)state.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC, thread);
-                                        state.Push(state.Stack[state.ArgumentBase + idx]);
+                                        state.Push(state.Arguments[idx]);
                                     }
                                     break;
                                 case Opcode.PushFloat:
@@ -281,8 +290,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.RawLong + b.RawLong);
-                                            else a = new DreamValue(a.RawDouble + b.RawDouble);
+                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong);
+                                            else a = new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble);
                                         }
                                         else a = a + b;
                                     }
@@ -305,8 +314,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             if (a.Type <= DreamValueType.Integer)
                                             {
-                                                if (a.Type == DreamValueType.Integer) a = (a.RawLong == b.RawLong) ? DreamValue.True : DreamValue.False;
-                                                else a = (a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
+                                                if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
+                                                else a = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
                                             }
                                             else a = (a.Equals(b)) ? DreamValue.True : DreamValue.False;
                                         }
@@ -321,8 +330,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             if (a.Type <= DreamValueType.Integer)
                                             {
-                                                if (a.Type == DreamValueType.Integer) a = (a.RawLong != b.RawLong) ? DreamValue.True : DreamValue.False;
-                                                else a = (a.RawDouble != b.RawDouble && Math.Abs(a.RawDouble - b.RawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
+                                                if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
+                                                else a = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
                                             }
                                             else a = (!a.Equals(b)) ? DreamValue.True : DreamValue.False;
                                         }
@@ -335,7 +344,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong < b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong < b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble < b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a < b) ? DreamValue.True : DreamValue.False;
@@ -347,7 +356,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong > b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong > b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble > b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a > b) ? DreamValue.True : DreamValue.False;
@@ -359,7 +368,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong <= b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong <= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble <= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a <= b) ? DreamValue.True : DreamValue.False;
@@ -371,7 +380,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = (a.RawLong >= b.RawLong) ? DreamValue.True : DreamValue.False;
+                                            if (a.Type == DreamValueType.Integer) a = (a.UnsafeRawLong >= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
                                             else a = (a.UnsafeRawDouble >= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
                                         }
                                         else a = (a >= b) ? DreamValue.True : DreamValue.False;
@@ -383,8 +392,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.RawLong - b.RawLong);
-                                            else a = new DreamValue(a.RawDouble - b.RawDouble);
+                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong);
+                                            else a = new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble);
                                         }
                                         else a = a - b;
                                     }
@@ -395,8 +404,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         ref var a = ref state.Stack[state.StackPtr - 1];
                                         if (a.Type == b.Type && a.Type <= DreamValueType.Integer)
                                         {
-                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.RawLong * b.RawLong);
-                                            else a = new DreamValue(a.RawDouble * b.RawDouble);
+                                            if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
+                                            else a = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
                                         }
                                         else a = a * b;
                                     }
@@ -405,8 +414,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         var b = state.Stack[--state.StackPtr];
                                         ref var a = ref state.Stack[state.StackPtr - 1];
-                                        double db = b.Type == DreamValueType.Float ? b.RawDouble : b.GetValueAsDouble();
-                                        a = (db != 0) ? new DreamValue((a.Type == DreamValueType.Float ? a.RawDouble : a.GetValueAsDouble()) / db) : new DreamValue(0.0);
+                                        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
+                                        a = (db != 0) ? new DreamValue((a.Type == DreamValueType.Float ? a.UnsafeRawDouble : a.GetValueAsDouble()) / db) : new DreamValue(0.0);
                                     }
                                     break;
                                 case Opcode.Modulus:
@@ -417,13 +426,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             if (a.Type == DreamValueType.Integer)
                                             {
-                                                long lb = b.RawLong;
-                                                a = (lb != 0) ? new DreamValue(a.RawLong % lb) : new DreamValue(0L);
+                                                long lb = b.UnsafeRawLong;
+                                                a = (lb != 0) ? new DreamValue(a.UnsafeRawLong % lb) : new DreamValue(0L);
                                             }
                                             else
                                             {
-                                                double db = b.RawDouble;
-                                                a = (db != 0) ? new DreamValue(a.RawDouble % db) : new DreamValue(0.0);
+                                                double db = b.UnsafeRawDouble;
+                                                a = (db != 0) ? new DreamValue(a.UnsafeRawDouble % db) : new DreamValue(0.0);
                                             }
                                         }
                                         else a = a % b;
@@ -443,7 +452,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     state.Stack[state.StackPtr++] = DreamValue.Null;
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
-                                    state.Stack = thread._stack;
+                                    state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
                                     goto FrameChanged;
                                 case Opcode.CallStatement:
@@ -452,18 +461,22 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
                                         var instance = state.Frame.Instance;
-                                        IDreamProc? parentProc = null;
-                                        if (instance != null && instance.ObjectType != null)
+                                        IDreamProc? parentProc = state.Proc.ParentProc;
+                                        if (parentProc == null)
                                         {
-                                            ObjectType? current = instance.ObjectType;
-                                            while (current != null)
+                                            if (instance != null && instance.ObjectType != null)
                                             {
-                                                if (current.Procs.ContainsValue(state.Proc))
+                                                ObjectType? current = instance.ObjectType;
+                                                while (current != null)
                                                 {
-                                                    parentProc = current.Parent?.GetProc(state.Proc.Name);
-                                                    break;
+                                                    if (current.Procs.ContainsValue(state.Proc))
+                                                    {
+                                                        parentProc = current.Parent?.GetProc(state.Proc.Name);
+                                                        state.Proc.ParentProc = parentProc;
+                                                        break;
+                                                    }
+                                                    current = current.Parent;
                                                 }
-                                                current = current.Parent;
                                             }
                                         }
                                         if (parentProc != null)
@@ -483,6 +496,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 case Opcode.DereferenceCall:
                                     {
                                         int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
                                         state.PC += 4;
                                         var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
                                         int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
@@ -490,19 +504,34 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         var objValue = state.Stack[state.StackPtr - argStackDelta];
                                         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                         {
-                                            var procName = state.Strings[nameId];
-                                            var targetProc = obj.ObjectType?.GetProc(procName);
-                                            if (targetProc == null)
+                                            IDreamProc? targetProc;
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
                                             {
-                                                var varValue = obj.GetVariable(procName);
-                                                if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                                                targetProc = cache.CachedProc;
                                             }
+                                            else
+                                            {
+                                                var procName = state.Strings[nameId];
+                                                targetProc = obj.ObjectType?.GetProc(procName);
+                                                if (targetProc == null)
+                                                {
+                                                    var varValue = obj.GetVariable(procName);
+                                                    if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                                                }
+                                                if (targetProc != null)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.CachedProc = targetProc;
+                                                }
+                                            }
+
                                             if (targetProc != null)
                                             {
                                                 thread.SavePC(state.PC);
                                                 int argCount = argStackDelta - 1;
                                                 int stackBase = state.StackPtr - argStackDelta;
-                                                if (argCount > 0) state.Stack.AsSpan(stackBase + 1, argCount).CopyTo(state.Stack.AsSpan(stackBase));
+                                                if (argCount > 0) state.Stack.Slice(stackBase + 1, argCount).CopyTo(state.Stack.Slice(stackBase));
                                                 state.StackPtr--;
                                                 thread._stackPtr = state.StackPtr;
                                                 thread.PerformCall(targetProc, obj, argCount, argCount);
@@ -517,7 +546,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     state.Stack[state.StackPtr++] = DreamValue.True;
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
-                                    state.Stack = thread._stack;
+                                    state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
                                     if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
                                     break;
@@ -525,7 +554,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     state.Stack[state.StackPtr++] = DreamValue.False;
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
-                                    state.Stack = thread._stack;
+                                    state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
                                     if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
                                     break;
@@ -589,13 +618,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
-                                            state.Stack[state.LocalBase + idx] = value;
+                                            state.Locals[idx] = value;
                                         }
                                         else if (refType == DMReference.Type.Argument)
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
-                                            state.Stack[state.ArgumentBase + idx] = value;
+                                            state.Arguments[idx] = value;
                                         }
                                         else if (refType == DMReference.Type.Global)
                                         {
@@ -622,7 +651,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
                                             var enumerator = thread.GetEnumerator(enumeratorId);
-                                            if (enumerator != null && enumerator.MoveNext()) state.Stack[state.LocalBase + idx] = enumerator.Current;
+                                            if (enumerator != null && enumerator.MoveNext()) state.Locals[idx] = enumerator.Current;
                                             else state.PC = jumpAddress;
                                         }
                                         else if (refType == DMReference.Type.Argument)
@@ -632,7 +661,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
                                             var enumerator = thread.GetEnumerator(enumeratorId);
-                                            if (enumerator != null && enumerator.MoveNext()) state.Stack[state.ArgumentBase + idx] = enumerator.Current;
+                                            if (enumerator != null && enumerator.MoveNext()) state.Arguments[idx] = enumerator.Current;
                                             else state.PC = jumpAddress;
                                         }
                                         else
@@ -663,13 +692,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
-                                            state.Stack[state.StackPtr++] = state.Stack[state.LocalBase + idx];
+                                            state.Stack[state.StackPtr++] = state.Locals[idx];
                                         }
                                         else if (refType == DMReference.Type.Argument)
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
-                                            state.Stack[state.StackPtr++] = state.Stack[state.ArgumentBase + idx];
+                                            state.Stack[state.StackPtr++] = state.Arguments[idx];
                                         }
                                         else if (refType == DMReference.Type.Global)
                                         {
@@ -698,20 +727,35 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 case Opcode.Return:
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
-                                    state.Stack = thread._stack;
+                                    state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
                                     if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
                                     break;
                                 case Opcode.GetVariable:
                                     {
                                         int id = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
                                         state.PC += 4;
                                         var inst = state.Frame.Instance;
                                         if (inst != null)
                                         {
-                                            var name = state.Strings[id];
-                                            int idx = inst.ObjectType?.GetVariableIndex(name) ?? -1;
-                                            state.Stack[state.StackPtr++] = idx != -1 ? inst.GetVariableDirect(idx) : inst.GetVariable(name);
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == inst.ObjectType)
+                                            {
+                                                state.Stack[state.StackPtr++] = inst.GetVariableDirect(cache.VariableIndex);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[id];
+                                                int idx = inst.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (idx != -1)
+                                                {
+                                                    cache.ObjectType = inst.ObjectType;
+                                                    cache.VariableIndex = idx;
+                                                    state.Stack[state.StackPtr++] = inst.GetVariableDirect(idx);
+                                                }
+                                                else state.Stack[state.StackPtr++] = inst.GetVariable(name);
+                                            }
                                         }
                                         else state.Stack[state.StackPtr++] = DreamValue.Null;
                                     }
@@ -719,15 +763,29 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 case Opcode.SetVariable:
                                     {
                                         int id = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
                                         state.PC += 4;
                                         var val = state.Stack[--state.StackPtr];
                                         var inst = state.Frame.Instance;
                                         if (inst != null)
                                         {
-                                            var name = state.Strings[id];
-                                            int idx = inst.ObjectType?.GetVariableIndex(name) ?? -1;
-                                            if (idx != -1) inst.SetVariableDirect(idx, val);
-                                            else inst.SetVariable(name, val);
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == inst.ObjectType)
+                                            {
+                                                inst.SetVariableDirect(cache.VariableIndex, val);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[id];
+                                                int idx = inst.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (idx != -1)
+                                                {
+                                                    cache.ObjectType = inst.ObjectType;
+                                                    cache.VariableIndex = idx;
+                                                    inst.SetVariableDirect(idx, val);
+                                                }
+                                                else inst.SetVariable(name, val);
+                                            }
                                         }
                                     }
                                     break;
@@ -735,7 +793,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int count = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (state.StackPtr + count >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count); state.Stack = thread._stack; }
+                                        if (state.StackPtr + count >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count); state.RefreshSpans(); }
                                         for (int j = 0; j < count; j++)
                                         {
                                             int id = *(int*)(state.BytecodePtr + state.PC);
@@ -748,7 +806,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int count = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (state.StackPtr + count >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count); state.Stack = thread._stack; }
+                                        if (state.StackPtr + count >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count); state.RefreshSpans(); }
                                         for (int j = 0; j < count; j++)
                                         {
                                             state.Stack[state.StackPtr++] = new DreamValue(*(double*)(state.BytecodePtr + state.PC));
@@ -760,7 +818,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int count = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (state.StackPtr + count >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count); state.Stack = thread._stack; }
+                                        if (state.StackPtr + count >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count); state.RefreshSpans(); }
                                         for (int j = 0; j < count; j++)
                                         {
                                             int id = *(int*)(state.BytecodePtr + state.PC);
@@ -773,7 +831,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int count = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (state.StackPtr + count * 2 >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count * 2); state.Stack = thread._stack; }
+                                        if (state.StackPtr + count * 2 >= state.Stack.Length) { thread._stackPtr = state.StackPtr; thread.EnsureStackCapacity(count * 2); state.RefreshSpans(); }
                                         for (int j = 0; j < count; j++)
                                         {
                                             int id = *(int*)(state.BytecodePtr + state.PC);
@@ -782,6 +840,595 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             state.Stack[state.StackPtr++] = new DreamValue(*(double*)(state.BytecodePtr + state.PC));
                                             state.PC += 8;
                                         }
+                                    }
+                                    break;
+                                case Opcode.LocalCompareEquals:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] == state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareNotEquals:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] != state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalJumpIfFalse:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (state.Locals[idx].IsFalse()) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalJumpIfTrue:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!state.Locals[idx].IsFalse()) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalPushLocalPushAdd:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong));
+                                            else
+                                                state.Push(new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble));
+                                        }
+                                        else state.Push(a + b);
+                                    }
+                                    break;
+                                case Opcode.LocalPushLocalPushSub:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong));
+                                            else
+                                                state.Push(new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble));
+                                        }
+                                        else state.Push(a - b);
+                                    }
+                                    break;
+                                case Opcode.LocalAddFloat:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        var a = state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer)
+                                            state.Push(new DreamValue(a.UnsafeRawDouble + val));
+                                        else
+                                            state.Push(a + val);
+                                    }
+                                    break;
+                                case Opcode.LocalMulAdd:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx3 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        var c = state.Locals[idx3];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer && c.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer && c.Type == DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong + c.UnsafeRawLong));
+                                            else
+                                                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble + c.UnsafeRawDouble));
+                                        }
+                                        else state.Push(a * b + c);
+                                    }
+                                    break;
+                                case Opcode.LocalIncrement:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Locals[idx] = state.Locals[idx] + 1;
+                                    }
+                                    break;
+                                case Opcode.LocalDecrement:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Locals[idx] = state.Locals[idx] - 1;
+                                    }
+                                    break;
+                                case Opcode.LocalAddLocalAssign:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Locals[idx1] = state.Locals[idx1] + state.Locals[idx2];
+                                    }
+                                    break;
+                                case Opcode.LocalSubLocalAssign:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Locals[idx1] = state.Locals[idx1] - state.Locals[idx2];
+                                    }
+                                    break;
+                                case Opcode.LocalPushReturn:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx]);
+                                        thread._stackPtr = state.StackPtr;
+                                        thread.Opcode_Return(ref state.Proc, ref state.PC);
+                                        state.RefreshSpans();
+                                        state.StackPtr = thread._stackPtr;
+                                        goto FrameChanged;
+                                    }
+                                case Opcode.ReturnFloat:
+                                    state.Push(new DreamValue(*(double*)(state.BytecodePtr + state.PC)));
+                                    state.PC += 8;
+                                    thread._stackPtr = state.StackPtr;
+                                    thread.Opcode_Return(ref state.Proc, ref state.PC);
+                                    state.RefreshSpans();
+                                    state.StackPtr = thread._stackPtr;
+                                    goto FrameChanged;
+                                case Opcode.Increment:
+                                    {
+                                        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+                                        if (refType == DMReference.Type.Local)
+                                        {
+                                            int idx = *(int*)(state.BytecodePtr + state.PC);
+                                            state.PC += 4;
+                                            ref var val = ref state.Locals[idx];
+                                            var newVal = val + 1;
+                                            val = newVal;
+                                            state.Push(newVal);
+                                        }
+                                        else if (refType == DMReference.Type.Argument)
+                                        {
+                                            int idx = *(int*)(state.BytecodePtr + state.PC);
+                                            state.PC += 4;
+                                            ref var val = ref state.Arguments[idx];
+                                            var newVal = val + 1;
+                                            val = newVal;
+                                            state.Push(newVal);
+                                        }
+                                        else
+                                        {
+                                            state.PC--;
+                                            _dispatchTable[(byte)opcode](ref state);
+                                        }
+                                    }
+                                    break;
+                                case Opcode.Decrement:
+                                    {
+                                        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+                                        if (refType == DMReference.Type.Local)
+                                        {
+                                            int idx = *(int*)(state.BytecodePtr + state.PC);
+                                            state.PC += 4;
+                                            ref var val = ref state.Locals[idx];
+                                            var newVal = val - 1;
+                                            val = newVal;
+                                            state.Push(newVal);
+                                        }
+                                        else if (refType == DMReference.Type.Argument)
+                                        {
+                                            int idx = *(int*)(state.BytecodePtr + state.PC);
+                                            state.PC += 4;
+                                            ref var val = ref state.Arguments[idx];
+                                            var newVal = val - 1;
+                                            val = newVal;
+                                            state.Push(newVal);
+                                        }
+                                        else
+                                        {
+                                            state.PC--;
+                                            _dispatchTable[(byte)opcode](ref state);
+                                        }
+                                    }
+                                    break;
+                                case Opcode.BitAnd:
+                                    {
+                                        var b = state.Stack[--state.StackPtr];
+                                        state.Stack[state.StackPtr - 1] &= b;
+                                    }
+                                    break;
+                                case Opcode.BitOr:
+                                    {
+                                        var b = state.Stack[--state.StackPtr];
+                                        state.Stack[state.StackPtr - 1] |= b;
+                                    }
+                                    break;
+                                case Opcode.BitXor:
+                                    {
+                                        var b = state.Stack[--state.StackPtr];
+                                        state.Stack[state.StackPtr - 1] ^= b;
+                                    }
+                                    break;
+                                case Opcode.BitNot:
+                                    state.Stack[state.StackPtr - 1] = ~state.Stack[state.StackPtr - 1];
+                                    break;
+                                case Opcode.BitShiftLeft:
+                                    {
+                                        var b = state.Stack[--state.StackPtr];
+                                        state.Stack[state.StackPtr - 1] <<= b;
+                                    }
+                                    break;
+                                case Opcode.BitShiftRight:
+                                    {
+                                        var b = state.Stack[--state.StackPtr];
+                                        state.Stack[state.StackPtr - 1] >>= b;
+                                    }
+                                    break;
+                                case Opcode.DereferenceField:
+                                    {
+                                        int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
+                                        state.PC += 4;
+                                        var objValue = state.Stack[--state.StackPtr];
+                                        DreamValue val = DreamValue.Null;
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType)
+                                            {
+                                                val = obj.GetVariableDirect(cache.VariableIndex);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[nameId];
+                                                int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (idx != -1)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.VariableIndex = idx;
+                                                    val = obj.GetVariableDirect(idx);
+                                                }
+                                                else val = obj.GetVariable(name);
+                                            }
+                                        }
+                                        state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.IsTypeDirect:
+                                    {
+                                        int typeId = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var value = state.Stack[--state.StackPtr];
+                                        bool result = false;
+                                        if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            var ot = obj.ObjectType;
+                                            if (ot != null)
+                                            {
+                                                var targetType = state.Thread.Context.ObjectTypeManager?.GetObjectType(typeId);
+                                                if (targetType != null) result = ot.IsSubtypeOf(targetType);
+                                            }
+                                        }
+                                        state.Push(result ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalJumpIfNull:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (state.Locals[idx].IsNull) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalJumpIfNotNull:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!state.Locals[idx].IsNull) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareEqualsJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (state.Locals[idx1] != state.Locals[idx2]) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareNotEqualsJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (state.Locals[idx1] == state.Locals[idx2]) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThanJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] < state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThanJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] > state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThanOrEqualJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] <= state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        if (!(state.Locals[idx1] >= state.Locals[idx2])) state.PC = address;
+                                    }
+                                    break;
+                                case Opcode.LocalPushDereferenceField:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                        int pcForCache = state.PC - 1;
+                                        state.PC += 4;
+                                        var objValue = state.Locals[idx];
+                                        DreamValue val = DreamValue.Null;
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType)
+                                            {
+                                                val = obj.GetVariableDirect(cache.VariableIndex);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[nameId];
+                                                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (varIdx != -1)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.VariableIndex = varIdx;
+                                                    val = obj.GetVariableDirect(varIdx);
+                                                }
+                                                else val = obj.GetVariable(name);
+                                            }
+                                        }
+                                        state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.LocalMulLocalAssign:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        ref var a = ref state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                                                a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
+                                            else
+                                                a = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
+                                        }
+                                        else a = a * b;
+                                    }
+                                    break;
+                                case Opcode.LocalDivLocalAssign:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        ref var a = ref state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
+                                        if (db != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                                a = new DreamValue(a.UnsafeRawDouble / db);
+                                            else a = a / b;
+                                        }
+                                        else a = new DreamValue(0.0);
+                                    }
+                                    break;
+                                case Opcode.LocalMulFloatAssign:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        ref var a = ref state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble * val);
+                                        else a = a * val;
+                                    }
+                                    break;
+                                case Opcode.LocalDivFloatAssign:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        ref var a = ref state.Locals[idx];
+                                        if (val != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble / val);
+                                            else a = a / val;
+                                        }
+                                        else a = new DreamValue(0.0);
+                                    }
+                                    break;
+                                case Opcode.LocalMulFloat:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        var a = state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble * val));
+                                        else state.Push(a * val);
+                                    }
+                                    break;
+                                case Opcode.LocalDivFloat:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        var a = state.Locals[idx];
+                                        if (val != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble / val));
+                                            else state.Push(a / val);
+                                        }
+                                        else state.Push(new DreamValue(0.0));
+                                    }
+                                    break;
+                                case Opcode.LocalPushLocalPushMul:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                        {
+                                            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong));
+                                            else
+                                                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble));
+                                        }
+                                        else state.Push(a * b);
+                                    }
+                                    break;
+                                case Opcode.LocalPushLocalPushDiv:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var a = state.Locals[idx1];
+                                        var b = state.Locals[idx2];
+                                        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
+                                        if (db != 0)
+                                        {
+                                            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                                                state.Push(new DreamValue(a.UnsafeRawDouble / db));
+                                            else
+                                                state.Push(a / b);
+                                        }
+                                        else state.Push(new DreamValue(0.0));
+                                    }
+                                    break;
+                                case Opcode.PopN:
+                                    {
+                                        int count = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.StackPtr -= count;
+                                    }
+                                    break;
+                                case Opcode.LocalAddFloatAssign:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        state.PC += 8;
+                                        ref var a = ref state.Locals[idx];
+                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble + val);
+                                        else a = a + val;
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThan:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] < state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThan:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] > state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareLessThanOrEqual:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] <= state.Locals[idx2] ? DreamValue.True : DreamValue.False);
+                                    }
+                                    break;
+                                case Opcode.LocalCompareGreaterThanOrEqual:
+                                    {
+                                        int idx1 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int idx2 = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.Push(state.Locals[idx1] >= state.Locals[idx2] ? DreamValue.True : DreamValue.False);
                                     }
                                     break;
                                 default:
@@ -803,12 +1450,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 if (state.Proc.Bytecode != state.BytecodeArray)
                                 {
                                     state.BytecodeArray = state.Proc.Bytecode;
-                                    state.LocalBase = state.Frame.LocalBase;
-                                    state.ArgumentBase = state.Frame.ArgumentBase;
+                                    state.RefreshSpans();
                                     goto RePin;
                                 }
-                                state.LocalBase = state.Frame.LocalBase;
-                                state.ArgumentBase = state.Frame.ArgumentBase;
+                                state.RefreshSpans();
                             }
                             if (thread.State != DreamThreadState.Running) break;
                             break; // Break for loop to re-check budget after call/return
@@ -999,6 +1644,31 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.ReturnNull] = &HandleReturnNull;
         table[(byte)Opcode.ReturnTrue] = &HandleReturnTrue;
         table[(byte)Opcode.ReturnFalse] = &HandleReturnFalse;
+        table[(byte)Opcode.LocalCompareNotEquals] = &HandleLocalCompareNotEquals;
+        table[(byte)Opcode.LocalIncrement] = &HandleLocalIncrement;
+        table[(byte)Opcode.LocalDecrement] = &HandleLocalDecrement;
+        table[(byte)Opcode.LocalPushLocalPushSub] = &HandleLocalPushLocalPushSub;
+        table[(byte)Opcode.LocalAddLocalAssign] = &HandleLocalAddLocalAssign;
+        table[(byte)Opcode.LocalSubLocalAssign] = &HandleLocalSubLocalAssign;
+        table[(byte)Opcode.LocalJumpIfNull] = &HandleLocalJumpIfNull;
+        table[(byte)Opcode.LocalJumpIfNotNull] = &HandleLocalJumpIfNotNull;
+        table[(byte)Opcode.LocalCompareEqualsJumpIfFalse] = &HandleLocalCompareEqualsJumpIfFalse;
+        table[(byte)Opcode.LocalCompareNotEqualsJumpIfFalse] = &HandleLocalCompareNotEqualsJumpIfFalse;
+        table[(byte)Opcode.LocalCompareLessThanJumpIfFalse] = &HandleLocalCompareLessThanJumpIfFalse;
+        table[(byte)Opcode.LocalCompareGreaterThanJumpIfFalse] = &HandleLocalCompareGreaterThanJumpIfFalse;
+        table[(byte)Opcode.LocalCompareLessThanOrEqualJumpIfFalse] = &HandleLocalCompareLessThanOrEqualJumpIfFalse;
+        table[(byte)Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualJumpIfFalse;
+        table[(byte)Opcode.LocalPushDereferenceField] = &HandleLocalPushDereferenceField;
+        table[(byte)Opcode.LocalMulLocalAssign] = &HandleLocalMulLocalAssign;
+        table[(byte)Opcode.LocalDivLocalAssign] = &HandleLocalDivLocalAssign;
+        table[(byte)Opcode.LocalMulFloatAssign] = &HandleLocalMulFloatAssign;
+        table[(byte)Opcode.LocalDivFloatAssign] = &HandleLocalDivFloatAssign;
+        table[(byte)Opcode.PopN] = &HandlePopN;
+        table[(byte)Opcode.LocalAddFloatAssign] = &HandleLocalAddFloatAssign;
+        table[(byte)Opcode.LocalCompareLessThan] = &HandleLocalCompareLessThan;
+        table[(byte)Opcode.LocalCompareGreaterThan] = &HandleLocalCompareGreaterThan;
+        table[(byte)Opcode.LocalCompareLessThanOrEqual] = &HandleLocalCompareLessThanOrEqual;
+        table[(byte)Opcode.LocalCompareGreaterThanOrEqual] = &HandleLocalCompareGreaterThanOrEqual;
 
         return table;
     }
@@ -1039,9 +1709,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawLong + b.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawDouble + b.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = a + b;
@@ -1055,9 +1725,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawLong - b.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawDouble - b.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = a - b;
@@ -1071,9 +1741,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawLong * b.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(a.RawDouble * b.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = a * b;
@@ -1086,8 +1756,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var a = state.Stack[state.StackPtr - 1];
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
-            var db = b.RawDouble;
-            state.Stack[state.StackPtr - 1] = new DreamValue(db != 0 ? a.RawDouble / db : 0);
+            var db = b.UnsafeRawDouble;
+            state.Stack[state.StackPtr - 1] = new DreamValue(db != 0 ? a.UnsafeRawDouble / db : 0);
         }
         else
             state.Stack[state.StackPtr - 1] = a / b;
@@ -1101,9 +1771,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong == b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a == b) ? DreamValue.True : DreamValue.False;
@@ -1117,9 +1787,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong != b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble != b.RawDouble && Math.Abs(a.RawDouble - b.RawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a != b) ? DreamValue.True : DreamValue.False;
@@ -1133,9 +1803,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong < b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong < b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble < b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble < b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a < b) ? DreamValue.True : DreamValue.False;
@@ -1149,9 +1819,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong > b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong > b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble > b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble > b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a > b) ? DreamValue.True : DreamValue.False;
@@ -1165,9 +1835,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong <= b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong <= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble <= b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble <= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a <= b) ? DreamValue.True : DreamValue.False;
@@ -1181,9 +1851,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong >= b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong >= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble >= b.RawDouble) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble >= b.UnsafeRawDouble) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = (a >= b) ? DreamValue.True : DreamValue.False;
@@ -1197,9 +1867,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong == b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble == b.RawDouble || Math.Abs(a.RawDouble - b.RawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = a.Equals(b) ? DreamValue.True : DreamValue.False;
@@ -1213,9 +1883,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.RawLong != b.RawLong) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.RawDouble != b.RawDouble && Math.Abs(a.RawDouble - b.RawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
+                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 0.00001) ? DreamValue.True : DreamValue.False;
         }
         else
             state.Stack[state.StackPtr - 1] = !a.Equals(b) ? DreamValue.True : DreamValue.False;
@@ -1228,9 +1898,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = new DreamValue(-a.RawLong);
+                state.Stack[state.StackPtr - 1] = new DreamValue(-a.UnsafeRawLong);
             else
-                state.Stack[state.StackPtr - 1] = new DreamValue(-a.RawDouble);
+                state.Stack[state.StackPtr - 1] = new DreamValue(-a.UnsafeRawDouble);
         }
         else
             state.Stack[state.StackPtr - 1] = -a;
@@ -1492,7 +2162,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -2023,8 +2693,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetLocal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double db = value.RawDouble;
-                        val = (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False;
+                        double db = value.UnsafeRawDouble;
+                        val = (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False;
                     }
                     else val = val % value;
                 }
@@ -2036,8 +2706,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetArgument(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double db = value.RawDouble;
-                        val = (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False;
+                        double db = value.UnsafeRawDouble;
+                        val = (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False;
                     }
                     else val = val % value;
                 }
@@ -2049,8 +2719,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var val = state.Thread.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double db = value.RawDouble;
-                        state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False);
+                        double db = value.UnsafeRawDouble;
+                        state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False);
                     }
                     else state.Thread.Context.SetGlobal(idx, val % value);
                 }
@@ -2066,8 +2736,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         DreamValue newVal;
                         if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                         {
-                            double db = value.RawDouble;
-                            newVal = (db != 0) ? new DreamValue(val.RawDouble % db) : DreamValue.False;
+                            double db = value.UnsafeRawDouble;
+                            newVal = (db != 0) ? new DreamValue(val.UnsafeRawDouble % db) : DreamValue.False;
                         }
                         else newVal = val % value;
                         if (idx != -1) gameObject.SetVariableDirect(idx, newVal);
@@ -2114,8 +2784,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
                     ref var val = ref state.GetLocal(idx);
-                    double da = val.RawDouble;
-                    double db = value.RawDouble;
+                    double da = val.UnsafeRawDouble;
+                    double db = value.UnsafeRawDouble;
                     val = (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False;
                 }
                 break;
@@ -2124,8 +2794,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
                     ref var val = ref state.GetArgument(idx);
-                    double da = val.RawDouble;
-                    double db = value.RawDouble;
+                    double da = val.UnsafeRawDouble;
+                    double db = value.UnsafeRawDouble;
                     val = (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False;
                 }
                 break;
@@ -2134,8 +2804,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
                     var val = state.Thread.Context.GetGlobal(idx);
-                    double da = val.RawDouble;
-                    double db = value.RawDouble;
+                    double da = val.UnsafeRawDouble;
+                    double db = value.UnsafeRawDouble;
                     state.Thread.Context.SetGlobal(idx, (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False);
                 }
                 break;
@@ -2147,8 +2817,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         var name = state.Thread.Context.Strings[nameId];
                         int idx = gameObject.ObjectType?.GetVariableIndex(name) ?? -1;
                         var val = idx != -1 ? gameObject.GetVariableDirect(idx) : gameObject.GetVariable(name);
-                        double da = val.RawDouble;
-                        double db = value.RawDouble;
+                        double da = val.UnsafeRawDouble;
+                        double db = value.UnsafeRawDouble;
                         var newVal = (db != 0) ? new DreamValue(da - db * Math.Floor(da / db)) : DreamValue.False;
                         if (idx != -1) gameObject.SetVariableDirect(idx, newVal);
                         else gameObject.SetVariable(name, newVal);
@@ -2260,7 +2930,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         {
             if (index.Type <= DreamValueType.Integer)
             {
-                int i = (int)index.RawDouble - 1;
+                int i = (int)index.UnsafeRawDouble - 1;
                 if (i >= 0 && i < list.Values.Count) val = list.Values[i];
             }
             else val = list.GetValue(index);
@@ -2269,7 +2939,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         {
             if (index.Type <= DreamValueType.Integer)
             {
-                int i = (int)index.RawDouble - 1;
+                int i = (int)index.UnsafeRawDouble - 1;
                 if (i >= 0 && i < str.Length) val = new DreamValue(str[i].ToString());
             }
         }
@@ -2314,7 +2984,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 // Shift arguments to overwrite the object reference on the stack
                 if (argCount > 0)
                 {
-                    state.Stack.AsSpan(stackBase + 1, argCount).CopyTo(state.Stack.AsSpan(stackBase));
+                    state.Stack.Slice(stackBase + 1, argCount).CopyTo(state.Stack.Slice(stackBase));
                 }
                 state.StackPtr--;
                 state.Thread._stackPtr = state.StackPtr;
@@ -2614,7 +3284,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             throw new ScriptRuntimeException($"Invalid format count: {formatCount}", state.Proc, state.PC, state.Thread);
 
         var formatString = state.Thread.Context.Strings[stringId];
-        var values = state.Stack.AsSpan(state.StackPtr - formatCount, formatCount);
+        var values = state.Stack.Slice(state.StackPtr - formatCount, formatCount);
 
         var result = _formatStringBuilder.Value!;
         result.Clear();
@@ -2693,9 +3363,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            val = new DreamValue(val.RawLong * value.RawLong);
+                            val = new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong);
                         else
-                            val = new DreamValue(val.RawDouble * value.RawDouble);
+                            val = new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble);
                     }
                     else
                         val = val * value;
@@ -2708,9 +3378,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            val = new DreamValue(val.RawLong * value.RawLong);
+                            val = new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong);
                         else
-                            val = new DreamValue(val.RawDouble * value.RawDouble);
+                            val = new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble);
                     }
                     else
                         val = val * value;
@@ -2723,9 +3393,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
                         if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.RawLong * value.RawLong));
+                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong));
                         else
-                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.RawDouble * value.RawDouble));
+                            state.Thread.Context.SetGlobal(idx, new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble));
                     }
                     else
                         state.Thread.Context.SetGlobal(idx, val * value);
@@ -2743,9 +3413,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                         {
                             if (val.Type == DreamValueType.Integer && value.Type == DreamValueType.Integer)
-                                newVal = new DreamValue(val.RawLong * value.RawLong);
+                                newVal = new DreamValue(val.UnsafeRawLong * value.UnsafeRawLong);
                             else
-                                newVal = new DreamValue(val.RawDouble * value.RawDouble);
+                                newVal = new DreamValue(val.UnsafeRawDouble * value.UnsafeRawDouble);
                         }
                         else
                             newVal = val * value;
@@ -2793,8 +3463,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetLocal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double dv = value.RawDouble;
-                        val = (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0);
+                        double dv = value.UnsafeRawDouble;
+                        val = (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0);
                     }
                     else
                         val = val / value;
@@ -2806,8 +3476,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     ref var val = ref state.GetArgument(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double dv = value.RawDouble;
-                        val = (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0);
+                        double dv = value.UnsafeRawDouble;
+                        val = (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0);
                     }
                     else
                         val = val / value;
@@ -2819,8 +3489,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     var val = state.Thread.Context.GetGlobal(idx);
                     if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                     {
-                        double dv = value.RawDouble;
-                        state.Thread.Context.SetGlobal(idx, (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0));
+                        double dv = value.UnsafeRawDouble;
+                        state.Thread.Context.SetGlobal(idx, (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0));
                     }
                     else
                         state.Thread.Context.SetGlobal(idx, val / value);
@@ -2837,8 +3507,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                         DreamValue newVal;
                         if (val.Type <= DreamValueType.Integer && value.Type <= DreamValueType.Integer)
                         {
-                            double dv = value.RawDouble;
-                            newVal = (dv != 0) ? new DreamValue(val.RawDouble / dv) : new DreamValue(0.0);
+                            double dv = value.UnsafeRawDouble;
+                            newVal = (dv != 0) ? new DreamValue(val.UnsafeRawDouble / dv) : new DreamValue(0.0);
                         }
                         else
                             newVal = val / value;
@@ -2970,8 +3640,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         if (val.Type <= DreamValueType.Integer && min.Type <= DreamValueType.Integer && max.Type <= DreamValueType.Integer)
         {
-            double dv = val.RawDouble;
-            state.Push(dv >= min.RawDouble && dv <= max.RawDouble ? DreamValue.True : DreamValue.False);
+            double dv = val.UnsafeRawDouble;
+            state.Push(dv >= min.UnsafeRawDouble && dv <= max.UnsafeRawDouble ? DreamValue.True : DreamValue.False);
         }
         else
         {
@@ -3111,7 +3781,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var value = state.ReadDouble();
         var jumpAddress = state.ReadInt32();
         var switchValue = state.Stack[state.StackPtr - 1];
-        if (switchValue.Type <= DreamValueType.Integer && switchValue.RawDouble == value) state.PC = jumpAddress;
+        if (switchValue.Type <= DreamValueType.Integer && switchValue.UnsafeRawDouble == value) state.PC = jumpAddress;
     }
 
     private static void HandleSwitchOnString(ref InterpreterState state)
@@ -3167,7 +3837,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Push(new DreamValue(state.ReadDouble()));
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -3260,7 +3930,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.Thread.Push(val);
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -3312,9 +3982,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawLong + b.RawLong));
+                state.Push(new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong));
             else
-                state.Push(new DreamValue(a.RawDouble + b.RawDouble));
+                state.Push(new DreamValue(a.UnsafeRawDouble + b.UnsafeRawDouble));
         }
         else
             state.Push(a + b);
@@ -3327,7 +3997,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
 
         var a = state.GetLocal(idx);
         if (a.Type <= DreamValueType.Integer)
-            state.Push(new DreamValue(a.RawDouble + val));
+            state.Push(new DreamValue(a.UnsafeRawDouble + val));
         else
             state.Push(a + val);
     }
@@ -3345,9 +4015,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer && c.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer && c.Type == DreamValueType.Integer)
-                state.Push(new DreamValue(a.RawLong * b.RawLong + c.RawLong));
+                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong + c.UnsafeRawLong));
             else
-                state.Push(new DreamValue(a.RawDouble * b.RawDouble + c.RawDouble));
+                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble + c.UnsafeRawDouble));
         }
         else
             state.Push(a * b + c);
@@ -3440,7 +4110,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Push(DreamValue.Null);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -3449,7 +4119,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Push(DreamValue.True);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -3458,7 +4128,312 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Push(DreamValue.False);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+    }
+
+    private static void HandleLocalCompareNotEquals(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+
+        var a = state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        state.Push(a != b ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalIncrement(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        ref var val = ref state.GetLocal(idx);
+        val = val + 1;
+    }
+
+    private static void HandleLocalDecrement(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        ref var val = ref state.GetLocal(idx);
+        val = val - 1;
+    }
+
+    private static void HandleLocalPushLocalPushSub(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+
+        var a = state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+
+        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+        {
+            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                state.Push(new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong));
+            else
+                state.Push(new DreamValue(a.UnsafeRawDouble - b.UnsafeRawDouble));
+        }
+        else
+            state.Push(a - b);
+    }
+
+    private static void HandleLocalAddLocalAssign(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        ref var a = ref state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        a = a + b;
+    }
+
+    private static void HandleLocalSubLocalAssign(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        ref var a = ref state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        a = a - b;
+    }
+
+    private static void HandleLocalJumpIfNull(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (state.GetLocal(idx).IsNull) state.PC = address;
+    }
+
+    private static void HandleLocalJumpIfNotNull(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!state.GetLocal(idx).IsNull) state.PC = address;
+    }
+
+    private static void HandleLocalCompareEqualsJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (state.GetLocal(idx1) != state.GetLocal(idx2)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareNotEqualsJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (state.GetLocal(idx1) == state.GetLocal(idx2)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) < state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) > state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanOrEqualJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) <= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqualJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) >= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalPushDereferenceField(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int pcForCache = state.PC - 5;
+        var objValue = state.GetLocal(idx);
+        DreamValue val = DreamValue.Null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType)
+            {
+                val = obj.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    val = obj.GetVariableDirect(varIdx);
+                }
+                else val = obj.GetVariable(name);
+            }
+        }
+        state.Push(val);
+    }
+
+    private static void HandleLocalMulLocalAssign(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        ref var a = ref state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+        {
+            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
+            else
+                a = new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble);
+        }
+        else a = a * b;
+    }
+
+    private static void HandleLocalDivLocalAssign(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        ref var a = ref state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
+        if (db != 0)
+        {
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                a = new DreamValue(a.UnsafeRawDouble / db);
+            else a = a / b;
+        }
+        else a = new DreamValue(0.0);
+    }
+
+    private static void HandleLocalMulFloatAssign(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble * val);
+        else a = a * val;
+    }
+
+    private static void HandleLocalDivFloatAssign(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (val != 0)
+        {
+            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble / val);
+            else a = a / val;
+        }
+        else a = new DreamValue(0.0);
+    }
+
+    private static void HandlePopN(ref InterpreterState state)
+    {
+        int count = state.ReadInt32();
+        state.StackPtr -= count;
+    }
+
+    private static void HandleLocalMulFloat(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        var a = state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble * val));
+        else state.Push(a * val);
+    }
+
+    private static void HandleLocalDivFloat(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        var a = state.GetLocal(idx);
+        if (val != 0)
+        {
+            if (a.Type <= DreamValueType.Integer) state.Push(new DreamValue(a.UnsafeRawDouble / val));
+            else state.Push(a / val);
+        }
+        else state.Push(new DreamValue(0.0));
+    }
+
+    private static void HandleLocalPushLocalPushMul(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        var a = state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+        {
+            if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
+                state.Push(new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong));
+            else
+                state.Push(new DreamValue(a.UnsafeRawDouble * b.UnsafeRawDouble));
+        }
+        else state.Push(a * b);
+    }
+
+    private static void HandleLocalPushLocalPushDiv(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        var a = state.GetLocal(idx1);
+        var b = state.GetLocal(idx2);
+        double db = b.Type == DreamValueType.Float ? b.UnsafeRawDouble : b.GetValueAsDouble();
+        if (db != 0)
+        {
+            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
+                state.Push(new DreamValue(a.UnsafeRawDouble / db));
+            else
+                state.Push(a / b);
+        }
+        else state.Push(new DreamValue(0.0));
+    }
+
+    private static void HandleLocalAddFloatAssign(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble + val);
+        else a = a + val;
+    }
+
+    private static void HandleLocalCompareLessThan(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) < state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalCompareGreaterThan(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) > state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalCompareLessThanOrEqual(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) <= state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqual(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        state.Push(state.GetLocal(idx1) >= state.GetLocal(idx2) ? DreamValue.True : DreamValue.False);
     }
 }

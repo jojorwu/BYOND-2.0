@@ -15,13 +15,15 @@ namespace Core.VM.Runtime
         public DreamVMContext Context { get; } = new();
         public List<string> Strings => Context.Strings;
         public Dictionary<string, IDreamProc> Procs => Context.Procs;
+        public List<IDreamProc> AllProcs => Context.AllProcs;
         public List<DreamValue> Globals => Context.Globals;
+        public Dictionary<string, int> GlobalNames => Context.GlobalNames;
         public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
+        public DreamObject? World { get => Context.World; set => Context.World = value; }
         public IObjectTypeManager? ObjectTypeManager { get => Context.ObjectTypeManager; set => Context.ObjectTypeManager = value; }
         public IGameState? GameState { get => Context.GameState; set => Context.GameState = value; }
         public IGameApi? GameApi { get => Context.GameApi; set => Context.GameApi = value; }
 
-        private readonly ServerSettings _settings;
         private readonly ILogger<DreamVM> _logger;
         private readonly IEnumerable<INativeProcProvider> _nativeProcProviders;
         private readonly IBytecodeInterpreter _interpreter;
@@ -29,10 +31,9 @@ namespace Core.VM.Runtime
 
         private readonly int _maxInstructions;
 
-        public DreamVM(IOptions<ServerSettings> settings, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
+        public DreamVM(IOptions<DreamVmConfiguration> config, ILogger<DreamVM> logger, IEnumerable<INativeProcProvider> nativeProcProviders, IObjectFactory? objectFactory = null, IBytecodeInterpreter? interpreter = null)
         {
-            _settings = settings.Value;
-            _maxInstructions = _settings.VmMaxInstructions;
+            _maxInstructions = config.Value.MaxInstructions;
             _logger = logger;
             _nativeProcProviders = nativeProcProviders;
             _objectFactory = objectFactory;
@@ -95,6 +96,16 @@ namespace Core.VM.Runtime
         public void Dispose()
         {
             Context.Dispose();
+        }
+
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            info["ProcCount"] = AllProcs.Count;
+            info["GlobalCount"] = Globals.Count;
+            info["StringCount"] = Strings.Count;
+            info["MaxInstructions"] = _maxInstructions;
+            return info;
         }
     }
 }

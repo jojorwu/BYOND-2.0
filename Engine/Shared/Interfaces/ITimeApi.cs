@@ -1,9 +1,11 @@
 using System;
 using System.Threading.Tasks;
 
+using Shared.Interfaces;
+
 namespace Shared;
 
-public interface ITimeApi
+public interface ITimeApi : IApiProvider
 {
     /// <summary>
     /// Gets the current game time in seconds since the server started.

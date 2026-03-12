@@ -49,22 +49,61 @@ namespace Core
         private static IServiceCollection AddCoreApiServices(this IServiceCollection services)
         {
             services.AddSingleton<Shared.Config.ISoundRegistry, Shared.Config.SoundRegistry>();
-            services.AddSingleton<IMapApi, MapApi>();
-            services.AddSingleton<IObjectApi, ObjectApi>();
-            services.AddSingleton<IScriptApi, ScriptApi>();
-            services.AddSingleton<IStandardLibraryApi, StandardLibraryApi>();
+            services.AddSingleton<IApiRegistry, ApiRegistry>();
+
+            services.AddSingleton<MapApi>();
+            services.AddSingleton<IMapApi>(sp => sp.GetRequiredService<MapApi>());
+
+            services.AddSingleton<ObjectApi>();
+            services.AddSingleton<IObjectApi>(sp => sp.GetRequiredService<ObjectApi>());
+
+            services.AddSingleton<ScriptApi>();
+            services.AddSingleton<IScriptApi>(sp => sp.GetRequiredService<ScriptApi>());
+
+            services.AddSingleton<StandardLibraryApi>();
+            services.AddSingleton<IStandardLibraryApi>(sp => sp.GetRequiredService<StandardLibraryApi>());
+
             services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
-            services.AddSingleton<ITimeApi, TimeApi>();
-            services.AddSingleton<IEventApi, EventApi>();
-            services.AddSingleton<IGameApi, GameApi>();
+
+            services.AddSingleton<TimeApi>();
+            services.AddSingleton<ITimeApi>(sp => sp.GetRequiredService<TimeApi>());
+
+            services.AddSingleton<EventApi>();
+            services.AddSingleton<IEventApi>(sp => sp.GetRequiredService<EventApi>());
+
+            services.AddSingleton<SoundApi>();
+            services.AddSingleton<ISoundApi>(sp => sp.GetRequiredService<SoundApi>());
+
+            services.AddSingleton<IGameApi>(sp =>
+            {
+                var registry = sp.GetRequiredService<IApiRegistry>();
+                registry.Register(sp.GetRequiredService<MapApi>());
+                registry.Register(sp.GetRequiredService<ObjectApi>());
+                registry.Register(sp.GetRequiredService<ScriptApi>());
+                registry.Register(sp.GetRequiredService<StandardLibraryApi>());
+                registry.Register(sp.GetRequiredService<TimeApi>());
+                registry.Register(sp.GetRequiredService<EventApi>());
+                registry.Register(sp.GetRequiredService<SoundApi>());
+
+                return new GameApi(
+                    registry,
+                    sp.GetRequiredService<Shared.Config.ISoundRegistry>(),
+                    sp.GetRequiredService<Shared.Config.IConsoleCommandManager>()
+                );
+            });
+
             services.AddSingleton<IRegionApi, RegionApi>();
-            services.AddSingleton<ISoundApi, SoundApi>();
 
             return services;
         }
 
         private static IServiceCollection AddCoreVmServices(this IServiceCollection services)
         {
+            services.AddOptions<DreamVmConfiguration>().Configure<IOptions<ServerSettings>>((config, settings) =>
+            {
+                config.MaxInstructions = settings.Value.VmMaxInstructions;
+            });
+
             services.AddSingleton<IBytecodeInterpreter, BytecodeInterpreter>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();

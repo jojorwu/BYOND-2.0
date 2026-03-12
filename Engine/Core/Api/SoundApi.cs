@@ -6,6 +6,7 @@ namespace Core.Api;
 
 public class SoundApi : ISoundApi
 {
+    public string Name => "Sounds";
     private readonly IUdpServer _udpServer;
     private readonly IGameState _gameState;
     private readonly IRegionManager _regionManager;

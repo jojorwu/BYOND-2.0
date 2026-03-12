@@ -8,4 +8,9 @@ namespace Shared;
         /// The unique name of the procedure.
         /// </summary>
         string Name { get; }
+
+        /// <summary>
+        /// Caches the parent procedure for ..() calls.
+        /// </summary>
+        IDreamProc? ParentProc { get; set; }
     }

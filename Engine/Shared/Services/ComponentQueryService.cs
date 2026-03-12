@@ -124,19 +124,8 @@ namespace Shared.Services;
             {
                 var key = kvp.Key;
                 var queryResult = kvp.Value;
-                var requiredTypes = _cacheKeyToTypes[key];
 
-                bool matches = true;
-                foreach (var type in requiredTypes)
-                {
-                    if (!archetype.Signature.Types.Contains(type))
-                    {
-                        matches = false;
-                        break;
-                    }
-                }
-
-                if (matches)
+                if (archetype.Signature.Mask.ContainsAll(key.Mask))
                 {
                     lock (queryResult.Lock)
                     {

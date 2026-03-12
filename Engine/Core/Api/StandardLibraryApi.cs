@@ -8,6 +8,7 @@ namespace Core.Api
 {
     public class StandardLibraryApi : IStandardLibraryApi
     {
+        public string Name => "StdLib";
         private readonly ISpatialQueryApi _spatialQueryApi;
         private readonly IMapApi _mapApi;
 

@@ -7,23 +7,27 @@ namespace Shared.Models;
 public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 {
     public readonly Type[] Types;
+    public readonly ComponentMask Mask;
     private readonly int _hashCode;
 
     public ComponentSignature(IEnumerable<Type> types)
     {
         Types = types.OrderBy(t => t.TypeHandle.Value.ToInt64()).ToArray();
+        Mask = new ComponentMask();
 
         var hash = new HashCode();
         foreach (var type in Types)
         {
             hash.Add(type);
+            Mask.Set(Services.ComponentIdRegistry.GetId(type));
         }
         _hashCode = hash.ToHashCode();
     }
 
-    private ComponentSignature(Type[] types, int hashCode)
+    private ComponentSignature(Type[] types, ComponentMask mask, int hashCode)
     {
         Types = types;
+        Mask = mask;
         _hashCode = hashCode;
     }
 
@@ -56,8 +60,13 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         if (insertPos < Types.Length) Array.Copy(Types, insertPos, newTypes, insertPos + 1, Types.Length - insertPos);
 
         var hash = new HashCode();
-        foreach (var t in newTypes) hash.Add(t);
-        return new ComponentSignature(newTypes, hash.ToHashCode());
+        var mask = new ComponentMask();
+        foreach (var t in newTypes)
+        {
+            hash.Add(t);
+            mask.Set(Services.ComponentIdRegistry.GetId(t));
+        }
+        return new ComponentSignature(newTypes, mask, hash.ToHashCode());
     }
 
     public ComponentSignature Without(Type type)
@@ -86,18 +95,18 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         if (removeIdx < Types.Length - 1) Array.Copy(Types, removeIdx + 1, newTypes, removeIdx, Types.Length - removeIdx - 1);
 
         var hash = new HashCode();
-        foreach (var t in newTypes) hash.Add(t);
-        return new ComponentSignature(newTypes, hash.ToHashCode());
+        var mask = new ComponentMask();
+        foreach (var t in newTypes)
+        {
+            hash.Add(t);
+            mask.Set(Services.ComponentIdRegistry.GetId(t));
+        }
+        return new ComponentSignature(newTypes, mask, hash.ToHashCode());
     }
 
     public bool Equals(ComponentSignature other)
     {
-        if (Types.Length != other.Types.Length) return false;
-        for (int i = 0; i < Types.Length; i++)
-        {
-            if (Types[i] != other.Types[i]) return false;
-        }
-        return true;
+        return Mask.Equals(other.Mask);
     }
 
     public override bool Equals(object? obj) => obj is ComponentSignature other && Equals(other);

@@ -24,7 +24,8 @@ namespace tests
             var pool = new SharedPool<GameObject>(() => new GameObject());
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var componentManager = new ComponentManager(archetypeManager);
-            var objectFactory = new Shared.Services.ObjectFactory(pool, componentManager);
+            var entityRegistry = new EntityRegistry(pool, componentManager);
+            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
         }
 

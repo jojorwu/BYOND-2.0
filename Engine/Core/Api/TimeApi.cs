@@ -7,6 +7,7 @@ namespace Core.Api;
 
 public class TimeApi : ITimeApi
 {
+    public string Name => "Time";
     private readonly ITimerService _timerService;
     private readonly DateTime _startTime;
 

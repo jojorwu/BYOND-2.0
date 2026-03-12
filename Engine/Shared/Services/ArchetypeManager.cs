@@ -296,28 +296,25 @@ public class ArchetypeManager : IArchetypeManager
     {
         if (componentTypes.Length == 0) return Enumerable.Empty<Archetype>();
 
-        HashSet<Archetype>? results = null;
-
+        var queryMask = new ComponentMask();
         foreach (var type in componentTypes)
         {
-            if (_typeToArchetypesCache.TryGetValue(type, out var archetypes))
+            queryMask.Set(ComponentIdRegistry.GetId(type));
+        }
+
+        var results = new List<Archetype>();
+        lock (_archetypes)
+        {
+            foreach (var archetype in _archetypes)
             {
-                if (results == null)
+                if (archetype.Signature.Mask.ContainsAll(queryMask))
                 {
-                    results = new HashSet<Archetype>(archetypes);
+                    results.Add(archetype);
                 }
-                else
-                {
-                    results.IntersectWith(archetypes);
-                }
-            }
-            else
-            {
-                return Enumerable.Empty<Archetype>();
             }
         }
 
-        return results ?? Enumerable.Empty<Archetype>();
+        return results;
     }
 
     public void ForEach<T>(Action<T, long> action) where T : class, IComponent

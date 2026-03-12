@@ -66,7 +66,9 @@ public static class SharedServiceCollectionExtensions
 
     public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
     {
+        services.AddSingleton<IDiagnosticBus, DiagnosticBus>();
         services.AddSingleton<IPluginManager, PluginManager>();
+        services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<LoggingPacketMiddleware>();
         services.AddSingleton<IPacketDispatcher>(sp =>

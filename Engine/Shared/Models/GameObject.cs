@@ -64,6 +64,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public IGameObject? NextInGridCell { get; set; }
     public IGameObject? PrevInGridCell { get; set; }
     public (long X, long Y)? CurrentGridCellKey { get; set; }
+    public IStateMachine? StateMachine { get; set; }
 
     private long _x;
     private long _committedX;
@@ -743,6 +744,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 _componentManager.RemoveComponent(this, component.GetType());
             }
         }
+
+        StateMachine = null;
 
         SetLocInternal(null, false);
         lock (_lock)

@@ -155,4 +155,9 @@ namespace Shared;
         /// Sends a message to all components attached to this object.
         /// </summary>
         void SendMessage(IComponentMessage message);
+
+        /// <summary>
+        /// Gets or sets the state machine for this game object.
+        /// </summary>
+        IStateMachine? StateMachine { get; set; }
     }

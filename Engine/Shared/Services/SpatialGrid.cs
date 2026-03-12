@@ -77,13 +77,19 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ulong Interleave(uint x, uint y)
         {
-            ulong res = 0;
-            for (int i = 0; i < 32; i++)
-            {
-                res |= (ulong)(x & (1U << i)) << i;
-                res |= (ulong)(y & (1U << i)) << (i + 1);
-            }
-            return res;
+            return InterleaveBits(x) | (InterleaveBits(y) << 1);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong InterleaveBits(uint x)
+        {
+            ulong val = x;
+            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
+            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
+            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
+            val = (val | (val << 2)) & 0x3333333333333333;
+            val = (val | (val << 1)) & 0x5555555555555555;
+            return val;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

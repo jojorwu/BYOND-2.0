@@ -34,8 +34,9 @@ public interface IArchetypeManager
 public class ArchetypeManager : IArchetypeManager
 {
     public event EventHandler<Archetype>? ArchetypeCreated;
-    private readonly List<Archetype> _archetypes = new();
+    private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
+    private readonly object _archetypeLock = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
     private readonly ConcurrentDictionary<long, Dictionary<Type, IComponent>> _entityComponents = new();
@@ -117,12 +118,10 @@ public class ArchetypeManager : IArchetypeManager
 
     public void ForEachEntity(Action<IGameObject> action)
     {
-        lock (_archetypes)
+        var archetypes = _archetypes;
+        foreach (var archetype in archetypes)
         {
-            foreach (var archetype in _archetypes)
-            {
-                archetype.ForEachEntity(action);
-            }
+            archetype.ForEachEntity(action);
         }
     }
 
@@ -193,12 +192,17 @@ public class ArchetypeManager : IArchetypeManager
 
         // Find or create archetype
         Archetype targetArchetype;
-        lock (_archetypes)
+        lock (_archetypeLock)
         {
             if (!_signatureToArchetype.TryGetValue(signature, out targetArchetype!))
             {
                 targetArchetype = new Archetype(signature);
-                _archetypes.Add(targetArchetype);
+
+                var updatedArchetypes = new Archetype[_archetypes.Length + 1];
+                Array.Copy(_archetypes, updatedArchetypes, _archetypes.Length);
+                updatedArchetypes[_archetypes.Length] = targetArchetype;
+                _archetypes = updatedArchetypes;
+
                 _signatureToArchetype[signature] = targetArchetype;
 
                 ArchetypeCreated?.Invoke(this, targetArchetype);
@@ -303,14 +307,12 @@ public class ArchetypeManager : IArchetypeManager
         }
 
         var results = new List<Archetype>();
-        lock (_archetypes)
+        var archetypes = _archetypes;
+        foreach (var archetype in archetypes)
         {
-            foreach (var archetype in _archetypes)
+            if (archetype.Signature.Mask.ContainsAll(queryMask))
             {
-                if (archetype.Signature.Mask.ContainsAll(queryMask))
-                {
-                    results.Add(archetype);
-                }
+                results.Add(archetype);
             }
         }
 
@@ -330,12 +332,10 @@ public class ArchetypeManager : IArchetypeManager
 
     public void Compact()
     {
-        lock (_archetypes)
+        var archetypes = _archetypes;
+        Parallel.ForEach(archetypes, archetype =>
         {
-            Parallel.ForEach(_archetypes, archetype =>
-            {
-                archetype.Compact();
-            });
-        }
+            archetype.Compact();
+        });
     }
 }

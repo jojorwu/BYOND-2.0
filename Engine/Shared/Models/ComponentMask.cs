@@ -35,6 +35,15 @@ public struct ComponentMask : IEquatable<ComponentMask>
                (_mask1 & other._mask1) != 0;
     }
 
+    public bool IsEmpty => _mask0 == 0 && _mask1 == 0;
+
+    public bool Get(int index)
+    {
+        if (index < 64) return (_mask0 & (1UL << index)) != 0;
+        if (index < 128) return (_mask1 & (1UL << (index - 64))) != 0;
+        return false;
+    }
+
     public bool Equals(ComponentMask other)
     {
         return _mask0 == other._mask0 && _mask1 == other._mask1;

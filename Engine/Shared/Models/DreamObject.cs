@@ -96,6 +96,7 @@ namespace Shared;
         {
             if (index < 0) return;
 
+            // Note: SetVariableDirect still uses a lock for consistency when updating and notifying
             lock (_lock)
             {
                 var current = _variableStore.Get(index);
@@ -103,7 +104,12 @@ namespace Shared;
                 {
                     _variableStore.Set(index, value);
                     IncrementVersion();
-                    _bindingService?.NotifyPropertyChanged(this, index, value);
+
+                    var binding = _bindingService;
+                    if (binding != null)
+                    {
+                        binding.NotifyPropertyChanged(this, index, value);
+                    }
                 }
             }
         }

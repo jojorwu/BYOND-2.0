@@ -144,6 +144,12 @@ namespace Shared;
             return null;
         }
 
+        public string StringValue
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ToString();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue(out double value)
         {

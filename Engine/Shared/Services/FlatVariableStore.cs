@@ -29,7 +29,10 @@ public class FlatVariableStore : IVariableStore
     {
         if (index >= _values.Length)
         {
-            var newValues = new DreamValue[index + 1];
+            int newSize = _values.Length == 0 ? 8 : _values.Length * 2;
+            while (newSize <= index) newSize *= 2;
+
+            var newValues = new DreamValue[newSize];
             Array.Copy(_values, newValues, _values.Length);
             _values = newValues;
         }

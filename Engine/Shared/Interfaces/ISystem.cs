@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 
 using System.Collections.Generic;
+using Shared.Models;
 
 namespace Shared.Interfaces;
     /// <summary>
@@ -38,6 +39,11 @@ namespace Shared.Interfaces;
         /// </summary>
         /// <param name="ecb">The command buffer to record structural changes.</param>
         void Tick(IEntityCommandBuffer ecb);
+
+        /// <summary>
+        /// Optional batch processing for archetypes that match this system's requirements.
+        /// </summary>
+        void Tick(Archetype archetype, IEntityCommandBuffer ecb) { }
 
         /// <summary>
         /// Executed after the main tick phase.

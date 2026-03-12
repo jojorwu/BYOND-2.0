@@ -203,7 +203,32 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         using (_profilingService.Measure($"System.{system.Name}"))
         {
             system.PreTick();
-            system.Tick(ecb);
+
+            // Batch processing: if the system has queries, execute against matching archetypes
+            var type = system.GetType();
+            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            bool batchHandled = false;
+
+            foreach (var field in fields)
+            {
+                if (field.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(field.FieldType))
+                {
+                    if (field.GetValue(system) is IEntityQuery query)
+                    {
+                        foreach (var archetype in query.GetMatchingArchetypes())
+                        {
+                            system.Tick(archetype, ecb);
+                            batchHandled = true;
+                        }
+                    }
+                }
+            }
+
+            if (!batchHandled)
+            {
+                system.Tick(ecb);
+            }
+
             system.PostTick();
 
             var jobs = system.CreateJobs();

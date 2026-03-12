@@ -42,18 +42,7 @@ namespace Shared;
             CleanupEmptyCells();
         }
 
-        public Dictionary<string, object> GetDiagnosticInfo()
-        {
-            return new Dictionary<string, object>
-            {
-                { "CellCount", _grid.Count },
-                { "ActiveCellCount", _activeCells.Count },
-                { "PooledCellCount", _cellPool.Count },
-                { "CellSize", _cellSize }
-            };
-        }
-
-        private readonly ConcurrentDictionary<(long X, long Y), Cell> _grid = new();
+        private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<Cell> _activeCells = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
@@ -71,13 +60,39 @@ namespace Shared;
             return val >= 0 ? val / _cellSize : (val - _cellSize + 1) / _cellSize;
         }
 
+        /// <summary>
+        /// Computes a 64-bit Morton code for a 2D coordinate.
+        /// This improves cache locality by mapping 2D proximity to 1D address proximity.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private (long X, long Y) GetCellKey(long x, long y)
+        private static ulong GetMortonCode(long x, long y)
         {
-            return (GetGridCoord(x), GetGridCoord(y));
+            // Map to positive range for bit interleaving
+            uint ux = (uint)(x + 0x80000000);
+            uint uy = (uint)(y + 0x80000000);
+
+            return Interleave(ux, uy);
         }
 
-        private Cell GetOrCreateCell((long X, long Y) key)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong Interleave(uint x, uint y)
+        {
+            ulong res = 0;
+            for (int i = 0; i < 32; i++)
+            {
+                res |= (ulong)(x & (1U << i)) << i;
+                res |= (ulong)(y & (1U << i)) << (i + 1);
+            }
+            return res;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ulong GetCellKey(long x, long y)
+        {
+            return GetMortonCode(GetGridCoord(x), GetGridCoord(y));
+        }
+
+        private Cell GetOrCreateCell(ulong key)
         {
             return _grid.GetOrAdd(key, _ => {
                 if (!_cellPool.TryPop(out var pooled)) pooled = new Cell();
@@ -91,14 +106,14 @@ namespace Shared;
 
             if (obj.CurrentGridCellKey != null)
             {
-                (long X, long Y) oldKey = obj.CurrentGridCellKey.Value;
+                ulong oldKey = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
                 if (oldKey == key) return;
 
                 var oldCell = GetOrCreateCell(oldKey);
                 var cell = GetOrCreateCell(key);
 
-                // Consistent lock ordering to avoid deadlocks
-                if (CompareKeys(oldKey, key) < 0)
+                // Consistent lock ordering to avoid deadlocks (Morton codes are stable unique ulongs)
+                if (oldKey < key)
                 {
                     bool lock1 = false, lock2 = false;
                     try
@@ -106,7 +121,7 @@ namespace Shared;
                         oldCell.Lock.Enter(ref lock1);
                         cell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, key);
+                        AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
                     }
                     finally
                     {
@@ -122,7 +137,7 @@ namespace Shared;
                         cell.Lock.Enter(ref lock1);
                         oldCell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, key);
+                        AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
                     }
                     finally
                     {
@@ -138,7 +153,7 @@ namespace Shared;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, key);
+                    AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
                 }
                 finally
                 {
@@ -161,7 +176,8 @@ namespace Shared;
         public void Remove(IGameObject obj)
         {
             if (obj.CurrentGridCellKey == null) return;
-            if (_grid.TryGetValue(obj.CurrentGridCellKey.Value, out var cell))
+            ulong key = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+            if (_grid.TryGetValue(key, out var cell))
             {
                 bool lockTaken = false;
                 try
@@ -213,7 +229,8 @@ namespace Shared;
             {
                 for (long y = startGY; y <= endGY; y++)
                 {
-                    if (_grid.TryGetValue((x, y), out var cell))
+                    ulong key = GetMortonCode(x, y);
+                    if (_grid.TryGetValue(key, out var cell))
                     {
                         // Double-checked pattern to avoid locking empty cells
                         if (Volatile.Read(ref cell.Head) == null) continue;
@@ -253,7 +270,8 @@ namespace Shared;
             {
                 for (long y = startGY; y <= endGY; y++)
                 {
-                    if (_grid.TryGetValue((x, y), out var cell))
+                    ulong key = GetMortonCode(x, y);
+                    if (_grid.TryGetValue(key, out var cell))
                     {
                         // Double-checked pattern to avoid locking empty cells
                         if (Volatile.Read(ref cell.Head) == null) continue;
@@ -324,7 +342,8 @@ namespace Shared;
             {
                 for (long y = startGY; y <= endGY; y++)
                 {
-                    if (_grid.TryGetValue((x, y), out var cell))
+                    ulong key = GetMortonCode(x, y);
+                    if (_grid.TryGetValue(key, out var cell))
                     {
                         if (Volatile.Read(ref cell.Head) == null) continue;
 
@@ -355,14 +374,6 @@ namespace Shared;
         public void GetObjectsInBox(Box2l box, List<IGameObject> results)
         {
             QueryBox(box, obj => results.Add(obj));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareKeys((long X, long Y) a, (long X, long Y) b)
-        {
-            int res = a.X.CompareTo(b.X);
-            if (res != 0) return res;
-            return a.Y.CompareTo(b.Y);
         }
 
         public void Dispose()

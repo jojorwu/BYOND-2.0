@@ -12,14 +12,14 @@ public class FastEventBus : IEventBus
     private interface IHandlerList
     {
         void Publish(object eventData);
-        Task PublishAsync(object eventData);
+        ValueTask PublishAsync(object eventData);
         void Unsubscribe(Delegate handler);
     }
 
     private class HandlerList<T> : IHandlerList
     {
         private volatile Action<T>[] _actions = Array.Empty<Action<T>>();
-        private volatile Func<T, Task>[] _asyncActions = Array.Empty<Func<T, Task>>();
+        private volatile Func<T, ValueTask>[] _asyncActions = Array.Empty<Func<T, ValueTask>>();
         private readonly object _lock = new();
 
         public void Subscribe(Action<T> handler)
@@ -33,11 +33,11 @@ public class FastEventBus : IEventBus
             }
         }
 
-        public void Subscribe(Func<T, Task> handler)
+        public void Subscribe(Func<T, ValueTask> handler)
         {
             lock (_lock)
             {
-                var updated = new Func<T, Task>[_asyncActions.Length + 1];
+                var updated = new Func<T, ValueTask>[_asyncActions.Length + 1];
                 Array.Copy(_asyncActions, updated, _asyncActions.Length);
                 updated[_asyncActions.Length] = handler;
                 _asyncActions = updated;
@@ -59,12 +59,12 @@ public class FastEventBus : IEventBus
                         _actions = updated;
                     }
                 }
-                else if (handler is Func<T, Task> asyncAction)
+                else if (handler is Func<T, ValueTask> asyncAction)
                 {
                     var index = Array.IndexOf(_asyncActions, asyncAction);
                     if (index != -1)
                     {
-                        var updated = new Func<T, Task>[_asyncActions.Length - 1];
+                        var updated = new Func<T, ValueTask>[_asyncActions.Length - 1];
                         if (index > 0) Array.Copy(_asyncActions, 0, updated, 0, index);
                         if (index < _asyncActions.Length - 1) Array.Copy(_asyncActions, index + 1, updated, index, _asyncActions.Length - index - 1);
                         _asyncActions = updated;
@@ -88,7 +88,7 @@ public class FastEventBus : IEventBus
             }
         }
 
-        public async Task PublishAsync(T eventData)
+        public async ValueTask PublishAsync(T eventData)
         {
             var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
@@ -105,16 +105,20 @@ public class FastEventBus : IEventBus
                 return;
             }
 
-            var tasks = new Task[asyncActions.Length];
+            var tasks = new ValueTask[asyncActions.Length];
             for (int i = 0; i < asyncActions.Length; i++)
             {
                 tasks[i] = asyncActions[i](eventData);
             }
-            await Task.WhenAll(tasks);
+
+            foreach (var task in tasks)
+            {
+                await task;
+            }
         }
 
         void IHandlerList.Publish(object eventData) => Publish((T)eventData);
-        Task IHandlerList.PublishAsync(object eventData) => PublishAsync((T)eventData);
+        ValueTask IHandlerList.PublishAsync(object eventData) => PublishAsync((T)eventData);
     }
 
     private readonly ConcurrentDictionary<Type, IHandlerList> _typeToHandlers = new();
@@ -125,7 +129,7 @@ public class FastEventBus : IEventBus
     }
 
     public void Subscribe<T>(Action<T> handler) => GetHandlers<T>().Subscribe(handler);
-    public void SubscribeAsync<T>(Func<T, Task> handler) => GetHandlers<T>().Subscribe(handler);
+    public void SubscribeAsync<T>(Func<T, ValueTask> handler) => GetHandlers<T>().Subscribe(handler);
 
     public void Unsubscribe<T>(Action<T> handler)
     {
@@ -135,7 +139,7 @@ public class FastEventBus : IEventBus
         }
     }
 
-    public void UnsubscribeAsync<T>(Func<T, Task> handler)
+    public void UnsubscribeAsync<T>(Func<T, ValueTask> handler)
     {
         if (_typeToHandlers.TryGetValue(typeof(T), out var handlers))
         {
@@ -145,7 +149,7 @@ public class FastEventBus : IEventBus
 
     public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
 
-    public Task PublishAsync<T>(T eventData) => GetHandlers<T>().PublishAsync(eventData);
+    public ValueTask PublishAsync<T>(T eventData) => GetHandlers<T>().PublishAsync(eventData);
 
     public void Clear() => _typeToHandlers.Clear();
 

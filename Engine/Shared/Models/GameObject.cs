@@ -47,6 +47,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
     private int _isDirty;
+    private ComponentMask _changeMask = new();
+
     protected override void IncrementVersion()
     {
         base.IncrementVersion();
@@ -59,6 +61,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void ClearDirty()
     {
         Interlocked.Exchange(ref _isDirty, 0);
+        lock (_lock)
+        {
+            _changeMask = new ComponentMask();
+        }
     }
 
     public IGameObject? NextInGridCell { get; set; }
@@ -85,7 +91,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldY = _y; oldZ = _z;
                 _x = value;
                 var type = ObjectType;
-                if (type != null && type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(value);
+                if (type != null && type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(value));
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -116,7 +122,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldZ = _z;
                 _y = value;
                 var type = ObjectType;
-                if (type != null && type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(value);
+                if (type != null && type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(value));
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -147,7 +153,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldY = _y;
                 _z = value;
                 var type = ObjectType;
-                if (type != null && type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(value);
+                if (type != null && type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(value));
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -163,63 +169,63 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public string Icon
     {
         get => Volatile.Read(ref _icon);
-        set { lock (_lock) { if (_icon != value) { _icon = value; var idx = ObjectType?.IconIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_icon != value) { _icon = value; var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private string _iconState = string.Empty;
     public string IconState
     {
         get => Volatile.Read(ref _iconState);
-        set { lock (_lock) { if (_iconState != value) { _iconState = value; var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_iconState != value) { _iconState = value; var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private int _dir = 2;
     public int Dir
     {
         get => Volatile.Read(ref _dir);
-        set { lock (_lock) { if (_dir != value) { _dir = value; var idx = ObjectType?.DirIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue((double)value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_dir != value) { _dir = value; var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue((double)value)); IncrementVersion(); } } }
     }
 
     private double _alpha = 255.0;
     public double Alpha
     {
         get => Volatile.Read(ref _alpha);
-        set { lock (_lock) { if (_alpha != value) { _alpha = value; var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_alpha != value) { _alpha = value; var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private string _color = "#ffffff";
     public string Color
     {
         get => Volatile.Read(ref _color);
-        set { lock (_lock) { if (_color != value) { _color = value; var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_color != value) { _color = value; var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private double _layer = 2.0;
     public double Layer
     {
         get => Volatile.Read(ref _layer);
-        set { lock (_lock) { if (_layer != value) { _layer = value; var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_layer != value) { _layer = value; var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private double _pixelX = 0;
     public double PixelX
     {
         get => Volatile.Read(ref _pixelX);
-        set { lock (_lock) { if (_pixelX != value) { _pixelX = value; var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_pixelX != value) { _pixelX = value; var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private double _pixelY = 0;
     public double PixelY
     {
         get => Volatile.Read(ref _pixelY);
-        set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private double _opacity = 0;
     public double Opacity
     {
         get => Volatile.Read(ref _opacity);
-        set { lock (_lock) { if (_opacity != value) { _opacity = value; var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1 && idx < _variableValues.Length) _variableValues[idx] = new DreamValue(value); IncrementVersion(); } } }
+        set { lock (_lock) { if (_opacity != value) { _opacity = value; var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
     }
 
     private bool _density = true;
@@ -241,11 +247,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             Interlocked.Exchange(ref _committedZ, _z);
 
             // Bulk commit of all properties for consistent reading by network/rendering
-            if (_variableValues.Length != _committedValues.Length)
+            for (int i = 0; i < _variableStore.Length; i++)
             {
-                _committedValues = new DreamValue[_variableValues.Length];
+                _committedStore.Set(i, _variableStore.Get(i));
             }
-            System.Array.Copy(_variableValues, _committedValues, _variableValues.Length);
         }
     }
 
@@ -278,7 +283,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     var idx = ObjectType?.LocIndex ?? -1;
                     if (idx != -1)
-                        _variableValues[idx] = value != null ? new DreamValue((DreamObject)value) : DreamValue.Null;
+                        _variableStore.Set(idx, value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
                     IncrementVersion();
                 }
             }
@@ -458,18 +463,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
         lock (_lock)
         {
-            var currentValues = _variableValues;
-            if (index >= currentValues.Length)
+            var current = _variableStore.Get(index);
+            if (!current.Equals(value))
             {
-                var newValues = new DreamValue[index + 1];
-                System.Array.Copy(currentValues, newValues, currentValues.Length);
-                newValues[index] = value;
-                _variableValues = newValues;
-                IncrementVersion();
-            }
-            else if (!currentValues[index].Equals(value))
-            {
-                currentValues[index] = value;
+                _variableStore.Set(index, value);
+                _changeMask.Set(index);
                 IncrementVersion();
             }
 
@@ -620,9 +618,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             var type = ObjectType;
             if (type != null)
             {
-                if (type.XIndex != -1) _variableValues[type.XIndex] = new DreamValue(x);
-                if (type.YIndex != -1) _variableValues[type.YIndex] = new DreamValue(y);
-                if (type.ZIndex != -1) _variableValues[type.ZIndex] = new DreamValue(z);
+                if (type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(x));
+                if (type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(y));
+                if (type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(z));
             }
             IncrementVersion();
         }
@@ -689,6 +687,26 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             return components;
         }
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
+    }
+
+    public DeltaState GetDeltaState()
+    {
+        lock (_lock)
+        {
+            var delta = new DeltaState(Id);
+            for (int i = 0; i < _variableStore.Length; i++)
+            {
+                // We use the change mask logic implicitly here for now,
+                // in a real implementation we would iterate the bitmask bits.
+                var current = _variableStore.Get(i);
+                var committed = _committedStore.Get(i);
+                if (!current.Equals(committed))
+                {
+                    delta.AddChange(i, current);
+                }
+            }
+            return delta;
+        }
     }
 
     public void SendMessage(IComponentMessage message)

@@ -160,4 +160,9 @@ namespace Shared;
         /// Gets or sets the state machine for this game object.
         /// </summary>
         IStateMachine? StateMachine { get; set; }
+
+        /// <summary>
+        /// Gets a delta state containing all changes since the last clear.
+        /// </summary>
+        Models.DeltaState GetDeltaState();
     }

@@ -1,22 +1,30 @@
 using Shared;
+using Shared.Interfaces;
+using Shared.Services;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Shared;
-    public class DreamObject : IDisposable
+    public class DreamObject : IDisposable, IBindable
     {
         protected readonly object _lock = new();
+        protected IUiBindingService? _bindingService;
         public virtual ObjectType? ObjectType { get; set; }
-        protected volatile DreamValue[] _variableValues = System.Array.Empty<DreamValue>();
-        protected volatile DreamValue[] _committedValues = System.Array.Empty<DreamValue>();
+
+        protected readonly IVariableStore _variableStore;
+        protected readonly IVariableStore _committedStore;
+
         private long _version;
         public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }
         protected virtual void IncrementVersion() => Interlocked.Increment(ref _version);
 
         public DreamObject(ObjectType? objectType)
         {
+            _variableStore = new FlatVariableStore();
+            _committedStore = new FlatVariableStore();
+
             if (objectType != null && objectType.DefaultValuesArray == null) objectType.FinalizeVariables();
             Initialize(objectType);
         }
@@ -29,22 +37,9 @@ namespace Shared;
                 var defaults = objectType.DefaultValuesArray;
                 if (defaults != null)
                 {
-                    int count = defaults.Length;
-                    _variableValues = new DreamValue[count];
-                    _committedValues = new DreamValue[count];
-                    System.Array.Copy(defaults, _variableValues, count);
-                    System.Array.Copy(defaults, _committedValues, count);
+                    _variableStore.CopyFrom(defaults);
+                    _committedStore.CopyFrom(defaults);
                 }
-                else
-                {
-                    _variableValues = System.Array.Empty<DreamValue>();
-                    _committedValues = System.Array.Empty<DreamValue>();
-                }
-            }
-            else
-            {
-                _variableValues = System.Array.Empty<DreamValue>();
-                _committedValues = System.Array.Empty<DreamValue>();
             }
         }
 
@@ -57,9 +52,7 @@ namespace Shared;
 
             lock (_lock)
             {
-                var values = _variableValues;
-                if (index < values.Length) return values[index];
-                return DreamValue.Null;
+                return _variableStore.Get(index);
             }
         }
 
@@ -79,10 +72,7 @@ namespace Shared;
         {
             lock (_lock)
             {
-                var values = _variableValues;
-                if (index >= 0 && index < values.Length)
-                    return values[index];
-                return DreamValue.Null;
+                return _variableStore.Get(index);
             }
         }
 
@@ -91,10 +81,7 @@ namespace Shared;
         {
             lock (_lock)
             {
-                var values = _variableValues;
-                if (index >= 0 && index < values.Length)
-                    return values[index];
-                return DreamValue.Null;
+                return _variableStore.Get(index);
             }
         }
 
@@ -111,22 +98,19 @@ namespace Shared;
 
             lock (_lock)
             {
-                var currentValues = _variableValues;
-                if (index >= currentValues.Length)
+                var current = _variableStore.Get(index);
+                if (!current.Equals(value))
                 {
-                    var newValues = new DreamValue[index + 1];
-                    System.Array.Copy(currentValues, newValues, currentValues.Length);
-                    newValues[index] = value;
-                    _variableValues = newValues;
+                    _variableStore.Set(index, value);
                     IncrementVersion();
-                }
-                else if (!currentValues[index].Equals(value))
-                {
-                    // In-place update within lock to avoid tearing and expensive cloning
-                    currentValues[index] = value;
-                    IncrementVersion();
+                    _bindingService?.NotifyPropertyChanged(this, index, value);
                 }
             }
+        }
+
+        public void SetBindingService(IUiBindingService bindingService)
+        {
+            _bindingService = bindingService;
         }
 
         public override string ToString()
@@ -136,6 +120,8 @@ namespace Shared;
 
         public virtual void Dispose()
         {
+            _variableStore.Dispose();
+            _committedStore.Dispose();
             GC.SuppressFinalize(this);
         }
     }

@@ -27,29 +27,20 @@ public abstract class EngineApplication : IHostedService
     }
 
     /// <summary>
-    /// Starts all registered services in order of their priority.
-    /// Services with the same priority are initialized and started in parallel.
+    /// Starts all registered services in order of their dependency graph.
     /// </summary>
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        _logger.LogInformation("Starting {AppName} Lifecycle...", GetType().Name);
+        _logger.LogInformation("Starting {AppName} Lifecycle with Dependency Graph...", GetType().Name);
 
-        // Group by priority and start independent services in parallel
-        var priorityGroups = _services
-            .GroupBy(s => s.Priority)
-            .OrderByDescending(g => g.Key)
-            .Select(g => g.ToList())
-            .ToList();
+        var graph = new ServiceDependencyGraph(_services);
+        var globalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        globalCts.CancelAfter(StartupTimeout);
 
-        foreach (var group in priorityGroups)
+        try
         {
-            _logger.LogInformation("  Starting Service Group (Priority: {Priority})...", group[0].Priority);
-
-            var groupCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            groupCts.CancelAfter(StartupTimeout);
-
-            var tasks = group.Select(async service =>
+            await graph.InitializeParallelAsync(async service =>
             {
                 var serviceName = service.GetType().Name;
                 try
@@ -58,12 +49,12 @@ public abstract class EngineApplication : IHostedService
                     var serviceSw = System.Diagnostics.Stopwatch.StartNew();
 
                     await service.InitializeAsync();
-                    await service.StartAsync(groupCts.Token);
+                    await service.StartAsync(globalCts.Token);
 
                     serviceSw.Stop();
                     _logger.LogInformation("    [OK] {ServiceName} loaded in {Elapsed}ms", serviceName, serviceSw.ElapsedMilliseconds);
                 }
-                catch (OperationCanceledException) when (groupCts.IsCancellationRequested)
+                catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
                 {
                     _logger.LogError("    [TIMEOUT] Service {ServiceName} failed to start within {Timeout}ms", serviceName, StartupTimeout.TotalMilliseconds);
                     if (service.IsCritical) throw new TimeoutException($"Critical service {serviceName} timed out during startup.");
@@ -71,14 +62,14 @@ public abstract class EngineApplication : IHostedService
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "    [FAIL] Failed to start service: {ServiceName}", serviceName);
-                    if (service.IsCritical)
-                    {
-                        throw; // Rethrow to abort startup
-                    }
+                    if (service.IsCritical) throw;
                 }
             });
-
-            await Task.WhenAll(tasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "Lifecycle initialization failed.");
+            throw;
         }
 
         sw.Stop();

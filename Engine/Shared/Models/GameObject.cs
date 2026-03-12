@@ -261,9 +261,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             // Optimized commit: only update variables that have actually changed since last commit
             if (!_changeMask.IsEmpty)
             {
-                for (int i = 0; i < _variableStore.Length; i++)
+                foreach (int i in _changeMask.GetSetBits())
                 {
-                    if (_changeMask.Get(i))
+                    if (i < _variableStore.Length)
                     {
                         _committedStore.Set(i, _variableStore.Get(i));
                     }
@@ -710,9 +710,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             var delta = new DeltaState(Id);
             if (!_changeMask.IsEmpty)
             {
-                for (int i = 0; i < _variableStore.Length; i++)
+                foreach (int i in _changeMask.GetSetBits())
                 {
-                    if (_changeMask.Get(i))
+                    if (i < _variableStore.Length)
                     {
                         delta.AddChange(i, _variableStore.Get(i));
                     }

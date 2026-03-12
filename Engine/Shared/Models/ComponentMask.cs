@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Shared.Models;
@@ -42,6 +44,29 @@ public struct ComponentMask : IEquatable<ComponentMask>
         if (index < 64) return (_mask0 & (1UL << index)) != 0;
         if (index < 128) return (_mask1 & (1UL << (index - 64))) != 0;
         return false;
+    }
+
+    /// <summary>
+    /// Enumerates indices of all set bits in the mask.
+    /// Optimized using bit manipulation instructions.
+    /// </summary>
+    public IEnumerable<int> GetSetBits()
+    {
+        ulong m0 = _mask0;
+        while (m0 != 0)
+        {
+            int bit = BitOperations.TrailingZeroCount(m0);
+            yield return bit;
+            m0 &= ~(1UL << bit);
+        }
+
+        ulong m1 = _mask1;
+        while (m1 != 0)
+        {
+            int bit = BitOperations.TrailingZeroCount(m1);
+            yield return bit + 64;
+            m1 &= ~(1UL << bit);
+        }
     }
 
     public bool Equals(ComponentMask other)

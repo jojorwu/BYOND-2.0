@@ -37,6 +37,11 @@ namespace Shared.Interfaces;
         int Priority { get; }
 
         /// <summary>
+        /// Names of services that this service depends on.
+        /// </summary>
+        IEnumerable<string> Dependencies { get; }
+
+        /// <summary>
         /// Whether the service is critical to the engine's operation.
         /// If a critical service fails to start, the engine will shut down.
         /// </summary>

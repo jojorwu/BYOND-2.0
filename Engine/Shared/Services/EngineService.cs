@@ -15,6 +15,9 @@ namespace Shared.Services;
         public virtual int Priority => 0;
 
         /// <inheritdoc />
+        public virtual IEnumerable<string> Dependencies => System.Array.Empty<string>();
+
+        /// <inheritdoc />
         public virtual bool IsCritical => true;
 
         private ServiceStatus _status = ServiceStatus.Stopped;

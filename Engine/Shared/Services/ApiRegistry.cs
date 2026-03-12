@@ -8,10 +8,15 @@ namespace Shared.Services;
 public class ApiRegistry : IApiRegistry
 {
     private readonly ConcurrentDictionary<string, IApiProvider> _providers = new();
+    private readonly ConcurrentDictionary<Type, IApiProvider> _typeProviders = new();
 
     public void Register<T>(T provider) where T : class, IApiProvider
     {
         _providers[provider.Name.ToLowerInvariant()] = provider;
+
+        var type = typeof(T);
+        if (type.IsInterface) _typeProviders[type] = provider;
+        _typeProviders[provider.GetType()] = provider;
     }
 
     public void RegisterAll(System.IServiceProvider serviceProvider)
@@ -23,13 +28,21 @@ public class ApiRegistry : IApiRegistry
         }
     }
 
-    public T Get<T>(string name) where T : class, IApiProvider
+    public T Get<T>(string? name = null) where T : class, IApiProvider
     {
-        if (_providers.TryGetValue(name.ToLowerInvariant(), out var provider))
+        if (name != null)
+        {
+            if (_providers.TryGetValue(name.ToLowerInvariant(), out var provider))
+            {
+                return (T)provider;
+            }
+        }
+        else if (_typeProviders.TryGetValue(typeof(T), out var provider))
         {
             return (T)provider;
         }
-        throw new KeyNotFoundException($"API provider '{name}' not found.");
+
+        throw new KeyNotFoundException($"API provider '{name ?? typeof(T).Name}' not found.");
     }
 
     public IEnumerable<IApiProvider> GetAll() => _providers.Values;

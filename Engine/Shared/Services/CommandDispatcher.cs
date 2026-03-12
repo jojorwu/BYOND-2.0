@@ -15,6 +15,7 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
     private readonly IJobSystem _jobSystem;
     private readonly Task _processorTask;
     private readonly List<ICommandMiddleware> _middlewares = new();
+    private volatile ICommandMiddleware[] _middlewareCache = Array.Empty<ICommandMiddleware>();
     private bool _disposed;
 
     public CommandDispatcher(ILogger<CommandDispatcher> logger, IJobSystem jobSystem)
@@ -36,6 +37,7 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
         lock (_middlewares)
         {
             _middlewares.Add(middleware);
+            _middlewareCache = _middlewares.ToArray();
         }
     }
 
@@ -61,26 +63,33 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
 
     private async Task ExecuteWithMiddleware(CommandContext context, Func<Task> finalAction)
     {
-        ICommandMiddleware[] middlewares;
-        lock (_middlewares) middlewares = _middlewares.ToArray();
-
-        int index = 0;
-        async Task Next()
-        {
-            if (index < middlewares.Length)
-            {
-                var middleware = middlewares[index++];
-                await middleware.ProcessAsync(context, Next);
-            }
-            else
-            {
-                await finalAction();
-            }
-        }
+        var middlewares = _middlewareCache;
 
         try
         {
-            await Next();
+            if (middlewares.Length == 0)
+            {
+                await finalAction();
+            }
+            else
+            {
+                int index = 0;
+                Func<Task>? nextDelegate = null;
+                nextDelegate = async () =>
+                {
+                    if (index < middlewares.Length)
+                    {
+                        var middleware = middlewares[index++];
+                        await middleware.ProcessAsync(context, nextDelegate!);
+                    }
+                    else
+                    {
+                        await finalAction();
+                    }
+                };
+
+                await nextDelegate();
+            }
         }
         catch (Exception ex)
         {

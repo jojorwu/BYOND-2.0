@@ -17,6 +17,7 @@ public abstract class EngineApplication : IHostedService
 {
     protected readonly ILogger _logger;
     protected readonly List<IEngineService> _services;
+    private ServiceDependencyGraph? _graph;
     protected virtual TimeSpan StartupTimeout => TimeSpan.FromSeconds(30);
 
     protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services)
@@ -26,6 +27,8 @@ public abstract class EngineApplication : IHostedService
         _logger.LogInformation("{AppName} initialized with {Count} services.", GetType().Name, _services.Count);
     }
 
+    private ServiceDependencyGraph GetGraph() => _graph ??= new ServiceDependencyGraph(_services);
+
     /// <summary>
     /// Starts all registered services in order of their dependency graph.
     /// </summary>
@@ -34,7 +37,7 @@ public abstract class EngineApplication : IHostedService
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _logger.LogInformation("Starting {AppName} Lifecycle with Dependency Graph...", GetType().Name);
 
-        var graph = new ServiceDependencyGraph(_services);
+        var graph = GetGraph();
         var globalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         globalCts.CancelAfter(StartupTimeout);
 
@@ -87,7 +90,7 @@ public abstract class EngineApplication : IHostedService
 
         await OnStopAsync(cancellationToken);
 
-        var graph = new ServiceDependencyGraph(_services);
+        var graph = GetGraph();
 
         try
         {

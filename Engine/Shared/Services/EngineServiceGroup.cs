@@ -30,15 +30,19 @@ namespace Shared.Services;
 
         public override async Task InitializeAsync()
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             _logger?.LogInformation("Initializing Service Group: {GroupName}", _groupName);
             foreach (var service in _services)
             {
                 await service.InitializeAsync();
             }
+            sw.Stop();
+            InitializationDurationMs = sw.ElapsedMilliseconds;
         }
 
         public override async Task StartAsync(CancellationToken cancellationToken)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             _logger?.LogInformation("Starting Service Group: {GroupName}", _groupName);
 
             // Start services within the group in parallel if they share priority
@@ -50,6 +54,8 @@ namespace Shared.Services;
             {
                 await Task.WhenAll(group.Select(s => s.StartAsync(cancellationToken)));
             }
+            sw.Stop();
+            StartupDurationMs = sw.ElapsedMilliseconds;
         }
 
         public override Dictionary<string, object> GetDiagnosticInfo()

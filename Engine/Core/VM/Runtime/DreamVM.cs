@@ -49,7 +49,10 @@ namespace Core.VM.Runtime
 
         public override Task InitializeAsync()
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             Initialize();
+            sw.Stop();
+            InitializationDurationMs = sw.ElapsedMilliseconds;
             return Task.CompletedTask;
         }
 

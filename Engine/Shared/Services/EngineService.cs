@@ -30,6 +30,12 @@ namespace Shared.Services;
         }
 
         /// <inheritdoc />
+        public long InitializationDurationMs { get; protected set; }
+
+        /// <inheritdoc />
+        public long StartupDurationMs { get; protected set; }
+
+        /// <inheritdoc />
         public virtual Task InitializeAsync()
         {
             return Task.CompletedTask;
@@ -81,7 +87,9 @@ namespace Shared.Services;
                 { "Name", Name },
                 { "Status", Status.ToString() },
                 { "Priority", Priority },
-                { "IsCritical", IsCritical }
+                { "IsCritical", IsCritical },
+                { "InitDuration", InitializationDurationMs },
+                { "StartDuration", StartupDurationMs }
             };
         }
     }

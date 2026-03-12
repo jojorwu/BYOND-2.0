@@ -20,6 +20,6 @@ public interface IApiRegistry
 {
     void Register<T>(T provider) where T : class, IApiProvider;
     void RegisterAll(System.IServiceProvider serviceProvider);
-    T Get<T>(string name) where T : class, IApiProvider;
+    T Get<T>(string? name = null) where T : class, IApiProvider;
     IEnumerable<IApiProvider> GetAll();
 }

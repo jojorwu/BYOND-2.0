@@ -50,13 +50,8 @@ namespace Shared;
 
                 if (initialValues.IsEmpty) return;
 
-                if (_values.Capacity < initialValues.Length)
-                    _values.Capacity = initialValues.Length;
-
-                foreach (var val in initialValues)
-                {
-                    _values.Add(val);
-                }
+                System.Runtime.InteropServices.CollectionsMarshal.SetCount(_values, initialValues.Length);
+                initialValues.CopyTo(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values));
 
                 if (initialValues.Length >= DictionaryThreshold)
                 {
@@ -152,8 +147,8 @@ namespace Shared;
                 var clone = new DreamList(ObjectType);
                 if (_values.Count > 0)
                 {
-                    clone._values.Capacity = _values.Count;
-                    clone._values.AddRange(_values);
+                    System.Runtime.InteropServices.CollectionsMarshal.SetCount(clone._values, _values.Count);
+                    System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values).CopyTo(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(clone._values));
                 }
 
                 if (_valueCounts != null && _valueCounts.Count > 0)

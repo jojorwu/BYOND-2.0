@@ -13,7 +13,8 @@ namespace Core.VM.Runtime
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
-        public List<DreamValue> Globals { get; } = new();
+        private volatile DreamValue[] _globals = Array.Empty<DreamValue>();
+        public IList<DreamValue> Globals => _globals;
         public Dictionary<string, int> GlobalNames { get; } = new();
         public ObjectType? ListType { get; set; }
         public DreamObject? World { get; set; }
@@ -25,49 +26,43 @@ namespace Core.VM.Runtime
 
         public DreamValue GetGlobal(int index)
         {
-            if (index < 0) return DreamValue.Null;
-            _contextLock.EnterReadLock();
-            try
-            {
-                return (index < Globals.Count) ? Globals[index] : DreamValue.Null;
-            }
-            finally
-            {
-                _contextLock.ExitReadLock();
-            }
+            var globals = _globals;
+            if ((uint)index < (uint)globals.Length) return globals[index];
+            return DreamValue.Null;
         }
 
         public void SetGlobal(int index, DreamValue value)
         {
             if (index < 0 || index >= MaxGlobals) return;
-            _contextLock.EnterWriteLock();
-            try
+            var globals = _globals;
+            if ((uint)index >= (uint)globals.Length)
             {
-                while (Globals.Count <= index) Globals.Add(DreamValue.Null);
-                Globals[index] = value;
+                lock (_contextLock)
+                {
+                    if (index >= _globals.Length)
+                    {
+                        int newSize = Math.Max(index + 1, _globals.Length * 2);
+                        var newGlobals = new DreamValue[newSize];
+                        _globals.CopyTo(newGlobals, 0);
+                        for (int i = _globals.Length; i < newSize; i++) newGlobals[i] = DreamValue.Null;
+                        _globals = newGlobals;
+                    }
+                }
             }
-            finally
-            {
-                _contextLock.ExitWriteLock();
-            }
+            _globals[index] = value;
         }
 
         public void Reset()
         {
-            _contextLock.EnterWriteLock();
-            try
+            lock (_contextLock)
             {
                 Strings.Clear();
                 Procs.Clear();
                 AllProcs.Clear();
-                Globals.Clear();
+                _globals = Array.Empty<DreamValue>();
                 GlobalNames.Clear();
                 ListType = null;
                 World = null;
-            }
-            finally
-            {
-                _contextLock.ExitWriteLock();
             }
         }
 

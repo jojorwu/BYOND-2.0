@@ -6,7 +6,7 @@ namespace Shared;
         List<string> Strings { get; }
         Dictionary<string, IDreamProc> Procs { get; }
         List<IDreamProc> AllProcs { get; }
-        List<DreamValue> Globals { get; }
+        IList<DreamValue> Globals { get; }
         Dictionary<string, int> GlobalNames { get; }
         ObjectType? ListType { get; set; }
         DreamObject? World { get; set; }

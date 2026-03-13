@@ -37,6 +37,11 @@ namespace Shared.Interfaces;
         int Priority { get; }
 
         /// <summary>
+        /// Names of services that this service depends on.
+        /// </summary>
+        IEnumerable<string> Dependencies { get; }
+
+        /// <summary>
         /// Whether the service is critical to the engine's operation.
         /// If a critical service fails to start, the engine will shut down.
         /// </summary>
@@ -51,4 +56,14 @@ namespace Shared.Interfaces;
         /// Retrieves diagnostic information about the service for monitoring and debugging.
         /// </summary>
         Dictionary<string, object> GetDiagnosticInfo();
+
+        /// <summary>
+        /// Time taken for initialization in milliseconds.
+        /// </summary>
+        long InitializationDurationMs { get; }
+
+        /// <summary>
+        /// Time taken for startup in milliseconds.
+        /// </summary>
+        long StartupDurationMs { get; }
     }

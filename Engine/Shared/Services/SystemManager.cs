@@ -19,10 +19,13 @@ public interface ISystemManager
 
 public class SystemManager : ISystemManager, IAsyncDisposable
 {
+    private record SystemExecutionInfo(ISystem System, IEntityQuery[] Queries);
+
     private static readonly ExecutionPhase[] Phases = Enum.GetValues<ExecutionPhase>();
     private readonly ISystemRegistry _registry;
     private readonly ISystemExecutionPlanner _planner;
-    private List<List<ISystem>>?[] _phaseExecutionLayers = new List<List<ISystem>>[Phases.Length];
+    private SystemExecutionInfo[][]?[] _phaseExecutionLayers = new SystemExecutionInfo[Phases.Length][][];
+    private readonly Dictionary<ISystem, SystemExecutionInfo> _systemInfoCache = new();
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
     private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
@@ -56,22 +59,25 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
         foreach (var system in systems)
         {
-            InitializeSystemQueries(system);
-            system.Initialize();
+            var info = InitializeSystem(system);
+            _systemInfoCache[system] = info;
             _registry.Register(system);
         }
     }
 
-    private void InitializeSystemQueries(ISystem system)
+    private SystemExecutionInfo InitializeSystem(ISystem system)
     {
+        var queries = new List<IEntityQuery>();
         var type = system.GetType();
+
         var fields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         foreach (var field in fields)
         {
             if (field.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(field.FieldType))
             {
-                var query = CreateEntityQuery(field.FieldType);
+                var query = (IEntityQuery)CreateEntityQuery(field.FieldType);
                 field.SetValue(system, query);
+                queries.Add(query);
             }
         }
 
@@ -80,10 +86,14 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         {
             if (prop.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(prop.PropertyType) && prop.CanWrite)
             {
-                var query = CreateEntityQuery(prop.PropertyType);
+                var query = (IEntityQuery)CreateEntityQuery(prop.PropertyType);
                 prop.SetValue(system, query);
+                queries.Add(query);
             }
         }
+
+        system.Initialize();
+        return new SystemExecutionInfo(system, queries.ToArray());
     }
 
     private EntityQuery CreateEntityQuery(Type queryType)
@@ -99,7 +109,27 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
     private void RebuildExecutionLayers()
     {
-        _phaseExecutionLayers = _planner.PlanExecution(_registry.GetSystems(), Phases);
+        var layers = _planner.PlanExecution(_registry.GetSystems(), Phases);
+        for (int i = 0; i < Phases.Length; i++)
+        {
+            if (layers[i] == null)
+            {
+                _phaseExecutionLayers[i] = null;
+                continue;
+            }
+
+            _phaseExecutionLayers[i] = layers[i].Select(layer =>
+                layer.Select(s =>
+                {
+                    if (!_systemInfoCache.TryGetValue(s, out var info))
+                    {
+                        info = InitializeSystem(s);
+                        _systemInfoCache[s] = info;
+                    }
+                    return info;
+                }).ToArray()
+            ).ToArray();
+        }
         _isDirty = false;
     }
 
@@ -126,15 +156,16 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
                 using (_profilingService.Measure($"SystemManager.Phase.{Phases[i]}"))
                 {
-                    foreach (var layer in layers)
+                    for (int j = 0; j < layers.Length; j++)
                     {
-                        if (layer.Count == 1)
+                        var layer = layers[j];
+                        if (layer.Length == 1)
                         {
-                            var system = layer[0];
+                            var info = layer[0];
                             var ecb = _ecbPool.Rent();
                             try
                             {
-                                ExecuteSystem(system, ecb);
+                                ExecuteSystem(info, ecb);
                                 await _jobSystem.CompleteAllAsync();
                                 using (_profilingService.Measure("SystemManager.ECBPlayback"))
                                 {
@@ -148,23 +179,23 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                         }
                         else
                         {
-                            var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Count);
+                            var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Length);
                             try
                             {
-                                await _jobSystem.ForEachAsync(layer, (system, index) =>
+                                await _jobSystem.ForEachAsync(layer, (info, index) =>
                                 {
                                     var ecb = _ecbPool.Rent();
                                     ecbArray[index] = ecb;
-                                    ExecuteSystem(system, ecb);
+                                    ExecuteSystem(info, ecb);
                                 });
 
                                 await _jobSystem.CompleteAllAsync();
 
                                 using (_profilingService.Measure("SystemManager.ECBPlayback"))
                                 {
-                                    for (int j = 0; j < layer.Count; j++)
+                                    for (int k = 0; k < layer.Length; k++)
                                     {
-                                        var ecb = ecbArray[j];
+                                        var ecb = ecbArray[k];
                                         ecb.Playback();
                                         _ecbPool.Return(ecb);
                                     }
@@ -198,28 +229,24 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         }
     }
 
-    private void ExecuteSystem(ISystem system, IEntityCommandBuffer ecb)
+    private void ExecuteSystem(SystemExecutionInfo info, IEntityCommandBuffer ecb)
     {
+        var system = info.System;
         using (_profilingService.Measure($"System.{system.Name}"))
         {
             system.PreTick();
 
-            // Batch processing: if the system has queries, execute against matching archetypes
-            var type = system.GetType();
-            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
             bool batchHandled = false;
-
-            foreach (var field in fields)
+            var queries = info.Queries;
+            if (queries.Length > 0)
             {
-                if (field.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(field.FieldType))
+                for (int i = 0; i < queries.Length; i++)
                 {
-                    if (field.GetValue(system) is IEntityQuery query)
+                    var query = queries[i];
+                    foreach (var archetype in query.GetMatchingArchetypes())
                     {
-                        foreach (var archetype in query.GetMatchingArchetypes())
-                        {
-                            system.Tick(archetype, ecb);
-                            batchHandled = true;
-                        }
+                        system.Tick(archetype, ecb);
+                        batchHandled = true;
                     }
                 }
             }
@@ -232,9 +259,12 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             system.PostTick();
 
             var jobs = system.CreateJobs();
-            foreach (var job in jobs)
+            if (jobs != null)
             {
-                _jobSystem.Schedule(job);
+                foreach (var job in jobs)
+                {
+                    _jobSystem.Schedule(job);
+                }
             }
         }
     }

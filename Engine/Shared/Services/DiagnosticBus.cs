@@ -7,22 +7,17 @@ namespace Shared.Services;
 
 public class DiagnosticBus : IDiagnosticBus
 {
-    private readonly List<Action<DiagnosticEvent>> _subscribers = new();
+    private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
     private readonly object _lock = new();
 
     public void Publish(DiagnosticEvent diagnosticEvent)
     {
-        Action<DiagnosticEvent>[] subscribers;
-        lock (_lock)
-        {
-            subscribers = _subscribers.ToArray();
-        }
-
-        foreach (var sub in subscribers)
+        var subscribers = _subscribers;
+        for (int i = 0; i < subscribers.Length; i++)
         {
             try
             {
-                sub(diagnosticEvent);
+                subscribers[i](diagnosticEvent);
             }
             catch { /* Diagnostics should never throw */ }
         }
@@ -32,7 +27,10 @@ public class DiagnosticBus : IDiagnosticBus
     {
         lock (_lock)
         {
-            _subscribers.Add(callback);
+            var updated = new Action<DiagnosticEvent>[_subscribers.Length + 1];
+            Array.Copy(_subscribers, updated, _subscribers.Length);
+            updated[_subscribers.Length] = callback;
+            _subscribers = updated;
         }
         return new Unsubscriber(this, callback);
     }
@@ -52,7 +50,13 @@ public class DiagnosticBus : IDiagnosticBus
         {
             lock (_bus._lock)
             {
-                _bus._subscribers.Remove(_callback);
+                int index = Array.IndexOf(_bus._subscribers, _callback);
+                if (index == -1) return;
+
+                var updated = new Action<DiagnosticEvent>[_bus._subscribers.Length - 1];
+                if (index > 0) Array.Copy(_bus._subscribers, 0, updated, 0, index);
+                if (index < _bus._subscribers.Length - 1) Array.Copy(_bus._subscribers, index + 1, updated, index, _bus._subscribers.Length - index - 1);
+                _bus._subscribers = updated;
             }
         }
     }

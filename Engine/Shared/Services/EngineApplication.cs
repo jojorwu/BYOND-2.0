@@ -17,6 +17,7 @@ public abstract class EngineApplication : IHostedService
 {
     protected readonly ILogger _logger;
     protected readonly List<IEngineService> _services;
+    private ServiceDependencyGraph? _graph;
     protected virtual TimeSpan StartupTimeout => TimeSpan.FromSeconds(30);
 
     protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services)
@@ -26,6 +27,8 @@ public abstract class EngineApplication : IHostedService
         _logger.LogInformation("{AppName} initialized with {Count} services.", GetType().Name, _services.Count);
     }
 
+    private ServiceDependencyGraph GetGraph() => _graph ??= new ServiceDependencyGraph(_services);
+
     /// <summary>
     /// Starts all registered services in order of their dependency graph.
     /// </summary>
@@ -34,13 +37,13 @@ public abstract class EngineApplication : IHostedService
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _logger.LogInformation("Starting {AppName} Lifecycle with Dependency Graph...", GetType().Name);
 
-        var graph = new ServiceDependencyGraph(_services);
+        var graph = GetGraph();
         var globalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         globalCts.CancelAfter(StartupTimeout);
 
         try
         {
-            await graph.InitializeParallelAsync(async service =>
+            await graph.ExecuteParallelAsync(async service =>
             {
                 var serviceName = service.GetType().Name;
                 try
@@ -79,39 +82,36 @@ public abstract class EngineApplication : IHostedService
     }
 
     /// <summary>
-    /// Stops all registered services in reverse order of their priority.
+    /// Stops all registered services in reverse order of their dependencies.
     /// </summary>
     public virtual async Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Stopping {AppName} Lifecycle...", GetType().Name);
+        _logger.LogInformation("Stopping {AppName} Lifecycle with Dependency Graph...", GetType().Name);
 
         await OnStopAsync(cancellationToken);
 
-        // Stop in reverse order of startup (lower priority group stops first)
-        var priorityGroups = _services
-            .GroupBy(s => s.Priority)
-            .OrderBy(g => g.Key)
-            .Select(g => g.ToList())
-            .ToList();
+        var graph = GetGraph();
 
-        foreach (var group in priorityGroups)
+        try
         {
-            _logger.LogDebug("  Stopping Service Group (Priority: {Priority})...", group[0].Priority);
-
-            var tasks = group.Select(async service =>
+            await graph.ShutdownParallelAsync(async service =>
             {
                 var serviceName = service.GetType().Name;
                 try
                 {
+                    _logger.LogDebug("    <- Stopping {ServiceName}...", serviceName);
                     await service.StopAsync(cancellationToken);
+                    _logger.LogInformation("    [OK] {ServiceName} stopped", serviceName);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "    Error stopping service: {ServiceName}", serviceName);
+                    _logger.LogError(ex, "    [FAIL] Error stopping service: {ServiceName}", serviceName);
                 }
             });
-
-            await Task.WhenAll(tasks);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lifecycle shutdown failed.");
         }
 
         _logger.LogInformation("{AppName} lifecycle stopped.", GetType().Name);

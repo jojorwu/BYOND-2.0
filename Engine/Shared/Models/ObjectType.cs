@@ -78,6 +78,7 @@ public class ObjectType
                 "pixel_x" => BuiltinVar.PixelX,
                 "pixel_y" => BuiltinVar.PixelY,
                 "opacity" => BuiltinVar.Opacity,
+                "density" => BuiltinVar.Density,
                 "x" => BuiltinVar.X,
                 "y" => BuiltinVar.Y,
                 "z" => BuiltinVar.Z,

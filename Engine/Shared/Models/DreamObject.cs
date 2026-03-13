@@ -16,6 +16,11 @@ namespace Shared;
         protected readonly IVariableStore _variableStore;
         protected readonly IVariableStore _committedStore;
 
+        /// <summary>
+        /// Gets the committed variable store, containing a thread-safe snapshot for read-only access.
+        /// </summary>
+        public IVariableStore CommittedStore => _committedStore;
+
         private long _version;
         public long Version { get => Interlocked.Read(ref _version); set => Interlocked.Exchange(ref _version, value); }
         protected virtual void IncrementVersion() => Interlocked.Increment(ref _version);
@@ -92,18 +97,27 @@ namespace Shared;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public virtual void SetVariableDirect(int index, DreamValue value)
+        public virtual void SetVariableDirect(int index, DreamValue value, bool suppressVersion = false)
         {
-            if (index < 0) return;
+            if ((uint)index >= 1000000) return; // Basic sanity check
 
+            // Note: SetVariableDirect still uses a lock for consistency when updating and notifying
             lock (_lock)
             {
                 var current = _variableStore.Get(index);
                 if (!current.Equals(value))
                 {
                     _variableStore.Set(index, value);
-                    IncrementVersion();
-                    _bindingService?.NotifyPropertyChanged(this, index, value);
+                    if (!suppressVersion)
+                    {
+                        IncrementVersion();
+                    }
+
+                    var binding = _bindingService;
+                    if (binding != null)
+                    {
+                        binding.NotifyPropertyChanged(this, index, value);
+                    }
                 }
             }
         }

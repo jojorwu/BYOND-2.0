@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Shared.Models;
@@ -33,6 +35,58 @@ public struct ComponentMask : IEquatable<ComponentMask>
     {
         return (_mask0 & other._mask0) != 0 ||
                (_mask1 & other._mask1) != 0;
+    }
+
+    public bool IsEmpty => _mask0 == 0 && _mask1 == 0;
+
+    public int Count => BitOperations.PopCount(_mask0) + BitOperations.PopCount(_mask1);
+
+    public bool Get(int index)
+    {
+        if (index < 64) return (_mask0 & (1UL << index)) != 0;
+        if (index < 128) return (_mask1 & (1UL << (index - 64))) != 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Enumerates indices of all set bits in the mask without heap allocations.
+    /// </summary>
+    public Enumerator GetSetBits() => new Enumerator(_mask0, _mask1);
+
+    public struct Enumerator
+    {
+        private ulong _m0;
+        private ulong _m1;
+        private int _current;
+
+        public Enumerator(ulong m0, ulong m1)
+        {
+            _m0 = m0;
+            _m1 = m1;
+            _current = -1;
+        }
+
+        public bool MoveNext()
+        {
+            if (_m0 != 0)
+            {
+                _current = BitOperations.TrailingZeroCount(_m0);
+                _m0 &= _m0 - 1;
+                return true;
+            }
+            if (_m1 != 0)
+            {
+                _current = BitOperations.TrailingZeroCount(_m1);
+                _m1 &= _m1 - 1;
+                _current += 64;
+                return true;
+            }
+            return false;
+        }
+
+        public int Current => _current;
+
+        public Enumerator GetEnumerator() => this;
     }
 
     public bool Equals(ComponentMask other)

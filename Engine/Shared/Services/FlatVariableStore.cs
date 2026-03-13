@@ -1,6 +1,7 @@
 using Shared;
 using Shared.Interfaces;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace Shared.Services;
 
@@ -20,17 +21,27 @@ public class FlatVariableStore : IVariableStore
 
     public DreamValue Get(int index)
     {
-        if (index >= 0 && index < _values.Length)
-            return _values[index];
+        var vals = _values;
+        if ((uint)index < (uint)vals.Length)
+            return vals[index];
         return DreamValue.Null;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref DreamValue GetRef(int index)
+    {
+        return ref _values[index];
     }
 
     public void Set(int index, DreamValue value)
     {
-        if (index >= _values.Length)
+        if ((uint)index >= (uint)_values.Length)
         {
-            var newValues = new DreamValue[index + 1];
-            Array.Copy(_values, newValues, _values.Length);
+            int newSize = _values.Length == 0 ? 8 : _values.Length * 2;
+            while (newSize <= index) newSize *= 2;
+
+            var newValues = new DreamValue[newSize];
+            if (_values.Length > 0) _values.AsSpan().CopyTo(newValues);
             _values = newValues;
         }
         _values[index] = value;
@@ -42,7 +53,7 @@ public class FlatVariableStore : IVariableStore
         {
             _values = new DreamValue[source.Length];
         }
-        Array.Copy(source, _values, source.Length);
+        source.AsSpan().CopyTo(_values);
     }
 
     public void Dispose()

@@ -61,9 +61,9 @@ namespace Shared;
         {
             using (ReadLock())
             {
-                foreach (var obj in GameObjects.Values)
+                foreach (var kvp in GameObjects)
                 {
-                    action(obj);
+                    action(kvp.Value);
                 }
             }
         }
@@ -94,14 +94,24 @@ namespace Shared;
             SpatialGrid.Update(gameObject, oldX, oldY);
         }
 
-        public IEnumerable<IGameObject> GetDirtyObjects()
+        public IEnumerable<IGameObject> GetDirtyObjects() => new DirtyObjectEnumerator(_dirtyObjects);
+
+        private struct DirtyObjectEnumerator : IEnumerable<IGameObject>, IEnumerator<IGameObject>
         {
-            var list = new List<IGameObject>();
-            while (_dirtyObjects.TryDequeue(out var obj))
-            {
-                list.Add(obj);
-            }
-            return list;
+            private readonly ConcurrentQueue<IGameObject> _queue;
+            private IGameObject? _current;
+
+            public DirtyObjectEnumerator(ConcurrentQueue<IGameObject> queue) => _queue = queue;
+
+            public IGameObject Current => _current!;
+            object System.Collections.IEnumerator.Current => _current!;
+
+            public bool MoveNext() => _queue.TryDequeue(out _current);
+            public void Reset() => throw new NotSupportedException();
+            public void Dispose() { }
+
+            public IEnumerator<IGameObject> GetEnumerator() => this;
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => this;
         }
 
         private sealed class DisposableAction : IDisposable

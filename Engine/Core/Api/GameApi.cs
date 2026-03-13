@@ -9,15 +9,15 @@ namespace Core.Api
     {
         private readonly IApiRegistry _registry;
 
-        public IMapApi Map => _registry.Get<IMapApi>("Map");
-        public IObjectApi Objects => _registry.Get<IObjectApi>("Objects");
-        public IScriptApi Scripts => _registry.Get<IScriptApi>("Scripts");
-        public ISoundApi Sounds => _registry.Get<ISoundApi>("Sounds");
+        public IMapApi Map => _registry.Get<IMapApi>();
+        public IObjectApi Objects => _registry.Get<IObjectApi>();
+        public IScriptApi Scripts => _registry.Get<IScriptApi>();
+        public ISoundApi Sounds => _registry.Get<ISoundApi>();
         public Shared.Config.ISoundRegistry SoundRegistry { get; }
-        public IStandardLibraryApi StdLib => _registry.Get<IStandardLibraryApi>("StdLib");
+        public IStandardLibraryApi StdLib => _registry.Get<IStandardLibraryApi>();
         public Shared.Config.IConsoleCommandManager Commands { get; }
-        public ITimeApi Time => _registry.Get<ITimeApi>("Time");
-        public IEventApi Events => _registry.Get<IEventApi>("Events");
+        public ITimeApi Time => _registry.Get<ITimeApi>();
+        public IEventApi Events => _registry.Get<IEventApi>();
 
         public GameApi(
             IApiRegistry registry,

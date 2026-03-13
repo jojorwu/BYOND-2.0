@@ -91,7 +91,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldY = _y; oldZ = _z;
                 _x = value;
                 var type = ObjectType;
-                if (type != null && type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(value));
+                if (type != null && type.XIndex != -1)
+                {
+                    _variableStore.Set(type.XIndex, new DreamValue(value));
+                    _changeMask.Set(type.XIndex);
+                }
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -122,7 +126,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldZ = _z;
                 _y = value;
                 var type = ObjectType;
-                if (type != null && type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(value));
+                if (type != null && type.YIndex != -1)
+                {
+                    _variableStore.Set(type.YIndex, new DreamValue(value));
+                    _changeMask.Set(type.YIndex);
+                }
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -153,7 +161,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 oldX = _x; oldY = _y;
                 _z = value;
                 var type = ObjectType;
-                if (type != null && type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(value));
+                if (type != null && type.ZIndex != -1)
+                {
+                    _variableStore.Set(type.ZIndex, new DreamValue(value));
+                    _changeMask.Set(type.ZIndex);
+                }
                 IncrementVersion();
             }
             _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -165,74 +177,74 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public long CommittedZ => _committedZ;
 
-    private string _icon = string.Empty;
     public string Icon
     {
-        get => Volatile.Read(ref _icon);
-        set { lock (_lock) { if (_icon != value) { _icon = value; var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.IconIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : string.Empty; }
+        set { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private string _iconState = string.Empty;
     public string IconState
     {
-        get => Volatile.Read(ref _iconState);
-        set { lock (_lock) { if (_iconState != value) { _iconState = value; var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.IconStateIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : string.Empty; }
+        set { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private int _dir = 2;
     public int Dir
     {
-        get => Volatile.Read(ref _dir);
-        set { lock (_lock) { if (_dir != value) { _dir = value; var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue((double)value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? (int)_variableStore.Get(idx).GetValueAsDouble() : 2; }
+        set { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value)); }
     }
 
-    private double _alpha = 255.0;
     public double Alpha
     {
-        get => Volatile.Read(ref _alpha);
-        set { lock (_lock) { if (_alpha != value) { _alpha = value; var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.AlphaIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 255.0; }
+        set { var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private string _color = "#ffffff";
     public string Color
     {
-        get => Volatile.Read(ref _color);
-        set { lock (_lock) { if (_color != value) { _color = value; var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.ColorIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : "#ffffff"; }
+        set { var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private double _layer = 2.0;
     public double Layer
     {
-        get => Volatile.Read(ref _layer);
-        set { lock (_lock) { if (_layer != value) { _layer = value; var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.LayerIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 2.0; }
+        set { var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private double _pixelX = 0;
     public double PixelX
     {
-        get => Volatile.Read(ref _pixelX);
-        set { lock (_lock) { if (_pixelX != value) { _pixelX = value; var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.PixelXIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        set { var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private double _pixelY = 0;
     public double PixelY
     {
-        get => Volatile.Read(ref _pixelY);
-        set { lock (_lock) { if (_pixelY != value) { _pixelY = value; var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.PixelYIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        set { var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private double _opacity = 0;
     public double Opacity
     {
-        get => Volatile.Read(ref _opacity);
-        set { lock (_lock) { if (_opacity != value) { _opacity = value; var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) _variableStore.Set(idx, new DreamValue(value)); IncrementVersion(); } } }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        set { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
-    private bool _density = true;
+    private int _densityVal = 1;
     public bool Density
     {
-        get => Volatile.Read(ref _density);
-        set { lock (_lock) { if (_density != value) { _density = value; IncrementVersion(); } } }
+        get => Volatile.Read(ref _densityVal) == 1;
+        set { if (Interlocked.Exchange(ref _densityVal, value ? 1 : 0) != (value ? 1 : 0)) IncrementVersion(); }
     }
 
     /// <summary>
@@ -246,10 +258,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             Interlocked.Exchange(ref _committedY, _y);
             Interlocked.Exchange(ref _committedZ, _z);
 
-            // Bulk commit of all properties for consistent reading by network/rendering
-            for (int i = 0; i < _variableStore.Length; i++)
+            // Optimized commit: only update variables that have actually changed since last commit
+            if (!_changeMask.IsEmpty)
             {
-                _committedStore.Set(i, _variableStore.Get(i));
+                foreach (int i in _changeMask.GetSetBits())
+                {
+                    if (i < _variableStore.Length)
+                    {
+                        _committedStore.Set(i, _variableStore.Get(i));
+                    }
+                }
             }
         }
     }
@@ -370,13 +388,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             switch (name)
             {
-                case "x": return new DreamValue(_x);
-                case "y": return new DreamValue(_y);
-                case "z": return new DreamValue(_z);
-                case "icon": return new DreamValue(_icon);
-                case "icon_state": return new DreamValue(_iconState);
-                case "dir": return new DreamValue((double)_dir);
-                case "opacity": return new DreamValue(_opacity);
+                case "x": return new DreamValue(Interlocked.Read(ref _x));
+                case "y": return new DreamValue(Interlocked.Read(ref _y));
+                case "z": return new DreamValue(Interlocked.Read(ref _z));
+                case "icon": return new DreamValue(Icon);
+                case "icon_state": return new DreamValue(IconState);
+                case "dir": return new DreamValue((double)Dir);
+                case "opacity": return new DreamValue(Opacity);
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
                 case "name":
                     var n = base.GetVariable(name);
@@ -403,8 +421,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": X = value.RawLong; return;
                 case "y": Y = value.RawLong; return;
                 case "z": Z = value.RawLong; return;
-                case "icon": Icon = value.TryGetValue(out string? s) ? s ?? string.Empty : string.Empty; return;
-                case "icon_state": IconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; return;
+                case "icon": Icon = value.StringValue; return;
+                case "icon_state": IconState = value.StringValue; return;
                 case "dir": Dir = (int)value.GetValueAsDouble(); return;
                 case "opacity": Opacity = value.GetValueAsDouble(); return;
                 case "loc":
@@ -438,37 +456,36 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             {
                 switch (builtin)
                 {
-                    case BuiltinVar.X: return new DreamValue(_x);
-                    case BuiltinVar.Y: return new DreamValue(_y);
-                    case BuiltinVar.Z: return new DreamValue(_z);
-                    case BuiltinVar.Icon: return new DreamValue(_icon);
-                    case BuiltinVar.IconState: return new DreamValue(_iconState);
-                    case BuiltinVar.Dir: return new DreamValue((double)_dir);
-                    case BuiltinVar.Alpha: return new DreamValue(_alpha);
-                    case BuiltinVar.Color: return new DreamValue(_color);
-                    case BuiltinVar.Layer: return new DreamValue(_layer);
-                    case BuiltinVar.PixelX: return new DreamValue(_pixelX);
-                    case BuiltinVar.PixelY: return new DreamValue(_pixelY);
-                    case BuiltinVar.Opacity: return new DreamValue(_opacity);
+                    case BuiltinVar.X: return new DreamValue(Interlocked.Read(ref _x));
+                    case BuiltinVar.Y: return new DreamValue(Interlocked.Read(ref _y));
+                    case BuiltinVar.Z: return new DreamValue(Interlocked.Read(ref _z));
                     case BuiltinVar.Loc: return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
+                    // Visual properties are stored in _variableStore, so they fall through to base.GetVariableDirect
                 }
             }
         }
         return base.GetVariableDirect(index);
     }
 
-    public override void SetVariableDirect(int index, DreamValue value)
+    public override void SetVariableDirect(int index, DreamValue value, bool suppressVersion = false)
     {
         if (index < 0) return;
+
+        long oldX = -1, oldY = -1, oldZ = -1;
+        bool posChanged = false;
 
         lock (_lock)
         {
             var current = _variableStore.Get(index);
-            if (!current.Equals(value))
+            bool valueChanged = !current.Equals(value);
+            if (valueChanged)
             {
                 _variableStore.Set(index, value);
                 _changeMask.Set(index);
-                IncrementVersion();
+                if (!suppressVersion)
+                {
+                    IncrementVersion();
+                }
             }
 
             // Use the pre-calculated VariableToBuiltin map for O(1) side-effect dispatch
@@ -480,28 +497,56 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     switch (builtin)
                     {
-                        case BuiltinVar.Icon: _icon = value.TryGetValue(out string? s1) ? s1 ?? string.Empty : string.Empty; break;
-                        case BuiltinVar.IconState: _iconState = value.TryGetValue(out string? s2) ? s2 ?? string.Empty : string.Empty; break;
-                        case BuiltinVar.Dir: _dir = (int)value.GetValueAsDouble(); break;
-                        case BuiltinVar.Alpha: _alpha = value.GetValueAsDouble(); break;
-                        case BuiltinVar.Color: _color = value.TryGetValue(out string? s3) ? s3 ?? "#ffffff" : "#ffffff"; break;
-                        case BuiltinVar.Layer: _layer = value.GetValueAsDouble(); break;
-                        case BuiltinVar.PixelX: _pixelX = value.GetValueAsDouble(); break;
-                        case BuiltinVar.PixelY: _pixelY = value.GetValueAsDouble(); break;
-                        case BuiltinVar.Opacity: _opacity = value.GetValueAsDouble(); break;
-                        case BuiltinVar.X: X = value.RawLong; break;
-                        case BuiltinVar.Y: Y = value.RawLong; break;
-                        case BuiltinVar.Z: Z = value.RawLong; break;
+                        case BuiltinVar.X:
+                            if (Interlocked.Read(ref _x) != value.RawLong)
+                            {
+                                oldX = _x; oldY = _y; oldZ = _z;
+                                Interlocked.Exchange(ref _x, value.RawLong);
+                                posChanged = true;
+                            }
+                            break;
+                        case BuiltinVar.Y:
+                            if (Interlocked.Read(ref _y) != value.RawLong)
+                            {
+                                oldX = _x; oldY = _y; oldZ = _z;
+                                Interlocked.Exchange(ref _y, value.RawLong);
+                                posChanged = true;
+                            }
+                            break;
+                        case BuiltinVar.Z:
+                            if (Interlocked.Read(ref _z) != value.RawLong)
+                            {
+                                oldX = _x; oldY = _y; oldZ = _z;
+                                Interlocked.Exchange(ref _z, value.RawLong);
+                                posChanged = true;
+                            }
+                            break;
                         case BuiltinVar.Loc:
                             if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
-                                Loc = loc;
+                                SetLocInternal(loc, false);
                             else
-                                Loc = null;
+                                SetLocInternal(null, false);
+                            break;
+                        case BuiltinVar.Density:
+                            Interlocked.Exchange(ref _densityVal, value.IsFalse() ? 0 : 1);
                             break;
                     }
-                    return;
                 }
             }
+
+            if (valueChanged)
+            {
+                var binding = _bindingService;
+                if (binding != null)
+                {
+                    binding.NotifyPropertyChanged(this, index, value);
+                }
+            }
+        }
+
+        if (posChanged)
+        {
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
         }
     }
 
@@ -618,10 +663,24 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             var type = ObjectType;
             if (type != null)
             {
-                if (type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(x));
-                if (type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(y));
-                if (type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(z));
+                if (type.XIndex != -1)
+                {
+                    _variableStore.Set(type.XIndex, new DreamValue(x));
+                    _changeMask.Set(type.XIndex);
+                }
+                if (type.YIndex != -1)
+                {
+                    _variableStore.Set(type.YIndex, new DreamValue(y));
+                    _changeMask.Set(type.YIndex);
+                }
+                if (type.ZIndex != -1)
+                {
+                    _variableStore.Set(type.ZIndex, new DreamValue(z));
+                    _changeMask.Set(type.ZIndex);
+                }
             }
+
+            // Increment version once for the whole batched position update
             IncrementVersion();
         }
         _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
@@ -693,19 +752,23 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         lock (_lock)
         {
-            var delta = new DeltaState(Id);
-            for (int i = 0; i < _variableStore.Length; i++)
+            if (_changeMask.IsEmpty)
             {
-                // We use the change mask logic implicitly here for now,
-                // in a real implementation we would iterate the bitmask bits.
-                var current = _variableStore.Get(i);
-                var committed = _committedStore.Get(i);
-                if (!current.Equals(committed))
+                return new DeltaState(Id, null, 0);
+            }
+
+            int count = _changeMask.Count;
+            var changes = new VariableChange[count];
+            int idx = 0;
+            foreach (int i in _changeMask.GetSetBits())
+            {
+                if (i < _variableStore.Length)
                 {
-                    delta.AddChange(i, current);
+                    changes[idx++] = new VariableChange { Index = i, Value = _variableStore.Get(i) };
                 }
             }
-            return delta;
+
+            return new DeltaState(Id, changes, idx);
         }
     }
 
@@ -768,21 +831,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         SetLocInternal(null, false);
         lock (_lock)
         {
-            _x = 0;
-            _y = 0;
-            _z = 0;
-            _committedX = 0;
-            _committedY = 0;
-            _committedZ = 0;
-            _icon = string.Empty;
-            _iconState = string.Empty;
-            _dir = 2;
-            _alpha = 255.0;
-            _color = "#ffffff";
-            _layer = 2.0;
-            _pixelX = 0;
-            _pixelY = 0;
-            _opacity = 0;
+            Interlocked.Exchange(ref _x, 0);
+            Interlocked.Exchange(ref _y, 0);
+            Interlocked.Exchange(ref _z, 0);
+            Interlocked.Exchange(ref _committedX, 0);
+            Interlocked.Exchange(ref _committedY, 0);
+            Interlocked.Exchange(ref _committedZ, 0);
+            _densityVal = 1;
             _isDirty = 0;
         }
         Version = 0;

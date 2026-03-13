@@ -16,7 +16,7 @@ namespace Core.VM.Runtime
         public List<string> Strings => Context.Strings;
         public Dictionary<string, IDreamProc> Procs => Context.Procs;
         public List<IDreamProc> AllProcs => Context.AllProcs;
-        public List<DreamValue> Globals => Context.Globals;
+        public IList<DreamValue> Globals => Context.Globals;
         public Dictionary<string, int> GlobalNames => Context.GlobalNames;
         public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
         public DreamObject? World { get => Context.World; set => Context.World = value; }
@@ -49,7 +49,10 @@ namespace Core.VM.Runtime
 
         public override Task InitializeAsync()
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             Initialize();
+            sw.Stop();
+            InitializationDurationMs = sw.ElapsedMilliseconds;
             return Task.CompletedTask;
         }
 

@@ -44,24 +44,23 @@ namespace Shared;
             lock (_lock)
             {
                 _values.Clear();
-                _valueCounts?.Clear();
                 _associativeValues?.Clear();
+                var counts = _valueCounts;
+                counts?.Clear();
 
                 if (initialValues.IsEmpty) return;
 
+                System.Runtime.InteropServices.CollectionsMarshal.SetCount(_values, initialValues.Length);
+                initialValues.CopyTo(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values));
+
                 if (initialValues.Length >= DictionaryThreshold)
                 {
-                    _valueCounts ??= new Dictionary<DreamValue, int>(initialValues.Length);
-                }
-
-                if (_values.Capacity < initialValues.Length)
-                    _values.Capacity = initialValues.Length;
-
-                for (int i = 0; i < initialValues.Length; i++)
-                {
-                    var val = initialValues[i];
-                    _values.Add(val);
-                    AddCount(val);
+                    _valueCounts = counts = new Dictionary<DreamValue, int>(initialValues.Length);
+                    foreach (var val in initialValues)
+                    {
+                        if (counts.TryGetValue(val, out int c)) counts[val] = c + 1;
+                        else counts[val] = 1;
+                    }
                 }
             }
         }
@@ -115,18 +114,26 @@ namespace Shared;
         {
             lock (_lock)
             {
-                bool removedAny = false;
-                for (int i = _values.Count - 1; i >= 0; i--)
+                int writeIndex = 0;
+                bool found = false;
+                for (int readIndex = 0; readIndex < _values.Count; readIndex++)
                 {
-                    if (_values[i] == value)
+                    if (_values[readIndex] == value)
                     {
-                        _values.RemoveAt(i);
-                        removedAny = true;
+                        found = true;
+                        continue;
                     }
+
+                    if (writeIndex != readIndex)
+                    {
+                        _values[writeIndex] = _values[readIndex];
+                    }
+                    writeIndex++;
                 }
 
-                if (removedAny)
+                if (found)
                 {
+                    _values.RemoveRange(writeIndex, _values.Count - writeIndex);
                     if (_valueCounts != null) _valueCounts.Remove(value);
                     if (_associativeValues != null) _associativeValues.Remove(value);
                 }
@@ -140,8 +147,8 @@ namespace Shared;
                 var clone = new DreamList(ObjectType);
                 if (_values.Count > 0)
                 {
-                    clone._values.Capacity = _values.Count;
-                    clone._values.AddRange(_values);
+                    System.Runtime.InteropServices.CollectionsMarshal.SetCount(clone._values, _values.Count);
+                    System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values).CopyTo(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(clone._values));
                 }
 
                 if (_valueCounts != null && _valueCounts.Count > 0)
@@ -189,8 +196,9 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ContainsInternal(DreamValue value)
         {
-            if (_valueCounts != null)
-                return _valueCounts.ContainsKey(value);
+            var counts = _valueCounts;
+            if (counts != null)
+                return counts.ContainsKey(value);
 
             // Linear search for small lists
             var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);

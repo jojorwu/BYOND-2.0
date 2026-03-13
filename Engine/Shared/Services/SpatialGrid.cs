@@ -77,13 +77,19 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ulong Interleave(uint x, uint y)
         {
-            ulong res = 0;
-            for (int i = 0; i < 32; i++)
-            {
-                res |= (ulong)(x & (1U << i)) << i;
-                res |= (ulong)(y & (1U << i)) << (i + 1);
-            }
-            return res;
+            return InterleaveBits(x) | (InterleaveBits(y) << 1);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong InterleaveBits(uint x)
+        {
+            ulong val = x;
+            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
+            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
+            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
+            val = (val | (val << 2)) & 0x3333333333333333;
+            val = (val | (val << 1)) & 0x5555555555555555;
+            return val;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -218,85 +224,122 @@ namespace Shared;
 
         public delegate void QueryCallback<TState>(IGameObject obj, ref TState state);
 
-        public void QueryBox(Box2l box, Action<IGameObject> callback)
+        public struct BoxEnumerator
         {
-            long startGX = GetGridCoord(box.Left);
-            long startGY = GetGridCoord(box.Bottom);
-            long endGX = GetGridCoord(box.Right);
-            long endGY = GetGridCoord(box.Top);
+            private readonly SpatialGrid _grid;
+            private readonly Box2l _box;
+            private readonly long _endGX;
+            private readonly long _endGY;
+            private long _currentGX;
+            private long _currentGY;
+            private IGameObject? _currentInCell;
+            private Cell? _currentCell;
+            private bool _lockTaken;
 
-            for (long x = startGX; x <= endGX; x++)
+            public BoxEnumerator(SpatialGrid grid, Box2l box)
             {
-                for (long y = startGY; y <= endGY; y++)
-                {
-                    ulong key = GetMortonCode(x, y);
-                    if (_grid.TryGetValue(key, out var cell))
-                    {
-                        // Double-checked pattern to avoid locking empty cells
-                        if (Volatile.Read(ref cell.Head) == null) continue;
+                _grid = grid;
+                _box = box;
+                _currentGX = grid.GetGridCoord(box.Left);
+                _currentGY = grid.GetGridCoord(box.Bottom);
+                _endGX = grid.GetGridCoord(box.Right);
+                _endGY = grid.GetGridCoord(box.Top);
+                _currentInCell = null;
+                _currentCell = null;
+                _lockTaken = false;
+            }
 
-                        bool lockTaken = false;
-                        try
+            public bool MoveNext()
+            {
+                while (true)
+                {
+                    if (_currentInCell != null)
+                    {
+                        _currentInCell = _currentInCell.NextInGridCell;
+                    }
+
+                    while (_currentInCell == null)
+                    {
+                        if (_lockTaken && _currentCell != null)
                         {
-                            cell.Lock.Enter(ref lockTaken);
-                            var current = cell.Head;
-                            while (current != null)
+                            _currentCell.Lock.Exit(false);
+                            _lockTaken = false;
+                        }
+
+                        if (_currentGY > _endGY)
+                        {
+                            _currentGY = _grid.GetGridCoord(_box.Bottom);
+                            _currentGX++;
+                        }
+
+                        if (_currentGX > _endGX) return false;
+
+                        ulong key = GetMortonCode(_currentGX, _currentGY);
+                        _currentGY++;
+
+                        if (_grid._grid.TryGetValue(key, out _currentCell))
+                        {
+                            if (Volatile.Read(ref _currentCell.Head) != null)
                             {
-                                var next = current.NextInGridCell;
-                                if (current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
-                                {
-                                    callback(current);
-                                }
-                                current = next;
+                                _currentCell.Lock.Enter(ref _lockTaken);
+                                _currentInCell = _currentCell.Head;
                             }
                         }
-                        finally
-                        {
-                            if (lockTaken) cell.Lock.Exit(false);
-                        }
+                    }
+
+                    if (_currentInCell.X >= _box.Left && _currentInCell.X <= _box.Right &&
+                        _currentInCell.Y >= _box.Bottom && _currentInCell.Y <= _box.Top)
+                    {
+                        return true;
                     }
                 }
+            }
+
+            public IGameObject Current => _currentInCell!;
+
+            public void Dispose()
+            {
+                if (_lockTaken && _currentCell != null)
+                {
+                    _currentCell.Lock.Exit(false);
+                    _lockTaken = false;
+                }
+            }
+
+            public BoxEnumerator GetEnumerator() => this;
+        }
+
+        public BoxEnumerator GetEnumerator(Box2l box) => new BoxEnumerator(this, box);
+
+        public void QueryBox(Box2l box, Action<IGameObject> callback)
+        {
+            var enumerator = new BoxEnumerator(this, box);
+            try
+            {
+                while (enumerator.MoveNext())
+                {
+                    callback(enumerator.Current);
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
             }
         }
 
         public void QueryBox<TState>(Box2l box, ref TState state, QueryCallback<TState> callback)
         {
-            long startGX = GetGridCoord(box.Left);
-            long startGY = GetGridCoord(box.Bottom);
-            long endGX = GetGridCoord(box.Right);
-            long endGY = GetGridCoord(box.Top);
-
-            for (long x = startGX; x <= endGX; x++)
+            var enumerator = new BoxEnumerator(this, box);
+            try
             {
-                for (long y = startGY; y <= endGY; y++)
+                while (enumerator.MoveNext())
                 {
-                    ulong key = GetMortonCode(x, y);
-                    if (_grid.TryGetValue(key, out var cell))
-                    {
-                        // Double-checked pattern to avoid locking empty cells
-                        if (Volatile.Read(ref cell.Head) == null) continue;
-
-                        bool lockTaken = false;
-                        try
-                        {
-                            cell.Lock.Enter(ref lockTaken);
-                            var current = cell.Head;
-                            while (current != null)
-                            {
-                                var next = current.NextInGridCell;
-                                if (current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
-                                {
-                                    callback(current, ref state);
-                                }
-                                current = next;
-                            }
-                        }
-                        finally
-                        {
-                            if (lockTaken) cell.Lock.Exit(false);
-                        }
-                    }
+                    callback(enumerator.Current, ref state);
                 }
+            }
+            finally
+            {
+                enumerator.Dispose();
             }
         }
 
@@ -333,41 +376,21 @@ namespace Shared;
 
         public void QueryBoxZ(Box2l box, long z, List<IGameObject> results)
         {
-            long startGX = GetGridCoord(box.Left);
-            long startGY = GetGridCoord(box.Bottom);
-            long endGX = GetGridCoord(box.Right);
-            long endGY = GetGridCoord(box.Top);
-
-            for (long x = startGX; x <= endGX; x++)
+            var enumerator = new BoxEnumerator(this, box);
+            try
             {
-                for (long y = startGY; y <= endGY; y++)
+                while (enumerator.MoveNext())
                 {
-                    ulong key = GetMortonCode(x, y);
-                    if (_grid.TryGetValue(key, out var cell))
+                    var current = enumerator.Current;
+                    if (current.Z == z)
                     {
-                        if (Volatile.Read(ref cell.Head) == null) continue;
-
-                        bool lockTaken = false;
-                        try
-                        {
-                            cell.Lock.Enter(ref lockTaken);
-                            var current = cell.Head;
-                            while (current != null)
-                            {
-                                var next = current.NextInGridCell;
-                                if (current.Z == z && current.X >= box.Left && current.X <= box.Right && current.Y >= box.Bottom && current.Y <= box.Top)
-                                {
-                                    results.Add(current);
-                                }
-                                current = next;
-                            }
-                        }
-                        finally
-                        {
-                            if (lockTaken) cell.Lock.Exit(false);
-                        }
+                        results.Add(current);
                     }
                 }
+            }
+            finally
+            {
+                enumerator.Dispose();
             }
         }
 

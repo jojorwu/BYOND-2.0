@@ -321,10 +321,10 @@ public partial class DreamThread
         if (_callStackPtr >= MaxCallStackDepth)
             throw new ScriptRuntimeException("Maximum call stack depth exceeded", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
 
-        if (stackDelta < 0 || stackDelta > _stackPtr)
+        if (stackDelta < 0 || stackDelta > _stack.Pointer)
             throw new ScriptRuntimeException($"Invalid stack delta for procedure call: {stackDelta}", CurrentProc, 0, this);
 
-        var stackBase = _stackPtr - stackDelta;
+        var stackBase = _stack.Pointer - stackDelta;
 
         if (newProc is DreamProc dreamProc)
         {
@@ -334,27 +334,17 @@ public partial class DreamThread
             int localCount = dreamProc.LocalVariableCount;
             if (localCount > 0)
             {
-                if (_stackPtr + localCount >= MaxStackSize)
-                    throw new ScriptRuntimeException("Stack overflow during procedure initialization", CurrentProc, _callStack[_callStackPtr - 1].PC, this);
-
-                if (_stackPtr + localCount > _stack.Length)
-                {
-                    var newStack = ArrayPool<DreamValue>.Shared.Rent(Math.Max(_stack.Length * 2, _stackPtr + localCount));
-                    Array.Copy(_stack, newStack, _stackPtr);
-                    ArrayPool<DreamValue>.Shared.Return(_stack, true);
-                    _stack = newStack;
-                }
-
-                _stack.AsSpan(_stackPtr, localCount).Fill(DreamValue.Null);
-                _stackPtr += localCount;
+                _stack.EnsureCapacity(localCount, MaxStackSize);
+                _stack.Array.AsSpan(_stack.Pointer, localCount).Fill(DreamValue.Null);
+                _stack.Pointer += localCount;
             }
         }
         else if (newProc is NativeProc nativeProc)
         {
-            ReadOnlySpan<DreamValue> arguments = _stack.AsSpan(_stackPtr - argCount, argCount);
+            ReadOnlySpan<DreamValue> arguments = _stack.Array.AsSpan(_stack.Pointer - argCount, argCount);
 
             // Remove everything (args + optional obj) from stack
-            _stackPtr = stackBase;
+            _stack.Pointer = stackBase;
 
             var result = nativeProc.Call(this, instance, arguments);
             if (!discardReturnValue)

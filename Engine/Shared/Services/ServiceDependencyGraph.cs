@@ -22,53 +22,168 @@ public class ServiceDependencyGraph
 
     private void BuildGraph()
     {
-        // For now, we still use Priority as a primary dependency driver,
-        // but this architecture allows for explicit per-service dependency registration in the future.
-        var sorted = _services.OrderByDescending(s => s.Priority).ToList();
-
-        for (int i = 0; i < sorted.Count; i++)
+        var nameToService = new Dictionary<string, IEngineService>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in _services)
         {
-            var service = sorted[i];
-            _dependencies[service] = new List<IEngineService>();
-
-            // Implicitly, services with lower priority depend on all services with higher priority
-            for (int j = 0; j < i; j++)
+            if (!string.IsNullOrEmpty(s.Name))
             {
-                _dependencies[service].Add(sorted[j]);
+                if (nameToService.ContainsKey(s.Name))
+                {
+                    // If multiple services have the same name, we can't reliably depend on them by name.
+                    // This might happen if someone registers the same service twice under different interfaces.
+                    continue;
+                }
+                nameToService[s.Name] = s;
             }
+        }
+
+        foreach (var service in _services)
+        {
+            var deps = new HashSet<IEngineService>();
+
+            // Explicit dependencies
+            foreach (var depName in service.Dependencies)
+            {
+                if (nameToService.TryGetValue(depName, out var dep))
+                {
+                    deps.Add(dep);
+                }
+            }
+
+            // Priority-based dependency: only depend on services with strictly higher priority.
+            // This allows services with the same priority to be truly parallel.
+            foreach (var other in _services)
+            {
+                if (other.Priority > service.Priority)
+                {
+                    deps.Add(other);
+                }
+            }
+
+            _dependencies[service] = deps.ToList();
         }
     }
 
-    public async Task InitializeParallelAsync(Func<IEngineService, Task> initAction)
+    public async Task ExecuteParallelAsync(Func<IEngineService, Task> action)
     {
-        var completed = new HashSet<IEngineService>();
-        var remaining = new HashSet<IEngineService>(_services);
+        var dependencyCounts = _services.ToDictionary(s => s, s => _dependencies[s].Count);
+        var dependents = _services.ToDictionary(s => s, _ => new List<IEngineService>());
+        foreach (var kvp in _dependencies)
+        {
+            foreach (var dep in kvp.Value)
+            {
+                dependents[dep].Add(kvp.Key);
+            }
+        }
+
+        var ready = new Queue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderByDescending(s => s.Priority));
+        int processedCount = 0;
         var lockObj = new object();
 
-        while (remaining.Count > 0)
+        while (ready.Count > 0)
         {
-            List<IEngineService> ready;
+            List<IEngineService> currentBatch;
             lock (lockObj)
             {
-                ready = remaining.Where(s => _dependencies[s].All(d => completed.Contains(d))).ToList();
+                currentBatch = ready.ToList();
+                ready.Clear();
             }
 
-            if (ready.Count == 0 && remaining.Count > 0)
+            var tasks = currentBatch.Select(async s =>
             {
-                throw new InvalidOperationException("Circular dependency or stalled graph in service initialization.");
-            }
-
-            var tasks = ready.Select(async s =>
-            {
-                await initAction(s);
-                lock (lockObj)
+                try
                 {
-                    completed.Add(s);
-                    remaining.Remove(s);
+                    await action(s);
+                    Interlocked.Increment(ref processedCount);
+
+                    var nextBatch = new List<IEngineService>();
+                    foreach (var dependent in dependents[s])
+                    {
+                        if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent)) == 0)
+                        {
+                            nextBatch.Add(dependent);
+                        }
+                    }
+
+                    if (nextBatch.Count > 0)
+                    {
+                        lock (lockObj)
+                        {
+                            foreach (var n in nextBatch.OrderByDescending(x => x.Priority)) ready.Enqueue(n);
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    if (s.IsCritical) throw;
                 }
             });
 
             await Task.WhenAll(tasks);
+        }
+
+        if (processedCount < _services.Count)
+        {
+            throw new InvalidOperationException("Circular dependency detected in service graph.");
+        }
+    }
+
+    public async Task ShutdownParallelAsync(Func<IEngineService, Task> shutdownAction)
+    {
+        // Inverse graph for shutdown
+        var dependencyCounts = _services.ToDictionary(s => s, s => 0);
+        var dependents = _services.ToDictionary(s => s, s => _dependencies[s]);
+
+        foreach (var s in _services)
+        {
+            foreach (var dep in _dependencies[s])
+            {
+                dependencyCounts[dep]++;
+            }
+        }
+
+        var ready = new Queue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderBy(s => s.Priority));
+        int processedCount = 0;
+        var lockObj = new object();
+
+        while (ready.Count > 0)
+        {
+            List<IEngineService> currentBatch;
+            lock (lockObj)
+            {
+                currentBatch = ready.ToList();
+                ready.Clear();
+            }
+
+            var tasks = currentBatch.Select(async s =>
+            {
+                await shutdownAction(s);
+                Interlocked.Increment(ref processedCount);
+
+                var nextBatch = new List<IEngineService>();
+                foreach (var dep in dependents[s])
+                {
+                    if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dep)) == 0)
+                    {
+                        nextBatch.Add(dep);
+                    }
+                }
+
+                if (nextBatch.Count > 0)
+                {
+                    lock (lockObj)
+                    {
+                        foreach (var n in nextBatch.OrderBy(x => x.Priority)) ready.Enqueue(n);
+                    }
+                }
+            });
+
+            await Task.WhenAll(tasks);
+        }
+
+        if (processedCount < _services.Count)
+        {
+            throw new InvalidOperationException("Circular dependency detected during service shutdown.");
         }
     }
 }

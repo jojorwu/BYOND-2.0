@@ -31,11 +31,14 @@ public interface IArchetypeManager
     void Compact();
 }
 
-public class ArchetypeManager : IArchetypeManager
+public class ArchetypeManager : EngineService, IArchetypeManager
 {
     public event EventHandler<Archetype>? ArchetypeCreated;
-    private readonly List<Archetype> _archetypes = new();
+    private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
+    private readonly Dictionary<(Archetype, Type), Archetype> _addTransitionsCache = new();
+    private readonly Dictionary<(Archetype, Type), Archetype> _removeTransitionsCache = new();
+    private readonly object _archetypeLock = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
     private readonly ConcurrentDictionary<long, Dictionary<Type, IComponent>> _entityComponents = new();
@@ -95,7 +98,14 @@ public class ArchetypeManager : IArchetypeManager
                     return;
                 }
 
-                if (currentArchetype.AddTransitions.TryGetValue(componentType, out var targetArchetype))
+                // Fast-path: check transition cache first
+                Archetype? targetArchetype;
+                lock (_archetypeLock)
+                {
+                    _addTransitionsCache.TryGetValue((currentArchetype, componentType), out targetArchetype);
+                }
+
+                if (targetArchetype != null)
                 {
                     currentArchetype.RemoveEntity(entity.Id);
                     targetArchetype.AddEntity(entity, components);
@@ -106,23 +116,24 @@ public class ArchetypeManager : IArchetypeManager
 
             MoveToArchetypeInternal(entity, componentType, true);
 
-            // Build transition edge
+            // Populate transition cache
             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
             {
-                currentArchetype.AddTransitions.TryAdd(componentType, newArchetype);
-                newArchetype.RemoveTransitions.TryAdd(componentType, currentArchetype);
+                lock (_archetypeLock)
+                {
+                    _addTransitionsCache[(currentArchetype, componentType)] = newArchetype;
+                    _removeTransitionsCache[(newArchetype, componentType)] = currentArchetype;
+                }
             }
         }
     }
 
     public void ForEachEntity(Action<IGameObject> action)
     {
-        lock (_archetypes)
+        var archetypes = _archetypes;
+        foreach (var archetype in archetypes)
         {
-            foreach (var archetype in _archetypes)
-            {
-                archetype.ForEachEntity(action);
-            }
+            archetype.ForEachEntity(action);
         }
     }
 
@@ -142,10 +153,18 @@ public class ArchetypeManager : IArchetypeManager
                     component.Shutdown();
                     component.Owner = null;
 
-                    if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) &&
-                        currentArchetype.RemoveTransitions.TryGetValue(componentType, out var targetArchetype))
+                    Archetype? targetArchetype = null;
+                    if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) && currentArchetype != null)
                     {
-                        currentArchetype.RemoveEntity(entity.Id);
+                        lock (_archetypeLock)
+                        {
+                            _removeTransitionsCache.TryGetValue((currentArchetype, componentType), out targetArchetype);
+                        }
+                    }
+
+                    if (targetArchetype != null)
+                    {
+                        currentArchetype!.RemoveEntity(entity.Id);
                         targetArchetype.AddEntity(entity, components);
                         _entityToArchetype[entity.Id] = targetArchetype;
                     }
@@ -153,11 +172,14 @@ public class ArchetypeManager : IArchetypeManager
                     {
                         var oldArchetype = currentArchetype;
                         MoveToArchetypeInternal(entity, componentType, false);
-                        // Build transition edge
+                        // Populate transition cache
                         if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
                         {
-                            oldArchetype.RemoveTransitions.TryAdd(componentType, newArchetype);
-                            newArchetype.AddTransitions.TryAdd(componentType, oldArchetype);
+                            lock (_archetypeLock)
+                            {
+                                _removeTransitionsCache[(oldArchetype, componentType)] = newArchetype;
+                                _addTransitionsCache[(newArchetype, componentType)] = oldArchetype;
+                            }
                         }
                     }
                 }
@@ -193,12 +215,17 @@ public class ArchetypeManager : IArchetypeManager
 
         // Find or create archetype
         Archetype targetArchetype;
-        lock (_archetypes)
+        lock (_archetypeLock)
         {
             if (!_signatureToArchetype.TryGetValue(signature, out targetArchetype!))
             {
                 targetArchetype = new Archetype(signature);
-                _archetypes.Add(targetArchetype);
+
+                var updatedArchetypes = new Archetype[_archetypes.Length + 1];
+                Array.Copy(_archetypes, updatedArchetypes, _archetypes.Length);
+                updatedArchetypes[_archetypes.Length] = targetArchetype;
+                _archetypes = updatedArchetypes;
+
                 _signatureToArchetype[signature] = targetArchetype;
 
                 ArchetypeCreated?.Invoke(this, targetArchetype);
@@ -303,14 +330,12 @@ public class ArchetypeManager : IArchetypeManager
         }
 
         var results = new List<Archetype>();
-        lock (_archetypes)
+        var archetypes = _archetypes;
+        foreach (var archetype in archetypes)
         {
-            foreach (var archetype in _archetypes)
+            if (archetype.Signature.Mask.ContainsAll(queryMask))
             {
-                if (archetype.Signature.Mask.ContainsAll(queryMask))
-                {
-                    results.Add(archetype);
-                }
+                results.Add(archetype);
             }
         }
 
@@ -330,12 +355,21 @@ public class ArchetypeManager : IArchetypeManager
 
     public void Compact()
     {
-        lock (_archetypes)
+        var archetypes = _archetypes;
+        Parallel.ForEach(archetypes, archetype =>
         {
-            Parallel.ForEach(_archetypes, archetype =>
-            {
-                archetype.Compact();
-            });
-        }
+            archetype.Compact();
+        });
+    }
+
+    public override Dictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = base.GetDiagnosticInfo();
+        var archetypes = _archetypes;
+        info["ArchetypeCount"] = archetypes.Length;
+        info["EntityCount"] = _entityToArchetype.Count;
+        info["AddTransitionsCacheSize"] = _addTransitionsCache.Count;
+        info["RemoveTransitionsCacheSize"] = _removeTransitionsCache.Count;
+        return info;
     }
 }

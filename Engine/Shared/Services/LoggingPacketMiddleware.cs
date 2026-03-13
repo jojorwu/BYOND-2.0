@@ -14,10 +14,10 @@ public class LoggingPacketMiddleware : IPacketMiddleware
         _logger = logger;
     }
 
-    public Task<bool> ProcessAsync(PacketContext context)
+    public ValueTask<bool> ProcessAsync(PacketContext context)
     {
         _logger.LogDebug("Incoming packet: Type={TypeId}, PayloadLength={PayloadLength}, Peer={Peer}",
             context.TypeId, context.Payload.Length, context.Peer.Nickname ?? context.Peer.EndPoint?.ToString());
-        return Task.FromResult(true);
+        return new ValueTask<bool>(true);
     }
 }

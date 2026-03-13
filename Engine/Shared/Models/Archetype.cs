@@ -29,14 +29,12 @@ public class Archetype
 {
     private long[] _entityIds = System.Array.Empty<long>();
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
-    private readonly ConcurrentDictionary<long, int> _entityIdToIndex = new();
+    private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly Dictionary<Type, IComponentArray> _componentArrays = new();
     private readonly object _lock = new();
     private int _count = 0;
     private int _capacity = 0;
     public ComponentSignature Signature { get; }
-    public readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
-    public readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
 
     public Archetype(IEnumerable<Type> signature) : this(new ComponentSignature(signature))
     {
@@ -117,7 +115,7 @@ public class Archetype
             }
 
             _entities[lastIndex] = null!;
-            _entityIdToIndex.TryRemove(entityId, out _);
+            _entityIdToIndex.Remove(entityId);
             foreach (var array in _componentArrays.Values)
             {
                 array.Clear(lastIndex);
@@ -243,7 +241,13 @@ public class Archetype
         return Array.Empty<IComponent>();
     }
 
-    public bool ContainsEntity(long entityId) => _entityIdToIndex.ContainsKey(entityId);
+    public bool ContainsEntity(long entityId)
+    {
+        lock (_lock)
+        {
+            return _entityIdToIndex.ContainsKey(entityId);
+        }
+    }
 
     public void SetComponent(long entityId, IComponent component)
     {
@@ -327,6 +331,14 @@ public class Archetype
             IGameObject[] snapshot = new IGameObject[count];
             Array.Copy(_entities, snapshot, count);
             return snapshot;
+        }
+    }
+
+    public void CopyEntitiesTo(IGameObject[] destination, int offset)
+    {
+        lock (_lock)
+        {
+            Array.Copy(_entities, 0, destination, offset, _count);
         }
     }
 }

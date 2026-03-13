@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
@@ -7,19 +8,41 @@ namespace Shared.Services;
 public class ApiRegistry : IApiRegistry
 {
     private readonly ConcurrentDictionary<string, IApiProvider> _providers = new();
+    private readonly ConcurrentDictionary<Type, IApiProvider> _typeProviders = new();
 
     public void Register<T>(T provider) where T : class, IApiProvider
     {
         _providers[provider.Name.ToLowerInvariant()] = provider;
+
+        var type = typeof(T);
+        if (type.IsInterface) _typeProviders[type] = provider;
+        _typeProviders[provider.GetType()] = provider;
     }
 
-    public T Get<T>(string name) where T : class, IApiProvider
+    public void RegisterAll(System.IServiceProvider serviceProvider)
     {
-        if (_providers.TryGetValue(name.ToLowerInvariant(), out var provider))
+        var providers = serviceProvider.GetServices<IApiProvider>();
+        foreach (var provider in providers)
+        {
+            Register(provider);
+        }
+    }
+
+    public T Get<T>(string? name = null) where T : class, IApiProvider
+    {
+        if (name != null)
+        {
+            if (_providers.TryGetValue(name.ToLowerInvariant(), out var provider))
+            {
+                return (T)provider;
+            }
+        }
+        else if (_typeProviders.TryGetValue(typeof(T), out var provider))
         {
             return (T)provider;
         }
-        throw new KeyNotFoundException($"API provider '{name}' not found.");
+
+        throw new KeyNotFoundException($"API provider '{name ?? typeof(T).Name}' not found.");
     }
 
     public IEnumerable<IApiProvider> GetAll() => _providers.Values;

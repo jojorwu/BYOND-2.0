@@ -15,5 +15,6 @@ public enum BuiltinVar : byte
     Z = 10,
     Loc = 11,
     Opacity = 12,
+    Density = 13,
     None = 255
 }

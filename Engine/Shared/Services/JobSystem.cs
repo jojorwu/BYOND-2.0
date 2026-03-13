@@ -9,7 +9,7 @@ using Shared.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class JobSystem : IJobSystem, IDisposable, IAsyncDisposable
+    public class JobSystem : EngineService, IJobSystem, IDisposable, IAsyncDisposable
     {
         private const int MaxTrackedJobs = 1000000;
         private volatile WorkerThread[] _workers;
@@ -109,7 +109,7 @@ namespace Shared.Services;
                 _pendingJobTrackers.Add(tcs);
             }
 
-            var finalJob = new TrackingJob(job, tcs, track);
+            var finalJob = new TrackingJob(job, tcs, track, _logger);
 
             var currentWorkers = _workers;
             int count = currentWorkers.Length;
@@ -404,8 +404,9 @@ namespace Shared.Services;
             GC.SuppressFinalize(this);
         }
 
-        public Dictionary<string, object> GetDiagnosticInfo()
+        public override Dictionary<string, object> GetDiagnosticInfo()
         {
+            var info = base.GetDiagnosticInfo();
             var workers = _workers;
             int busyCount = 0;
             int totalPending = 0;
@@ -415,14 +416,12 @@ namespace Shared.Services;
                 totalPending += worker.JobCount;
             }
 
-            return new Dictionary<string, object>
-            {
-                { "WorkerCount", workers.Length },
-                { "BusyWorkers", busyCount },
-                { "PendingJobs", totalPending },
-                { "MinWorkers", _minWorkers },
-                { "MaxWorkers", _maxWorkers }
-            };
+            info["WorkerCount"] = workers.Length;
+            info["BusyWorkers"] = busyCount;
+            info["PendingJobs"] = totalPending;
+            info["MinWorkers"] = _minWorkers;
+            info["MaxWorkers"] = _maxWorkers;
+            return info;
         }
 
         private class TrackingJob : IJob
@@ -430,16 +429,18 @@ namespace Shared.Services;
             private readonly IJob _inner;
             private readonly TaskCompletionSource _tcs;
             private readonly bool _isTracked;
+            private readonly ILogger _logger;
 
             public JobPriority Priority => _inner.Priority;
             public int Weight => _inner.Weight;
             public int PreferredWorkerId => _inner.PreferredWorkerId;
 
-            public TrackingJob(IJob inner, TaskCompletionSource tcs, bool isTracked)
+            public TrackingJob(IJob inner, TaskCompletionSource tcs, bool isTracked, ILogger logger)
             {
                 _inner = inner;
                 _tcs = tcs;
                 _isTracked = isTracked;
+                _logger = logger;
             }
 
             public async Task ExecuteAsync()
@@ -454,7 +455,7 @@ namespace Shared.Services;
                     _tcs.TrySetException(ex);
                     if (!_isTracked)
                     {
-                        Console.Error.WriteLine($"[JobSystem] Untracked job failed: {ex}");
+                        _logger.LogError(ex, "Untracked job failed");
                     }
                 }
             }

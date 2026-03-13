@@ -15,6 +15,9 @@ namespace Shared.Services;
         public virtual int Priority => 0;
 
         /// <inheritdoc />
+        public virtual IEnumerable<string> Dependencies => System.Array.Empty<string>();
+
+        /// <inheritdoc />
         public virtual bool IsCritical => true;
 
         private ServiceStatus _status = ServiceStatus.Stopped;
@@ -25,6 +28,12 @@ namespace Shared.Services;
             get => _status;
             protected set => _status = value;
         }
+
+        /// <inheritdoc />
+        public long InitializationDurationMs { get; protected set; }
+
+        /// <inheritdoc />
+        public long StartupDurationMs { get; protected set; }
 
         /// <inheritdoc />
         public virtual Task InitializeAsync()
@@ -78,7 +87,9 @@ namespace Shared.Services;
                 { "Name", Name },
                 { "Status", Status.ToString() },
                 { "Priority", Priority },
-                { "IsCritical", IsCritical }
+                { "IsCritical", IsCritical },
+                { "InitDuration", InitializationDurationMs },
+                { "StartDuration", StartupDurationMs }
             };
         }
     }

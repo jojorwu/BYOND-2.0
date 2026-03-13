@@ -50,12 +50,12 @@ namespace Shared.Services;
         {
             if (string.IsNullOrEmpty(data)) return;
 
-            int byteCount = System.Text.Encoding.UTF8.GetByteCount(data);
-            var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(byteCount);
+            int maxByteCount = System.Text.Encoding.UTF8.GetMaxByteCount(data.Length);
+            var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(maxByteCount);
             try
             {
-                System.Text.Encoding.UTF8.GetBytes(data, 0, data.Length, buffer, 0);
-                await DispatchAsync(peer, new ReadOnlyMemory<byte>(buffer, 0, byteCount));
+                int actualByteCount = System.Text.Encoding.UTF8.GetBytes(data, buffer);
+                await DispatchAsync(peer, new ReadOnlyMemory<byte>(buffer, 0, actualByteCount));
             }
             finally
             {
@@ -67,31 +67,26 @@ namespace Shared.Services;
         {
             if (data.IsEmpty) return;
 
-            // Simple protocol: first byte is the packet type ID
             byte typeId = data.Span[0];
             var payload = data.Slice(1);
-
-            // Note: PacketContext might need to be updated to support binary payloads.
-            // For now, if we have handlers that expect string, we convert.
-            // Architectural goal: move all handlers to binary.
-
             var context = new PacketContext(peer, typeId, payload);
 
-            // Execute middleware pipeline using lock-free cache
             var middlewareChain = _middlewareCache;
-            foreach (var middleware in middlewareChain)
+            if (middlewareChain.Length > 0)
             {
-                if (!await middleware.ProcessAsync(context))
-                    return; // Middleware aborted the pipeline
+                foreach (var middleware in middlewareChain)
+                {
+                    if (!await middleware.ProcessAsync(context))
+                        return;
+                }
             }
 
             if (_handlers.TryGetValue(context.TypeId, out var handler))
             {
-                // Offload packet handling to the JobSystem for parallel processing.
-                // We copy the payload because the underlying network buffer might be reused.
-                var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(context.Payload.Length);
+                var payloadLength = context.Payload.Length;
+                var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(payloadLength);
                 context.Payload.CopyTo(buffer);
-                var payloadCopy = new ReadOnlyMemory<byte>(buffer, 0, context.Payload.Length);
+                var payloadCopy = new ReadOnlyMemory<byte>(buffer, 0, payloadLength);
 
                 _jobSystem.Schedule(async () =>
                 {

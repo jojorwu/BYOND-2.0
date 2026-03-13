@@ -6,13 +6,14 @@ using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentQueryService : IComponentQueryService
+    public class ComponentQueryService : EngineService, IComponentQueryService
     {
         private class QueryResult : IEntityQuery
         {
-            public readonly List<Archetype> Archetypes = new();
-            public readonly object Lock = new();
+            private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
+            private readonly object _lock = new();
             private readonly IGameState? _gameState;
+            private IGameObject[]? _cachedSnapshot;
 
             public QueryResult(IGameState? gameState)
             {
@@ -21,33 +22,62 @@ namespace Shared.Services;
 
             public IReadOnlyList<IGameObject> Snapshot => BuildSnapshot();
 
-            public IEnumerable<Archetype> GetMatchingArchetypes()
+            public void AddArchetype(Archetype archetype)
             {
-                lock (Lock)
+                lock (_lock)
                 {
-                    return Archetypes.ToList();
+                    var updated = new Archetype[_archetypes.Length + 1];
+                    Array.Copy(_archetypes, updated, _archetypes.Length);
+                    updated[_archetypes.Length] = archetype;
+                    _archetypes = updated;
+                    _cachedSnapshot = null;
                 }
             }
 
+            public void AddArchetypes(IEnumerable<Archetype> matching)
+            {
+                lock (_lock)
+                {
+                    var matchingArray = matching.ToArray();
+                    var updated = new Archetype[_archetypes.Length + matchingArray.Length];
+                    Array.Copy(_archetypes, updated, _archetypes.Length);
+                    Array.Copy(matchingArray, 0, updated, _archetypes.Length, matchingArray.Length);
+                    _archetypes = updated;
+                    _cachedSnapshot = null;
+                }
+            }
+
+            public IEnumerable<Archetype> GetMatchingArchetypes() => _archetypes;
+
             private IReadOnlyList<IGameObject> BuildSnapshot()
             {
-                var results = new List<IGameObject>();
-                lock (Lock)
+                var archetypes = _archetypes;
+                var snapshot = _cachedSnapshot;
+                if (snapshot != null) return snapshot;
+
+                lock (_lock)
                 {
-                    foreach (var arch in Archetypes)
+                    if (_cachedSnapshot != null) return _cachedSnapshot;
+
+                    int totalCount = 0;
+                    foreach (var arch in archetypes) totalCount += arch.EntityCount;
+
+                    var results = new IGameObject[totalCount];
+                    int offset = 0;
+                    foreach (var arch in archetypes)
                     {
-                        results.AddRange(arch.GetEntitiesSnapshot());
+                        arch.CopyEntitiesTo(results, offset);
+                        offset += arch.EntityCount;
                     }
+                    _cachedSnapshot = results;
+                    return results;
                 }
-                return results;
             }
 
             public IEnumerator<IGameObject> GetEnumerator()
             {
-                List<Archetype> archetypesCopy;
-                lock (Lock) archetypesCopy = Archetypes.ToList();
-
-                foreach (var arch in archetypesCopy)
+                var archetypes = _archetypes;
+                foreach (var arch in archetypes)
                 {
                     foreach (var entity in arch.GetEntitiesSnapshot())
                     {
@@ -104,10 +134,7 @@ namespace Shared.Services;
             if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
             {
                 var matchingArchetypes = am.GetArchetypesWithComponents(componentTypes);
-                lock (queryResult.Lock)
-                {
-                    queryResult.Archetypes.AddRange(matchingArchetypes);
-                }
+                queryResult.AddArchetypes(matchingArchetypes);
             }
 
             if (_queryCache.TryAdd(key, queryResult))
@@ -127,10 +154,7 @@ namespace Shared.Services;
 
                 if (archetype.Signature.Mask.ContainsAll(key.Mask))
                 {
-                    lock (queryResult.Lock)
-                    {
-                        queryResult.Archetypes.Add(archetype);
-                    }
+                    queryResult.AddArchetype(archetype);
                 }
             }
         }
@@ -187,5 +211,13 @@ namespace Shared.Services;
                 lock (list) copy = list.ToList();
                 foreach (var sub in copy) sub.Removed(e);
             }
+        }
+
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            info["QueryCacheSize"] = _queryCache.Count;
+            info["SubscriptionCount"] = _subscriptions.Count;
+            return info;
         }
     }

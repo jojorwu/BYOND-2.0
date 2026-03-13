@@ -16,6 +16,17 @@ namespace Core.VM.Runtime
         private volatile DreamValue[] _globals = Array.Empty<DreamValue>();
         public IList<DreamValue> Globals => _globals;
         public Dictionary<string, int> GlobalNames { get; } = new();
+
+        public void InitializeGlobals(int count)
+        {
+            lock (_contextLock)
+            {
+                if (count > MaxGlobals) throw new ArgumentOutOfRangeException(nameof(count));
+                var newGlobals = new DreamValue[count];
+                Array.Fill(newGlobals, DreamValue.Null);
+                _globals = newGlobals;
+            }
+        }
         public ObjectType? ListType { get; set; }
         public DreamObject? World { get; set; }
         public IObjectTypeManager? ObjectTypeManager { get; set; }
@@ -42,9 +53,12 @@ namespace Core.VM.Runtime
                     if (index >= _globals.Length)
                     {
                         int newSize = Math.Max(index + 1, _globals.Length * 2);
+                        // Ensure power-of-two growth for amortization
+                        if (newSize < _globals.Length * 2) newSize = _globals.Length * 2;
+
                         var newGlobals = new DreamValue[newSize];
                         _globals.CopyTo(newGlobals, 0);
-                        for (int i = _globals.Length; i < newSize; i++) newGlobals[i] = DreamValue.Null;
+                        for (int j = _globals.Length; j < newSize; j++) newGlobals[j] = DreamValue.Null;
                         _globals = newGlobals;
                     }
                 }

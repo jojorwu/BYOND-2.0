@@ -33,6 +33,9 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 
     public ComponentSignature With(Type type)
     {
+        int componentId = Services.ComponentIdRegistry.GetId(type);
+        if (Mask.Get(componentId)) return this;
+
         long targetHandle = type.TypeHandle.Value.ToInt64();
         int low = 0;
         int high = Types.Length - 1;
@@ -42,7 +45,6 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         {
             int mid = low + (high - low) / 2;
             long midHandle = Types[mid].TypeHandle.Value.ToInt64();
-            if (midHandle == targetHandle) return this;
             if (midHandle > targetHandle)
             {
                 insertPos = mid;
@@ -59,18 +61,18 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         newTypes[insertPos] = type;
         if (insertPos < Types.Length) Array.Copy(Types, insertPos, newTypes, insertPos + 1, Types.Length - insertPos);
 
-        var hash = new HashCode();
-        var mask = new ComponentMask();
-        foreach (var t in newTypes)
-        {
-            hash.Add(t);
-            mask.Set(Services.ComponentIdRegistry.GetId(t));
-        }
-        return new ComponentSignature(newTypes, mask, hash.ToHashCode());
+        var mask = Mask;
+        mask.Set(componentId);
+
+        // Fast hash update if possible, but for now we just use the mask as the primary equality component
+        return new ComponentSignature(newTypes, mask, _hashCode ^ type.GetHashCode());
     }
 
     public ComponentSignature Without(Type type)
     {
+        int componentId = Services.ComponentIdRegistry.GetId(type);
+        if (!Mask.Get(componentId)) return this;
+
         long targetHandle = type.TypeHandle.Value.ToInt64();
         int low = 0, high = Types.Length - 1;
         int removeIdx = -1;
@@ -94,14 +96,13 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         if (removeIdx > 0) Array.Copy(Types, 0, newTypes, 0, removeIdx);
         if (removeIdx < Types.Length - 1) Array.Copy(Types, removeIdx + 1, newTypes, removeIdx, Types.Length - removeIdx - 1);
 
-        var hash = new HashCode();
-        var mask = new ComponentMask();
-        foreach (var t in newTypes)
-        {
-            hash.Add(t);
-            mask.Set(Services.ComponentIdRegistry.GetId(t));
-        }
-        return new ComponentSignature(newTypes, mask, hash.ToHashCode());
+        var mask = Mask;
+        // Note: ComponentMask currently doesn't have an Unset, but for the sake of signature stability
+        // we can rebuild it or add Unset to ComponentMask.
+        var newMask = new ComponentMask();
+        foreach(var t in newTypes) newMask.Set(Services.ComponentIdRegistry.GetId(t));
+
+        return new ComponentSignature(newTypes, newMask, _hashCode ^ type.GetHashCode());
     }
 
     public bool Equals(ComponentSignature other)

@@ -148,9 +148,9 @@ namespace Core
                 if (json.Globals.GlobalCount > 100000000)
                     throw new Exception($"Too many global variables: {json.Globals.GlobalCount}");
 
-                for (int i = 0; i < json.Globals.GlobalCount; i++)
+                if (dreamVM is DreamVM vm)
                 {
-                    dreamVM.Globals.Add(DreamValue.Null);
+                    vm.Context.InitializeGlobals(json.Globals.GlobalCount);
                 }
 
                 if (json.Globals.Names != null)

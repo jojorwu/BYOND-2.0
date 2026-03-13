@@ -30,8 +30,8 @@ public partial class DreamThread : IScriptThread, IDisposable
 {
     public const int MaxCallStackDepth = 65536;
     public const int MaxStackSize = 10485760;
-    internal DreamValue[] _stack;
-    internal int _stackPtr = 0;
+    internal DreamStack _stack;
+    internal int _stackPtr { get => _stack.Pointer; set => _stack.Pointer = value; }
     internal CallFrame[] _callStack = new CallFrame[1024];
     internal int _callStackPtr = 0;
     private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(1024);
@@ -107,7 +107,7 @@ public partial class DreamThread : IScriptThread, IDisposable
 
     public IEnumerable<CallFrame> CallStack => _callStack.Take(_callStackPtr).Reverse();
 
-    public DreamProc CurrentProc => _callStack[_callStackPtr - 1].Proc;
+    public DreamProc? CurrentProc => _callStackPtr > 0 ? _callStack[_callStackPtr - 1].Proc : null;
     private volatile int _state = (int)DreamThreadState.Running;
     public DreamThreadState State { get => (DreamThreadState)_state; internal set => _state = (int)value; }
     public DateTime SleepUntil { get; internal set; }
@@ -131,7 +131,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         _maxInstructions = maxInstructions;
         _interpreter = interpreter ?? new BytecodeInterpreter();
         AssociatedObject = associatedObject;
-        _stack = ArrayPool<DreamValue>.Shared.Rent(Math.Max(1024, proc.LocalVariableCount));
+        _stack = new DreamStack(Math.Max(1024, proc.LocalVariableCount));
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
 
@@ -139,8 +139,8 @@ public partial class DreamThread : IScriptThread, IDisposable
         int localCount = proc.LocalVariableCount;
         if (localCount > 0)
         {
-            _stack.AsSpan(0, localCount).Fill(DreamValue.Null);
-            _stackPtr = localCount;
+            _stack.Array.AsSpan(0, localCount).Fill(DreamValue.Null);
+            _stack.Pointer = localCount;
         }
     }
 
@@ -152,9 +152,9 @@ public partial class DreamThread : IScriptThread, IDisposable
         AssociatedObject = other.AssociatedObject;
 
         // Rent and copy stack
-        _stack = ArrayPool<DreamValue>.Shared.Rent(other._stack.Length);
-        Array.Copy(other._stack, _stack, other._stackPtr);
-        _stackPtr = other._stackPtr;
+        _stack = new DreamStack(other._stack.Array.Length);
+        Array.Copy(other._stack.Array, _stack.Array, other._stack.Pointer);
+        _stack.Pointer = other._stack.Pointer;
 
         var currentFrame = other._callStack[other._callStackPtr - 1];
         PushCallFrame(new CallFrame(currentFrame.Proc, pc, 0, currentFrame.Instance));
@@ -181,60 +181,40 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Push(DreamValue value)
     {
-        if ((uint)_stackPtr >= (uint)MaxStackSize) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
-        if (_stackPtr >= _stack.Length)
-        {
-            int newSize = Math.Min(MaxStackSize, _stack.Length * 2);
-            if (newSize <= _stackPtr) throw new ScriptRuntimeException("Stack overflow", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
-
-            var newStack = ArrayPool<DreamValue>.Shared.Rent(newSize);
-            Array.Copy(_stack, newStack, _stackPtr);
-            ArrayPool<DreamValue>.Shared.Return(_stack, true);
-            _stack = newStack;
-        }
-        _stack[_stackPtr++] = value;
+        var currentFrame = _callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default;
+        _stack.Push(value, MaxStackSize, currentFrame.Proc, currentFrame.PC, this);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureStackCapacity(int count)
     {
-        if (_stackPtr + count >= _stack.Length)
-        {
-            int newSize = Math.Min(MaxStackSize, Math.Max(_stack.Length * 2, _stackPtr + count + 1024));
-            if (newSize <= _stack.Length) return; // Cannot expand further within MaxStackSize
-
-            var newStack = ArrayPool<DreamValue>.Shared.Rent(newSize);
-            Array.Copy(_stack, newStack, _stackPtr);
-            ArrayPool<DreamValue>.Shared.Return(_stack, true);
-            _stack = newStack;
-        }
+        _stack.EnsureCapacity(count, MaxStackSize);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue Pop()
     {
-        if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
-        return _stack[--_stackPtr];
+        if (_stack.Pointer <= 0) throw new ScriptRuntimeException("Stack underflow during Pop", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
+        return _stack.Pop();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue Peek()
     {
-        if (_stackPtr <= 0) throw new ScriptRuntimeException("Stack underflow during Peek", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
-        return _stack[_stackPtr - 1];
+        if (_stack.Pointer <= 0) throw new ScriptRuntimeException("Stack underflow during Peek", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
+        return _stack.Array[_stack.Pointer - 1];
     }
 
     public DreamValue Peek(int offset)
     {
-        if (_stackPtr - offset - 1 < 0) throw new ScriptRuntimeException($"Stack underflow during Peek({offset})", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
-        return _stack[_stackPtr - offset - 1];
+        if (_stack.Pointer - offset - 1 < 0) throw new ScriptRuntimeException($"Stack underflow during Peek({offset})", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
+        return _stack.Array[_stack.Pointer - offset - 1];
     }
 
     public void PopCount(int count)
     {
-        if (_stackPtr < count) throw new ScriptRuntimeException($"Stack underflow during PopCount({count})", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
-        // Console.WriteLine($"PopCount: {count}, OldPtr: {_stackPtr}, NewPtr: {_stackPtr - count}");
-        _stackPtr -= count;
+        if (_stack.Pointer < count) throw new ScriptRuntimeException($"Stack underflow during PopCount({count})", CurrentProc, (_callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default).PC, this);
+        _stack.Pointer -= count;
     }
 
     internal byte ReadByte(DreamProc proc, ref int pc)
@@ -303,7 +283,7 @@ public partial class DreamThread : IScriptThread, IDisposable
             _callStackPtr = tryBlock.CallStackDepth;
 
             // Restore stack pointer
-            _stackPtr = tryBlock.StackPointer;
+            _stack.Pointer = tryBlock.StackPointer;
 
             // Set catch variable if needed
             if (tryBlock.CatchReference.HasValue)
@@ -533,11 +513,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         Array.Clear(_callStack, 0, _callStackPtr);
         _callStackPtr = 0;
 
-        if (_stack != null)
-        {
-            ArrayPool<DreamValue>.Shared.Return(_stack, true);
-            _stack = null!;
-        }
+        _stack.Dispose();
 
         GC.SuppressFinalize(this);
     }

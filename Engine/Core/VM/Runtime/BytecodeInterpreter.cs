@@ -72,7 +72,7 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RefreshSpans()
     {
-        Stack = Thread._stack;
+        Stack = Thread._stack.Array;
         LocalBase = Frame.LocalBase;
         ArgumentBase = Frame.ArgumentBase;
         Locals = Stack.Slice(LocalBase, Proc.LocalVariableCount);
@@ -180,12 +180,12 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             Frame = ref currentFrame,
             Proc = currentFrame.Proc,
             PC = currentFrame.PC,
-            Stack = thread._stack,
-            Locals = thread._stack.AsSpan(currentFrame.LocalBase, currentFrame.Proc.LocalVariableCount),
-            Arguments = thread._stack.AsSpan(currentFrame.ArgumentBase, currentFrame.Proc.Arguments.Length),
+            Stack = thread._stack.Array,
+            Locals = thread._stack.Array.AsSpan(currentFrame.LocalBase, currentFrame.Proc.LocalVariableCount),
+            Arguments = thread._stack.Array.AsSpan(currentFrame.ArgumentBase, currentFrame.Proc.Arguments.Length),
             LocalBase = currentFrame.LocalBase,
             ArgumentBase = currentFrame.ArgumentBase,
-            StackPtr = thread._stackPtr,
+            StackPtr = thread._stack.Pointer,
             BytecodeArray = currentFrame.Proc.Bytecode,
             BytecodePtr = null, // Initialized in fixed block
             Strings = thread.Context.Strings,
@@ -237,13 +237,15 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 thread._stackPtr = state.StackPtr;
                                 thread.Push(DreamValue.Null);
                                 thread.Opcode_Return(ref state.Proc, ref state.PC);
-                                state.Stack = thread._stack;
+                                    state.Stack = thread._stack.Array;
                                 state.StackPtr = thread._stackPtr;
                                 if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
                                 {
                                     state.Frame = ref thread._callStack[thread._callStackPtr - 1];
                                     state.Proc = state.Frame.Proc;
                                     state.PC = state.Frame.PC;
+                                    state.Stack = thread._stack.Array;
+                                    state.StackPtr = thread._stack.Pointer;
                                     if (state.Proc.Bytecode != state.BytecodeArray)
                                     {
                                         state.BytecodeArray = state.Proc.Bytecode;
@@ -334,6 +336,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         for (int j = 0; j < count; j++)
                                         {
                                             state.Stack[baseIdx + j].AppendTo(result);
+                                            if (result.Length > 1073741824) throw new ScriptRuntimeException("Maximum string length exceeded during concatenation", state.Proc, state.PC - 5, thread);
                                         }
                                         state.StackPtr -= count;
                                         state.Push(new DreamValue(result.ToString()));
@@ -355,7 +358,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             char c = formatString[j];
                                             if (StringFormatEncoder.Decode(c, out var suffix) && StringFormatEncoder.IsInterpolation(suffix))
                                             {
-                                                if (valueIndex < formatCount) state.Stack[baseIdx + valueIndex++].AppendTo(result);
+                                                if (valueIndex < formatCount)
+                                                {
+                                                    state.Stack[baseIdx + valueIndex++].AppendTo(result);
+                                                    if (result.Length > 1073741824) throw new ScriptRuntimeException("Maximum string length exceeded during formatting", state.Proc, state.PC - 9, thread);
+                                                }
                                             }
                                             else result.Append(c);
                                         }
@@ -962,6 +969,33 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (enumerator != null && enumerator.MoveNext()) thread.Context.Globals[idx] = enumerator.Current;
                                             else state.PC = jumpAddress;
                                         }
+                                        else if (refType == DMReference.Type.SrcField)
+                                        {
+                                            int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                            int pcForCache = state.PC - 1;
+                                            state.PC += 4;
+                                            int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
+                                            state.PC += 4;
+                                            var enumerator = thread.GetEnumerator(enumeratorId);
+                                            if (enumerator != null && enumerator.MoveNext())
+                                            {
+                                                var val = enumerator.Current;
+                                                var instance = state.Frame.Instance;
+                                                if (instance != null)
+                                                {
+                                                    ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                                    if (cache.ObjectType == instance.ObjectType) instance.SetVariableDirect(cache.VariableIndex, val);
+                                                    else
+                                                    {
+                                                        var name = state.Strings[nameId];
+                                                        int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                        if (varIdx != -1) { cache.ObjectType = instance.ObjectType; cache.VariableIndex = varIdx; instance.SetVariableDirect(varIdx, val); }
+                                                        else instance.SetVariable(name, val);
+                                                    }
+                                                }
+                                            }
+                                            else state.PC = jumpAddress;
+                                        }
                                         else
                                         {
                                             state.PC--;
@@ -1445,6 +1479,38 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             }
                                         }
                                         state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.CreateList:
+                                    {
+                                        int size = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var list = new DreamList(thread.Context.ListType!, 0);
+                                        if (size > 0)
+                                        {
+                                            list.Populate(state.Stack.Slice(state.StackPtr - size, size));
+                                            state.StackPtr -= size;
+                                        }
+                                        state.Push(new DreamValue(list));
+                                    }
+                                    break;
+                                case Opcode.CreateAssociativeList:
+                                    {
+                                        int size = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var list = new DreamList(thread.Context.ListType!);
+                                        if (size > 0)
+                                        {
+                                            int baseIdx = state.StackPtr - size * 2;
+                                            for (int j = 0; j < size; j++)
+                                            {
+                                                var k = state.Stack[baseIdx + j * 2];
+                                                var v = state.Stack[baseIdx + j * 2 + 1];
+                                                list.SetValue(k, v);
+                                            }
+                                            state.StackPtr -= size * 2;
+                                        }
+                                        state.Push(new DreamValue(list));
                                     }
                                     break;
                                 case Opcode.LocalPushDereferenceCall:
@@ -1939,8 +2005,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 state.Frame = ref thread._callStack[thread._callStackPtr - 1];
                                 state.Proc = state.Frame.Proc;
                                 state.PC = state.Frame.PC;
-                                state.Stack = thread._stack;
-                                state.StackPtr = thread._stackPtr;
+                                state.Stack = thread._stack.Array;
+                                state.StackPtr = thread._stack.Pointer;
                                 if (state.Proc.Bytecode != state.BytecodeArray)
                                 {
                                     state.BytecodeArray = state.Proc.Bytecode;
@@ -1970,7 +2036,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                     state.Proc = state.Frame.Proc;
                     state.PC = state.Frame.PC;
                     state.BytecodeArray = state.Proc.Bytecode;
-                    state.Stack = thread._stack;
+                    state.Stack = thread._stack.Array;
                     state.StackPtr = thread._stackPtr;
                     state.LocalBase = state.Frame.LocalBase;
                     state.ArgumentBase = state.Frame.ArgumentBase;
@@ -1985,7 +2051,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             thread.SavePC(state.PC);
         }
 
-        thread._stackPtr = state.StackPtr;
+        thread._stack.Pointer = state.StackPtr;
         return thread.State;
     }
 
@@ -2552,6 +2618,25 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         {
             state.StackPtr -= argStackDelta;
             state.Push(DreamValue.Null);
+            return;
+        }
+
+        if (targetProc is NativeProc nativeProc)
+        {
+            var argCount = argStackDelta;
+            var stackBase = state.StackPtr - argStackDelta;
+            var arguments = state.Stack.Slice(state.StackPtr - argCount, argCount);
+
+            state.StackPtr = stackBase;
+            try
+            {
+                var result = nativeProc.Call(state.Thread, instance, arguments);
+                state.Push(result);
+            }
+            catch (Exception e)
+            {
+                throw new ScriptRuntimeException(e.Message, state.Proc, state.PC, state.Thread, e);
+            }
             return;
         }
 
@@ -3506,7 +3591,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_CreateList(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -3514,7 +3599,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_CreateAssociativeList(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -3522,7 +3607,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_CreateStrictAssociativeList(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -4260,7 +4345,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
     {
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_CreateObject(state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -4312,7 +4397,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         var e = new ScriptRuntimeException(value.ToString(), state.Proc, state.PC, thread: state.Thread) { ThrownValue = value };
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.HandleException(e);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -4575,7 +4660,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         DreamValue result = DreamValue.Null;
         if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) result = list.GetValue(stringValue);
         state.Push(result);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -4600,7 +4685,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.Thread.Push(dv);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 
@@ -4732,7 +4817,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         state.Push(state.GetLocal(idx));
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack;
+        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
     }
 

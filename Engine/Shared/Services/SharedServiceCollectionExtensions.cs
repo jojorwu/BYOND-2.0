@@ -100,6 +100,22 @@ public static class SharedServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Scans the given assembly for types implementing IEngineService and registers them as singletons.
+    /// </summary>
+    public static IServiceCollection AddEngineServicesFromAssembly(this IServiceCollection services, Assembly assembly)
+    {
+        var serviceTypes = assembly.GetTypes()
+            .Where(t => typeof(IEngineService).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+        foreach (var type in serviceTypes)
+        {
+            services.AddSingleton(typeof(IEngineService), type);
+        }
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers an engine module and its associated services.
     /// </summary>
     public static IServiceCollection AddEngineModule<T>(this IServiceCollection services) where T : class, IEngineModule, new()

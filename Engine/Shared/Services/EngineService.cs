@@ -36,6 +36,13 @@ namespace Shared.Services;
         public long StartupDurationMs { get; protected set; }
 
         /// <inheritdoc />
+        public void SetDurations(long initializationDurationMs, long startupDurationMs)
+        {
+            InitializationDurationMs = initializationDurationMs;
+            StartupDurationMs = startupDurationMs;
+        }
+
+        /// <inheritdoc />
         public virtual Task InitializeAsync()
         {
             return Task.CompletedTask;

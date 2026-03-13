@@ -25,6 +25,7 @@ namespace Shared.Services;
             public IComponent? Component;
             public Type? ComponentType;
             public long X, Y, Z;
+            public int PrevIndex;
         }
 
         private class CommandList : IDisposable
@@ -71,6 +72,11 @@ namespace Shared.Services;
         private readonly ConcurrentBag<CommandList> _commandLists = new();
         private readonly ThreadLocal<CommandList> _localCommands;
 
+        // Reusable fields for grouping to minimize allocations during Playback
+        private readonly Dictionary<IGameObject, int> _targetToLastCommand = new();
+        private readonly List<int> _creationIndices = new();
+        private readonly List<IGameObject> _uniqueTargets = new();
+
         public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager)
         {
             _objectFactory = objectFactory;
@@ -105,61 +111,117 @@ namespace Shared.Services;
         public void Playback()
         {
             // Structural changes are played back from a single thread during synchronization points
-            // Fast-path: Group commands by Target to minimize structural archetype transitions
-            var groupedCommands = new Dictionary<IGameObject, List<Command>>();
-            var creationCommands = new List<Command>();
+            int totalCount = 0;
+            foreach (var list in _commandLists) totalCount += list.Count;
+            if (totalCount == 0) return;
 
-            foreach (var list in _commandLists)
+            var allCommands = ArrayPool<Command>.Shared.Rent(totalCount);
+            try
             {
-                for (int i = 0; i < list.Count; i++)
+                int currentIdx = 0;
+                _targetToLastCommand.Clear();
+                _creationIndices.Clear();
+                _uniqueTargets.Clear();
+
+                foreach (var list in _commandLists)
                 {
-                    var command = list.Commands[i];
-                    if (command.Type == CommandType.Create)
+                    for (int i = 0; i < list.Count; i++)
                     {
-                        creationCommands.Add(command);
-                    }
-                    else if (command.Target != null)
-                    {
-                        if (!groupedCommands.TryGetValue(command.Target, out var targetCommands))
+                        var cmd = list.Commands[i];
+                        int globalIdx = currentIdx++;
+
+                        if (cmd.Type == CommandType.Create)
                         {
-                            targetCommands = new List<Command>();
-                            groupedCommands[command.Target] = targetCommands;
+                            _creationIndices.Add(globalIdx);
                         }
-                        targetCommands.Add(command);
+                        else if (cmd.Target != null)
+                        {
+                            if (_targetToLastCommand.TryGetValue(cmd.Target, out int prevIdx))
+                            {
+                                cmd.PrevIndex = prevIdx;
+                            }
+                            else
+                            {
+                                cmd.PrevIndex = -1;
+                                _uniqueTargets.Add(cmd.Target);
+                            }
+                            _targetToLastCommand[cmd.Target] = globalIdx;
+                        }
+
+                        allCommands[globalIdx] = cmd;
                     }
                 }
-            }
 
-            // Handle creations first
-            foreach (var cmd in creationCommands)
-            {
-                _objectFactory.Create(cmd.ObjectType!, cmd.X, cmd.Y, cmd.Z);
-            }
-
-            // Handle grouped updates and destructions
-            foreach (var kvp in groupedCommands)
-            {
-                var target = kvp.Key;
-                var commands = kvp.Value;
-
-                foreach (var cmd in commands)
+                // Handle creations first
+                for (int i = 0; i < _creationIndices.Count; i++)
                 {
-                    switch (cmd.Type)
+                    var cmd = allCommands[_creationIndices[i]];
+                    _objectFactory.Create(cmd.ObjectType!, cmd.X, cmd.Y, cmd.Z);
+                }
+
+                // Handle grouped updates and destructions per entity to minimize structural transitions
+                Span<int> entityCommandIndices = stackalloc int[16];
+                for (int i = 0; i < _uniqueTargets.Count; i++)
+                {
+                    var target = _uniqueTargets[i];
+                    int lastIdx = _targetToLastCommand[target];
+
+                    // We need to execute commands in the order they were added, but our links go backwards.
+                    // For a small number of commands per entity (usually 1-3), we can just use a small stack-allocated span or similar.
+                    int entityCmdCount = 0;
+                    int walker = lastIdx;
+                    while (walker != -1 && entityCmdCount < 16)
                     {
-                        case CommandType.Destroy:
-                            if (target is GameObject g) _objectFactory.Destroy(g);
-                            break;
-                        case CommandType.AddComponent:
-                            target.AddComponent(cmd.Component!);
-                            break;
-                        case CommandType.RemoveComponent:
-                            target.RemoveComponent(cmd.ComponentType!);
-                            break;
+                        entityCommandIndices[entityCmdCount++] = walker;
+                        walker = allCommands[walker].PrevIndex;
+                    }
+
+                    // Execute in original order
+                    for (int j = entityCmdCount - 1; j >= 0; j--)
+                    {
+                        var cmd = allCommands[entityCommandIndices[j]];
+                        ExecuteCommand(target, cmd);
+                    }
+
+                    // If more than 16 commands, handle overflow (rare)
+                    if (walker != -1)
+                    {
+                        var overflow = new List<int>();
+                        while (walker != -1)
+                        {
+                            overflow.Add(walker);
+                            walker = allCommands[walker].PrevIndex;
+                        }
+                        for (int j = overflow.Count - 1; j >= 0; j--)
+                        {
+                            var cmd = allCommands[overflow[j]];
+                            ExecuteCommand(target, cmd);
+                        }
                     }
                 }
+            }
+            finally
+            {
+                ArrayPool<Command>.Shared.Return(allCommands);
             }
 
             Clear();
+        }
+
+        private void ExecuteCommand(IGameObject target, in Command cmd)
+        {
+            switch (cmd.Type)
+            {
+                case CommandType.Destroy:
+                    if (target is GameObject g) _objectFactory.Destroy(g);
+                    break;
+                case CommandType.AddComponent:
+                    target.AddComponent(cmd.Component!);
+                    break;
+                case CommandType.RemoveComponent:
+                    target.RemoveComponent(cmd.ComponentType!);
+                    break;
+            }
         }
 
         public void Clear()

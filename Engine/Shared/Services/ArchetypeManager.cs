@@ -31,7 +31,7 @@ public interface IArchetypeManager
     void Compact();
 }
 
-public class ArchetypeManager : IArchetypeManager
+public class ArchetypeManager : EngineService, IArchetypeManager
 {
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
@@ -360,5 +360,16 @@ public class ArchetypeManager : IArchetypeManager
         {
             archetype.Compact();
         });
+    }
+
+    public override Dictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = base.GetDiagnosticInfo();
+        var archetypes = _archetypes;
+        info["ArchetypeCount"] = archetypes.Length;
+        info["EntityCount"] = _entityToArchetype.Count;
+        info["AddTransitionsCacheSize"] = _addTransitionsCache.Count;
+        info["RemoveTransitionsCacheSize"] = _removeTransitionsCache.Count;
+        return info;
     }
 }

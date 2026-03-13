@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class BinarySnapshotService
+    public class BinarySnapshotService : EngineService
     {
         private readonly StringInterner? _interner;
 
@@ -20,64 +20,29 @@ namespace Shared.Services;
             int offset = 0;
             truncated = false;
 
-            foreach (var obj in objects)
+            // Fast-path: detect common collection types to avoid IEnumerable overhead
+            if (objects is IReadOnlyList<IGameObject> list)
             {
-                if (lastVersions != null && lastVersions.TryGetValue(obj.Id, out long lastVersion) && lastVersion == obj.Version)
+                for (int i = 0; i < list.Count; i++)
                 {
-                    continue;
+                    if (SerializeObject(destination, list[i], lastVersions, ref offset, out truncated)) break;
                 }
-
-                // Check if we have enough space for the basic object data
-                // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
-                if (offset + 32 > destination.Length)
+            }
+            else if (objects is IGameObject[] array)
+            {
+                for (int i = 0; i < array.Length; i++)
                 {
-                    truncated = true;
-                    break;
+                    if (SerializeObject(destination, array[i], lastVersions, ref offset, out truncated)) break;
                 }
-
-                int startOffset = offset;
-                offset += WriteVarInt(destination.Slice(offset), obj.Id);
-                offset += WriteVarInt(destination.Slice(offset), obj.Version);
-                offset += WriteVarInt(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
-                offset += WriteVarInt(destination.Slice(offset), obj.X);
-                offset += WriteVarInt(destination.Slice(offset), obj.Y);
-                offset += WriteVarInt(destination.Slice(offset), obj.Z);
-
-                if (obj.ObjectType != null)
+            }
+            else
+            {
+                foreach (var obj in objects)
                 {
-                    var delta = obj.GetDeltaState();
-                    offset += WriteVarInt(destination.Slice(offset), delta.Count);
-                    if (delta.Changes != null)
-                    {
-                        for (int i = 0; i < delta.Count; i++)
-                        {
-                            var change = delta.Changes[i];
-                            int propIdx = change.Index;
-                            var val = change.Value;
-                            int valueSize = val.GetWriteSize();
-                            // 5 for property index varint max + value size
-                            if (offset + 5 + valueSize > destination.Length)
-                            {
-                                // Roll back to start of object and mark as truncated
-                                offset = startOffset;
-                                truncated = true;
-                                goto Done;
-                            }
-
-                            offset += WriteVarInt(destination.Slice(offset), propIdx);
-                            offset += val.WriteTo(destination.Slice(offset));
-                        }
-                    }
+                    if (SerializeObject(destination, obj, lastVersions, ref offset, out truncated)) break;
                 }
-                else
-                {
-                    offset += WriteVarInt(destination.Slice(offset), 0);
-                }
-
-                if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             }
 
-        Done:
             if (offset < destination.Length)
             {
                 offset += WriteVarInt(destination.Slice(offset), 0); // End of stream marker
@@ -86,6 +51,66 @@ namespace Shared.Services;
             return offset;
         }
 
+        private bool SerializeObject(Span<byte> destination, IGameObject obj, IDictionary<long, long>? lastVersions, ref int offset, out bool truncated)
+        {
+            truncated = false;
+            if (lastVersions != null && lastVersions.TryGetValue(obj.Id, out long lastVersion) && lastVersion == obj.Version)
+            {
+                return false;
+            }
+
+            // Check if we have enough space for the basic object data
+            // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
+            if (offset + 32 > destination.Length)
+            {
+                truncated = true;
+                return true;
+            }
+
+            int startOffset = offset;
+            offset += WriteVarInt(destination.Slice(offset), obj.Id);
+            offset += WriteVarInt(destination.Slice(offset), obj.Version);
+            offset += WriteVarInt(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
+            offset += WriteVarInt(destination.Slice(offset), obj.X);
+            offset += WriteVarInt(destination.Slice(offset), obj.Y);
+            offset += WriteVarInt(destination.Slice(offset), obj.Z);
+
+            if (obj.ObjectType != null)
+            {
+                var delta = obj.GetDeltaState();
+                offset += WriteVarInt(destination.Slice(offset), delta.Count);
+                if (delta.Changes != null)
+                {
+                    for (int i = 0; i < delta.Count; i++)
+                    {
+                        var change = delta.Changes[i];
+                        int propIdx = change.Index;
+                        var val = change.Value;
+                        int valueSize = val.GetWriteSize();
+                        // 5 for property index varint max + value size
+                        if (offset + 5 + valueSize > destination.Length)
+                        {
+                            // Roll back to start of object and mark as truncated
+                            offset = startOffset;
+                            truncated = true;
+                            return true;
+                        }
+
+                        offset += WriteVarInt(destination.Slice(offset), propIdx);
+                        offset += val.WriteTo(destination.Slice(offset));
+                    }
+                }
+            }
+            else
+            {
+                offset += WriteVarInt(destination.Slice(offset), 0);
+            }
+
+            if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
+            return false;
+        }
+
+        [Obsolete("Use SerializeTo with rented buffer instead")]
         public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions = null)
         {
             int bufferSize = 65536;

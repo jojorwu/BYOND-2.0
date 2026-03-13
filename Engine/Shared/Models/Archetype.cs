@@ -29,7 +29,7 @@ public class Archetype
 {
     private long[] _entityIds = System.Array.Empty<long>();
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
-    private readonly ConcurrentDictionary<long, int> _entityIdToIndex = new();
+    private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly Dictionary<Type, IComponentArray> _componentArrays = new();
     private readonly object _lock = new();
     private int _count = 0;
@@ -115,7 +115,7 @@ public class Archetype
             }
 
             _entities[lastIndex] = null!;
-            _entityIdToIndex.TryRemove(entityId, out _);
+            _entityIdToIndex.Remove(entityId);
             foreach (var array in _componentArrays.Values)
             {
                 array.Clear(lastIndex);
@@ -241,7 +241,13 @@ public class Archetype
         return Array.Empty<IComponent>();
     }
 
-    public bool ContainsEntity(long entityId) => _entityIdToIndex.ContainsKey(entityId);
+    public bool ContainsEntity(long entityId)
+    {
+        lock (_lock)
+        {
+            return _entityIdToIndex.ContainsKey(entityId);
+        }
+    }
 
     public void SetComponent(long entityId, IComponent component)
     {

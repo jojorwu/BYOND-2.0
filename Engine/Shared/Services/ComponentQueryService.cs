@@ -6,7 +6,7 @@ using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentQueryService : IComponentQueryService
+    public class ComponentQueryService : EngineService, IComponentQueryService
     {
         private class QueryResult : IEntityQuery
         {
@@ -211,5 +211,13 @@ namespace Shared.Services;
                 lock (list) copy = list.ToList();
                 foreach (var sub in copy) sub.Removed(e);
             }
+        }
+
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            info["QueryCacheSize"] = _queryCache.Count;
+            info["SubscriptionCount"] = _subscriptions.Count;
+            return info;
         }
     }

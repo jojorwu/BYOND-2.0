@@ -35,8 +35,6 @@ public class Archetype
     private int _count = 0;
     private int _capacity = 0;
     public ComponentSignature Signature { get; }
-    public readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
-    public readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
 
     public Archetype(IEnumerable<Type> signature) : this(new ComponentSignature(signature))
     {

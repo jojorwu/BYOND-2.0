@@ -330,6 +330,16 @@ namespace Shared;
             get => _longValue;
         }
 
+        /// <summary>
+        /// Highly optimized direct access to the object reference field.
+        /// Use only when you have already verified the Type.
+        /// </summary>
+        public object? UnsafeRawObject
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _objectValue;
+        }
+
         public float RawFloat
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]

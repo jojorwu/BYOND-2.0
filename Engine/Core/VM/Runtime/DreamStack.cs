@@ -58,8 +58,13 @@ internal struct DreamStack : IDisposable
     {
         if (Pointer + required >= Array.Length)
         {
-            int newSize = Math.Min(maxStackSize, Math.Max(Array.Length * 2, Pointer + required + 1024));
-            if (newSize <= Array.Length) return;
+            int minSize = Pointer + required;
+            int newSize = Array.Length == 0 ? 1024 : Array.Length * 2;
+            while (newSize < minSize) newSize *= 2;
+
+            newSize = Math.Min(newSize, maxStackSize);
+            if (newSize <= Array.Length && minSize <= Array.Length) return;
+            if (minSize > maxStackSize) throw new InvalidOperationException("Stack size limit reached");
 
             var newStack = ArrayPool<DreamValue>.Shared.Rent(newSize);
             System.Array.Copy(Array, newStack, Pointer);

@@ -271,7 +271,16 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         var val = state.Stack[--state.StackPtr];
                                         int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (val.IsFalse())
+                                        bool isFalse;
+                                        switch (val.Type)
+                                        {
+                                            case DreamValueType.Null: isFalse = true; break;
+                                            case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                            case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                            case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                            default: isFalse = false; break;
+                                        }
+                                        if (isFalse)
                                         {
                                             state.Push(val);
                                             state.PC = jumpAddress;
@@ -283,7 +292,16 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         var val = state.Stack[--state.StackPtr];
                                         int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (!val.IsFalse())
+                                        bool isFalse;
+                                        switch (val.Type)
+                                        {
+                                            case DreamValueType.Null: isFalse = true; break;
+                                            case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                            case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                            case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                            default: isFalse = false; break;
+                                        }
+                                        if (!isFalse)
                                         {
                                             state.Push(val);
                                             state.PC = jumpAddress;
@@ -291,7 +309,19 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     }
                                     break;
                                 case Opcode.BooleanNot:
-                                    state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1].IsFalse() ? DreamValue.True : DreamValue.False;
+                                    {
+                                        var val = state.Stack[state.StackPtr - 1];
+                                        bool isFalse;
+                                        switch (val.Type)
+                                        {
+                                            case DreamValueType.Null: isFalse = true; break;
+                                            case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                            case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                            case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                            default: isFalse = false; break;
+                                        }
+                                        state.Stack[state.StackPtr - 1] = isFalse ? DreamValue.True : DreamValue.False;
+                                    }
                                     break;
                                 case Opcode.BitAnd:
                                     {
@@ -324,6 +354,110 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         var b = state.Stack[--state.StackPtr];
                                         state.Stack[state.StackPtr - 1] >>= b;
+                                    }
+                                    break;
+                                case Opcode.Call:
+                                    {
+                                        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+                                        IDreamProc? targetProc = null;
+                                        DreamObject? instance = null;
+
+                                        switch (refType)
+                                        {
+                                            case DMReference.Type.GlobalProc:
+                                                {
+                                                    int procId = *(int*)(state.BytecodePtr + state.PC);
+                                                    state.PC += 4;
+                                                    targetProc = state.Thread.Context.AllProcs[procId];
+                                                }
+                                                break;
+                                            case DMReference.Type.SrcProc:
+                                                {
+                                                    int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                                    int pcForCache = state.PC - 1;
+                                                    state.PC += 4;
+                                                    instance = state.Frame.Instance;
+                                                    if (instance != null)
+                                                    {
+                                                        ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                                        if (cache.ObjectType == instance.ObjectType && cache.CachedProc != null)
+                                                        {
+                                                            targetProc = cache.CachedProc;
+                                                        }
+                                                        else
+                                                        {
+                                                            var name = state.Strings[nameId];
+                                                            targetProc = instance.ObjectType?.GetProc(name);
+                                                            if (targetProc == null) state.Thread.Context.Procs.TryGetValue(name, out targetProc);
+
+                                                            if (targetProc != null)
+                                                            {
+                                                                cache.ObjectType = instance.ObjectType;
+                                                                cache.CachedProc = targetProc;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                            case DMReference.Type.Local:
+                                                {
+                                                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                                                    state.PC += 4;
+                                                    state.Locals[idx].TryGetValue(out targetProc);
+                                                }
+                                                break;
+                                            case DMReference.Type.Argument:
+                                                {
+                                                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                                                    state.PC += 4;
+                                                    state.Arguments[idx].TryGetValue(out targetProc);
+                                                }
+                                                break;
+                                            case DMReference.Type.Global:
+                                                {
+                                                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                                                    state.PC += 4;
+                                                    state.Globals[idx].TryGetValue(out targetProc);
+                                                }
+                                                break;
+                                            default:
+                                                {
+                                                    state.PC--;
+                                                    var reference = state.ReadReference();
+                                                    thread._stackPtr = state.StackPtr;
+                                                    var val = thread.GetReferenceValue(reference, ref state.Frame, 0);
+                                                    thread.PopCount(thread.GetReferenceStackSize(reference));
+                                                    state.StackPtr = thread._stackPtr;
+                                                    val.TryGetValue(out targetProc);
+                                                }
+                                                break;
+                                        }
+
+                                        var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
+                                        int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        state.PC += 4; // Skip unused stack delta
+
+                                        if (targetProc == null)
+                                        {
+                                            state.StackPtr -= argStackDelta;
+                                            state.Push(DreamValue.Null);
+                                        }
+                                        else if (targetProc is NativeProc nativeProc)
+                                        {
+                                            int argCount = argStackDelta;
+                                            int stackBase = state.StackPtr - argStackDelta;
+                                            var arguments = state.Stack.Slice(state.StackPtr - argCount, argCount);
+                                            state.StackPtr = stackBase;
+                                            state.Push(nativeProc.Call(thread, instance, arguments));
+                                        }
+                                        else
+                                        {
+                                            thread.SavePC(state.PC);
+                                            thread._stackPtr = state.StackPtr;
+                                            thread.PerformCall(targetProc, instance, argStackDelta, argStackDelta);
+                                            goto FrameChanged;
+                                        }
                                     }
                                     break;
                                 case Opcode.MassConcatenation:
@@ -483,7 +617,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int address = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (state.Stack[--state.StackPtr].IsFalse()) state.PC = address;
+                                        var val = state.Stack[--state.StackPtr];
+                                        bool isFalse;
+                                        switch (val.Type)
+                                        {
+                                            case DreamValueType.Null: isFalse = true; break;
+                                            case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                            case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                            case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                            default: isFalse = false; break;
+                                        }
+                                        if (isFalse) state.PC = address;
                                     }
                                     break;
                                 case Opcode.CompareEquals:
@@ -1262,7 +1406,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         int address = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (state.Locals[idx].IsFalse()) state.PC = address;
+                                        var val = state.Locals[idx];
+                                        bool isFalse;
+                                        switch (val.Type)
+                                        {
+                                            case DreamValueType.Null: isFalse = true; break;
+                                            case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                            case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                            case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                            default: isFalse = false; break;
+                                        }
+                                        if (isFalse) state.PC = address;
                                     }
                                     break;
                                 case Opcode.LocalJumpIfTrue:
@@ -1271,7 +1425,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         int address = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        if (!state.Locals[idx].IsFalse()) state.PC = address;
+                                        var val = state.Locals[idx];
+                                        bool isFalse;
+                                        switch (val.Type)
+                                        {
+                                            case DreamValueType.Null: isFalse = true; break;
+                                            case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                            case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                            case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                            default: isFalse = false; break;
+                                        }
+                                        if (!isFalse) state.PC = address;
                                     }
                                     break;
                                 case Opcode.LocalPushLocalPushAdd:
@@ -1959,7 +2123,16 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 if (varIdx != -1) { cache.ObjectType = obj.ObjectType; cache.VariableIndex = varIdx; val = obj.GetVariableDirect(varIdx); }
                                                 else val = obj.GetVariable(name);
                                             }
-                                            if (val.IsFalse()) state.PC = address;
+                                            bool isFalse;
+                                            switch (val.Type)
+                                            {
+                                                case DreamValueType.Null: isFalse = true; break;
+                                                case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                                case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                                case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                                default: isFalse = false; break;
+                                            }
+                                            if (isFalse) state.PC = address;
                                         }
                                         else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, thread);
                                     }
@@ -1986,7 +2159,16 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 if (varIdx != -1) { cache.ObjectType = obj.ObjectType; cache.VariableIndex = varIdx; val = obj.GetVariableDirect(varIdx); }
                                                 else val = obj.GetVariable(name);
                                             }
-                                            if (!val.IsFalse()) state.PC = address;
+                                            bool isFalse;
+                                            switch (val.Type)
+                                            {
+                                                case DreamValueType.Null: isFalse = true; break;
+                                                case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
+                                                case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
+                                                case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
+                                                default: isFalse = false; break;
+                                            }
+                                            if (!isFalse) state.PC = address;
                                         }
                                         else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, thread);
                                     }

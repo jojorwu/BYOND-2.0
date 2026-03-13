@@ -36,6 +36,8 @@ public class ArchetypeManager : IArchetypeManager
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
+    private readonly Dictionary<(Archetype, Type), Archetype> _addTransitionsCache = new();
+    private readonly Dictionary<(Archetype, Type), Archetype> _removeTransitionsCache = new();
     private readonly object _archetypeLock = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
@@ -96,7 +98,14 @@ public class ArchetypeManager : IArchetypeManager
                     return;
                 }
 
-                if (currentArchetype.AddTransitions.TryGetValue(componentType, out var targetArchetype))
+                // Fast-path: check transition cache first
+                Archetype? targetArchetype;
+                lock (_archetypeLock)
+                {
+                    _addTransitionsCache.TryGetValue((currentArchetype, componentType), out targetArchetype);
+                }
+
+                if (targetArchetype != null)
                 {
                     currentArchetype.RemoveEntity(entity.Id);
                     targetArchetype.AddEntity(entity, components);
@@ -107,11 +116,14 @@ public class ArchetypeManager : IArchetypeManager
 
             MoveToArchetypeInternal(entity, componentType, true);
 
-            // Build transition edge
+            // Populate transition cache
             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
             {
-                currentArchetype.AddTransitions.TryAdd(componentType, newArchetype);
-                newArchetype.RemoveTransitions.TryAdd(componentType, currentArchetype);
+                lock (_archetypeLock)
+                {
+                    _addTransitionsCache[(currentArchetype, componentType)] = newArchetype;
+                    _removeTransitionsCache[(newArchetype, componentType)] = currentArchetype;
+                }
             }
         }
     }
@@ -141,10 +153,18 @@ public class ArchetypeManager : IArchetypeManager
                     component.Shutdown();
                     component.Owner = null;
 
-                    if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) &&
-                        currentArchetype.RemoveTransitions.TryGetValue(componentType, out var targetArchetype))
+                    Archetype? targetArchetype = null;
+                    if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) && currentArchetype != null)
                     {
-                        currentArchetype.RemoveEntity(entity.Id);
+                        lock (_archetypeLock)
+                        {
+                            _removeTransitionsCache.TryGetValue((currentArchetype, componentType), out targetArchetype);
+                        }
+                    }
+
+                    if (targetArchetype != null)
+                    {
+                        currentArchetype!.RemoveEntity(entity.Id);
                         targetArchetype.AddEntity(entity, components);
                         _entityToArchetype[entity.Id] = targetArchetype;
                     }
@@ -152,11 +172,14 @@ public class ArchetypeManager : IArchetypeManager
                     {
                         var oldArchetype = currentArchetype;
                         MoveToArchetypeInternal(entity, componentType, false);
-                        // Build transition edge
+                        // Populate transition cache
                         if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
                         {
-                            oldArchetype.RemoveTransitions.TryAdd(componentType, newArchetype);
-                            newArchetype.AddTransitions.TryAdd(componentType, oldArchetype);
+                            lock (_archetypeLock)
+                            {
+                                _removeTransitionsCache[(oldArchetype, componentType)] = newArchetype;
+                                _addTransitionsCache[(newArchetype, componentType)] = oldArchetype;
+                            }
                         }
                     }
                 }

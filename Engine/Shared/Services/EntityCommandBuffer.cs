@@ -105,28 +105,60 @@ namespace Shared.Services;
         public void Playback()
         {
             // Structural changes are played back from a single thread during synchronization points
+            // Fast-path: Group commands by Target to minimize structural archetype transitions
+            var groupedCommands = new Dictionary<IGameObject, List<Command>>();
+            var creationCommands = new List<Command>();
+
             foreach (var list in _commandLists)
             {
                 for (int i = 0; i < list.Count; i++)
                 {
                     var command = list.Commands[i];
-                    switch (command.Type)
+                    if (command.Type == CommandType.Create)
                     {
-                    case CommandType.Create:
-                        _objectFactory.Create(command.ObjectType!, command.X, command.Y, command.Z);
-                        break;
-                    case CommandType.Destroy:
-                        if (command.Target is GameObject g) _objectFactory.Destroy(g);
-                        break;
-                    case CommandType.AddComponent:
-                        command.Target!.AddComponent(command.Component!);
-                        break;
-                    case CommandType.RemoveComponent:
-                        command.Target!.RemoveComponent(command.ComponentType!);
-                        break;
+                        creationCommands.Add(command);
+                    }
+                    else if (command.Target != null)
+                    {
+                        if (!groupedCommands.TryGetValue(command.Target, out var targetCommands))
+                        {
+                            targetCommands = new List<Command>();
+                            groupedCommands[command.Target] = targetCommands;
+                        }
+                        targetCommands.Add(command);
                     }
                 }
             }
+
+            // Handle creations first
+            foreach (var cmd in creationCommands)
+            {
+                _objectFactory.Create(cmd.ObjectType!, cmd.X, cmd.Y, cmd.Z);
+            }
+
+            // Handle grouped updates and destructions
+            foreach (var kvp in groupedCommands)
+            {
+                var target = kvp.Key;
+                var commands = kvp.Value;
+
+                foreach (var cmd in commands)
+                {
+                    switch (cmd.Type)
+                    {
+                        case CommandType.Destroy:
+                            if (target is GameObject g) _objectFactory.Destroy(g);
+                            break;
+                        case CommandType.AddComponent:
+                            target.AddComponent(cmd.Component!);
+                            break;
+                        case CommandType.RemoveComponent:
+                            target.RemoveComponent(cmd.ComponentType!);
+                            break;
+                    }
+                }
+            }
+
             Clear();
         }
 

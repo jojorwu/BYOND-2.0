@@ -467,7 +467,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return base.GetVariableDirect(index);
     }
 
-    public override void SetVariableDirect(int index, DreamValue value)
+    public override void SetVariableDirect(int index, DreamValue value, bool suppressVersion = false)
     {
         if (index < 0) return;
 
@@ -482,7 +482,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             {
                 _variableStore.Set(index, value);
                 _changeMask.Set(index);
-                IncrementVersion();
+                if (!suppressVersion)
+                {
+                    IncrementVersion();
+                }
             }
 
             // Use the pre-calculated VariableToBuiltin map for O(1) side-effect dispatch
@@ -676,6 +679,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     _changeMask.Set(type.ZIndex);
                 }
             }
+
+            // Increment version once for the whole batched position update
             IncrementVersion();
         }
         _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);

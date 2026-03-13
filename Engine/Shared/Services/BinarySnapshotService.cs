@@ -23,14 +23,16 @@ namespace Shared.Services;
             // Fast-path: detect common collection types to avoid IEnumerable overhead
             if (objects is IReadOnlyList<IGameObject> list)
             {
-                for (int i = 0; i < list.Count; i++)
+                int count = list.Count;
+                for (int i = 0; i < count; i++)
                 {
                     if (SerializeObject(destination, list[i], lastVersions, ref offset, out truncated)) break;
                 }
             }
             else if (objects is IGameObject[] array)
             {
-                for (int i = 0; i < array.Length; i++)
+                int length = array.Length;
+                for (int i = 0; i < length; i++)
                 {
                     if (SerializeObject(destination, array[i], lastVersions, ref offset, out truncated)) break;
                 }

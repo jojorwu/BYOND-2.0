@@ -96,11 +96,8 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         if (removeIdx > 0) Array.Copy(Types, 0, newTypes, 0, removeIdx);
         if (removeIdx < Types.Length - 1) Array.Copy(Types, removeIdx + 1, newTypes, removeIdx, Types.Length - removeIdx - 1);
 
-        var mask = Mask;
-        // Note: ComponentMask currently doesn't have an Unset, but for the sake of signature stability
-        // we can rebuild it or add Unset to ComponentMask.
-        var newMask = new ComponentMask();
-        foreach(var t in newTypes) newMask.Set(Services.ComponentIdRegistry.GetId(t));
+        var newMask = Mask;
+        newMask.Unset(componentId);
 
         return new ComponentSignature(newTypes, newMask, _hashCode ^ type.GetHashCode());
     }

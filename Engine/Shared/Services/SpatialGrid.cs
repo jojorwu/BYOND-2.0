@@ -44,6 +44,7 @@ namespace Shared;
 
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<Cell> _activeCells = new();
+        private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
@@ -204,10 +205,16 @@ namespace Shared;
             if (obj.PrevInGridCell != null) obj.PrevInGridCell.NextInGridCell = obj.NextInGridCell;
             if (obj.NextInGridCell != null) obj.NextInGridCell.PrevInGridCell = obj.PrevInGridCell;
 
+            var oldKey = obj.CurrentGridCellKey;
             obj.NextInGridCell = null;
             obj.PrevInGridCell = null;
             obj.CurrentGridCellKey = null;
             cell.Count--;
+
+            if (cell.Count == 0 && oldKey != null)
+            {
+                _emptyCellKeys.Enqueue(GetMortonCode(oldKey.Value.X, oldKey.Value.Y));
+            }
         }
 
         public void Update(IGameObject obj, long oldX, long oldY)
@@ -345,30 +352,29 @@ namespace Shared;
 
         public void CleanupEmptyCells()
         {
-            foreach (var kvp in _grid)
+            while (_emptyCellKeys.TryDequeue(out var key))
             {
-                var cell = kvp.Value;
-                if (cell.Count == 0)
+                if (_grid.TryGetValue(key, out var cell))
                 {
-                    bool lockTaken = false;
-                    try
+                    if (cell.Count == 0)
                     {
-                        cell.Lock.Enter(ref lockTaken);
-                        if (cell.Count == 0)
+                        bool lockTaken = false;
+                        try
                         {
-                            if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
+                            cell.Lock.Enter(ref lockTaken);
+                            if (cell.Count == 0)
                             {
-                                if (_grid.TryRemove(kvp.Key, out var removed))
+                                if (_grid.TryRemove(key, out var removed))
                                 {
                                     removed.Clear();
                                     _cellPool.Push(removed);
                                 }
                             }
                         }
-                    }
-                    finally
-                    {
-                        if (lockTaken) cell.Lock.Exit(false);
+                        finally
+                        {
+                            if (lockTaken) cell.Lock.Exit(false);
+                        }
                     }
                 }
             }

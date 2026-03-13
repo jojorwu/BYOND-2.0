@@ -23,6 +23,12 @@ public struct ComponentMask : IEquatable<ComponentMask>
         else if (index < 128) _mask1 |= (1UL << (index - 64));
     }
 
+    public void Unset(int index)
+    {
+        if (index < 64) _mask0 &= ~(1UL << index);
+        else if (index < 128) _mask1 &= ~(1UL << (index - 64));
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsAll(ComponentMask other)
     {

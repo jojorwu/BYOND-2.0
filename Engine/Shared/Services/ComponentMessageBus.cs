@@ -42,33 +42,41 @@ namespace Shared.Services;
                 if (targetTypes != null && targetTypes.Length > 0)
                 {
                     var archetypes = am.GetArchetypesWithComponents(targetTypes);
-                    foreach (var arch in archetypes)
+                    var arrays = System.Buffers.ArrayPool<Shared.Models.Archetype.IComponentArray>.Shared.Rent(targetTypes.Length);
+
+                    try
                     {
-                        // Get matching component arrays once per archetype
-                        var arrays = new List<Shared.Models.Archetype.IComponentArray>();
-                        foreach (var type in targetTypes)
+                        foreach (var arch in archetypes)
                         {
-                            var array = arch.GetComponentsInternal(type);
-                            if (array != null) arrays.Add(array);
-                        }
-
-                        if (arrays.Count == 0) continue;
-
-                        arch.ForEachEntity(entity =>
-                        {
-                            if (entity is GameObject g)
+                            int arrayCount = 0;
+                            for (int i = 0; i < targetTypes.Length; i++)
                             {
-                                int idx = g.ArchetypeIndex;
-                                foreach (var array in arrays)
+                                var array = arch.GetComponentsInternal(targetTypes[i]);
+                                if (array != null) arrays[arrayCount++] = array;
+                            }
+
+                            if (arrayCount == 0) continue;
+
+                            arch.ForEachEntity(entity =>
+                            {
+                                if (entity is GameObject g)
                                 {
-                                    var component = array.Get(idx);
-                                    if (component != null && component.Enabled)
+                                    int idx = g.ArchetypeIndex;
+                                    for (int i = 0; i < arrayCount; i++)
                                     {
-                                        component.OnMessage(message);
+                                        var component = arrays[i].Get(idx);
+                                        if (component != null && component.Enabled)
+                                        {
+                                            component.OnMessage(message);
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            });
+                        }
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<Shared.Models.Archetype.IComponentArray>.Shared.Return(arrays, clearArray: true);
                     }
                 }
                 else

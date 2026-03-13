@@ -101,6 +101,7 @@ public static class SharedServiceCollectionExtensions
 
     /// <summary>
     /// Scans the given assembly for types implementing IEngineService and registers them as singletons.
+    /// Also registers them under all implemented interfaces from the Shared.Interfaces namespace.
     /// </summary>
     public static IServiceCollection AddEngineServicesFromAssembly(this IServiceCollection services, Assembly assembly)
     {
@@ -109,7 +110,17 @@ public static class SharedServiceCollectionExtensions
 
         foreach (var type in serviceTypes)
         {
-            services.AddSingleton(typeof(IEngineService), type);
+            services.AddSingleton(type);
+            services.AddSingleton(typeof(IEngineService), sp => sp.GetRequiredService(type));
+
+            var interfaces = type.GetInterfaces();
+            foreach (var @interface in interfaces)
+            {
+                if (@interface.Namespace == "Shared.Interfaces" && @interface != typeof(IEngineService))
+                {
+                    services.AddSingleton(@interface, sp => sp.GetRequiredService(type));
+                }
+            }
         }
 
         return services;

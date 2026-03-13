@@ -53,6 +53,51 @@ namespace Shared.Services;
             return offset;
         }
 
+        private struct ChangeCounter : GameObject.IChangeVisitor
+        {
+            public int Count;
+            public void Visit(int index, in DreamValue value) => Count++;
+        }
+
+        private ref struct ChangeSerializer
+        {
+            public Span<byte> Destination;
+            public int Offset;
+            public bool Truncated;
+
+            public void Visit(int propIdx, in DreamValue val)
+            {
+                if (Truncated) return;
+                int valueSize = val.GetWriteSize();
+                if (Offset + 5 + valueSize > Destination.Length)
+                {
+                    Truncated = true;
+                    return;
+                }
+
+                Offset += WriteVarIntStatic(Destination.Slice(Offset), propIdx);
+                Offset += val.WriteTo(Destination.Slice(Offset));
+            }
+        }
+
+        private static void SerializeChange(int propIdx, in DreamValue val, ref ChangeSerializer serializer)
+        {
+            serializer.Visit(propIdx, val);
+        }
+
+        private static int WriteVarIntStatic(Span<byte> span, long value)
+        {
+            ulong v = (ulong)value;
+            int count = 0;
+            while (v >= 0x80)
+            {
+                span[count++] = (byte)(v | 0x80);
+                v >>= 7;
+            }
+            span[count++] = (byte)v;
+            return count;
+        }
+
         private bool SerializeObject(Span<byte> destination, IGameObject obj, IDictionary<long, long>? lastVersions, ref int offset, out bool truncated)
         {
             truncated = false;
@@ -77,30 +122,25 @@ namespace Shared.Services;
             offset += WriteVarInt(destination.Slice(offset), obj.Y);
             offset += WriteVarInt(destination.Slice(offset), obj.Z);
 
-            if (obj.ObjectType != null)
+            if (obj.ObjectType != null && obj is GameObject g)
             {
-                var delta = obj.GetDeltaState();
-                offset += WriteVarInt(destination.Slice(offset), delta.Count);
-                if (delta.Changes != null)
-                {
-                    for (int i = 0; i < delta.Count; i++)
-                    {
-                        var change = delta.Changes[i];
-                        int propIdx = change.Index;
-                        var val = change.Value;
-                        int valueSize = val.GetWriteSize();
-                        // 5 for property index varint max + value size
-                        if (offset + 5 + valueSize > destination.Length)
-                        {
-                            // Roll back to start of object and mark as truncated
-                            offset = startOffset;
-                            truncated = true;
-                            return true;
-                        }
+                var counter = new ChangeCounter();
+                g.VisitChanges(ref counter);
 
-                        offset += WriteVarInt(destination.Slice(offset), propIdx);
-                        offset += val.WriteTo(destination.Slice(offset));
+                offset += WriteVarInt(destination.Slice(offset), counter.Count);
+
+                if (counter.Count > 0)
+                {
+                    var serializer = new ChangeSerializer { Destination = destination, Offset = offset };
+                    g.VisitChangesRef(ref serializer, SerializeChange);
+
+                    if (serializer.Truncated)
+                    {
+                        offset = startOffset;
+                        truncated = true;
+                        return true;
                     }
+                    offset = serializer.Offset;
                 }
             }
             else

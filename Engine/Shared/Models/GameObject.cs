@@ -272,6 +272,24 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
+    public delegate void ChangeVisitorRef<T>(int index, in DreamValue value, ref T state) where T : allows ref struct;
+
+    public void VisitChangesRef<T>(ref T state, ChangeVisitorRef<T> visitor) where T : allows ref struct
+    {
+        lock (_lock)
+        {
+            if (_changeMask.IsEmpty) return;
+
+            foreach (int i in _changeMask.GetSetBits())
+            {
+                if (i < _variableStore.Length)
+                {
+                    visitor(i, _variableStore.Get(i), ref state);
+                }
+            }
+        }
+    }
+
     private IGameObject? _loc;
     /// <summary>
     /// Gets or sets the location of the game object.
@@ -391,10 +409,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": return new DreamValue(Interlocked.Read(ref _x));
                 case "y": return new DreamValue(Interlocked.Read(ref _y));
                 case "z": return new DreamValue(Interlocked.Read(ref _z));
-                case "icon": return new DreamValue(Icon);
-                case "icon_state": return new DreamValue(IconState);
-                case "dir": return new DreamValue((double)Dir);
-                case "opacity": return new DreamValue(Opacity);
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.Null; }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.Null; }
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : new DreamValue(2.0); }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.False; }
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
                 case "name":
                     var n = base.GetVariable(name);
@@ -421,10 +439,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": X = value.RawLong; return;
                 case "y": Y = value.RawLong; return;
                 case "z": Z = value.RawLong; return;
-                case "icon": Icon = value.StringValue; return;
-                case "icon_state": IconState = value.StringValue; return;
-                case "dir": Dir = (int)value.GetValueAsDouble(); return;
-                case "opacity": Opacity = value.GetValueAsDouble(); return;
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
                     else Loc = null;
@@ -733,19 +751,42 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (Archetype is Archetype arch)
         {
-            // Count components first to avoid over-allocation
-            int count = arch._componentArrays.Count;
-            var components = new IComponent[count];
-            int i = 0;
-            foreach (var array in arch._componentArrays.Values)
+            var arrays = arch._componentArrays;
+            int count = arrays.Length;
+            var components = new List<IComponent>();
+            for (int i = 0; i < count; i++)
             {
-                var comp = array.Get(ArchetypeIndex);
-                if (comp != null) components[i++] = comp;
+                var array = arrays[i];
+                if (array != null)
+                {
+                    var comp = array.Get(ArchetypeIndex);
+                    if (comp != null) components.Add(comp);
+                }
             }
-            if (i < count) System.Array.Resize(ref components, i);
             return components;
         }
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
+    }
+
+    public interface IChangeVisitor
+    {
+        void Visit(int index, in DreamValue value);
+    }
+
+    public void VisitChanges<T>(ref T visitor) where T : struct, IChangeVisitor, allows ref struct
+    {
+        lock (_lock)
+        {
+            if (_changeMask.IsEmpty) return;
+
+            foreach (int i in _changeMask.GetSetBits())
+            {
+                if (i < _variableStore.Length)
+                {
+                    visitor.Visit(i, _variableStore.Get(i));
+                }
+            }
+        }
     }
 
     public DeltaState GetDeltaState()
@@ -777,28 +818,38 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         if (Archetype is Archetype arch)
         {
             var targets = message.TargetComponentTypes;
+            var arrays = arch._componentArrays;
             if (targets != null && targets.Length > 0)
             {
                 foreach (var type in targets)
                 {
-                    if (arch._componentArrays.TryGetValue(type, out var array))
+                    int id = Services.ComponentIdRegistry.GetId(type);
+                    if (id < arrays.Length)
                     {
-                        var component = array.Get(ArchetypeIndex);
-                        if (component != null && component.Enabled)
+                        var array = arrays[id];
+                        if (array != null)
                         {
-                            component.OnMessage(message);
+                            var component = array.Get(ArchetypeIndex);
+                            if (component != null && component.Enabled)
+                            {
+                                component.OnMessage(message);
+                            }
                         }
                     }
                 }
             }
             else
             {
-                foreach (var array in arch._componentArrays.Values)
+                for (int i = 0; i < arrays.Length; i++)
                 {
-                    var component = array.Get(ArchetypeIndex);
-                    if (component != null && component.Enabled)
+                    var array = arrays[i];
+                    if (array != null)
                     {
-                        component.OnMessage(message);
+                        var component = array.Get(ArchetypeIndex);
+                        if (component != null && component.Enabled)
+                        {
+                            component.OnMessage(message);
+                        }
                     }
                 }
             }

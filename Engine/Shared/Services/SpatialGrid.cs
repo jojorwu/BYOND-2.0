@@ -402,7 +402,39 @@ namespace Shared;
 
         public void GetObjectsInBox(Box2l box, List<IGameObject> results)
         {
-            QueryBox(box, obj => results.Add(obj));
+            results.Clear();
+            var enumerator = new BoxEnumerator(this, box);
+            try
+            {
+                while (enumerator.MoveNext())
+                {
+                    results.Add(enumerator.Current);
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Retrieves all objects in the given box and adds them to the results list.
+        /// This overload allows the caller to provide a pre-allocated list to avoid heap churn.
+        /// </summary>
+        public void GetObjectsInBox(Box2l box, IList<IGameObject> results)
+        {
+            var enumerator = new BoxEnumerator(this, box);
+            try
+            {
+                while (enumerator.MoveNext())
+                {
+                    results.Add(enumerator.Current);
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
+            }
         }
 
         public void Dispose()

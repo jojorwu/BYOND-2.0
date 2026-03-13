@@ -221,10 +221,11 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             {
                 await _jobSystem.ResetAllArenasAsync();
 
-                foreach (var shrinkable in _shrinkables)
+                // Shrink all registered pools/caches in parallel to reduce tail latency
+                await _jobSystem.ForEachAsync(_shrinkables, shrinkable =>
                 {
                     shrinkable.Shrink();
-                }
+                });
             }
         }
     }

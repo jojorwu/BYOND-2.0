@@ -4,7 +4,7 @@ using Shared.Interfaces;
 namespace Shared.Services;
     public class StringInterner : IShrinkable
     {
-        private const int MaxStrings = 1048576;
+        private const int MaxStrings = 4194304;
         private readonly ConcurrentDictionary<string, string> _strings = new();
 
         public string Intern(string value)

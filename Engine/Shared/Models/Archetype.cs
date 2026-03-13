@@ -30,7 +30,7 @@ public class Archetype
     private long[] _entityIds = System.Array.Empty<long>();
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
     private readonly Dictionary<long, int> _entityIdToIndex = new();
-    internal readonly Dictionary<Type, IComponentArray> _componentArrays = new();
+    internal readonly IComponentArray?[] _componentArrays;
     private readonly object _lock = new();
     private int _count = 0;
     private int _capacity = 0;
@@ -43,10 +43,13 @@ public class Archetype
     public Archetype(ComponentSignature signature)
     {
         Signature = signature;
+        _componentArrays = new IComponentArray[Services.ComponentIdRegistry.Count + 32]; // Buffer for new types
         foreach (var type in signature.Types)
         {
             var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
-            _componentArrays[type] = (IComponentArray)Activator.CreateInstance(arrayType)!;
+            int id = Services.ComponentIdRegistry.GetId(type);
+            if (id >= _componentArrays.Length) Array.Resize(ref _componentArrays, id + 16);
+            _componentArrays[id] = (IComponentArray)Activator.CreateInstance(arrayType)!;
         }
     }
 
@@ -61,9 +64,10 @@ public class Archetype
 
         System.Array.Resize(ref _entityIds, _capacity);
         System.Array.Resize(ref _entities, _capacity);
-        foreach (var array in _componentArrays.Values)
+        var arrays = _componentArrays;
+        for (int i = 0; i < arrays.Length; i++)
         {
-            array.Resize(_capacity);
+            arrays[i]?.Resize(_capacity);
         }
     }
 
@@ -79,7 +83,7 @@ public class Archetype
             _entityIdToIndex[entity.Id] = index;
             foreach (var type in Signature.Types)
             {
-                _componentArrays[type].Set(index, components[type]);
+                _componentArrays[Services.ComponentIdRegistry.GetId(type)]!.Set(index, components[type]);
             }
             entity.Archetype = this;
             entity.ArchetypeIndex = index;
@@ -97,6 +101,7 @@ public class Archetype
             entity.ArchetypeIndex = -1;
 
             int lastIndex = _count - 1;
+            var arrays = _componentArrays;
             if (index != lastIndex)
             {
                 long lastEntityId = _entityIds[lastIndex];
@@ -106,9 +111,9 @@ public class Archetype
                 _entities[index] = lastEntity;
                 _entityIdToIndex[lastEntityId] = index;
 
-                foreach (var array in _componentArrays.Values)
+                for (int i = 0; i < arrays.Length; i++)
                 {
-                    array.Copy(lastIndex, index);
+                    arrays[i]?.Copy(lastIndex, index);
                 }
 
                 lastEntity.ArchetypeIndex = index;
@@ -116,9 +121,9 @@ public class Archetype
 
             _entities[lastIndex] = null!;
             _entityIdToIndex.Remove(entityId);
-            foreach (var array in _componentArrays.Values)
+            for (int i = 0; i < arrays.Length; i++)
             {
-                array.Clear(lastIndex);
+                arrays[i]?.Clear(lastIndex);
             }
             _count--;
         }
@@ -126,11 +131,16 @@ public class Archetype
 
     internal ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
     {
-        if (_componentArrays.TryGetValue(typeof(T), out var array))
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        if (id < _componentArrays.Length)
         {
-            lock (_lock)
+            var array = _componentArrays[id];
+            if (array != null)
             {
-                return new ArchetypeChunk<T>(((ComponentArray<T>)array).Data, _entityIds, _count);
+                lock (_lock)
+                {
+                    return new ArchetypeChunk<T>(((ComponentArray<T>)array).Data, _entityIds, _count);
+                }
             }
         }
         return new ArchetypeChunk<T>(System.Array.Empty<T>(), System.Array.Empty<long>(), 0);
@@ -138,17 +148,19 @@ public class Archetype
 
     internal T[] GetComponentsInternal<T>() where T : class, IComponent
     {
-        if (_componentArrays.TryGetValue(typeof(T), out var array))
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        if (id < _componentArrays.Length)
         {
-            return ((ComponentArray<T>)array).Data;
+            var array = _componentArrays[id];
+            if (array != null) return ((ComponentArray<T>)array).Data;
         }
         return System.Array.Empty<T>();
     }
 
     internal IComponentArray? GetComponentsInternal(Type type)
     {
-        _componentArrays.TryGetValue(type, out var array);
-        return array;
+        int id = Services.ComponentIdRegistry.GetId(type);
+        return id < _componentArrays.Length ? _componentArrays[id] : null;
     }
 
     /// <summary>
@@ -157,16 +169,21 @@ public class Archetype
     /// </summary>
     public void ForEach<T>(Action<T, long> action) where T : class, IComponent
     {
-        if (_componentArrays.TryGetValue(typeof(T), out var array))
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        if (id < _componentArrays.Length)
         {
-            lock (_lock)
+            var array = _componentArrays[id];
+            if (array != null)
             {
-                var data = ((ComponentArray<T>)array).Data;
-                var entityIds = _entityIds;
-                int count = _count;
-                for (int i = 0; i < count; i++)
+                lock (_lock)
                 {
-                    action(data[i], entityIds[i]);
+                    var data = ((ComponentArray<T>)array).Data;
+                    var entityIds = _entityIds;
+                    int count = _count;
+                    for (int i = 0; i < count; i++)
+                    {
+                        action(data[i], entityIds[i]);
+                    }
                 }
             }
         }
@@ -174,11 +191,16 @@ public class Archetype
 
     internal void SetComponentInternal(int index, Type type, IComponent component)
     {
-        if (_componentArrays.TryGetValue(type, out var array))
+        int id = Services.ComponentIdRegistry.GetId(type);
+        if (id < _componentArrays.Length)
         {
-            lock (_lock)
+            var array = _componentArrays[id];
+            if (array != null)
             {
-                array.Set(index, component);
+                lock (_lock)
+                {
+                    array.Set(index, component);
+                }
             }
         }
     }
@@ -213,13 +235,18 @@ public class Archetype
 
     public int GetComponents(Type type, IComponent[] destination)
     {
-        if (_componentArrays.TryGetValue(type, out var array))
+        int id = Services.ComponentIdRegistry.GetId(type);
+        if (id < _componentArrays.Length)
         {
-            lock (_lock)
+            var array = _componentArrays[id];
+            if (array != null)
             {
-                int count = Math.Min(_count, destination.Length);
-                for (int i = 0; i < count; i++) destination[i] = array.Get(i);
-                return count;
+                lock (_lock)
+                {
+                    int count = Math.Min(_count, destination.Length);
+                    for (int i = 0; i < count; i++) destination[i] = array.Get(i);
+                    return count;
+                }
             }
         }
         return 0;
@@ -227,16 +254,21 @@ public class Archetype
 
     public IEnumerable<IComponent> GetComponents(Type type)
     {
-        if (_componentArrays.TryGetValue(type, out var array))
+        int id = Services.ComponentIdRegistry.GetId(type);
+        if (id < _componentArrays.Length)
         {
-            IComponent[] data;
-            lock (_lock)
+            var array = _componentArrays[id];
+            if (array != null)
             {
-                int count = _count;
-                data = new IComponent[count];
-                for (int i = 0; i < count; i++) data[i] = array.Get(i);
+                IComponent[] data;
+                lock (_lock)
+                {
+                    int count = _count;
+                    data = new IComponent[count];
+                    for (int i = 0; i < count; i++) data[i] = array.Get(i);
+                }
+                return data;
             }
-            return data;
         }
         return Array.Empty<IComponent>();
     }
@@ -256,9 +288,11 @@ public class Archetype
             if (_entityIdToIndex.TryGetValue(entityId, out int index))
             {
                 var type = component.GetType();
-                if (_componentArrays.TryGetValue(type, out var array))
+                int id = Services.ComponentIdRegistry.GetId(type);
+                if (id < _componentArrays.Length)
                 {
-                    array.Set(index, component);
+                    var array = _componentArrays[id];
+                    array?.Set(index, component);
                 }
             }
         }
@@ -268,9 +302,14 @@ public class Archetype
     {
         lock (_lock)
         {
-            if (_entityIdToIndex.TryGetValue(entityId, out int index) && _componentArrays.TryGetValue(type, out var array))
+            if (_entityIdToIndex.TryGetValue(entityId, out int index))
             {
-                return array.Get(index);
+                int id = Services.ComponentIdRegistry.GetId(type);
+                if (id < _componentArrays.Length)
+                {
+                    var array = _componentArrays[id];
+                    return array?.Get(index);
+                }
             }
         }
         return null;
@@ -284,9 +323,10 @@ public class Archetype
             {
                 _capacity = Math.Max(_count, 8);
                 System.Array.Resize(ref _entityIds, _capacity);
-                foreach (var array in _componentArrays.Values)
+                var arrays = _componentArrays;
+                for (int i = 0; i < arrays.Length; i++)
                 {
-                    array.Resize(_capacity);
+                    arrays[i]?.Resize(_capacity);
                 }
             }
         }

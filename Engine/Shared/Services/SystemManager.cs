@@ -19,12 +19,12 @@ public interface ISystemManager
 
 public class SystemManager : ISystemManager, IAsyncDisposable
 {
-    private record SystemExecutionInfo(ISystem System, List<IEntityQuery> Queries);
+    private record SystemExecutionInfo(ISystem System, IEntityQuery[] Queries);
 
     private static readonly ExecutionPhase[] Phases = Enum.GetValues<ExecutionPhase>();
     private readonly ISystemRegistry _registry;
     private readonly ISystemExecutionPlanner _planner;
-    private List<List<SystemExecutionInfo>>?[] _phaseExecutionLayers = new List<List<SystemExecutionInfo>>[Phases.Length];
+    private SystemExecutionInfo[][]?[] _phaseExecutionLayers = new SystemExecutionInfo[Phases.Length][][];
     private readonly Dictionary<ISystem, SystemExecutionInfo> _systemInfoCache = new();
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
@@ -93,7 +93,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         }
 
         system.Initialize();
-        return new SystemExecutionInfo(system, queries);
+        return new SystemExecutionInfo(system, queries.ToArray());
     }
 
     private EntityQuery CreateEntityQuery(Type queryType)
@@ -127,8 +127,8 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                         _systemInfoCache[s] = info;
                     }
                     return info;
-                }).ToList()
-            ).ToList();
+                }).ToArray()
+            ).ToArray();
         }
         _isDirty = false;
     }
@@ -156,9 +156,10 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
                 using (_profilingService.Measure($"SystemManager.Phase.{Phases[i]}"))
                 {
-                    foreach (var layer in layers)
+                    for (int j = 0; j < layers.Length; j++)
                     {
-                        if (layer.Count == 1)
+                        var layer = layers[j];
+                        if (layer.Length == 1)
                         {
                             var info = layer[0];
                             var ecb = _ecbPool.Rent();
@@ -178,7 +179,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                         }
                         else
                         {
-                            var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Count);
+                            var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Length);
                             try
                             {
                                 await _jobSystem.ForEachAsync(layer, (info, index) =>
@@ -192,9 +193,9 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
                                 using (_profilingService.Measure("SystemManager.ECBPlayback"))
                                 {
-                                    for (int j = 0; j < layer.Count; j++)
+                                    for (int k = 0; k < layer.Length; k++)
                                     {
-                                        var ecb = ecbArray[j];
+                                        var ecb = ecbArray[k];
                                         ecb.Playback();
                                         _ecbPool.Return(ecb);
                                     }
@@ -236,10 +237,12 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             system.PreTick();
 
             bool batchHandled = false;
-            if (info.Queries.Count > 0)
+            var queries = info.Queries;
+            if (queries.Length > 0)
             {
-                foreach (var query in info.Queries)
+                for (int i = 0; i < queries.Length; i++)
                 {
+                    var query = queries[i];
                     foreach (var archetype in query.GetMatchingArchetypes())
                     {
                         system.Tick(archetype, ecb);
@@ -256,9 +259,12 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             system.PostTick();
 
             var jobs = system.CreateJobs();
-            foreach (var job in jobs)
+            if (jobs != null)
             {
-                _jobSystem.Schedule(job);
+                foreach (var job in jobs)
+                {
+                    _jobSystem.Schedule(job);
+                }
             }
         }
     }

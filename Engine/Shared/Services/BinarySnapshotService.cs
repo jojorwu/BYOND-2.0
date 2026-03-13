@@ -46,23 +46,27 @@ namespace Shared.Services;
                 if (obj.ObjectType != null)
                 {
                     var delta = obj.GetDeltaState();
-                    offset += WriteVarInt(destination.Slice(offset), delta.ChangedVariables.Count);
-                    foreach (var kvp in delta.ChangedVariables)
+                    offset += WriteVarInt(destination.Slice(offset), delta.Count);
+                    if (delta.Changes != null)
                     {
-                        int propIdx = kvp.Key;
-                        var val = kvp.Value;
-                        int valueSize = val.GetWriteSize();
-                        // 5 for property index varint max + value size
-                        if (offset + 5 + valueSize > destination.Length)
+                        for (int i = 0; i < delta.Count; i++)
                         {
-                            // Roll back to start of object and mark as truncated
-                            offset = startOffset;
-                            truncated = true;
-                            goto Done;
-                        }
+                            var change = delta.Changes[i];
+                            int propIdx = change.Index;
+                            var val = change.Value;
+                            int valueSize = val.GetWriteSize();
+                            // 5 for property index varint max + value size
+                            if (offset + 5 + valueSize > destination.Length)
+                            {
+                                // Roll back to start of object and mark as truncated
+                                offset = startOffset;
+                                truncated = true;
+                                goto Done;
+                            }
 
-                        offset += WriteVarInt(destination.Slice(offset), propIdx);
-                        offset += val.WriteTo(destination.Slice(offset));
+                            offset += WriteVarInt(destination.Slice(offset), propIdx);
+                            offset += val.WriteTo(destination.Slice(offset));
+                        }
                     }
                 }
                 else

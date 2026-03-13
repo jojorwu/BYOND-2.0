@@ -747,18 +747,23 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         lock (_lock)
         {
-            var delta = new DeltaState(Id);
-            if (!_changeMask.IsEmpty)
+            if (_changeMask.IsEmpty)
             {
-                foreach (int i in _changeMask.GetSetBits())
+                return new DeltaState(Id, null, 0);
+            }
+
+            int count = _changeMask.Count;
+            var changes = new VariableChange[count];
+            int idx = 0;
+            foreach (int i in _changeMask.GetSetBits())
+            {
+                if (i < _variableStore.Length)
                 {
-                    if (i < _variableStore.Length)
-                    {
-                        delta.AddChange(i, _variableStore.Get(i));
-                    }
+                    changes[idx++] = new VariableChange { Index = i, Value = _variableStore.Get(i) };
                 }
             }
-            return delta;
+
+            return new DeltaState(Id, changes, idx);
         }
     }
 

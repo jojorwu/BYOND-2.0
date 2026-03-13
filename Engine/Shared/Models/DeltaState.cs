@@ -6,21 +6,28 @@ namespace Shared.Models;
 /// Represents a set of changes to a game object's state.
 /// Used for efficient network synchronization.
 /// </summary>
+public struct VariableChange
+{
+    public int Index;
+    public DreamValue Value;
+}
+
+/// <summary>
+/// Represents a set of changes to a game object's state.
+/// Used for efficient network synchronization.
+/// </summary>
 public struct DeltaState
 {
     public long ObjectId { get; }
-    public Dictionary<int, DreamValue> ChangedVariables { get; }
+    public VariableChange[]? Changes;
+    public int Count;
 
-    public DeltaState(long objectId)
+    public DeltaState(long objectId, VariableChange[]? changes, int count)
     {
         ObjectId = objectId;
-        ChangedVariables = new Dictionary<int, DreamValue>();
+        Changes = changes;
+        Count = count;
     }
 
-    public void AddChange(int index, DreamValue value)
-    {
-        ChangedVariables[index] = value;
-    }
-
-    public bool HasChanges => ChangedVariables.Count > 0;
+    public bool HasChanges => Count > 0;
 }

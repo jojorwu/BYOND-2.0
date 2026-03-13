@@ -39,6 +39,8 @@ public struct ComponentMask : IEquatable<ComponentMask>
 
     public bool IsEmpty => _mask0 == 0 && _mask1 == 0;
 
+    public int Count => BitOperations.PopCount(_mask0) + BitOperations.PopCount(_mask1);
+
     public bool Get(int index)
     {
         if (index < 64) return (_mask0 & (1UL << index)) != 0;

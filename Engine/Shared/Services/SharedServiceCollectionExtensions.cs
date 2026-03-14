@@ -79,6 +79,7 @@ public static class SharedServiceCollectionExtensions
         });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
         services.AddSingleton<BinarySnapshotService>();
+        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<BinarySnapshotService>());
         services.AddSingleton<SpatialGrid>();
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
         services.AddSingleton<IInterestManager, InterestManager>();

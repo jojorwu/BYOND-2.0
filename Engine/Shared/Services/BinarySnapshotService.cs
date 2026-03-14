@@ -6,13 +6,19 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class BinarySnapshotService : EngineService
+    public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
+        private readonly ThreadLocal<Dictionary<long, (byte[] Data, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Data, long Version)>());
 
         public BinarySnapshotService(StringInterner? interner = null)
         {
             _interner = interner;
+        }
+
+        public void Shrink()
+        {
+            _deltaCache.Value?.Clear();
         }
 
         public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
@@ -106,6 +112,21 @@ namespace Shared.Services;
                 return false;
             }
 
+            // Delta Caching: Check if we've already serialized this object state in the current tick
+            var cache = _deltaCache.Value!;
+            if (cache.TryGetValue(obj.Id, out var cached) && cached.Version == obj.Version)
+            {
+                if (offset + cached.Data.Length > destination.Length)
+                {
+                    truncated = true;
+                    return true;
+                }
+                cached.Data.AsSpan().CopyTo(destination.Slice(offset));
+                offset += cached.Data.Length;
+                if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
+                return false;
+            }
+
             // Check if we have enough space for the basic object data
             // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
             if (offset + 32 > destination.Length)
@@ -115,6 +136,7 @@ namespace Shared.Services;
             }
 
             int startOffset = offset;
+            int objectStartOffset = offset;
             offset += WriteVarInt(destination.Slice(offset), obj.Id);
             offset += WriteVarInt(destination.Slice(offset), obj.Version);
             offset += WriteVarInt(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
@@ -147,6 +169,12 @@ namespace Shared.Services;
             {
                 offset += WriteVarInt(destination.Slice(offset), 0);
             }
+
+            // Cache the result for reuse in the same tick
+            int length = offset - objectStartOffset;
+            byte[] data = new byte[length];
+            destination.Slice(objectStartOffset, length).CopyTo(data);
+            cache[obj.Id] = (data, obj.Version);
 
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             return false;

@@ -437,9 +437,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "dir": { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : new DreamValue(2.0); }
                 case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.False; }
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
-                case "name":
-                    var n = base.GetVariable(name);
-                    return !n.IsNull ? n : new DreamValue(ObjectType?.Name ?? "object");
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : new DreamValue(ObjectType?.Name ?? "object"); }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.Null; }
             }
         }
 
@@ -466,6 +465,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
                 case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
                 case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
                     else Loc = null;

@@ -104,12 +104,16 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
             foreach (var type in s.ReadResources)
             {
                 int id = ComponentIdRegistry.GetId(type);
-                if (readMask.Supports(id)) readMask.Set(id);
+                if (!readMask.Supports(id))
+                    throw new InvalidOperationException($"System '{s.Name}' uses component type '{type.Name}' with ID {id}, which exceeds the supported resource mask limit (512).");
+                readMask.Set(id);
             }
             foreach (var type in s.WriteResources)
             {
                 int id = ComponentIdRegistry.GetId(type);
-                if (writeMask.Supports(id)) writeMask.Set(id);
+                if (!writeMask.Supports(id))
+                    throw new InvalidOperationException($"System '{s.Name}' uses component type '{type.Name}' with ID {id}, which exceeds the supported resource mask limit (512).");
+                writeMask.Set(id);
             }
             return (Read: readMask, Write: writeMask);
         });

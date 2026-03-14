@@ -24,6 +24,7 @@ public class ObjectType
     public int XIndex = -1, YIndex = -1, ZIndex = -1, LocIndex = -1;
     public int IconIndex = -1, IconStateIndex = -1, DirIndex = -1, AlphaIndex = -1;
     public int ColorIndex = -1, LayerIndex = -1, PixelXIndex = -1, PixelYIndex = -1, OpacityIndex = -1;
+    public int NameIndex = -1, DescIndex = -1;
 
     public ObjectType(int id, string name)
     {
@@ -101,6 +102,8 @@ public class ObjectType
                 case "pixel_x": PixelXIndex = i; break;
                 case "pixel_y": PixelYIndex = i; break;
                 case "opacity": OpacityIndex = i; break;
+                case "name": NameIndex = i; break;
+                case "desc": DescIndex = i; break;
             }
         }
 

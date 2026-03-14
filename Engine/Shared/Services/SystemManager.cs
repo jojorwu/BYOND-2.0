@@ -33,6 +33,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
     private readonly IEnumerable<IEngineModule> _modules;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IComponentQueryService _queryService;
+    private readonly IDiagnosticBus _diagnosticBus;
     private bool _isDirty = true;
 
     public SystemManager(
@@ -45,7 +46,8 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         IEnumerable<IEngineModule> modules,
         IEnumerable<ISystem> systems,
         ILoggerFactory loggerFactory,
-        IComponentQueryService queryService)
+        IComponentQueryService queryService,
+        IDiagnosticBus diagnosticBus)
     {
         _registry = registry;
         _planner = planner;
@@ -56,6 +58,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         _modules = modules;
         _loggerFactory = loggerFactory;
         _queryService = queryService;
+        _diagnosticBus = diagnosticBus;
 
         foreach (var system in systems)
         {
@@ -140,6 +143,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             RebuildExecutionLayers();
         }
 
+        var totalSw = System.Diagnostics.Stopwatch.StartNew();
         using (_profilingService.Measure("SystemManager.Tick"))
         {
             // Module Pre-Tick
@@ -154,6 +158,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                 var layers = _phaseExecutionLayers[i];
                 if (layers == null) continue;
 
+                var phaseSw = System.Diagnostics.Stopwatch.StartNew();
                 using (_profilingService.Measure($"SystemManager.Phase.{Phases[i]}"))
                 {
                     for (int j = 0; j < layers.Length; j++)
@@ -208,6 +213,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                         }
                     }
                 }
+                _diagnosticBus.Publish(new DiagnosticEvent("SystemManager", $"Phase {Phases[i]} execution completed", DiagnosticSeverity.Info, new Dictionary<string, object> { { "Phase", Phases[i].ToString() }, { "DurationMs", phaseSw.Elapsed.TotalMilliseconds } }));
             }
 
             // Module Post-Tick
@@ -233,6 +239,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
     private void ExecuteSystem(SystemExecutionInfo info, IEntityCommandBuffer ecb)
     {
         var system = info.System;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         using (_profilingService.Measure($"System.{system.Name}"))
         {
             system.PreTick();
@@ -258,6 +265,8 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             }
 
             system.PostTick();
+
+            _diagnosticBus.Publish(new DiagnosticEvent("SystemManager", $"System {system.Name} execution completed", DiagnosticSeverity.Info, new Dictionary<string, object> { { "System", system.Name }, { "DurationMs", sw.Elapsed.TotalMilliseconds } }));
 
             var jobs = system.CreateJobs();
             if (jobs != null)

@@ -47,23 +47,33 @@ namespace Shared.Services;
             int count = currentWorkers.Length;
             if (count <= 1) return null;
 
-            // Power of Two Choices for stealing: pick two random victims and steal from the one with more jobs.
-            // This is more efficient than a linear search across all workers as the number of workers grows.
-            int i1 = Random.Shared.Next(count);
-            int i2 = Random.Shared.Next(count);
+            // Improved Victim Selection (Power of Four Choices):
+            // By picking 4 candidates, we significantly increase the probability of finding a high-load worker
+            // even in large clusters, further reducing load imbalance without scanning all workers.
+            int bestIdx = -1;
+            int maxWeight = -1;
 
-            var v1 = currentWorkers[i1];
-            var v2 = currentWorkers[i2];
-
-            // Don't steal from self
-            if (v1 == stealer) v1 = currentWorkers[(i1 + 1) % count];
-            if (v2 == stealer) v2 = currentWorkers[(i2 + 1) % count];
-
-            var victim = v1.ApproximateTotalWeight >= v2.ApproximateTotalWeight ? v1 : v2;
-
-            if (victim != stealer && victim.ApproximateJobCount > 0 && victim.TrySteal(out var stolenJob))
+            for (int i = 0; i < 4; i++)
             {
-                return stolenJob;
+                int idx = Random.Shared.Next(count);
+                var v = currentWorkers[idx];
+                if (v == stealer) continue;
+
+                int weight = v.ApproximateTotalWeight;
+                if (weight > maxWeight)
+                {
+                    maxWeight = weight;
+                    bestIdx = idx;
+                }
+            }
+
+            if (bestIdx != -1)
+            {
+                var victim = currentWorkers[bestIdx];
+                if (victim.ApproximateJobCount > 0 && victim.TrySteal(out var stolenJob))
+                {
+                    return stolenJob;
+                }
             }
 
             return null;

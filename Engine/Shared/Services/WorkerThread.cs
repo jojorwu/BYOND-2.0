@@ -121,8 +121,12 @@ namespace Shared.Services;
 
         private bool SpinWait()
         {
+            // Tuned Spin-Waiting:
+            // 200 iterations provides a better balance for high-frequency engine tasks,
+            // reducing the need for expensive context switches (ManualResetEvent)
+            // when jobs are being produced rapidly.
             var sw = new SpinWait();
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 200; i++)
             {
                 if (_disposed) return false;
                 if (_approximateCount > 0) return true;

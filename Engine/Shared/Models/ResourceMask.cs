@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 
 namespace Shared.Models;
 
@@ -36,27 +37,32 @@ public struct ResourceMask : IEquatable<ResourceMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnionWith(ResourceMask other)
     {
-        _mask0 |= other._mask0;
-        _mask1 |= other._mask1;
-        _mask2 |= other._mask2;
-        _mask3 |= other._mask3;
-        _mask4 |= other._mask4;
-        _mask5 |= other._mask5;
-        _mask6 |= other._mask6;
-        _mask7 |= other._mask7;
+        if (Vector256.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) |= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) |= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
+        }
+        else
+        {
+            _mask0 |= other._mask0; _mask1 |= other._mask1; _mask2 |= other._mask2; _mask3 |= other._mask3;
+            _mask4 |= other._mask4; _mask5 |= other._mask5; _mask6 |= other._mask6; _mask7 |= other._mask7;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Overlaps(ResourceMask other)
     {
-        return (_mask0 & other._mask0) != 0 ||
-               (_mask1 & other._mask1) != 0 ||
-               (_mask2 & other._mask2) != 0 ||
-               (_mask3 & other._mask3) != 0 ||
-               (_mask4 & other._mask4) != 0 ||
-               (_mask5 & other._mask5) != 0 ||
-               (_mask6 & other._mask6) != 0 ||
-               (_mask7 & other._mask7) != 0;
+        if (Vector256.IsHardwareAccelerated)
+        {
+            var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            var v1 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
+            return !Vector256.EqualsAll(v0 | v1, Vector256<ulong>.Zero);
+        }
+
+        return (_mask0 & other._mask0) != 0 || (_mask1 & other._mask1) != 0 ||
+               (_mask2 & other._mask2) != 0 || (_mask3 & other._mask3) != 0 ||
+               (_mask4 & other._mask4) != 0 || (_mask5 & other._mask5) != 0 ||
+               (_mask6 & other._mask6) != 0 || (_mask7 & other._mask7) != 0;
     }
 
     public void Clear()
@@ -70,6 +76,13 @@ public struct ResourceMask : IEquatable<ResourceMask>
 
     public bool Equals(ResourceMask other)
     {
+        if (Vector256.IsHardwareAccelerated)
+        {
+            var v0 = Vector256.EqualsAll(Unsafe.As<ulong, Vector256<ulong>>(ref _mask0), Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0)));
+            var v1 = Vector256.EqualsAll(Unsafe.As<ulong, Vector256<ulong>>(ref _mask4), Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4)));
+            return v0 && v1;
+        }
+
         return _mask0 == other._mask0 && _mask1 == other._mask1 &&
                _mask2 == other._mask2 && _mask3 == other._mask3 &&
                _mask4 == other._mask4 && _mask5 == other._mask5 &&

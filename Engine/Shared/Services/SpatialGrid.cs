@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics.X86;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -84,6 +85,11 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ulong InterleaveBits(uint x)
         {
+            if (Bmi2.X64.IsSupported)
+            {
+                return Bmi2.X64.ParallelBitDeposit(x, 0x5555555555555555);
+            }
+
             ulong val = x;
             val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
             val = (val | (val << 8)) & 0x00FF00FF00FF00FF;

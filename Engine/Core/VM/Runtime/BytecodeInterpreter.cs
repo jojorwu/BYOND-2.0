@@ -2658,8 +2658,49 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
         table[(byte)Opcode.LocalCompareGreaterThanOrEqualFloatJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse;
         table[(byte)Opcode.LocalJumpIfFieldFalse] = &HandleLocalJumpIfFieldFalse;
         table[(byte)Opcode.LocalJumpIfFieldTrue] = &HandleLocalJumpIfFieldTrue;
+        table[(byte)Opcode.LocalFieldTransfer] = &HandleLocalFieldTransfer;
+        table[(byte)Opcode.GlobalJumpIfFalse] = &HandleGlobalJumpIfFalse;
 
         return table;
+    }
+
+    private static void HandleLocalFieldTransfer(ref InterpreterState state)
+    {
+        int srcIdx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int targetIdx = state.ReadInt32();
+        int pcForCache = state.PC - 13; // Address of the instruction start
+
+        var objValue = state.Locals[srcIdx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType)
+            {
+                state.Locals[targetIdx] = obj.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    state.Locals[targetIdx] = obj.GetVariableDirect(varIdx);
+                }
+                else state.Locals[targetIdx] = obj.GetVariable(name);
+            }
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+    }
+
+    private static void HandleGlobalJumpIfFalse(ref InterpreterState state)
+    {
+        int globalIdx = state.ReadInt32();
+        int address = state.ReadInt32();
+        var val = state.Globals[globalIdx];
+        if (val.IsFalse()) state.PC = address;
     }
 
     private static void HandleLocalCompareLessThanFloatJumpIfFalse(ref InterpreterState state)

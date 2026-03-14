@@ -315,6 +315,24 @@ public class Archetype
         return null;
     }
 
+    public IEnumerable<IComponent> GetAllComponents(long entityId)
+    {
+        lock (_lock)
+        {
+            if (!_entityIdToIndex.TryGetValue(entityId, out int index))
+                return Array.Empty<IComponent>();
+
+            var results = new List<IComponent>(Signature.Types.Count());
+            foreach (var type in Signature.Types)
+            {
+                int id = Services.ComponentIdRegistry.GetId(type);
+                var comp = _componentArrays[id]?.Get(index);
+                if (comp != null) results.Add(comp);
+            }
+            return results;
+        }
+    }
+
     public void Compact()
     {
         lock (_lock)

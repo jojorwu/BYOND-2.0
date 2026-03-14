@@ -99,41 +99,34 @@ namespace Shared.Services;
                 if (job != null)
                 {
                     ExecuteJob(job);
+                    continue; // Immediately check for next job
                 }
-                else if (_stealFunc != null && (job = _stealFunc(this)) != null)
+
+                if (_stealFunc != null && (job = _stealFunc(this)) != null)
                 {
                     ExecuteJob(job);
+                    continue; // Immediately check for next job
                 }
-                else
-                {
-                    if (_disposed) break;
 
-                    // Spin-wait before full wait to reduce latency
-                    if (SpinWait()) continue;
+                if (_disposed) break;
 
-                    // Wait with a small timeout to allow periodic stealing attempts and sizing updates
-                    _wakeEvent.Wait(5);
-                    _wakeEvent.Reset();
-                }
+                // Spin-wait before full wait to reduce latency
+                if (SpinWait()) continue;
+
+                // Wait with a small timeout to allow periodic stealing attempts and sizing updates
+                _wakeEvent.Wait(5);
+                _wakeEvent.Reset();
             }
         }
 
         private bool SpinWait()
         {
-            // Exponential backoff spin-wait
-            for (int i = 0; i < 10; i++)
+            var sw = new SpinWait();
+            for (int i = 0; i < 20; i++)
             {
                 if (_disposed) return false;
                 if (_approximateCount > 0) return true;
-                Thread.SpinWait(1 << i);
-            }
-
-            // Yield-based wait
-            for (int i = 0; i < 10; i++)
-            {
-                if (_disposed) return false;
-                if (_approximateCount > 0) return true;
-                Thread.Yield();
+                sw.SpinOnce();
             }
 
             return false;

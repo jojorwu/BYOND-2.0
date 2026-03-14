@@ -17,7 +17,6 @@ namespace Shared;
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
     private static long nextId = 1;
-    private static readonly object _globalHierarchyLock = new();
 
     public static void EnsureNextId(long id)
     {
@@ -302,30 +301,60 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     private void SetLocInternal(IGameObject? value, bool syncVariable)
     {
-        GameObject? oldLoc = null;
-        GameObject? newLoc = null;
+        GameObject? oldLoc;
+        GameObject? newLoc;
 
-        lock (_globalHierarchyLock)
+        // Consistent lock ordering (by ID) to avoid deadlocks
+        GameObject? first = null;
+        GameObject? second = null;
+
+        lock (_lock)
         {
-            lock (_lock)
+            if (_loc == value) return;
+            oldLoc = _loc as GameObject;
+            newLoc = value as GameObject;
+
+            if (oldLoc != null && newLoc != null)
             {
-                if (_loc == value) return;
+                if (oldLoc.Id < newLoc.Id) { first = oldLoc; second = newLoc; }
+                else { first = newLoc; second = oldLoc; }
+            }
+            else if (oldLoc != null) { first = oldLoc; }
+            else if (newLoc != null) { first = newLoc; }
 
-                oldLoc = _loc as GameObject;
-                _loc = value;
-                newLoc = value as GameObject;
+            _loc = value;
 
-                if (syncVariable)
+            if (syncVariable)
+            {
+                var idx = ObjectType?.LocIndex ?? -1;
+                if (idx != -1)
+                    _variableStore.Set(idx, value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+                IncrementVersion();
+            }
+        }
+
+        // Apply contents changes outside of self-lock, but with ordered container locks
+        if (first != null)
+        {
+            lock (first._contentsLock)
+            {
+                if (second != null)
                 {
-                    var idx = ObjectType?.LocIndex ?? -1;
-                    if (idx != -1)
-                        _variableStore.Set(idx, value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
-                    IncrementVersion();
+                    lock (second._contentsLock)
+                    {
+                        if (first == oldLoc) first.RemoveContentInternal(this);
+                        else second.RemoveContentInternal(this);
+
+                        if (first == newLoc) first.AddContentInternal(this);
+                        else second.AddContentInternal(this);
+                    }
+                }
+                else
+                {
+                    if (first == oldLoc) first.RemoveContentInternal(this);
+                    else first.AddContentInternal(this);
                 }
             }
-
-            oldLoc?.RemoveContentInternal(this);
-            newLoc?.AddContentInternal(this);
         }
     }
 
@@ -345,10 +374,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
         else
         {
-            lock (_globalHierarchyLock)
-            {
-                AddContentInternal(obj);
-            }
+            AddContentInternal(obj);
         }
     }
 
@@ -363,10 +389,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
         else
         {
-            lock (_globalHierarchyLock)
-            {
-                RemoveContentInternal(obj);
-            }
+            RemoveContentInternal(obj);
         }
     }
 

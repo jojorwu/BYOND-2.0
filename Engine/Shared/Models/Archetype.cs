@@ -83,8 +83,43 @@ public class Archetype
             _entityIdToIndex[entity.Id] = index;
             foreach (var type in Signature.Types)
             {
-                _componentArrays[Services.ComponentIdRegistry.GetId(type)]!.Set(index, components[type]);
+                if (components.TryGetValue(type, out var comp))
+                    _componentArrays[Services.ComponentIdRegistry.GetId(type)]!.Set(index, comp);
             }
+            entity.Archetype = this;
+            entity.ArchetypeIndex = index;
+        }
+    }
+
+    /// <summary>
+    /// Optimized direct transfer between archetypes.
+    /// </summary>
+    public void AddEntity(IGameObject entity, Archetype? sourceArchetype, int sourceIndex, (Type Type, IComponent Component)? additional = null, Type? ignoreType = null)
+    {
+        lock (_lock)
+        {
+            EnsureCapacity(_count + 1);
+            int index = _count++;
+
+            _entityIds[index] = entity.Id;
+            _entities[index] = entity;
+            _entityIdToIndex[entity.Id] = index;
+
+            var targetArrays = _componentArrays;
+            foreach (var type in Signature.Types)
+            {
+                int id = Services.ComponentIdRegistry.GetId(type);
+                if (additional.HasValue && additional.Value.Type == type)
+                {
+                    targetArrays[id]!.Set(index, additional.Value.Component);
+                }
+                else if (ignoreType != type && sourceArchetype != null)
+                {
+                    var sourceArray = sourceArchetype.GetComponentsInternal(type);
+                    sourceArray?.CopyTo(sourceIndex, targetArrays[id]!, index);
+                }
+            }
+
             entity.Archetype = this;
             entity.ArchetypeIndex = index;
         }
@@ -355,6 +390,7 @@ public class Archetype
         void Resize(int capacity);
         void Set(int index, IComponent component);
         void Copy(int from, int to);
+        void CopyTo(int sourceIndex, IComponentArray destination, int destinationIndex);
         void Clear(int index);
         IComponent Get(int index);
     }
@@ -366,6 +402,10 @@ public class Archetype
         public void Resize(int capacity) => System.Array.Resize(ref Data, capacity);
         public void Set(int index, IComponent component) => Data[index] = (T)component;
         public void Copy(int from, int to) => Data[to] = Data[from];
+        public void CopyTo(int sourceIndex, IComponentArray destination, int destinationIndex)
+        {
+            destination.Set(destinationIndex, Data[sourceIndex]);
+        }
         public void Clear(int index) => Data[index] = null!;
         public IComponent Get(int index) => Data[index];
     }

@@ -55,7 +55,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     {
         lock (GetEntityLock(entity.Id))
         {
-            MoveToArchetypeInternal(entity, null, new Dictionary<Type, IComponent>());
+            MoveToArchetypeInternal(entity, null, null);
         }
     }
 
@@ -102,20 +102,18 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
                 if (targetArchetype != null)
                 {
-                    var components = GetEntityComponentsInternal(entity.Id, currentArchetype);
-                    components[componentType] = component;
-
+                    int oldIndex = entity.ArchetypeIndex;
+                    targetArchetype.AddEntity(entity, currentArchetype, oldIndex, (componentType, component));
+                    int newIndex = entity.ArchetypeIndex;
                     currentArchetype.RemoveEntity(entity.Id);
-                    targetArchetype.AddEntity(entity, components);
+                    entity.Archetype = targetArchetype;
+                    entity.ArchetypeIndex = newIndex;
                     _entityToArchetype[entity.Id] = targetArchetype;
                     return;
                 }
             }
 
-            var allComponents = GetEntityComponentsInternal(entity.Id, currentArchetype);
-            allComponents[componentType] = component;
-
-            MoveToArchetypeInternal(entity, componentType, allComponents, true);
+            MoveToArchetypeInternal(entity, componentType, null, true, component);
 
             // Populate transition cache
             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && currentArchetype != null)
@@ -182,14 +180,18 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
                         if (targetArchetype != null)
                         {
+                            int oldIndex = entity.ArchetypeIndex;
+                            targetArchetype.AddEntity(entity, currentArchetype, oldIndex, ignoreType: componentType);
+                            int newIndex = entity.ArchetypeIndex;
                             currentArchetype.RemoveEntity(entity.Id);
-                            targetArchetype.AddEntity(entity, components);
+                            entity.Archetype = targetArchetype;
+                            entity.ArchetypeIndex = newIndex;
                             _entityToArchetype[entity.Id] = targetArchetype;
                         }
                         else
                         {
                             var oldArchetype = currentArchetype;
-                            MoveToArchetypeInternal(entity, componentType, components, false);
+                            MoveToArchetypeInternal(entity, componentType, null, false);
                             // Populate transition cache
                             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
                             {
@@ -206,28 +208,28 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         }
     }
 
-    private void MoveToArchetypeInternal(IGameObject entity, Type? componentType, Dictionary<Type, IComponent> components, bool added = true)
+    private void MoveToArchetypeInternal(IGameObject entity, Type? componentType, Dictionary<Type, IComponent>? components, bool added = true, IComponent? component = null)
     {
         long entityId = entity.Id;
 
-        if (components.Count == 0)
-        {
-            if (_entityToArchetype.TryRemove(entityId, out var oldArch))
-            {
-                oldArch.RemoveEntity(entityId);
-            }
-            return;
-        }
-
         _entityToArchetype.TryGetValue(entityId, out var oldArchetype);
+
         ComponentSignature signature;
         if (oldArchetype != null && componentType != null)
         {
             signature = added ? oldArchetype.Signature.With(componentType) : oldArchetype.Signature.Without(componentType);
         }
-        else
+        else if (components != null)
         {
             signature = new ComponentSignature(components.Keys);
+        }
+        else if (componentType != null && added)
+        {
+            signature = new ComponentSignature(new[] { componentType });
+        }
+        else
+        {
+            signature = new ComponentSignature(Array.Empty<Type>());
         }
 
         // Find or create archetype
@@ -262,15 +264,51 @@ public class ArchetypeManager : EngineService, IArchetypeManager
             }
         }
 
-        // Remove from old
+        if (targetArchetype.Signature.Mask.IsEmpty)
+        {
+            if (_entityToArchetype.TryRemove(entityId, out var oldArch))
+            {
+                oldArch.RemoveEntity(entityId);
+            }
+            return;
+        }
+
+        // Add to new FIRST, then remove from old to preserve source data index
         if (oldArchetype != null)
         {
             if (oldArchetype == targetArchetype) return;
+            int oldIndex = entity.ArchetypeIndex;
+
+            if (componentType != null)
+            {
+                if (added && component != null)
+                    targetArchetype.AddEntity(entity, oldArchetype, oldIndex, (componentType, component));
+                else
+                    targetArchetype.AddEntity(entity, oldArchetype, oldIndex, ignoreType: componentType);
+            }
+            else
+            {
+                targetArchetype.AddEntity(entity, components ?? (IDictionary<Type, IComponent>)new Dictionary<Type, IComponent>());
+            }
+
+            int newIndex = entity.ArchetypeIndex;
             oldArchetype.RemoveEntity(entityId);
+            entity.Archetype = targetArchetype;
+            entity.ArchetypeIndex = newIndex;
+        }
+        else
+        {
+            if (componentType != null && added && component != null)
+            {
+                var dict = new Dictionary<Type, IComponent> { { componentType, component } };
+                targetArchetype.AddEntity(entity, dict);
+            }
+            else
+            {
+                targetArchetype.AddEntity(entity, components ?? (IDictionary<Type, IComponent>)new Dictionary<Type, IComponent>());
+            }
         }
 
-        // Add to new
-        targetArchetype.AddEntity(entity, components);
         _entityToArchetype[entityId] = targetArchetype;
     }
 

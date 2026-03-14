@@ -33,11 +33,12 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
         if (systemList.Count == 0) return layers;
 
         var remaining = new HashSet<ISystem>(systemList);
-        var completedNames = new HashSet<string>();
-        var completedGroups = new HashSet<string>();
+        var completedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var completedGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Pre-calculate group memberships for faster checks
-        var groupSystems = systemList.Where(s => s.Group != null).ToLookup(s => s.Group!);
+        // Map system name and group to existing objects for faster lookups
+        var systemNameMap = systemList.ToDictionary(s => s.Name, s => s, StringComparer.OrdinalIgnoreCase);
+        var groupMap = systemList.Where(s => s.Group != null).ToLookup(s => s.Group!, StringComparer.OrdinalIgnoreCase);
 
         while (remaining.Count > 0)
         {
@@ -47,20 +48,16 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
                 bool dependenciesMet = true;
                 foreach (var dep in system.Dependencies)
                 {
-                    if (systemList.Any(s => s.Name == dep || s.Group == dep))
+                    // Check if dependency exists in our current set of systems
+                    bool depExists = systemNameMap.ContainsKey(dep) || groupMap.Contains(dep);
+                    if (depExists && !completedNames.Contains(dep) && !completedGroups.Contains(dep))
                     {
-                        if (!completedNames.Contains(dep) && !completedGroups.Contains(dep))
-                        {
-                            dependenciesMet = false;
-                            break;
-                        }
+                        dependenciesMet = false;
+                        break;
                     }
                 }
 
-                if (dependenciesMet)
-                {
-                    readySystems.Add(system);
-                }
+                if (dependenciesMet) readySystems.Add(system);
             }
 
             if (readySystems.Count == 0)
@@ -79,7 +76,7 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
 
                 if (system.Group != null)
                 {
-                    var members = groupSystems[system.Group];
+                    var members = groupMap[system.Group];
                     if (members.All(m => completedNames.Contains(m.Name)))
                     {
                         completedGroups.Add(system.Group);
@@ -98,6 +95,9 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
         var subLayers = new List<List<ISystem>>();
         var remaining = new List<ISystem>(systems);
 
+        // Pre-fetch resource arrays to avoid IEnumerable overhead in tight loops
+        var systemResources = systems.ToDictionary(s => s, s => (Read: s.ReadResources.ToArray(), Write: s.WriteResources.ToArray()));
+
         while (remaining.Count > 0)
         {
             var currentSubLayer = new List<ISystem>();
@@ -107,10 +107,12 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
             for (int i = 0; i < remaining.Count; i++)
             {
                 var system = remaining[i];
+                var (readRes, writeRes) = systemResources[system];
                 bool hasConflict = false;
 
-                foreach (var res in system.WriteResources)
+                for (int j = 0; j < writeRes.Length; j++)
                 {
+                    var res = writeRes[j];
                     if (lockedForWrite.Contains(res) || lockedForRead.Contains(res))
                     {
                         hasConflict = true;
@@ -120,8 +122,9 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
 
                 if (!hasConflict)
                 {
-                    foreach (var res in system.ReadResources)
+                    for (int j = 0; j < readRes.Length; j++)
                     {
+                        var res = readRes[j];
                         if (lockedForWrite.Contains(res))
                         {
                             hasConflict = true;
@@ -133,8 +136,8 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
                 if (!hasConflict)
                 {
                     currentSubLayer.Add(system);
-                    foreach (var res in system.WriteResources) lockedForWrite.Add(res);
-                    foreach (var res in system.ReadResources) lockedForRead.Add(res);
+                    for (int j = 0; j < writeRes.Length; j++) lockedForWrite.Add(writeRes[j]);
+                    for (int j = 0; j < readRes.Length; j++) lockedForRead.Add(readRes[j]);
                     remaining.RemoveAt(i);
                     i--;
                 }
@@ -146,6 +149,7 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
             }
             else
             {
+                // This shouldn't happen with correct dependency planning, but act as a safety net
                 subLayers.Add(new List<ISystem>(remaining));
                 remaining.Clear();
             }

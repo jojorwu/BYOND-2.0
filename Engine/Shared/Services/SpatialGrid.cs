@@ -403,18 +403,7 @@ namespace Shared;
         public void GetObjectsInBox(Box2l box, List<IGameObject> results)
         {
             results.Clear();
-            var enumerator = new BoxEnumerator(this, box);
-            try
-            {
-                while (enumerator.MoveNext())
-                {
-                    results.Add(enumerator.Current);
-                }
-            }
-            finally
-            {
-                enumerator.Dispose();
-            }
+            GetObjectsInBox(box, (IList<IGameObject>)results);
         }
 
         /// <summary>

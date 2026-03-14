@@ -84,7 +84,7 @@ namespace Shared.Services;
                     return;
                 }
 
-                Offset += WriteVarIntStatic(Destination.Slice(Offset), propIdx);
+                Offset += WriteVarInt(Destination.Slice(Offset), propIdx);
                 Offset += val.WriteTo(Destination.Slice(Offset));
             }
         }
@@ -94,7 +94,7 @@ namespace Shared.Services;
             serializer.Visit(propIdx, val);
         }
 
-        private static int WriteVarIntStatic(Span<byte> span, long value)
+        public static int WriteVarInt(Span<byte> span, long value)
         {
             ulong v = (ulong)value;
             int count = 0;
@@ -213,18 +213,6 @@ namespace Shared.Services;
         }
 
 
-        private int WriteVarInt(Span<byte> span, long value)
-        {
-            ulong v = (ulong)value;
-            int count = 0;
-            while (v >= 0x80)
-            {
-                span[count++] = (byte)(v | 0x80);
-                v >>= 7;
-            }
-            span[count++] = (byte)v;
-            return count;
-        }
 
         public long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
         {

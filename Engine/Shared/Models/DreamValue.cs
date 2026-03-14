@@ -840,7 +840,7 @@ namespace Shared;
                         var s = (string)_objectValue!;
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
                         // VarInt length prefix
-                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -859,7 +859,7 @@ namespace Shared;
                         span[offset++] = 0; // Boolean false
                         var s = ToString();
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
-                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -868,25 +868,12 @@ namespace Shared;
                     {
                         var s = ToString();
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
-                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
                     }
             }
-        }
-
-        private static int WriteVarInt(Span<byte> span, long value)
-        {
-            ulong v = (ulong)value;
-            int count = 0;
-            while (v >= 0x80)
-            {
-                span[count++] = (byte)(v | 0x80);
-                v >>= 7;
-            }
-            span[count++] = (byte)v;
-            return count;
         }
 
         public static DreamValue ReadFrom(ReadOnlySpan<byte> span, out int bytesRead)

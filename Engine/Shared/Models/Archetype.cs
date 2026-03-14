@@ -137,6 +137,8 @@ public class Archetype
 
             int lastIndex = _count - 1;
             var arrays = _componentArrays;
+
+            // Optimization: If the entity is already the last one, we don't need to swap
             if (index != lastIndex)
             {
                 long lastEntityId = _entityIds[lastIndex];
@@ -218,6 +220,37 @@ public class Archetype
                     for (int i = 0; i < count; i++)
                     {
                         action(data[i], entityIds[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    public interface IComponentVisitor<T> where T : class, IComponent
+    {
+        void Visit(T component, long entityId);
+    }
+
+    /// <summary>
+    /// Executes a visitor on each component of type T.
+    /// Eliminates delegate and closure allocations compared to ForEach(Action).
+    /// </summary>
+    public void ForEach<T, TVisitor>(ref TVisitor visitor) where T : class, IComponent where TVisitor : struct, IComponentVisitor<T>
+    {
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        if (id < _componentArrays.Length)
+        {
+            var array = _componentArrays[id];
+            if (array != null)
+            {
+                lock (_lock)
+                {
+                    var data = ((ComponentArray<T>)array).Data;
+                    var entityIds = _entityIds;
+                    int count = _count;
+                    for (int i = 0; i < count; i++)
+                    {
+                        visitor.Visit(data[i], entityIds[i]);
                     }
                 }
             }

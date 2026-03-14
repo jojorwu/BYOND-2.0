@@ -237,7 +237,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                 thread._stackPtr = state.StackPtr;
                                 thread.Push(DreamValue.Null);
                                 thread.Opcode_Return(ref state.Proc, ref state.PC);
-                                    state.Stack = thread._stack.Array;
+                                state.Stack = thread._stack.Array;
                                 state.StackPtr = thread._stackPtr;
                                 if (thread.State == DreamThreadState.Running && thread._callStackPtr > 0)
                                 {
@@ -1985,28 +1985,80 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.Push(new DreamValue(list));
                                     }
                                     break;
-                                case Opcode.LocalPushDereferenceCall:
+                                case Opcode.LocalPushDereferenceField:
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
                                         int nameId = *(int*)(state.BytecodePtr + state.PC);
                                         int pcForCache = state.PC - 1;
                                         state.PC += 4;
-                                        var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
-                                        int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
-                                        state.PC += 4;
+
                                         var objValue = state.Locals[idx];
+                                        DreamValue val = DreamValue.Null;
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType)
+                                            {
+                                                val = obj.GetVariableDirect(cache.VariableIndex);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[nameId];
+                                                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (varIdx != -1)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.VariableIndex = varIdx;
+                                                    val = obj.GetVariableDirect(varIdx);
+                                                }
+                                                else val = obj.GetVariable(name);
+                                            }
+                                        }
+                                        state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.LocalPushDereferenceIndex:
+                                    {
+                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var index = state.Pop();
+                                        var objValue = state.Locals[idx];
+                                        DreamValue val = DreamValue.Null;
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
+                                        {
+                                            if (index.Type <= DreamValueType.Integer)
+                                            {
+                                                int listIdx = (int)index.UnsafeRawDouble - 1;
+                                                if (listIdx >= 0 && listIdx < list.Values.Count) val = list.Values[listIdx];
+                                            }
+                                            else val = list.GetValue(index);
+                                        }
+                                        state.Push(val);
+                                    }
+                                    break;
+                                case Opcode.LocalPushDereferenceCall:
+                                    {
+                                        int localIdx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int callNameId = *(int*)(state.BytecodePtr + state.PC);
+                                        int callPcForCache = state.PC - 1;
+                                        state.PC += 4;
+                                        var callArgType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
+                                        int callArgStackDelta = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var objValue = state.Locals[localIdx];
                                         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                         {
                                             IDreamProc? targetProc;
-                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            ref var cache = ref state.Proc._inlineCache[callPcForCache];
                                             if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
                                             {
                                                 targetProc = cache.CachedProc;
                                             }
                                             else
                                             {
-                                                var procName = state.Strings[nameId];
+                                                var procName = state.Strings[callNameId];
                                                 targetProc = obj.ObjectType?.GetProc(procName);
                                                 if (targetProc == null)
                                                 {
@@ -2023,33 +2075,13 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             if (targetProc != null)
                                             {
                                                 state.Thread.SavePC(state.PC);
-                                                int argCount = argStackDelta;
                                                 state.Thread._stackPtr = state.StackPtr;
-                                                state.Thread.PerformCall(targetProc, obj, argCount, argCount);
+                                                state.Thread.PerformCall(targetProc, obj, callArgStackDelta, callArgStackDelta);
                                                 goto FrameChanged;
                                             }
                                         }
-                                        state.StackPtr -= argStackDelta;
+                                        state.StackPtr -= callArgStackDelta;
                                         state.Push(DreamValue.Null);
-                                    }
-                                    break;
-                                case Opcode.LocalPushDereferenceIndex:
-                                    {
-                                        int idx = *(int*)(state.BytecodePtr + state.PC);
-                                        state.PC += 4;
-                                        var index = state.Stack[--state.StackPtr];
-                                        var objValue = state.Locals[idx];
-                                        DreamValue val = DreamValue.Null;
-                                        if (objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list)
-                                        {
-                                            if (index.Type <= DreamValueType.Integer)
-                                            {
-                                                int listIdx = (int)index.UnsafeRawDouble - 1;
-                                                if (listIdx >= 0 && listIdx < list.Values.Count) val = list.Values[listIdx];
-                                            }
-                                            else val = list.GetValue(index);
-                                        }
-                                        state.Push(val);
                                     }
                                     break;
                                 case Opcode.IsTypeDirect:
@@ -2154,38 +2186,6 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         if (!(state.Locals[idx1] >= state.Locals[idx2])) state.PC = address;
                                     }
                                     break;
-                                case Opcode.LocalPushDereferenceField:
-                                    {
-                                        int idx = *(int*)(state.BytecodePtr + state.PC);
-                                        state.PC += 4;
-                                        int nameId = *(int*)(state.BytecodePtr + state.PC);
-                                        int pcForCache = state.PC - 1;
-                                        state.PC += 4;
-                                        var objValue = state.Locals[idx];
-                                        DreamValue val = DreamValue.Null;
-                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-                                        {
-                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
-                                            if (cache.ObjectType == obj.ObjectType)
-                                            {
-                                                val = obj.GetVariableDirect(cache.VariableIndex);
-                                            }
-                                            else
-                                            {
-                                                var name = state.Strings[nameId];
-                                                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
-                                                if (varIdx != -1)
-                                                {
-                                                    cache.ObjectType = obj.ObjectType;
-                                                    cache.VariableIndex = varIdx;
-                                                    val = obj.GetVariableDirect(varIdx);
-                                                }
-                                                else val = obj.GetVariable(name);
-                                            }
-                                        }
-                                        state.Push(val);
-                                    }
-                                    break;
                                 case Opcode.LocalMulLocalAssign:
                                     {
                                         int idx1 = *(int*)(state.BytecodePtr + state.PC);
@@ -2224,28 +2224,28 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     break;
                                 case Opcode.LocalMulFloatAssign:
                                     {
-                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        int localIdx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        double floatVal = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
-                                        ref var a = ref state.Locals[idx];
-                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.GetValueAsDouble() * val);
-                                        else a = a * val;
+                                        ref var localVal = ref state.Locals[localIdx];
+                                        if (localVal.Type <= DreamValueType.Integer) localVal = new DreamValue(localVal.GetValueAsDouble() * floatVal);
+                                        else localVal = localVal * floatVal;
                                     }
                                     break;
                                 case Opcode.LocalDivFloatAssign:
                                     {
-                                        int idx = *(int*)(state.BytecodePtr + state.PC);
+                                        int localIdx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
-                                        double val = *(double*)(state.BytecodePtr + state.PC);
+                                        double floatVal = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
-                                        ref var a = ref state.Locals[idx];
-                                        if (val != 0)
+                                        ref var localVal = ref state.Locals[localIdx];
+                                        if (floatVal != 0)
                                         {
-                                            if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.GetValueAsDouble() / val);
-                                            else a = a / val;
+                                            if (localVal.Type <= DreamValueType.Integer) localVal = new DreamValue(localVal.GetValueAsDouble() / floatVal);
+                                            else localVal = localVal / floatVal;
                                         }
-                                        else a = new DreamValue(0.0);
+                                        else localVal = new DreamValue(0.0);
                                     }
                                     break;
                                 case Opcode.LocalMulFloat:

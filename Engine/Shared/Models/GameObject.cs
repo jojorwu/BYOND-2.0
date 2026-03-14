@@ -432,13 +432,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": return new DreamValue(Interlocked.Read(ref _x));
                 case "y": return new DreamValue(Interlocked.Read(ref _y));
                 case "z": return new DreamValue(Interlocked.Read(ref _z));
-                case "icon": { var idx = ObjectType?.IconIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.Null; }
-                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.Null; }
-                case "dir": { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : new DreamValue(2.0); }
-                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.False; }
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return new DreamValue(2.0); lock (_lock) { return _variableStore.Get(idx); } }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return DreamValue.False; lock (_lock) { return _variableStore.Get(idx); } }
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
-                case "name": { var idx = ObjectType?.NameIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : new DreamValue(ObjectType?.Name ?? "object"); }
-                case "desc": { var idx = ObjectType?.DescIndex ?? -1; return idx != -1 ? _variableStore.Get(idx) : DreamValue.Null; }
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx == -1) return new DreamValue(ObjectType?.Name ?? "object"); lock (_lock) { return _variableStore.Get(idx); } }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
             }
         }
 

@@ -74,7 +74,8 @@ namespace Shared.Services;
             var middlewareChain = _middlewareCache;
             for (int i = 0; i < middlewareChain.Length; i++)
             {
-                if (!await middlewareChain[i].ProcessAsync(context))
+                var result = await middlewareChain[i].ProcessAsync(context);
+                if (!result)
                     return;
             }
 

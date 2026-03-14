@@ -30,6 +30,7 @@ public struct ResourceMask : IEquatable<ResourceMask>
         else if (idx < 384) _mask5 |= (1UL << (int)(idx - 320));
         else if (idx < 448) _mask6 |= (1UL << (int)(idx - 384));
         else if (idx < 512) _mask7 |= (1UL << (int)(idx - 448));
+        else throw new ArgumentOutOfRangeException(nameof(index), $"Resource index {index} exceeds the supported mask limit (512).");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -56,6 +57,11 @@ public struct ResourceMask : IEquatable<ResourceMask>
                (_mask5 & other._mask5) != 0 ||
                (_mask6 & other._mask6) != 0 ||
                (_mask7 & other._mask7) != 0;
+    }
+
+    public void Clear()
+    {
+        _mask0 = _mask1 = _mask2 = _mask3 = _mask4 = _mask5 = _mask6 = _mask7 = 0;
     }
 
     public bool Supports(int index) => (uint)index < 512;

@@ -12,6 +12,7 @@ namespace Shared.Services;
     {
         private readonly Func<T> _factory;
         private readonly ConcurrentQueue<T> _globalQueue = new();
+        private readonly ConcurrentStack<T> _fallbackStack = new();
         private const int LocalCapacity = 4096;
         private const int MaxGlobalCapacity = 10485760;
 
@@ -45,6 +46,11 @@ namespace Shared.Services;
                 return globalObj;
             }
 
+            if (_fallbackStack.TryPop(out var fallbackObj))
+            {
+                return fallbackObj;
+            }
+
             return _factory();
         }
 
@@ -65,6 +71,10 @@ namespace Shared.Services;
             {
                 _globalQueue.Enqueue(obj);
             }
+            else
+            {
+                _fallbackStack.Push(obj);
+            }
         }
 
         public void Shrink()
@@ -78,5 +88,7 @@ namespace Shared.Services;
                     _globalQueue.TryDequeue(out _);
                 }
             }
+
+            _fallbackStack.Clear();
         }
     }

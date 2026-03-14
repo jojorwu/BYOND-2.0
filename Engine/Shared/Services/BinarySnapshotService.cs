@@ -9,7 +9,7 @@ namespace Shared.Services;
     public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
-        private readonly ThreadLocal<Dictionary<long, (byte[] Data, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Data, long Version)>());
+        private readonly ThreadLocal<Dictionary<long, (byte[] Data, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Data, long Version)>(), trackAllValues: true);
 
         public BinarySnapshotService(StringInterner? interner = null)
         {
@@ -18,7 +18,10 @@ namespace Shared.Services;
 
         public void Shrink()
         {
-            _deltaCache.Value?.Clear();
+            foreach (var dict in _deltaCache.Values)
+            {
+                dict.Clear();
+            }
         }
 
         public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)

@@ -72,7 +72,19 @@ public struct ResourceMask : IEquatable<ResourceMask>
 
     public override bool Equals(object? obj) => obj is ResourceMask other && Equals(other);
 
-    public override int GetHashCode() => HashCode.Combine(_mask0, _mask1);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(_mask0);
+        hash.Add(_mask1);
+        hash.Add(_mask2);
+        hash.Add(_mask3);
+        hash.Add(_mask4);
+        hash.Add(_mask5);
+        hash.Add(_mask6);
+        hash.Add(_mask7);
+        return hash.ToHashCode();
+    }
 
     public static bool operator ==(ResourceMask left, ResourceMask right) => left.Equals(right);
     public static bool operator !=(ResourceMask left, ResourceMask right) => !left.Equals(right);

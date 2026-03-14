@@ -175,9 +175,6 @@ public class ArchetypeManager : EngineService, IArchetypeManager
                             _removeTransitionsCache.TryGetValue((currentArchetype, componentType), out targetArchetype);
                         }
 
-                        var components = GetEntityComponentsInternal(entity.Id, currentArchetype);
-                        components.Remove(componentType);
-
                         if (targetArchetype != null)
                         {
                             int oldIndex = entity.ArchetypeIndex;
@@ -191,6 +188,8 @@ public class ArchetypeManager : EngineService, IArchetypeManager
                         else
                         {
                             var oldArchetype = currentArchetype;
+                            var components = GetEntityComponentsInternal(entity.Id, currentArchetype);
+                            components.Remove(componentType);
                             MoveToArchetypeInternal(entity, componentType, null, false);
                             // Populate transition cache
                             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)

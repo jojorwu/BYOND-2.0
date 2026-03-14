@@ -179,63 +179,63 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public string Icon
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.IconIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : string.Empty; }
+        get { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return string.Empty; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public string IconState
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.IconStateIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : string.Empty; }
+        get { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return string.Empty; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public int Dir
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? (int)_variableStore.Get(idx).GetValueAsDouble() : 2; }
+        get { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return 2; lock (_lock) { return (int)_variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value)); }
     }
 
     public double Alpha
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.AlphaIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 255.0; }
+        get { var idx = ObjectType?.AlphaIndex ?? -1; if (idx == -1) return 255.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public string Color
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.ColorIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : "#ffffff"; }
+        get { var idx = ObjectType?.ColorIndex ?? -1; if (idx == -1) return "#ffffff"; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double Layer
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.LayerIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 2.0; }
+        get { var idx = ObjectType?.LayerIndex ?? -1; if (idx == -1) return 2.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double PixelX
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.PixelXIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        get { var idx = ObjectType?.PixelXIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double PixelY
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.PixelYIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        get { var idx = ObjectType?.PixelYIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double Opacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        get { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 

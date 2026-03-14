@@ -91,14 +91,18 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
 
     private List<List<ISystem>> ResolveResourceConflicts(List<ISystem> systems)
     {
-        if (systems.Count <= 1) return new List<List<ISystem>> { systems };
+        int count = systems.Count;
+        if (count <= 1) return new List<List<ISystem>> { systems };
 
         var subLayers = new List<List<ISystem>>();
-        var remaining = new List<ISystem>(systems);
 
         // Pre-fetch resource masks to avoid Type lookups and HashSet operations in the planning loop
-        var systemResources = systems.ToDictionary(s => s, s =>
+        var systemReadMasks = new ResourceMask[count];
+        var systemWriteMasks = new ResourceMask[count];
+
+        for (int i = 0; i < count; i++)
         {
+            var s = systems[i];
             var readMask = new ResourceMask();
             var writeMask = new ResourceMask();
             foreach (var type in s.ReadResources)
@@ -115,19 +119,26 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
                     throw new InvalidOperationException($"System '{s.Name}' uses component type '{type.Name}' with ID {id}, which exceeds the supported resource mask limit (512).");
                 writeMask.Set(id);
             }
-            return (Read: readMask, Write: writeMask);
-        });
+            systemReadMasks[i] = readMask;
+            systemWriteMasks[i] = writeMask;
+        }
 
-        while (remaining.Count > 0)
+        // Track remaining systems to be scheduled in this layer
+        bool[] scheduled = new bool[count];
+        int remainingCount = count;
+
+        while (remainingCount > 0)
         {
             var currentSubLayer = new List<ISystem>();
             var lockedForRead = new ResourceMask();
             var lockedForWrite = new ResourceMask();
 
-            for (int i = 0; i < remaining.Count; i++)
+            for (int i = 0; i < count; i++)
             {
-                var system = remaining[i];
-                var (readMask, writeMask) = systemResources[system];
+                if (scheduled[i]) continue;
+
+                var readMask = systemReadMasks[i];
+                var writeMask = systemWriteMasks[i];
 
                 // Write access conflicts with existing read or write locks
                 bool hasConflict = writeMask.Overlaps(lockedForWrite) || writeMask.Overlaps(lockedForRead);
@@ -140,15 +151,12 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
 
                 if (!hasConflict)
                 {
-                    currentSubLayer.Add(system);
-                    // Update current sub-layer locks
-                    // Note: We need a way to combine ResourceMasks, adding a simple OR pattern or updating masks
-                    // Since ResourceMask is a struct with private fields, let's update it to support combination or do it here
-                    Combine(ref lockedForWrite, writeMask);
-                    Combine(ref lockedForRead, readMask);
+                    currentSubLayer.Add(systems[i]);
+                    lockedForWrite.UnionWith(writeMask);
+                    lockedForRead.UnionWith(readMask);
 
-                    remaining.RemoveAt(i);
-                    i--;
+                    scheduled[i] = true;
+                    remainingCount--;
                 }
             }
 
@@ -159,17 +167,17 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
             else
             {
                 // This shouldn't happen with correct dependency planning, but act as a safety net
-                subLayers.Add(new List<ISystem>(remaining));
-                remaining.Clear();
+                var remainingSystems = new List<ISystem>();
+                for (int i = 0; i < count; i++)
+                {
+                    if (!scheduled[i]) remainingSystems.Add(systems[i]);
+                }
+                subLayers.Add(remainingSystems);
+                remainingCount = 0;
             }
         }
 
         return subLayers;
     }
 
-    private static void Combine(ref ResourceMask target, ResourceMask source)
-    {
-        // Internal fields are private, so we need to add a method to ResourceMask
-        target.UnionWith(source);
-    }
 }

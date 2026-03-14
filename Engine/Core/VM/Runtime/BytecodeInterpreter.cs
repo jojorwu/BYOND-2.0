@@ -266,6 +266,59 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                             // Fast-path switch for hot opcodes to enable better JIT branch prediction
                             switch (opcode)
                             {
+                                case Opcode.LocalFieldTransfer:
+                                    {
+                                        int srcIdx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int nameId = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int targetIdx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int pcForCache = state.PC - 13;
+
+                                        var objValue = state.Locals[srcIdx];
+                                        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                                        {
+                                            ref var cache = ref state.Proc._inlineCache[pcForCache];
+                                            if (cache.ObjectType == obj.ObjectType)
+                                            {
+                                                state.Locals[targetIdx] = obj.GetVariableDirect(cache.VariableIndex);
+                                            }
+                                            else
+                                            {
+                                                var name = state.Strings[nameId];
+                                                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                                                if (varIdx != -1)
+                                                {
+                                                    cache.ObjectType = obj.ObjectType;
+                                                    cache.VariableIndex = varIdx;
+                                                    state.Locals[targetIdx] = obj.GetVariableDirect(varIdx);
+                                                }
+                                                else state.Locals[targetIdx] = obj.GetVariable(name);
+                                            }
+                                        }
+                                        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+                                    }
+                                    break;
+                                case Opcode.GlobalJumpIfFalse:
+                                    {
+                                        int globalIdx = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        int address = *(int*)(state.BytecodePtr + state.PC);
+                                        state.PC += 4;
+                                        var val = state.Globals[globalIdx];
+
+                                        bool isFalse;
+                                        var type = val.Type;
+                                        if (type == DreamValueType.Null) isFalse = true;
+                                        else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
+                                        else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
+                                        else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
+                                        else isFalse = false;
+
+                                        if (isFalse) state.PC = address;
+                                    }
+                                    break;
                                 case Opcode.PushLocal:
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);

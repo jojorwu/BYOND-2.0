@@ -14,7 +14,7 @@ namespace Client.UI
             ImGui.SetNextWindowPos(new Vector2(io.DisplaySize.X * 0.5f, io.DisplaySize.Y * 0.5f), ImGuiCond.Always, new Vector2(0.5f, 0.5f));
             ImGui.SetNextWindowSize(new Vector2(400, 0));
 
-            if (ImGui.Begin("Connect to Server", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove))
+            if (ImGui.Begin("Connect to Server", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize))
             {
                 ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0, 10));
 

@@ -61,6 +61,11 @@ namespace Core
 
         public string? ExecuteCommand(string command)
         {
+            if (command == null)
+            {
+                throw new System.ArgumentNullException(nameof(command));
+            }
+
             foreach (var system in _systems)
             {
                 var result = system.ExecuteString(command);

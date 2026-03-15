@@ -113,6 +113,11 @@ namespace Core.Scripting.LuaSystem
 
         public string? ExecuteString(string command)
         {
+            if (command == null)
+            {
+                throw new ArgumentNullException(nameof(command));
+            }
+
             try
             {
                 var result = _lua?.DoString(command);

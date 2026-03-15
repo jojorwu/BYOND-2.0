@@ -18,7 +18,7 @@ public static class CVarUiRegistry
         {
             bool val = (bool)info.Value;
             ImGui.BeginDisabled(info.IsLocked);
-            if (ImGui.Checkbox(info.Name, ref val))
+            if (ImGui.Checkbox($"##{info.Name}", ref val))
             {
                 manager.SetCVar(info.Name, val);
             }
@@ -29,7 +29,8 @@ public static class CVarUiRegistry
         {
             int val = (int)info.Value;
             ImGui.BeginDisabled(info.IsLocked);
-            if (ImGui.InputInt(info.Name, ref val))
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.InputInt($"##{info.Name}", ref val))
             {
                 manager.SetCVar(info.Name, val);
             }
@@ -41,7 +42,8 @@ public static class CVarUiRegistry
             long val = (long)info.Value;
             int intVal = (int)val;
             ImGui.BeginDisabled(info.IsLocked);
-            if (ImGui.InputInt(info.Name, ref intVal))
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.InputInt($"##{info.Name}", ref intVal))
             {
                 manager.SetCVar(info.Name, (long)intVal);
             }
@@ -52,7 +54,8 @@ public static class CVarUiRegistry
         {
             double val = (double)info.Value;
             ImGui.BeginDisabled(info.IsLocked);
-            if (ImGui.InputDouble(info.Name, ref val))
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.InputDouble($"##{info.Name}", ref val))
             {
                 manager.SetCVar(info.Name, val);
             }
@@ -63,7 +66,8 @@ public static class CVarUiRegistry
         {
             float val = (float)info.Value;
             ImGui.BeginDisabled(info.IsLocked);
-            if (ImGui.InputFloat(info.Name, ref val))
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.InputFloat($"##{info.Name}", ref val))
             {
                 manager.SetCVar(info.Name, val);
             }
@@ -74,7 +78,8 @@ public static class CVarUiRegistry
         {
             string val = (string)info.Value;
             ImGui.BeginDisabled(info.IsLocked);
-            if (ImGui.InputText(info.Name, ref val, 256))
+            ImGui.SetNextItemWidth(-1);
+            if (ImGui.InputText($"##{info.Name}", ref val, 256))
             {
                 manager.SetCVar(info.Name, val);
             }

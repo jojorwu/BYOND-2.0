@@ -85,9 +85,9 @@ void main() {
 
     if (dToLight > 8.0) {
         vec2 dir = normalize(uLightPos - WorldPos);
-        // Use larger steps for performance, but offset starting point to reduce banding
-        float start = 4.0 + fract(sin(dot(WorldPos, vec2(12.9898, 78.233))) * 43758.5453) * 4.0;
-        for (float i = start; i < dToLight - 4.0; i += 12.0) {
+        float noise = fract(sin(dot(WorldPos, vec2(12.9898, 78.233))) * 43758.5453);
+        float start = 4.0 + noise * 6.0;
+        for (float i = start; i < dToLight - 4.0; i += 8.0) {
             vec2 samplePos = WorldPos + dir * i;
             vec2 uv = (samplePos - uScreenBounds.xy) / (uScreenBounds.zw - uScreenBounds.xy);
             if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
@@ -99,7 +99,9 @@ void main() {
         }
     }
 
-    FragColor = vec4(uColor.rgb, uColor.a * intensity * shadow);
+    // Quadratic falloff for light intensity
+    float falloff = 1.0 / (1.0 + 0.005 * dToLight + 0.0001 * dToLight * dToLight);
+    FragColor = vec4(uColor.rgb, uColor.a * intensity * shadow * falloff);
 }";
 
             _lightingShader = new Shader(_gl, vert, frag);

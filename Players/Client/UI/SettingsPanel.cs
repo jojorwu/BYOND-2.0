@@ -94,10 +94,7 @@ namespace Client.UI
                 _cachedCategoryCVars[category] = cvars;
             }
 
-            foreach (var info in cvars)
-            {
-                DrawCVarEditor(info);
-            }
+            DrawCVarTable(cvars);
         }
 
         private void DrawFilteredCVars(ref List<CVarInfo>? cache, CVarFlags filter)
@@ -112,9 +109,40 @@ namespace Client.UI
                 cache = query.OrderBy(c => c.Name).ToList();
             }
 
-            foreach (var info in cache)
+            DrawCVarTable(cache);
+        }
+
+        private void DrawCVarTable(List<CVarInfo> cvars)
+        {
+            if (ImGui.BeginTable("CVarTable", 2, ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             {
-                DrawCVarEditor(info);
+                ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, 200);
+                ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableHeadersRow();
+
+                foreach (var info in cvars)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+
+                    ImGui.TextUnformatted(info.Name);
+                    if (!string.IsNullOrEmpty(info.Description))
+                    {
+                        ImGui.SameLine();
+                        ImGui.TextDisabled("(?)");
+                        if (ImGui.IsItemHovered())
+                        {
+                            ImGui.SetTooltip(info.Description);
+                        }
+                    }
+
+                    ImGui.TableNextColumn();
+                    if (!CVarUiRegistry.TryDraw(info, _manager))
+                    {
+                        ImGui.Text($"{info.Value} (Unsupported)");
+                    }
+                }
+                ImGui.EndTable();
             }
         }
 
@@ -125,7 +153,7 @@ namespace Client.UI
 
         private void DrawCVarEditor(CVarInfo info)
         {
-            CVarUiHelper.DrawCVarEditor(info, _manager);
+            CVarUiRegistry.TryDraw(info, _manager);
         }
     }
 }

@@ -93,7 +93,7 @@ namespace Client.UI
 
                         ImGui.TableNextRow();
                         ImGui.TableNextColumn(); ImGui.TextDisabled("Pos:");
-                        ImGui.TableNextColumn(); ImGui.Text($"{player.X}, {player.Y}");
+                        ImGui.TableNextColumn(); ImGui.Text($"{player.X}, {player.Y}, {player.Z}");
 
                         ImGui.EndTable();
                     }

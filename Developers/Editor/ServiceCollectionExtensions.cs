@@ -3,6 +3,7 @@ using Editor.History;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
 using Shared.Config;
+using Shared.Services;
 
 namespace Editor
 {
@@ -10,6 +11,7 @@ namespace Editor
     {
         public static IServiceCollection AddEditorServices(this IServiceCollection services)
         {
+            services.AddEngineServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
             services.AddSingleton<Editor>(provider =>
                 new Editor(
                     provider,

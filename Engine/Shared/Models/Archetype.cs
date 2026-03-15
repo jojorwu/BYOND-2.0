@@ -138,7 +138,7 @@ public class Archetype
             int lastIndex = _count - 1;
             var arrays = _componentArrays;
 
-            // Optimization: If the entity is already the last one, we don't need to swap
+            // Optimization: If the entity is already the last one, we skip the swap and copy
             if (index != lastIndex)
             {
                 long lastEntityId = _entityIds[lastIndex];

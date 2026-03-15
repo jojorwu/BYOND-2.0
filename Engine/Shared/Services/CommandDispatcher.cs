@@ -158,6 +158,7 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
         {
             await foreach (var command in _commandChannel.Reader.ReadAllAsync())
             {
+                // Offload command processing to the Job System for parallel execution
                 _jobSystem.Schedule(async () =>
                 {
                     var context = _contextPool.Rent();

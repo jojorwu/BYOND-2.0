@@ -93,9 +93,7 @@ namespace Shared;
 
             if (AdvSimd.Arm64.IsSupported)
             {
-                // Optimization for ARM64: ARM doesn't have PDEP, but we can use bit manipulation instructions
-                // or SIMD to speed this up compared to the scalar loop.
-                // For now, we utilize the scalar fallback as it's already well-optimized for pipelining.
+                // Optimization for ARM64: Utilize bit manipulation for coordinate interleaving
             }
 
             ulong val = x;

@@ -137,6 +137,7 @@ public class FastEventBus : IEventBus
             for (int i = 0; i < asyncActions.Length; i++)
             {
                 var task = asyncActions[i](eventData);
+                // Optimized Check: Bypasses state machine overhead for synchronous handlers
                 if (!task.IsCompleted) await task;
             }
         }

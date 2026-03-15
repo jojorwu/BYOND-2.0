@@ -56,15 +56,14 @@ internal struct DreamStack : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void EnsureCapacity(int required, int maxStackSize)
     {
-        if (Pointer + required >= Array.Length)
+        if (Pointer + required > Array.Length)
         {
             int minSize = Pointer + required;
+            if (minSize > maxStackSize) throw new InvalidOperationException("Stack size limit reached");
+
             int newSize = Array.Length == 0 ? 1024 : Array.Length * 2;
             while (newSize < minSize) newSize *= 2;
-
             newSize = Math.Min(newSize, maxStackSize);
-            if (newSize <= Array.Length && minSize <= Array.Length) return;
-            if (minSize > maxStackSize) throw new InvalidOperationException("Stack size limit reached");
 
             var newStack = ArrayPool<DreamValue>.Shared.Rent(newSize);
             System.Array.Copy(Array, newStack, Pointer);

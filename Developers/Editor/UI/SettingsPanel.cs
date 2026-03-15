@@ -20,6 +20,7 @@ namespace Editor.UI
             if (!IsOpen)
                 return;
 
+            ImGui.SetNextWindowSize(new System.Numerics.Vector2(500, 400), ImGuiCond.FirstUseEver);
             bool isOpen = IsOpen;
             if (ImGui.Begin(Name, ref isOpen))
             {
@@ -29,43 +30,139 @@ namespace Editor.UI
                 {
                     if (ImGui.BeginTabItem("General"))
                     {
-                        string serverPath = settings.ServerExecutablePath;
-                        string clientPath = settings.ClientExecutablePath;
-                        if (ImGui.InputText("Server Executable", ref serverPath, 260)) settings.ServerExecutablePath = serverPath;
-                        if (ImGui.InputText("Client Executable", ref clientPath, 260)) settings.ClientExecutablePath = clientPath;
-
-                        bool useDarkTheme = settings.UseDarkTheme;
-                        if (ImGui.Checkbox("Use Dark Theme", ref useDarkTheme)) settings.UseDarkTheme = useDarkTheme;
-
-                        int fontSize = settings.FontSize;
-                        if (ImGui.InputInt("Font Size", ref fontSize)) settings.FontSize = fontSize;
-
-                        bool autoSave = settings.AutoSave;
-                        if (ImGui.Checkbox("Auto Save", ref autoSave)) settings.AutoSave = autoSave;
-
-                        if (settings.AutoSave)
+                        if (ImGui.BeginTable("GeneralSettingsTable", 2))
                         {
-                            int interval = settings.AutoSaveIntervalMinutes;
-                            if (ImGui.InputInt("Auto Save Interval (min)", ref interval)) settings.AutoSaveIntervalMinutes = interval;
-                        }
+                            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 150);
+                            ImGui.TableSetupColumn("Editor", ImGuiTableColumnFlags.WidthStretch);
 
+                            DrawSettingRow("Server Executable", () => {
+                                string serverPath = settings.ServerExecutablePath;
+                                if (ImGui.InputText("##ServerExecutable", ref serverPath, 260)) settings.ServerExecutablePath = serverPath;
+                            });
+
+                            DrawSettingRow("Client Executable", () => {
+                                string clientPath = settings.ClientExecutablePath;
+                                if (ImGui.InputText("##ClientExecutable", ref clientPath, 260)) settings.ClientExecutablePath = clientPath;
+                            });
+
+                            DrawSettingRow("Use Dark Theme", () => {
+                                bool useDarkTheme = settings.UseDarkTheme;
+                                if (ImGui.Checkbox("##UseDarkTheme", ref useDarkTheme)) settings.UseDarkTheme = useDarkTheme;
+                            });
+
+                            DrawSettingRow("Font Size", () => {
+                                int fontSize = settings.FontSize;
+                                if (ImGui.InputInt("##FontSize", ref fontSize)) settings.FontSize = fontSize;
+                            });
+
+                            DrawSettingRow("Auto Save", () => {
+                                bool autoSave = settings.AutoSave;
+                                if (ImGui.Checkbox("##AutoSave", ref autoSave)) settings.AutoSave = autoSave;
+                            });
+
+                            if (settings.AutoSave)
+                            {
+                                DrawSettingRow("Interval (min)", () => {
+                                    int interval = settings.AutoSaveIntervalMinutes;
+                                    if (ImGui.InputInt("##AutoSaveInterval", ref interval)) settings.AutoSaveIntervalMinutes = interval;
+                                });
+                            }
+
+                            ImGui.EndTable();
+                        }
+                        ImGui.EndTabItem();
+                    }
+
+                    if (ImGui.BeginTabItem("Graphics"))
+                    {
+                        if (ImGui.BeginTable("GraphicsSettingsTable", 2))
+                        {
+                            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 150);
+                            ImGui.TableSetupColumn("Editor", ImGuiTableColumnFlags.WidthStretch);
+
+                            DrawSettingRow("Backend", () => {
+                                string[] backends = { "OpenGL", "Vulkan" };
+                                int currentIdx = System.Array.IndexOf(backends, settings.GraphicsBackend);
+                                if (ImGui.Combo("##Backend", ref currentIdx, backends, backends.Length)) settings.GraphicsBackend = backends[currentIdx];
+                            });
+
+                            DrawSettingRow("Resolution X", () => {
+                                int resX = settings.ResolutionX;
+                                if (ImGui.InputInt("##ResX", ref resX)) settings.ResolutionX = resX;
+                            });
+
+                            DrawSettingRow("Resolution Y", () => {
+                                int resY = settings.ResolutionY;
+                                if (ImGui.InputInt("##ResY", ref resY)) settings.ResolutionY = resY;
+                            });
+
+                            DrawSettingRow("VSync", () => {
+                                bool vsync = settings.VSync;
+                                if (ImGui.Checkbox("##VSync", ref vsync)) settings.VSync = vsync;
+                            });
+
+                            DrawSettingRow("Enable SSAO", () => {
+                                bool ssao = settings.EnableSsao;
+                                if (ImGui.Checkbox("##SSAO", ref ssao)) settings.EnableSsao = ssao;
+                            });
+
+                            DrawSettingRow("Enable Bloom", () => {
+                                bool bloom = settings.EnableBloom;
+                                if (ImGui.Checkbox("##Bloom", ref bloom)) settings.EnableBloom = bloom;
+                            });
+
+                            ImGui.EndTable();
+                        }
                         ImGui.EndTabItem();
                     }
 
                     if (ImGui.BeginTabItem("Viewport"))
                     {
-                        bool showGrid = settings.ShowGrid;
-                        if (ImGui.Checkbox("Show Grid", ref showGrid)) settings.ShowGrid = showGrid;
+                        if (ImGui.BeginTable("ViewportSettingsTable", 2))
+                        {
+                            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 150);
+                            ImGui.TableSetupColumn("Editor", ImGuiTableColumnFlags.WidthStretch);
 
-                        int gridSize = settings.GridSize;
-                        if (ImGui.InputInt("Grid Size", ref gridSize)) settings.GridSize = gridSize;
+                            DrawSettingRow("Show Grid", () => {
+                                bool showGrid = settings.ShowGrid;
+                                if (ImGui.Checkbox("##ShowGrid", ref showGrid)) settings.ShowGrid = showGrid;
+                            });
 
-                        var gridColor = settings.GridColor;
-                        if (ImGui.ColorEdit4("Grid Color", ref gridColor)) settings.GridColor = gridColor;
+                            DrawSettingRow("Grid Size", () => {
+                                int gridSize = settings.GridSize;
+                                if (ImGui.InputInt("##GridSize", ref gridSize)) settings.GridSize = gridSize;
+                            });
 
-                        bool snapToGrid = settings.SnapToGrid;
-                        if (ImGui.Checkbox("Snap To Grid", ref snapToGrid)) settings.SnapToGrid = snapToGrid;
+                            DrawSettingRow("Grid Color", () => {
+                                var gridColor = settings.GridColor;
+                                if (ImGui.ColorEdit4("##GridColor", ref gridColor)) settings.GridColor = gridColor;
+                            });
 
+                            DrawSettingRow("Snap To Grid", () => {
+                                bool snapToGrid = settings.SnapToGrid;
+                                if (ImGui.Checkbox("##SnapToGrid", ref snapToGrid)) settings.SnapToGrid = snapToGrid;
+                            });
+
+                            ImGui.EndTable();
+                        }
+                        ImGui.EndTabItem();
+                    }
+
+                    if (ImGui.BeginTabItem("API"))
+                    {
+                         if (ImGui.BeginTable("ApiSettingsTable", 2))
+                        {
+                            ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 150);
+                            ImGui.TableSetupColumn("Editor", ImGuiTableColumnFlags.WidthStretch);
+
+                            DrawSettingRow("Target Scripting API", () => {
+                                string[] apis = { "Lua", "C#", "DM" };
+                                int currentIdx = System.Array.IndexOf(apis, settings.TargetApi);
+                                if (ImGui.Combo("##TargetApi", ref currentIdx, apis, apis.Length)) settings.TargetApi = apis[currentIdx];
+                            });
+
+                            ImGui.EndTable();
+                        }
                         ImGui.EndTabItem();
                     }
 
@@ -73,12 +170,12 @@ namespace Editor.UI
                 }
 
                 ImGui.Separator();
-                if (ImGui.Button("Save"))
+                if (ImGui.Button("Save", new System.Numerics.Vector2(100, 30)))
                 {
                     _settingsManager.Save();
                 }
                 ImGui.SameLine();
-                if (ImGui.Button("Close"))
+                if (ImGui.Button("Close", new System.Numerics.Vector2(100, 30)))
                 {
                     isOpen = false;
                 }
@@ -86,6 +183,17 @@ namespace Editor.UI
                 ImGui.End();
             }
             IsOpen = isOpen;
+        }
+
+        private void DrawSettingRow(string label, System.Action drawEditor)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextUnformatted(label);
+            ImGui.TableNextColumn();
+            ImGui.SetNextItemWidth(-1);
+            drawEditor();
         }
     }
 }

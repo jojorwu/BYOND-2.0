@@ -9,7 +9,7 @@ namespace Shared.Services;
     public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
-        private readonly ThreadLocal<Dictionary<long, (byte[] Data, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Data, long Version)>(), trackAllValues: true);
+        private readonly ThreadLocal<Dictionary<long, (byte[] Buffer, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Buffer, int Length, long Version)>(), trackAllValues: true);
 
         public BinarySnapshotService(StringInterner? interner = null)
         {
@@ -20,6 +20,10 @@ namespace Shared.Services;
         {
             foreach (var dict in _deltaCache.Values)
             {
+                foreach (var item in dict.Values)
+                {
+                    ArrayPool<byte>.Shared.Return(item.Buffer);
+                }
                 dict.Clear();
             }
         }
@@ -119,13 +123,13 @@ namespace Shared.Services;
             var cache = _deltaCache.Value!;
             if (cache.TryGetValue(obj.Id, out var cached) && cached.Version == obj.Version)
             {
-                if (offset + cached.Data.Length > destination.Length)
+                if (offset + cached.Length > destination.Length)
                 {
                     truncated = true;
                     return true;
                 }
-                cached.Data.AsSpan().CopyTo(destination.Slice(offset));
-                offset += cached.Data.Length;
+                cached.Buffer.AsSpan(0, cached.Length).CopyTo(destination.Slice(offset));
+                offset += cached.Length;
                 if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
                 return false;
             }
@@ -175,9 +179,9 @@ namespace Shared.Services;
 
             // Cache the result for reuse in the same tick
             int length = offset - objectStartOffset;
-            byte[] data = new byte[length];
-            destination.Slice(objectStartOffset, length).CopyTo(data);
-            cache[obj.Id] = (data, obj.Version);
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
+            destination.Slice(objectStartOffset, length).CopyTo(buffer);
+            cache[obj.Id] = (buffer, length, obj.Version);
 
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             return false;

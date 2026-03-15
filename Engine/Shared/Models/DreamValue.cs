@@ -733,14 +733,16 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsFalse()
         {
+            // Optimization for 64-bit systems: Use bitwise OR to check if both float/long and object are zero/null
+            // for the common Null case, then switch for specific type logic.
+            if ((_longValue | Unsafe.As<object?, long>(ref Unsafe.AsRef(in _objectValue))) == 0) return true;
+
             switch (Type)
             {
-                case DreamValueType.Null:
-                    return true;
                 case DreamValueType.Float:
                     return _floatValue == 0.0;
                 case DreamValueType.Integer:
-                    return _longValue == 0;
+                    return _longValue == 0; // Handled by first check but kept for completeness
                 case DreamValueType.String:
                     return ((string)_objectValue!).Length == 0;
                 default:
@@ -840,7 +842,7 @@ namespace Shared;
                         var s = (string)_objectValue!;
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
                         // VarInt length prefix
-                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -859,7 +861,7 @@ namespace Shared;
                         span[offset++] = 0; // Boolean false
                         var s = ToString();
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
-                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -868,25 +870,12 @@ namespace Shared;
                     {
                         var s = ToString();
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
-                        int lenBytes = WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
                     }
             }
-        }
-
-        private static int WriteVarInt(Span<byte> span, long value)
-        {
-            ulong v = (ulong)value;
-            int count = 0;
-            while (v >= 0x80)
-            {
-                span[count++] = (byte)(v | 0x80);
-                v >>= 7;
-            }
-            span[count++] = (byte)v;
-            return count;
         }
 
         public static DreamValue ReadFrom(ReadOnlySpan<byte> span, out int bytesRead)

@@ -66,4 +66,9 @@ namespace Shared.Interfaces;
         /// Time taken for startup in milliseconds.
         /// </summary>
         long StartupDurationMs { get; }
+
+        /// <summary>
+        /// Sets the durations for initialization and startup.
+        /// </summary>
+        void SetDurations(long initializationDurationMs, long startupDurationMs);
     }

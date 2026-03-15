@@ -65,35 +65,67 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
     {
         var middlewares = _middlewareCache;
 
-        try
+        if (middlewares.Length == 0)
         {
-            if (middlewares.Length == 0)
+            try
             {
                 await finalAction();
             }
-            else
+            catch (Exception ex)
             {
-                int index = 0;
-                Func<Task>? nextDelegate = null;
-                nextDelegate = async () =>
-                {
-                    if (index < middlewares.Length)
-                    {
-                        var middleware = middlewares[index++];
-                        await middleware.ProcessAsync(context, nextDelegate!);
-                    }
-                    else
-                    {
-                        await finalAction();
-                    }
-                };
-
-                await nextDelegate();
+                context.Exception = ex;
             }
+            return;
+        }
+
+        var runner = _runnerPool.Rent();
+        try
+        {
+            await runner.ExecuteAsync(middlewares, context, finalAction);
         }
         catch (Exception ex)
         {
             context.Exception = ex;
+        }
+        finally
+        {
+            _runnerPool.Return(runner);
+        }
+    }
+
+    private static readonly SharedPool<MiddlewareRunner> _runnerPool = new(() => new MiddlewareRunner());
+
+    private class MiddlewareRunner
+    {
+        private ICommandMiddleware[] _middlewares = null!;
+        private CommandContext _context = null!;
+        private Func<Task> _finalAction = null!;
+        private int _index;
+        private readonly Func<Task> _nextDelegate;
+
+        public MiddlewareRunner()
+        {
+            _nextDelegate = InvokeNextAsync;
+        }
+
+        public Task ExecuteAsync(ICommandMiddleware[] middlewares, CommandContext context, Func<Task> finalAction)
+        {
+            _middlewares = middlewares;
+            _context = context;
+            _finalAction = finalAction;
+            _index = 0;
+            return InvokeNextAsync();
+        }
+
+        private Task InvokeNextAsync()
+        {
+            if (_index < _middlewares.Length)
+            {
+                var middleware = _middlewares[_index++];
+                return middleware.ProcessAsync(_context, _nextDelegate);
+            }
+
+            return _finalAction();
         }
     }
 

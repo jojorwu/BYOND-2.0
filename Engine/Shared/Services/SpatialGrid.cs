@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics.Arm;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -44,6 +46,7 @@ namespace Shared;
 
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<Cell> _activeCells = new();
+        private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
@@ -83,6 +86,18 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ulong InterleaveBits(uint x)
         {
+            if (Bmi2.X64.IsSupported)
+            {
+                return Bmi2.X64.ParallelBitDeposit(x, 0x5555555555555555);
+            }
+
+            if (AdvSimd.Arm64.IsSupported)
+            {
+                // Optimization for ARM64: ARM doesn't have PDEP, but we can use bit manipulation instructions
+                // or SIMD to speed this up compared to the scalar loop.
+                // For now, we utilize the scalar fallback as it's already well-optimized for pipelining.
+            }
+
             ulong val = x;
             val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
             val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
@@ -204,10 +219,16 @@ namespace Shared;
             if (obj.PrevInGridCell != null) obj.PrevInGridCell.NextInGridCell = obj.NextInGridCell;
             if (obj.NextInGridCell != null) obj.NextInGridCell.PrevInGridCell = obj.PrevInGridCell;
 
+            var oldKey = obj.CurrentGridCellKey;
             obj.NextInGridCell = null;
             obj.PrevInGridCell = null;
             obj.CurrentGridCellKey = null;
             cell.Count--;
+
+            if (cell.Count == 0 && oldKey != null)
+            {
+                _emptyCellKeys.Enqueue(GetMortonCode(oldKey.Value.X, oldKey.Value.Y));
+            }
         }
 
         public void Update(IGameObject obj, long oldX, long oldY)
@@ -345,30 +366,29 @@ namespace Shared;
 
         public void CleanupEmptyCells()
         {
-            foreach (var kvp in _grid)
+            while (_emptyCellKeys.TryDequeue(out var key))
             {
-                var cell = kvp.Value;
-                if (cell.Count == 0)
+                if (_grid.TryGetValue(key, out var cell))
                 {
-                    bool lockTaken = false;
-                    try
+                    if (cell.Count == 0)
                     {
-                        cell.Lock.Enter(ref lockTaken);
-                        if (cell.Count == 0)
+                        bool lockTaken = false;
+                        try
                         {
-                            if (_grid.TryGetValue(kvp.Key, out var current) && current == cell)
+                            cell.Lock.Enter(ref lockTaken);
+                            if (cell.Count == 0)
                             {
-                                if (_grid.TryRemove(kvp.Key, out var removed))
+                                if (_grid.TryRemove(key, out var removed))
                                 {
                                     removed.Clear();
                                     _cellPool.Push(removed);
                                 }
                             }
                         }
-                    }
-                    finally
-                    {
-                        if (lockTaken) cell.Lock.Exit(false);
+                        finally
+                        {
+                            if (lockTaken) cell.Lock.Exit(false);
+                        }
                     }
                 }
             }
@@ -396,7 +416,28 @@ namespace Shared;
 
         public void GetObjectsInBox(Box2l box, List<IGameObject> results)
         {
-            QueryBox(box, obj => results.Add(obj));
+            results.Clear();
+            GetObjectsInBox(box, (IList<IGameObject>)results);
+        }
+
+        /// <summary>
+        /// Retrieves all objects in the given box and adds them to the results list.
+        /// This overload allows the caller to provide a pre-allocated list to avoid heap churn.
+        /// </summary>
+        public void GetObjectsInBox(Box2l box, IList<IGameObject> results)
+        {
+            var enumerator = new BoxEnumerator(this, box);
+            try
+            {
+                while (enumerator.MoveNext())
+                {
+                    results.Add(enumerator.Current);
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
+            }
         }
 
         public void Dispose()

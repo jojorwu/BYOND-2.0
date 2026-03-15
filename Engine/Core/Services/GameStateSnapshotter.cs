@@ -1,3 +1,6 @@
+using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.Text.Json;
 using Shared;
 using Shared.Services;
@@ -54,7 +57,27 @@ namespace Core
         {
             using (gameState.ReadLock())
             {
-                return _binarySnapshotService.Serialize(gameState.GameObjects.Values);
+                var objects = gameState.GameObjects.Values;
+                int bufferSize = Math.Max(65536, objects.Count * 64);
+                while (true)
+                {
+                    var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(bufferSize);
+                    try
+                    {
+                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
+                        if (!truncated)
+                        {
+                            byte[] result = new byte[bytesWritten];
+                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
+                            return result;
+                        }
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                    bufferSize *= 2;
+                }
             }
         }
 
@@ -62,7 +85,27 @@ namespace Core
         {
             using (gameState.ReadLock())
             {
-                return _binarySnapshotService.Serialize(mergedRegion.GetGameObjects(gameState));
+                var objects = mergedRegion.GetGameObjects(gameState).ToList();
+                int bufferSize = Math.Max(65536, objects.Count * 64);
+                while (true)
+                {
+                    var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(bufferSize);
+                    try
+                    {
+                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
+                        if (!truncated)
+                        {
+                            byte[] result = new byte[bytesWritten];
+                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
+                            return result;
+                        }
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                    bufferSize *= 2;
+                }
             }
         }
     }

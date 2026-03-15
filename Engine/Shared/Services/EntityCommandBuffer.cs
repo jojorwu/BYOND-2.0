@@ -76,6 +76,7 @@ namespace Shared.Services;
         private readonly Dictionary<IGameObject, int> _targetToLastCommand = new();
         private readonly List<int> _creationIndices = new();
         private readonly List<IGameObject> _uniqueTargets = new();
+        private static readonly SharedPool<List<int>> _intListPool = new(() => new List<int>(64));
 
         public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager)
         {
@@ -160,44 +161,33 @@ namespace Shared.Services;
                 }
 
                 // Handle grouped updates and destructions per entity to minimize structural transitions
-                Span<int> entityCommandIndices = stackalloc int[16];
-                for (int i = 0; i < _uniqueTargets.Count; i++)
+                var pooledIndices = _intListPool.Rent();
+                try
                 {
-                    var target = _uniqueTargets[i];
-                    int lastIdx = _targetToLastCommand[target];
-
-                    // We need to execute commands in the order they were added, but our links go backwards.
-                    // For a small number of commands per entity (usually 1-3), we can just use a small stack-allocated span or similar.
-                    int entityCmdCount = 0;
-                    int walker = lastIdx;
-                    while (walker != -1 && entityCmdCount < 16)
+                    for (int i = 0; i < _uniqueTargets.Count; i++)
                     {
-                        entityCommandIndices[entityCmdCount++] = walker;
-                        walker = allCommands[walker].PrevIndex;
-                    }
+                        var target = _uniqueTargets[i];
+                        int lastIdx = _targetToLastCommand[target];
 
-                    // Execute in original order
-                    for (int j = entityCmdCount - 1; j >= 0; j--)
-                    {
-                        var cmd = allCommands[entityCommandIndices[j]];
-                        ExecuteCommand(target, cmd);
-                    }
-
-                    // If more than 16 commands, handle overflow (rare)
-                    if (walker != -1)
-                    {
-                        var overflow = new List<int>();
+                        pooledIndices.Clear();
+                        int walker = lastIdx;
                         while (walker != -1)
                         {
-                            overflow.Add(walker);
+                            pooledIndices.Add(walker);
                             walker = allCommands[walker].PrevIndex;
                         }
-                        for (int j = overflow.Count - 1; j >= 0; j--)
+
+                        // Execute in original order (reverse of our linked list)
+                        for (int j = pooledIndices.Count - 1; j >= 0; j--)
                         {
-                            var cmd = allCommands[overflow[j]];
+                            var cmd = allCommands[pooledIndices[j]];
                             ExecuteCommand(target, cmd);
                         }
                     }
+                }
+                finally
+                {
+                    _intListPool.Return(pooledIndices);
                 }
             }
             finally

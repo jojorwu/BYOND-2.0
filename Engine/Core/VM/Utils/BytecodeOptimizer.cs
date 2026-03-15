@@ -163,6 +163,18 @@ namespace Core.VM.Utils
                     int jumpPc = pc + 1 + refSize;
                     if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(jumpPc, 5))
                     {
+                        // Fusion: PushReferenceValue(Global, idx), JumpIfFalse(label) -> GlobalJumpIfFalse(idx, label)
+                        if (bytecode[pc + 1] == (byte)DMReference.Type.Global)
+                        {
+                            MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                            optimized.Add((byte)Opcode.GlobalJumpIfFalse);
+                            optimized.AddRange(bytecode.AsSpan(pc + 2, 4)); // Global index
+                            labels.Add(optimized.Count);
+                            optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
+                            pc = jumpPc + 5;
+                            continue;
+                        }
+
                         MarkPcMap(pc, jumpPc + 5, optimized.Count);
                         optimized.Add((byte)Opcode.JumpIfReferenceFalse);
                         optimized.AddRange(bytecode.AsSpan(pc + 1, refSize));
@@ -566,6 +578,25 @@ namespace Core.VM.Utils
                 {
                     int derefPc = nextPc;
                     int nameId = BitConverter.ToInt32(bytecode, derefPc + 1);
+
+                    int assignPc = derefPc + 5;
+                    if (assignPc + 5 < bytecode.Length && !IsJumpTarget(assignPc, 6))
+                    {
+                        if (IsAssignLocal(bytecode, assignPc, out int targetIdx))
+                        {
+                            int popPc = assignPc + 6;
+                            if (popPc < bytecode.Length && bytecode[popPc] == (byte)Opcode.Pop && !IsJumpTarget(popPc, 1))
+                            {
+                                MarkPcMap(pc, popPc + 1, optimized.Count);
+                                optimized.Add((byte)Opcode.LocalFieldTransfer);
+                                optimized.AddRange(BitConverter.GetBytes(idx)); // Source local
+                                optimized.AddRange(BitConverter.GetBytes(nameId)); // Field name
+                                optimized.AddRange(BitConverter.GetBytes(targetIdx)); // Target local
+                                pc = popPc + 1;
+                                return true;
+                            }
+                        }
+                    }
 
                     int branchPc = derefPc + 5;
                     if (branchPc + 4 < bytecode.Length && !IsJumpTarget(branchPc, 5))

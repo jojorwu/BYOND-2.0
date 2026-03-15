@@ -410,6 +410,10 @@ public enum Opcode : byte {
     LocalJumpIfFieldFalse = 0xD0,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label)]
     LocalJumpIfFieldTrue = 0xD1,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Int)]
+    LocalFieldTransfer = 0xD2,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
+    GlobalJumpIfFalse = 0xD3,
 }
 
 public enum OpcodeArgType {

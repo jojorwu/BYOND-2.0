@@ -144,10 +144,11 @@ namespace Shared;
         {
             lock (_lock)
             {
+                int count = _values.Count;
                 var clone = new DreamList(ObjectType);
-                if (_values.Count > 0)
+                if (count > 0)
                 {
-                    System.Runtime.InteropServices.CollectionsMarshal.SetCount(clone._values, _values.Count);
+                    System.Runtime.InteropServices.CollectionsMarshal.SetCount(clone._values, count);
                     System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values).CopyTo(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(clone._values));
                 }
 

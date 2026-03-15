@@ -9,6 +9,7 @@ public class ApiRegistry : IApiRegistry
 {
     private readonly ConcurrentDictionary<string, IApiProvider> _providers = new();
     private readonly ConcurrentDictionary<Type, IApiProvider> _typeProviders = new();
+    private volatile IApiProvider[] _allProviders = Array.Empty<IApiProvider>();
 
     public void Register<T>(T provider) where T : class, IApiProvider
     {
@@ -17,6 +18,11 @@ public class ApiRegistry : IApiRegistry
         var type = typeof(T);
         if (type.IsInterface) _typeProviders[type] = provider;
         _typeProviders[provider.GetType()] = provider;
+
+        lock (_providers)
+        {
+            _allProviders = _providers.Values.ToArray();
+        }
     }
 
     public void RegisterAll(System.IServiceProvider serviceProvider)
@@ -37,13 +43,20 @@ public class ApiRegistry : IApiRegistry
                 return (T)provider;
             }
         }
-        else if (_typeProviders.TryGetValue(typeof(T), out var provider))
+        else
         {
-            return (T)provider;
+            // Fast-path: use volatile array to avoid dictionary lookup for type-based resolution
+            var providers = _allProviders;
+            var targetType = typeof(T);
+            for (int i = 0; i < providers.Length; i++)
+            {
+                if (targetType.IsInstanceOfType(providers[i]))
+                    return (T)providers[i];
+            }
         }
 
         throw new KeyNotFoundException($"API provider '{name ?? typeof(T).Name}' not found.");
     }
 
-    public IEnumerable<IApiProvider> GetAll() => _providers.Values;
+    public IEnumerable<IApiProvider> GetAll() => _allProviders;
 }

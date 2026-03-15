@@ -99,21 +99,10 @@ public class FastEventBus : IEventBus
             var asyncActions = _asyncActions;
             if (asyncActions.Length == 0) return;
 
-            if (asyncActions.Length == 1)
-            {
-                await asyncActions[0](eventData);
-                return;
-            }
-
-            var tasks = new ValueTask[asyncActions.Length];
             for (int i = 0; i < asyncActions.Length; i++)
             {
-                tasks[i] = asyncActions[i](eventData);
-            }
-
-            foreach (var task in tasks)
-            {
-                await task;
+                var task = asyncActions[i](eventData);
+                if (!task.IsCompleted) await task;
             }
         }
 

@@ -17,7 +17,6 @@ namespace Shared;
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
     private static long nextId = 1;
-    private static readonly object _globalHierarchyLock = new();
 
     public static void EnsureNextId(long id)
     {
@@ -180,63 +179,63 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public string Icon
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.IconIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : string.Empty; }
+        get { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return string.Empty; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public string IconState
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.IconStateIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : string.Empty; }
+        get { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return string.Empty; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public int Dir
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? (int)_variableStore.Get(idx).GetValueAsDouble() : 2; }
+        get { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return 2; lock (_lock) { return (int)_variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value)); }
     }
 
     public double Alpha
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.AlphaIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 255.0; }
+        get { var idx = ObjectType?.AlphaIndex ?? -1; if (idx == -1) return 255.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public string Color
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.ColorIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).StringValue : "#ffffff"; }
+        get { var idx = ObjectType?.ColorIndex ?? -1; if (idx == -1) return "#ffffff"; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double Layer
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.LayerIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 2.0; }
+        get { var idx = ObjectType?.LayerIndex ?? -1; if (idx == -1) return 2.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double PixelX
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.PixelXIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        get { var idx = ObjectType?.PixelXIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double PixelY
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.PixelYIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        get { var idx = ObjectType?.PixelYIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double Opacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? _variableStore.Get(idx).GetValueAsDouble() : 0.0; }
+        get { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
@@ -272,6 +271,24 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
+    public delegate void ChangeVisitorRef<T>(int index, in DreamValue value, ref T state) where T : allows ref struct;
+
+    public void VisitChangesRef<T>(ref T state, ChangeVisitorRef<T> visitor) where T : allows ref struct
+    {
+        lock (_lock)
+        {
+            if (_changeMask.IsEmpty) return;
+
+            foreach (int i in _changeMask.GetSetBits())
+            {
+                if (i < _variableStore.Length)
+                {
+                    visitor(i, _variableStore.Get(i), ref state);
+                }
+            }
+        }
+    }
+
     private IGameObject? _loc;
     /// <summary>
     /// Gets or sets the location of the game object.
@@ -284,30 +301,60 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     private void SetLocInternal(IGameObject? value, bool syncVariable)
     {
-        GameObject? oldLoc = null;
-        GameObject? newLoc = null;
+        GameObject? oldLoc;
+        GameObject? newLoc;
 
-        lock (_globalHierarchyLock)
+        // Consistent lock ordering (by ID) to avoid deadlocks
+        GameObject? first = null;
+        GameObject? second = null;
+
+        lock (_lock)
         {
-            lock (_lock)
+            if (_loc == value) return;
+            oldLoc = _loc as GameObject;
+            newLoc = value as GameObject;
+
+            if (oldLoc != null && newLoc != null)
             {
-                if (_loc == value) return;
+                if (oldLoc.Id < newLoc.Id) { first = oldLoc; second = newLoc; }
+                else { first = newLoc; second = oldLoc; }
+            }
+            else if (oldLoc != null) { first = oldLoc; }
+            else if (newLoc != null) { first = newLoc; }
 
-                oldLoc = _loc as GameObject;
-                _loc = value;
-                newLoc = value as GameObject;
+            _loc = value;
 
-                if (syncVariable)
+            if (syncVariable)
+            {
+                var idx = ObjectType?.LocIndex ?? -1;
+                if (idx != -1)
+                    _variableStore.Set(idx, value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
+                IncrementVersion();
+            }
+        }
+
+        // Apply contents changes outside of self-lock, but with ordered container locks
+        if (first != null)
+        {
+            lock (first._contentsLock)
+            {
+                if (second != null)
                 {
-                    var idx = ObjectType?.LocIndex ?? -1;
-                    if (idx != -1)
-                        _variableStore.Set(idx, value != null ? new DreamValue((DreamObject)value) : DreamValue.Null);
-                    IncrementVersion();
+                    lock (second._contentsLock)
+                    {
+                        if (first == oldLoc) first.RemoveContentInternal(this);
+                        else second.RemoveContentInternal(this);
+
+                        if (first == newLoc) first.AddContentInternal(this);
+                        else second.AddContentInternal(this);
+                    }
+                }
+                else
+                {
+                    if (first == oldLoc) first.RemoveContentInternal(this);
+                    else first.AddContentInternal(this);
                 }
             }
-
-            oldLoc?.RemoveContentInternal(this);
-            newLoc?.AddContentInternal(this);
         }
     }
 
@@ -327,10 +374,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
         else
         {
-            lock (_globalHierarchyLock)
-            {
-                AddContentInternal(obj);
-            }
+            AddContentInternal(obj);
         }
     }
 
@@ -345,10 +389,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
         else
         {
-            lock (_globalHierarchyLock)
-            {
-                RemoveContentInternal(obj);
-            }
+            RemoveContentInternal(obj);
         }
     }
 
@@ -391,14 +432,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": return new DreamValue(Interlocked.Read(ref _x));
                 case "y": return new DreamValue(Interlocked.Read(ref _y));
                 case "z": return new DreamValue(Interlocked.Read(ref _z));
-                case "icon": return new DreamValue(Icon);
-                case "icon_state": return new DreamValue(IconState);
-                case "dir": return new DreamValue((double)Dir);
-                case "opacity": return new DreamValue(Opacity);
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return new DreamValue(2.0); lock (_lock) { return _variableStore.Get(idx); } }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return DreamValue.False; lock (_lock) { return _variableStore.Get(idx); } }
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
-                case "name":
-                    var n = base.GetVariable(name);
-                    return !n.IsNull ? n : new DreamValue(ObjectType?.Name ?? "object");
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx == -1) return new DreamValue(ObjectType?.Name ?? "object"); lock (_lock) { return _variableStore.Get(idx); } }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
             }
         }
 
@@ -421,10 +461,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": X = value.RawLong; return;
                 case "y": Y = value.RawLong; return;
                 case "z": Z = value.RawLong; return;
-                case "icon": Icon = value.StringValue; return;
-                case "icon_state": IconState = value.StringValue; return;
-                case "dir": Dir = (int)value.GetValueAsDouble(); return;
-                case "opacity": Opacity = value.GetValueAsDouble(); return;
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
                     else Loc = null;
@@ -733,19 +775,42 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (Archetype is Archetype arch)
         {
-            // Count components first to avoid over-allocation
-            int count = arch._componentArrays.Count;
-            var components = new IComponent[count];
-            int i = 0;
-            foreach (var array in arch._componentArrays.Values)
+            var arrays = arch._componentArrays;
+            int count = arrays.Length;
+            var components = new List<IComponent>();
+            for (int i = 0; i < count; i++)
             {
-                var comp = array.Get(ArchetypeIndex);
-                if (comp != null) components[i++] = comp;
+                var array = arrays[i];
+                if (array != null)
+                {
+                    var comp = array.Get(ArchetypeIndex);
+                    if (comp != null) components.Add(comp);
+                }
             }
-            if (i < count) System.Array.Resize(ref components, i);
             return components;
         }
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
+    }
+
+    public interface IChangeVisitor
+    {
+        void Visit(int index, in DreamValue value);
+    }
+
+    public void VisitChanges<T>(ref T visitor) where T : struct, IChangeVisitor, allows ref struct
+    {
+        lock (_lock)
+        {
+            if (_changeMask.IsEmpty) return;
+
+            foreach (int i in _changeMask.GetSetBits())
+            {
+                if (i < _variableStore.Length)
+                {
+                    visitor.Visit(i, _variableStore.Get(i));
+                }
+            }
+        }
     }
 
     public DeltaState GetDeltaState()
@@ -777,28 +842,38 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         if (Archetype is Archetype arch)
         {
             var targets = message.TargetComponentTypes;
+            var arrays = arch._componentArrays;
             if (targets != null && targets.Length > 0)
             {
                 foreach (var type in targets)
                 {
-                    if (arch._componentArrays.TryGetValue(type, out var array))
+                    int id = Services.ComponentIdRegistry.GetId(type);
+                    if (id < arrays.Length)
                     {
-                        var component = array.Get(ArchetypeIndex);
-                        if (component != null && component.Enabled)
+                        var array = arrays[id];
+                        if (array != null)
                         {
-                            component.OnMessage(message);
+                            var component = array.Get(ArchetypeIndex);
+                            if (component != null && component.Enabled)
+                            {
+                                component.OnMessage(message);
+                            }
                         }
                     }
                 }
             }
             else
             {
-                foreach (var array in arch._componentArrays.Values)
+                for (int i = 0; i < arrays.Length; i++)
                 {
-                    var component = array.Get(ArchetypeIndex);
-                    if (component != null && component.Enabled)
+                    var array = arrays[i];
+                    if (array != null)
                     {
-                        component.OnMessage(message);
+                        var component = array.Get(ArchetypeIndex);
+                        if (component != null && component.Enabled)
+                        {
+                            component.OnMessage(message);
+                        }
                     }
                 }
             }

@@ -6,13 +6,26 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class BinarySnapshotService : EngineService
+    public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
+        private readonly ThreadLocal<Dictionary<long, (byte[] Buffer, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Buffer, int Length, long Version)>(), trackAllValues: true);
 
         public BinarySnapshotService(StringInterner? interner = null)
         {
             _interner = interner;
+        }
+
+        public void Shrink()
+        {
+            foreach (var dict in _deltaCache.Values)
+            {
+                foreach (var item in dict.Values)
+                {
+                    ArrayPool<byte>.Shared.Return(item.Buffer);
+                }
+                dict.Clear();
+            }
         }
 
         public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
@@ -23,14 +36,16 @@ namespace Shared.Services;
             // Fast-path: detect common collection types to avoid IEnumerable overhead
             if (objects is IReadOnlyList<IGameObject> list)
             {
-                for (int i = 0; i < list.Count; i++)
+                int count = list.Count;
+                for (int i = 0; i < count; i++)
                 {
                     if (SerializeObject(destination, list[i], lastVersions, ref offset, out truncated)) break;
                 }
             }
             else if (objects is IGameObject[] array)
             {
-                for (int i = 0; i < array.Length; i++)
+                int length = array.Length;
+                for (int i = 0; i < length; i++)
                 {
                     if (SerializeObject(destination, array[i], lastVersions, ref offset, out truncated)) break;
                 }
@@ -51,11 +66,71 @@ namespace Shared.Services;
             return offset;
         }
 
+        private struct ChangeCounter : GameObject.IChangeVisitor
+        {
+            public int Count;
+            public void Visit(int index, in DreamValue value) => Count++;
+        }
+
+        private ref struct ChangeSerializer
+        {
+            public Span<byte> Destination;
+            public int Offset;
+            public bool Truncated;
+
+            public void Visit(int propIdx, in DreamValue val)
+            {
+                if (Truncated) return;
+                int valueSize = val.GetWriteSize();
+                if (Offset + 5 + valueSize > Destination.Length)
+                {
+                    Truncated = true;
+                    return;
+                }
+
+                Offset += WriteVarInt(Destination.Slice(Offset), propIdx);
+                Offset += val.WriteTo(Destination.Slice(Offset));
+            }
+        }
+
+        private static void SerializeChange(int propIdx, in DreamValue val, ref ChangeSerializer serializer)
+        {
+            serializer.Visit(propIdx, val);
+        }
+
+        public static int WriteVarInt(Span<byte> span, long value)
+        {
+            ulong v = (ulong)value;
+            int count = 0;
+            while (v >= 0x80)
+            {
+                span[count++] = (byte)(v | 0x80);
+                v >>= 7;
+            }
+            span[count++] = (byte)v;
+            return count;
+        }
+
         private bool SerializeObject(Span<byte> destination, IGameObject obj, IDictionary<long, long>? lastVersions, ref int offset, out bool truncated)
         {
             truncated = false;
             if (lastVersions != null && lastVersions.TryGetValue(obj.Id, out long lastVersion) && lastVersion == obj.Version)
             {
+                return false;
+            }
+
+            // Delta Caching: Check if we've already serialized this object state in the current tick
+            var cache = _deltaCache.Value!;
+            if (cache.TryGetValue(obj.Id, out var cached) && cached.Version == obj.Version)
+            {
+                if (offset + cached.Length > destination.Length)
+                {
+                    truncated = true;
+                    return true;
+                }
+                cached.Buffer.AsSpan(0, cached.Length).CopyTo(destination.Slice(offset));
+                offset += cached.Length;
+                if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
                 return false;
             }
 
@@ -68,6 +143,7 @@ namespace Shared.Services;
             }
 
             int startOffset = offset;
+            int objectStartOffset = offset;
             offset += WriteVarInt(destination.Slice(offset), obj.Id);
             offset += WriteVarInt(destination.Slice(offset), obj.Version);
             offset += WriteVarInt(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
@@ -75,36 +151,37 @@ namespace Shared.Services;
             offset += WriteVarInt(destination.Slice(offset), obj.Y);
             offset += WriteVarInt(destination.Slice(offset), obj.Z);
 
-            if (obj.ObjectType != null)
+            if (obj.ObjectType != null && obj is GameObject g)
             {
-                var delta = obj.GetDeltaState();
-                offset += WriteVarInt(destination.Slice(offset), delta.Count);
-                if (delta.Changes != null)
-                {
-                    for (int i = 0; i < delta.Count; i++)
-                    {
-                        var change = delta.Changes[i];
-                        int propIdx = change.Index;
-                        var val = change.Value;
-                        int valueSize = val.GetWriteSize();
-                        // 5 for property index varint max + value size
-                        if (offset + 5 + valueSize > destination.Length)
-                        {
-                            // Roll back to start of object and mark as truncated
-                            offset = startOffset;
-                            truncated = true;
-                            return true;
-                        }
+                var counter = new ChangeCounter();
+                g.VisitChanges(ref counter);
 
-                        offset += WriteVarInt(destination.Slice(offset), propIdx);
-                        offset += val.WriteTo(destination.Slice(offset));
+                offset += WriteVarInt(destination.Slice(offset), counter.Count);
+
+                if (counter.Count > 0)
+                {
+                    var serializer = new ChangeSerializer { Destination = destination, Offset = offset };
+                    g.VisitChangesRef(ref serializer, SerializeChange);
+
+                    if (serializer.Truncated)
+                    {
+                        offset = startOffset;
+                        truncated = true;
+                        return true;
                     }
+                    offset = serializer.Offset;
                 }
             }
             else
             {
                 offset += WriteVarInt(destination.Slice(offset), 0);
             }
+
+            // Cache the result for reuse in the same tick
+            int length = offset - objectStartOffset;
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
+            destination.Slice(objectStartOffset, length).CopyTo(buffer);
+            cache[obj.Id] = (buffer, length, obj.Version);
 
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             return false;
@@ -140,18 +217,6 @@ namespace Shared.Services;
         }
 
 
-        private int WriteVarInt(Span<byte> span, long value)
-        {
-            ulong v = (ulong)value;
-            int count = 0;
-            while (v >= 0x80)
-            {
-                span[count++] = (byte)(v | 0x80);
-                v >>= 7;
-            }
-            span[count++] = (byte)v;
-            return count;
-        }
 
         public long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
         {

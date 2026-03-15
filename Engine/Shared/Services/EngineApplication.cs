@@ -49,13 +49,21 @@ public abstract class EngineApplication : IHostedService
                 try
                 {
                     _logger.LogDebug("    -> Loading {ServiceName}...", serviceName);
-                    var serviceSw = System.Diagnostics.Stopwatch.StartNew();
 
+                    var initSw = System.Diagnostics.Stopwatch.StartNew();
                     await service.InitializeAsync();
-                    await service.StartAsync(globalCts.Token);
+                    initSw.Stop();
 
-                    serviceSw.Stop();
-                    _logger.LogInformation("    [OK] {ServiceName} loaded in {Elapsed}ms", serviceName, serviceSw.ElapsedMilliseconds);
+                    var startSw = System.Diagnostics.Stopwatch.StartNew();
+                    await service.StartAsync(globalCts.Token);
+                    startSw.Stop();
+
+                    service.SetDurations(initSw.ElapsedMilliseconds, startSw.ElapsedMilliseconds);
+
+                    _logger.LogInformation("    [OK] {ServiceName} loaded (Init: {Init}ms, Start: {Start}ms)",
+                        serviceName,
+                        service.InitializationDurationMs,
+                        service.StartupDurationMs);
                 }
                 catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
                 {

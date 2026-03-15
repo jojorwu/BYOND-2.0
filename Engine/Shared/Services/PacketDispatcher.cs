@@ -72,13 +72,11 @@ namespace Shared.Services;
             var context = new PacketContext(peer, typeId, payload);
 
             var middlewareChain = _middlewareCache;
-            if (middlewareChain.Length > 0)
+            for (int i = 0; i < middlewareChain.Length; i++)
             {
-                foreach (var middleware in middlewareChain)
-                {
-                    if (!await middleware.ProcessAsync(context))
-                        return;
-                }
+                var result = await middlewareChain[i].ProcessAsync(context);
+                if (!result)
+                    return;
             }
 
             if (_handlers.TryGetValue(context.TypeId, out var handler))

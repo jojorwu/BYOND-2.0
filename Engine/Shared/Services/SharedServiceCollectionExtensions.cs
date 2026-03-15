@@ -79,6 +79,7 @@ public static class SharedServiceCollectionExtensions
         });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
         services.AddSingleton<BinarySnapshotService>();
+        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<BinarySnapshotService>());
         services.AddSingleton<SpatialGrid>();
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
         services.AddSingleton<IInterestManager, InterestManager>();
@@ -96,6 +97,33 @@ public static class SharedServiceCollectionExtensions
             system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
             return system;
         });
+        return services;
+    }
+
+    /// <summary>
+    /// Scans the given assembly for types implementing IEngineService and registers them as singletons.
+    /// Also registers them under all implemented interfaces from the Shared.Interfaces namespace.
+    /// </summary>
+    public static IServiceCollection AddEngineServicesFromAssembly(this IServiceCollection services, Assembly assembly)
+    {
+        var serviceTypes = assembly.GetTypes()
+            .Where(t => typeof(IEngineService).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+        foreach (var type in serviceTypes)
+        {
+            services.AddSingleton(type);
+            services.AddSingleton(typeof(IEngineService), sp => sp.GetRequiredService(type));
+
+            var interfaces = type.GetInterfaces();
+            foreach (var @interface in interfaces)
+            {
+                if (@interface.Namespace == "Shared.Interfaces" && @interface != typeof(IEngineService))
+                {
+                    services.AddSingleton(@interface, sp => sp.GetRequiredService(type));
+                }
+            }
+        }
+
         return services;
     }
 

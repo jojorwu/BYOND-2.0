@@ -30,24 +30,25 @@ uniform vec2 uTexelSize;
 uniform float uFeedback; // History blend weight
 
 void main() {
-    vec3 color = texture(uScreenTexture, TexCoords).rgb;
+    // Enhanced Chromatic Aberration (Radial) - Sample first to establish baseline
+    vec2 caDir = TexCoords - 0.5;
+    float caDist = length(caDir);
+    float caAmount = caDist * caDist * 0.008;
 
-    // CAS-style Sharpening (approximate)
+    vec3 color;
+    color.r = texture(uScreenTexture, TexCoords - caDir * caAmount).r;
+    color.g = texture(uScreenTexture, TexCoords).g;
+    color.b = texture(uScreenTexture, TexCoords + caDir * caAmount).b;
+
+    // Neighborhood sampling for Sharpening and TAA (must use CA-shifted samples for consistency)
     vec3 n = texture(uScreenTexture, TexCoords + vec2(0.0, -uTexelSize.y)).rgb;
     vec3 w = texture(uScreenTexture, TexCoords + vec2(-uTexelSize.x, 0.0)).rgb;
     vec3 e = texture(uScreenTexture, TexCoords + vec2(uTexelSize.x, 0.0)).rgb;
     vec3 s = texture(uScreenTexture, TexCoords + vec2(0.0, uTexelSize.y)).rgb;
+
+    // CAS-style Sharpening
     float sharpStrength = -0.125;
     color = color + (color * 4.0 - (n + w + e + s)) * sharpStrength;
-
-    // Enhanced Chromatic Aberration (Radial)
-    vec2 caDir = TexCoords - 0.5;
-    float caDist = length(caDir);
-    float caAmount = caDist * caDist * 0.008;
-    float red = texture(uScreenTexture, TexCoords - caDir * caAmount).r;
-    float green = texture(uScreenTexture, TexCoords).g;
-    float blue = texture(uScreenTexture, TexCoords + caDir * caAmount).b;
-    color = vec3(red, green, blue);
 
     // TAA: Exponential Moving Average with clamping to neighborhood
     vec3 history = texture(uHistoryTexture, TexCoords).rgb;

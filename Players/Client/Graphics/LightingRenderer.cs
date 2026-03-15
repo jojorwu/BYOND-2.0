@@ -105,7 +105,8 @@ void main() {
     }
 
     // Physically-based falloff (inverse square with smoothing)
-    float falloff = pow(clamp(1.0 - pow(dToLight / uRadius, 4.0), 0.0, 1.0), 2.0) / (dToLight * dToLight + 1.0);
+    float distanceRatio = dToLight / uRadius;
+    float falloff = pow(clamp(1.0 - pow(distanceRatio, 4.0), 0.0, 1.0), 2.0) / (distanceRatio * distanceRatio + 0.01);
     FragColor = vec4(uColor.rgb, uColor.a * intensity * shadow * falloff);
 }";
 

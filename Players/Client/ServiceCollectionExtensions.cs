@@ -33,18 +33,7 @@ namespace Client
 
         private static IServiceCollection AddClientAssetServices(this IServiceCollection services)
         {
-            services.AddSingleton<TextureCache>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<TextureCache>());
-
-            services.AddSingleton<CSharpShaderManager>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<CSharpShaderManager>());
-
-            services.AddSingleton<DmiCache>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<DmiCache>());
-
-            services.AddSingleton<IconCache>();
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<IconCache>());
-
+            services.AddEngineServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
             services.AddSingleton<ISoundSystem, MockSoundSystem>();
 
             return services;

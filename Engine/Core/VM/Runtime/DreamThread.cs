@@ -181,8 +181,17 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Push(DreamValue value)
     {
-        var currentFrame = _callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default;
-        _stack.Push(value, MaxStackSize, currentFrame.Proc, currentFrame.PC, this);
+        if (_callStackPtr > 0)
+        {
+            var currentFrame = _callStack[_callStackPtr - 1];
+            _stack.Push(value, MaxStackSize, currentFrame.Proc, currentFrame.PC, this);
+        }
+        else
+        {
+            // Fallback for when there's no call frame (e.g. initial execution setup)
+            _stack.EnsureCapacity(1, MaxStackSize);
+            _stack.Array[_stack.Pointer++] = value;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

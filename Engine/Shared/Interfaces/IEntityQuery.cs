@@ -7,4 +7,5 @@ public interface IEntityQuery : IEnumerable<IGameObject>
 {
     IReadOnlyList<IGameObject> Snapshot { get; }
     IEnumerable<Archetype> GetMatchingArchetypes();
+    long Version { get; }
 }

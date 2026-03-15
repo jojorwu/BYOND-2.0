@@ -105,8 +105,10 @@ namespace Editor.UI
                     }
                     else
                     {
-                        ImGui.Begin("Viewport");
-                        ImGui.Text("No active scene.");
+                        if (ImGui.Begin("Viewport"))
+                        {
+                            ImGui.Text("No active scene.");
+                        }
                         ImGui.End();
                     }
                     break;
@@ -163,9 +165,8 @@ namespace Editor.UI
                 ImGui.Text($"{sceneInfo}");
                 ImGui.SameLine(ImGui.GetWindowWidth() - 150);
                 ImGui.Text($"FPS: {ImGui.GetIO().Framerate:F1}");
-
-                ImGui.End();
             }
+            ImGui.End();
             ImGui.PopStyleColor();
         }
     }

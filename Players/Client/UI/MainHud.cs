@@ -28,95 +28,144 @@ namespace Client.UI
         private void DrawChat()
         {
             var io = ImGui.GetIO();
-            float width = 400;
-            float height = 200;
+            float width = 450;
+            float height = 250;
             ImGui.SetNextWindowPos(new Vector2(10, io.DisplaySize.Y - height - 10), ImGuiCond.Always);
             ImGui.SetNextWindowSize(new Vector2(width, height), ImGuiCond.Always);
 
-            ImGui.Begin("Chat", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove);
-
-            ImGui.BeginChild("ScrollingRegion", new Vector2(0, -ImGui.GetFrameHeightWithSpacing()), ImGuiChildFlags.None, ImGuiWindowFlags.HorizontalScrollbar);
-            foreach (var msg in _chatMessages)
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0, 0, 0, 0.4f));
+            if (ImGui.Begin("Chat", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove))
             {
-                ImGui.TextUnformatted(msg);
-            }
-            if (ImGui.GetScrollY() >= ImGui.GetScrollMaxY())
-                ImGui.SetScrollHereY(1.0f);
-            ImGui.EndChild();
-
-            ImGui.Separator();
-
-            if (ImGui.InputText("##Input", ref _chatInput, 256, ImGuiInputTextFlags.EnterReturnsTrue))
-            {
-                if (!string.IsNullOrWhiteSpace(_chatInput))
+                ImGui.BeginChild("ScrollingRegion", new Vector2(0, -ImGui.GetFrameHeightWithSpacing()), ImGuiChildFlags.None, ImGuiWindowFlags.HorizontalScrollbar);
+                foreach (var msg in _chatMessages)
                 {
-                    // For now, just add locally as a test
-                    AddMessage($"[You]: {_chatInput}");
-                    _chatInput = "";
+                    if (msg.StartsWith("[You]"))
+                        ImGui.TextColored(new Vector4(0.4f, 0.8f, 0.4f, 1.0f), msg);
+                    else
+                        ImGui.TextUnformatted(msg);
                 }
-                ImGui.SetKeyboardFocusHere(-1);
-            }
+                if (ImGui.GetScrollY() >= ImGui.GetScrollMaxY())
+                    ImGui.SetScrollHereY(1.0f);
+                ImGui.EndChild();
 
+                ImGui.Separator();
+
+                ImGui.PushItemWidth(-1);
+                if (ImGui.InputText("##Input", ref _chatInput, 256, ImGuiInputTextFlags.EnterReturnsTrue))
+                {
+                    if (!string.IsNullOrWhiteSpace(_chatInput))
+                    {
+                        AddMessage($"[You]: {_chatInput}");
+                        _chatInput = "";
+                    }
+                    ImGui.SetKeyboardFocusHere(-1);
+                }
+                ImGui.PopItemWidth();
+            }
             ImGui.End();
+            ImGui.PopStyleColor();
         }
 
         private void DrawStats(GameObject? player)
         {
             var io = ImGui.GetIO();
-            float width = 200;
-            float height = 150;
+            float width = 250;
+            float height = 180;
             ImGui.SetNextWindowPos(new Vector2(io.DisplaySize.X - width - 10, 10), ImGuiCond.Always);
             ImGui.SetNextWindowSize(new Vector2(width, height), ImGuiCond.Always);
 
-            ImGui.Begin("Stats", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
-
-            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Character Stats");
-            ImGui.Separator();
-
-            if (player != null)
+            if (ImGui.Begin("Stats", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove))
             {
-                ImGui.Text($"ID: {player.Id}");
-                ImGui.Text($"Pos: ({player.X}, {player.Y}, {player.Z})");
+                ImGui.TextColored(new Vector4(0.2f, 0.4f, 0.8f, 1.0f), "CHARACTER STATS");
+                ImGui.Separator();
+                ImGui.Spacing();
 
-                // Try to get some custom vars if they exist
-                var health = player.GetVariable("health");
-                if (health.Type == DreamValueType.Float)
-                    ImGui.ProgressBar(health.AsFloat() / 100.0f, new Vector2(-1, 0), $"Health: {health.AsFloat()}%");
+                if (player != null)
+                {
+                    if (ImGui.BeginTable("StatsTable", 2))
+                    {
+                        ImGui.TableSetupColumn("Label", ImGuiTableColumnFlags.WidthFixed, 60);
+                        ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn(); ImGui.TextDisabled("ID:");
+                        ImGui.TableNextColumn(); ImGui.Text($"{player.Id}");
+
+                        ImGui.TableNextRow();
+                        ImGui.TableNextColumn(); ImGui.TextDisabled("Pos:");
+                        ImGui.TableNextColumn(); ImGui.Text($"{player.X}, {player.Y}, {player.Z}");
+
+                        ImGui.EndTable();
+                    }
+
+                    ImGui.Spacing();
+                    ImGui.Separator();
+                    ImGui.Spacing();
+
+                    var health = player.GetVariable("health");
+                    float healthVal = health.Type == DreamValueType.Float ? health.AsFloat() : 100.0f;
+
+                    Vector4 healthColor = healthVal > 50 ? new Vector4(0.3f, 0.8f, 0.3f, 1.0f) : new Vector4(0.8f, 0.3f, 0.3f, 1.0f);
+                    ImGui.PushStyleColor(ImGuiCol.PlotHistogram, healthColor);
+                    ImGui.ProgressBar(healthVal / 100.0f, new Vector2(-1, 25), $"HEALTH: {healthVal}%");
+                    ImGui.PopStyleColor();
+                }
                 else
-                    ImGui.ProgressBar(1.0f, new Vector2(-1, 0), "Health: 100%");
+                {
+                    ImGui.TextDisabled("No active player session.");
+                }
             }
-            else
-            {
-                ImGui.Text("No player object found.");
-            }
-
             ImGui.End();
         }
 
         private void DrawVerbs()
         {
             var io = ImGui.GetIO();
-            float width = 200;
+            float width = 250;
             float height = 200;
-            ImGui.SetNextWindowPos(new Vector2(io.DisplaySize.X - width - 10, 170), ImGuiCond.Always);
+            ImGui.SetNextWindowPos(new Vector2(io.DisplaySize.X - width - 10, 200), ImGuiCond.Always);
             ImGui.SetNextWindowSize(new Vector2(width, height), ImGuiCond.Always);
 
-            ImGui.Begin("Verbs", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove);
-
-            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Available Actions");
-            ImGui.Separator();
-
-            if (ImGui.Button("Ping Server", new Vector2(-1, 30)))
+            if (ImGui.Begin("Verbs", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove))
             {
-                // Action triggered
-                AddMessage("Sending ping to server...");
-            }
+                ImGui.TextColored(new Vector4(0.2f, 0.4f, 0.8f, 1.0f), "ACTIONS");
+                ImGui.Separator();
+                ImGui.Spacing();
 
-            if (ImGui.Button("Emote: Wave", new Vector2(-1, 30)))
-            {
-                 AddMessage("You wave your hand.");
-            }
+                if (ImGui.BeginTable("VerbsGrid", 2, ImGuiTableFlags.SizingFixedFit))
+                {
+                    ImGui.TableSetupColumn("C1", ImGuiTableColumnFlags.WidthStretch);
+                    ImGui.TableSetupColumn("C2", ImGuiTableColumnFlags.WidthStretch);
 
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    if (ImGui.Button("Ping", new Vector2(-1, 40)))
+                    {
+                        AddMessage("Sending ping to server...");
+                    }
+
+                    ImGui.TableNextColumn();
+                    if (ImGui.Button("Wave", new Vector2(-1, 40)))
+                    {
+                         AddMessage("You wave your hand.");
+                    }
+
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    if (ImGui.Button("Dance", new Vector2(-1, 40)))
+                    {
+                         AddMessage("You start dancing!");
+                    }
+
+                    ImGui.TableNextColumn();
+                    if (ImGui.Button("Help", new Vector2(-1, 40)))
+                    {
+                         AddMessage("Requesting help...");
+                    }
+
+                    ImGui.EndTable();
+                }
+            }
             ImGui.End();
         }
     }

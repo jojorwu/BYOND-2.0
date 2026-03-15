@@ -14,6 +14,8 @@ namespace Core.Maps
 {
     public class MapLoader : EngineService, IMapLoader
     {
+        public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectTypeManager), typeof(IObjectFactory) };
+
         private readonly IObjectTypeManager _objectTypeManager;
         private readonly IObjectFactory _objectFactory;
         private readonly IJobSystem _jobSystem;

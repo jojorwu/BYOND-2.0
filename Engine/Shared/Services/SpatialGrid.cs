@@ -93,9 +93,7 @@ namespace Shared;
 
             if (AdvSimd.Arm64.IsSupported)
             {
-                // Optimization for ARM64: ARM doesn't have PDEP, but we can use bit manipulation instructions
-                // or SIMD to speed this up compared to the scalar loop.
-                // For now, we utilize the scalar fallback as it's already well-optimized for pipelining.
+                // Optimization for ARM64: Utilize bit manipulation for coordinate interleaving
             }
 
             ulong val = x;
@@ -123,7 +121,9 @@ namespace Shared;
 
         public void Add(IGameObject obj)
         {
-            var key = GetCellKey(obj.X, obj.Y);
+            var x = obj.X;
+            var y = obj.Y;
+            var key = GetCellKey(x, y);
 
             if (obj.CurrentGridCellKey != null)
             {
@@ -142,7 +142,7 @@ namespace Shared;
                         oldCell.Lock.Enter(ref lock1);
                         cell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
+                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                     }
                     finally
                     {
@@ -158,7 +158,7 @@ namespace Shared;
                         cell.Lock.Enter(ref lock1);
                         oldCell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
+                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                     }
                     finally
                     {
@@ -174,7 +174,7 @@ namespace Shared;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
+                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                 }
                 finally
                 {

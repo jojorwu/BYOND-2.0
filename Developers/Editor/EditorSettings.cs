@@ -16,5 +16,16 @@ namespace Editor
         public int FontSize { get; set; } = 14;
         public bool AutoSave { get; set; } = false;
         public int AutoSaveIntervalMinutes { get; set; } = 5;
+
+        // Rendering Settings
+        public string GraphicsBackend { get; set; } = "OpenGL";
+        public bool EnableSsao { get; set; } = true;
+        public bool EnableBloom { get; set; } = true;
+        public int ResolutionX { get; set; } = 1280;
+        public int ResolutionY { get; set; } = 720;
+        public bool VSync { get; set; } = true;
+
+        // API Settings
+        public string TargetApi { get; set; } = "Lua";
     }
 }

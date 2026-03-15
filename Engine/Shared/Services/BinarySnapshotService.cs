@@ -18,6 +18,7 @@ namespace Shared.Services;
 
         public void Shrink()
         {
+            // Thread-safe iteration through all thread-local dictionaries
             foreach (var dict in _deltaCache.Values)
             {
                 foreach (var item in dict.Values)

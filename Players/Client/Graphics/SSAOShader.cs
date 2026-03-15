@@ -39,10 +39,12 @@ void main() {
     float depth = texture(uDepthMap, TexCoords).r;
 
     // Poisson disk-like sampling for softer AO
-    const int SAMPLES = 8;
-    vec2 samples[8] = vec2[](
+    const int SAMPLES = 16;
+    vec2 samples[16] = vec2[](
         vec2(1, 0), vec2(-1, 0), vec2(0, 1), vec2(0, -1),
-        vec2(0.7, 0.7), vec2(-0.7, 0.7), vec2(0.7, -0.7), vec2(-0.7, -0.7)
+        vec2(0.7, 0.7), vec2(-0.7, 0.7), vec2(0.7, -0.7), vec2(-0.7, -0.7),
+        vec2(0.5, 0), vec2(-0.5, 0), vec2(0, 0.5), vec2(0, -0.5),
+        vec2(0.35, 0.35), vec2(-0.35, 0.35), vec2(0.35, -0.35), vec2(-0.35, -0.35)
     );
 
     float noise = rand(TexCoords + uTime);
@@ -50,13 +52,13 @@ void main() {
     for (int i = 0; i < SAMPLES; i++) {
         vec2 offset = samples[i] * uRadius * tex_offset;
         // Rotate samples by noise
-        float s = sin(noise);
-        float c = cos(noise);
+        float s = sin(noise * 6.28);
+        float c = cos(noise * 6.28);
         offset = vec2(offset.x * c - offset.y * s, offset.x * s + offset.y * c);
 
         if (texture(uOccluderMap, TexCoords + offset).r > 0.5) {
             float sampleDepth = texture(uDepthMap, TexCoords + offset).r;
-            float rangeCheck = smoothstep(0.0, 1.0, uRadius / abs(depth - sampleDepth));
+            float rangeCheck = smoothstep(0.0, 1.0, uRadius / max(0.001, abs(depth - sampleDepth)));
             occlusion += (1.0 / float(SAMPLES)) * rangeCheck;
         }
     }

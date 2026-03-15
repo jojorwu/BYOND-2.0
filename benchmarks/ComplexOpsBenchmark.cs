@@ -44,7 +44,7 @@ public class ComplexOpsBenchmark
         services.AddSingleton<Shared.Config.ISoundRegistry, Shared.Config.SoundRegistry>();
         services.AddSingleton<ISoundApi, SoundApi>();
         services.AddSingleton<IUdpServer>(new Moq.Mock<IUdpServer>().Object);
-        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new ServerSettings()));
+        services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new DreamVmConfiguration()));
 
         var provider = services.BuildServiceProvider();
 
@@ -204,7 +204,7 @@ public class ComplexOpsBenchmark
         bc.Add(Opcode.Add);
         bc.Add(Opcode.Return);
 
-        var settings = new ServerSettings { VmMaxInstructions = 1000000000 };
+        var settings = new DreamVmConfiguration { MaxInstructions = 1000000000 };
         var vm = new DreamVM(Microsoft.Extensions.Options.Options.Create(settings),
                              Microsoft.Extensions.Logging.Abstractions.NullLogger<DreamVM>.Instance,
                              new INativeProcProvider[] { new StandardNativeProcProvider() });

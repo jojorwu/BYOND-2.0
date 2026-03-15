@@ -11,6 +11,7 @@ public static class ConfigKeys
     public static readonly CVarDef<bool> ProfilingEnabled = new("Engine.Profiling.Enabled", false, CVarFlags.Archive, "Enables engine-wide profiling.");
 
     // Graphics Settings
+    public static readonly CVarDef<string> GraphicsBackend = new("Graphics.Backend", "OpenGL", CVarFlags.Archive | CVarFlags.Client, "The graphics backend to use (OpenGL or Vulkan).", "Graphics");
     public static readonly CVarDef<bool> GraphicsBloomEnabled = new("Graphics.BloomEnabled", true, CVarFlags.Archive | CVarFlags.Client, "Enables or disables bloom effects.", "Graphics");
     public static readonly CVarDef<bool> GraphicsSSAOEnabled = new("Graphics.SSAOEnabled", true, CVarFlags.Archive | CVarFlags.Client, "Enables or disables Screen Space Ambient Occlusion.", "Graphics");
     public static readonly CVarDef<int> GraphicsResolutionX = new("Graphics.ResolutionX", 1280, CVarFlags.Archive | CVarFlags.Client, "Horizontal window resolution.", "Graphics");

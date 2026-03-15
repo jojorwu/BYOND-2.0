@@ -852,14 +852,14 @@ namespace Shared;
                 case DreamValueType.DreamObject:
                     if (_objectValue is GameObject g)
                     {
-                        span[offset++] = 1; // Boolean true
+                        span[offset++] = 1; // Object ID flag
                         System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(span.Slice(offset), g.Id);
                         return offset + 8;
                     }
                     else
                     {
-                        span[offset++] = 0; // Boolean false
-                        var s = ToString();
+                        span[offset++] = 0; // String-based ref flag
+                        var s = (_objectValue != null) ? _objectValue.ToString() ?? string.Empty : string.Empty;
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
                         int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
                         offset += lenBytes;

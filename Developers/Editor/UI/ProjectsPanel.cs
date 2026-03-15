@@ -87,9 +87,8 @@ namespace Editor.UI
                     }
                     ImGui.EndChild();
                 }
-
-                ImGui.End();
             }
+            ImGui.End();
 
             DrawErrorModal();
         }

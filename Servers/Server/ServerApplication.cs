@@ -24,9 +24,10 @@ namespace Server
         public ServerApplication(
             ILogger<ServerApplication> logger,
             IEnumerable<IEngineService> services,
+            IEnumerable<IEngineModule> modules,
             CVarReplicator replicator,
             Shared.Config.IConsoleCommandManager commandManager)
-            : base(logger, services)
+            : base(logger, services, modules)
         {
             _replicator = replicator;
             _commandManager = commandManager;

@@ -13,13 +13,14 @@ public class FastEventBus : IEventBus
     {
         void Publish(object eventData);
         ValueTask PublishAsync(object eventData);
-        void Unsubscribe(Delegate handler);
+        void Unsubscribe(object handler);
     }
 
     private class HandlerList<T> : IHandlerList
     {
         private volatile Action<T>[] _actions = Array.Empty<Action<T>>();
         private volatile Func<T, ValueTask>[] _asyncActions = Array.Empty<Func<T, ValueTask>>();
+        private volatile IEventHandler<T>[] _interfaceHandlers = Array.Empty<IEventHandler<T>>();
         private readonly object _lock = new();
 
         public void Subscribe(Action<T> handler)
@@ -44,7 +45,18 @@ public class FastEventBus : IEventBus
             }
         }
 
-        public void Unsubscribe(Delegate handler)
+        public void Subscribe(IEventHandler<T> handler)
+        {
+            lock (_lock)
+            {
+                var updated = new IEventHandler<T>[_interfaceHandlers.Length + 1];
+                Array.Copy(_interfaceHandlers, updated, _interfaceHandlers.Length);
+                updated[_interfaceHandlers.Length] = handler;
+                _interfaceHandlers = updated;
+            }
+        }
+
+        public void Unsubscribe(object handler)
         {
             lock (_lock)
             {
@@ -70,11 +82,28 @@ public class FastEventBus : IEventBus
                         _asyncActions = updated;
                     }
                 }
+                else if (handler is IEventHandler<T> interfaceHandler)
+                {
+                    var index = Array.IndexOf(_interfaceHandlers, interfaceHandler);
+                    if (index != -1)
+                    {
+                        var updated = new IEventHandler<T>[_interfaceHandlers.Length - 1];
+                        if (index > 0) Array.Copy(_interfaceHandlers, 0, updated, 0, index);
+                        if (index < _interfaceHandlers.Length - 1) Array.Copy(_interfaceHandlers, index + 1, updated, index, _interfaceHandlers.Length - index - 1);
+                        _interfaceHandlers = updated;
+                    }
+                }
             }
         }
 
         public void Publish(T eventData)
         {
+            var interfaces = _interfaceHandlers;
+            for (int i = 0; i < interfaces.Length; i++)
+            {
+                interfaces[i].HandleEvent(eventData);
+            }
+
             var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
@@ -90,6 +119,12 @@ public class FastEventBus : IEventBus
 
         public async ValueTask PublishAsync(T eventData)
         {
+            var interfaces = _interfaceHandlers;
+            for (int i = 0; i < interfaces.Length; i++)
+            {
+                interfaces[i].HandleEvent(eventData);
+            }
+
             var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
@@ -102,6 +137,7 @@ public class FastEventBus : IEventBus
             for (int i = 0; i < asyncActions.Length; i++)
             {
                 var task = asyncActions[i](eventData);
+                // Optimized Check: Bypasses state machine overhead for synchronous handlers
                 if (!task.IsCompleted) await task;
             }
         }
@@ -119,8 +155,17 @@ public class FastEventBus : IEventBus
 
     public void Subscribe<T>(Action<T> handler) => GetHandlers<T>().Subscribe(handler);
     public void SubscribeAsync<T>(Func<T, ValueTask> handler) => GetHandlers<T>().Subscribe(handler);
+    public void Subscribe<T>(IEventHandler<T> handler) => GetHandlers<T>().Subscribe(handler);
 
     public void Unsubscribe<T>(Action<T> handler)
+    {
+        if (_typeToHandlers.TryGetValue(typeof(T), out var handlers))
+        {
+            handlers.Unsubscribe(handler);
+        }
+    }
+
+    public void Unsubscribe<T>(IEventHandler<T> handler)
     {
         if (_typeToHandlers.TryGetValue(typeof(T), out var handlers))
         {

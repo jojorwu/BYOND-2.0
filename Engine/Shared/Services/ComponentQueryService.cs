@@ -14,6 +14,7 @@ namespace Shared.Services;
             private readonly object _lock = new();
             private readonly IGameState? _gameState;
             private IGameObject[]? _cachedSnapshot;
+            private long _version = 0;
 
             public QueryResult(IGameState? gameState)
             {
@@ -21,6 +22,7 @@ namespace Shared.Services;
             }
 
             public IReadOnlyList<IGameObject> Snapshot => BuildSnapshot();
+            public long Version => Interlocked.Read(ref _version);
 
             public void AddArchetype(Archetype archetype)
             {
@@ -31,6 +33,7 @@ namespace Shared.Services;
                     updated[_archetypes.Length] = archetype;
                     _archetypes = updated;
                     _cachedSnapshot = null;
+                    Interlocked.Increment(ref _version);
                 }
             }
 
@@ -39,11 +42,14 @@ namespace Shared.Services;
                 lock (_lock)
                 {
                     var matchingArray = matching.ToArray();
+                    if (matchingArray.Length == 0) return;
+
                     var updated = new Archetype[_archetypes.Length + matchingArray.Length];
                     Array.Copy(_archetypes, updated, _archetypes.Length);
                     Array.Copy(matchingArray, 0, updated, _archetypes.Length, matchingArray.Length);
                     _archetypes = updated;
                     _cachedSnapshot = null;
+                    Interlocked.Increment(ref _version);
                 }
             }
 

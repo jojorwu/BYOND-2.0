@@ -17,14 +17,26 @@ public abstract class EngineApplication : IHostedService
 {
     protected readonly ILogger _logger;
     protected readonly List<IEngineService> _services;
+    protected readonly List<IEngineModule> _modules;
     private ServiceDependencyGraph? _graph;
     protected virtual TimeSpan StartupTimeout => TimeSpan.FromSeconds(30);
 
-    protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services)
+    private readonly Dictionary<string, ServiceStatus> _serviceHealth = new();
+    public IReadOnlyDictionary<string, ServiceStatus> ServiceHealth => _serviceHealth;
+
+    protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services, IEnumerable<IEngineModule> modules)
     {
         _logger = logger;
         _services = services.ToList();
-        _logger.LogInformation("{AppName} initialized with {Count} services.", GetType().Name, _services.Count);
+        _modules = modules.ToList();
+
+        foreach (var service in _services)
+        {
+            var name = service.Name ?? service.GetType().Name;
+            _serviceHealth[name] = ServiceStatus.Stopped;
+        }
+
+        _logger.LogInformation("{AppName} initialized with {ServiceCount} services and {ModuleCount} modules.", GetType().Name, _services.Count, _modules.Count);
     }
 
     private ServiceDependencyGraph GetGraph() => _graph ??= new ServiceDependencyGraph(_services);
@@ -45,10 +57,11 @@ public abstract class EngineApplication : IHostedService
         {
             await graph.ExecuteParallelAsync(async service =>
             {
-                var serviceName = service.GetType().Name;
+                var serviceName = service.Name ?? service.GetType().Name;
                 try
                 {
                     _logger.LogDebug("    -> Loading {ServiceName}...", serviceName);
+                    _serviceHealth[serviceName] = ServiceStatus.Starting;
 
                     var initSw = System.Diagnostics.Stopwatch.StartNew();
                     await service.InitializeAsync();
@@ -59,6 +72,7 @@ public abstract class EngineApplication : IHostedService
                     startSw.Stop();
 
                     service.SetDurations(initSw.ElapsedMilliseconds, startSw.ElapsedMilliseconds);
+                    _serviceHealth[serviceName] = ServiceStatus.Running;
 
                     _logger.LogInformation("    [OK] {ServiceName} loaded (Init: {Init}ms, Start: {Start}ms)",
                         serviceName,
@@ -67,11 +81,13 @@ public abstract class EngineApplication : IHostedService
                 }
                 catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
                 {
+                    _serviceHealth[serviceName] = ServiceStatus.Failed;
                     _logger.LogError("    [TIMEOUT] Service {ServiceName} failed to start within {Timeout}ms", serviceName, StartupTimeout.TotalMilliseconds);
                     if (service.IsCritical) throw new TimeoutException($"Critical service {serviceName} timed out during startup.");
                 }
                 catch (Exception ex)
                 {
+                    _serviceHealth[serviceName] = ServiceStatus.Failed;
                     _logger.LogError(ex, "    [FAIL] Failed to start service: {ServiceName}", serviceName);
                     if (service.IsCritical) throw;
                 }
@@ -104,15 +120,18 @@ public abstract class EngineApplication : IHostedService
         {
             await graph.ShutdownParallelAsync(async service =>
             {
-                var serviceName = service.GetType().Name;
+                var serviceName = service.Name ?? service.GetType().Name;
                 try
                 {
                     _logger.LogDebug("    <- Stopping {ServiceName}...", serviceName);
+                    _serviceHealth[serviceName] = ServiceStatus.Stopping;
                     await service.StopAsync(cancellationToken);
+                    _serviceHealth[serviceName] = ServiceStatus.Stopped;
                     _logger.LogInformation("    [OK] {ServiceName} stopped", serviceName);
                 }
                 catch (Exception ex)
                 {
+                    _serviceHealth[serviceName] = ServiceStatus.Failed;
                     _logger.LogError(ex, "    [FAIL] Error stopping service: {ServiceName}", serviceName);
                 }
             });
@@ -134,4 +153,26 @@ public abstract class EngineApplication : IHostedService
     /// Hook for derived classes to perform actions before services begin stopping.
     /// </summary>
     protected virtual Task OnStopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Executes PreTick on all registered modules.
+    /// </summary>
+    public void PreTick()
+    {
+        foreach (var module in _modules)
+        {
+            module.PreTick();
+        }
+    }
+
+    /// <summary>
+    /// Executes PostTick on all registered modules.
+    /// </summary>
+    public void PostTick()
+    {
+        foreach (var module in _modules)
+        {
+            module.PostTick();
+        }
+    }
 }

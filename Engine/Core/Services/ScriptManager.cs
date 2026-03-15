@@ -13,6 +13,8 @@ namespace Core
 {
     public class ScriptManager : EngineService, IScriptManager
     {
+        public override IEnumerable<System.Type> Dependencies => new[] { typeof(IDreamVM) };
+
         private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
         private readonly ILogger<ScriptManager> _logger;

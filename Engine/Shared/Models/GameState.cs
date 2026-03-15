@@ -10,6 +10,8 @@ using Shared.Interfaces;
 namespace Shared;
     public class GameState : Shared.Services.EngineService, IGameState, IEngineUpdateListener
     {
+        public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory) };
+
         private IMap? _map;
         private readonly ReaderWriterLockSlim _worldLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
         public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }

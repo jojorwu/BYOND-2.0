@@ -88,6 +88,7 @@ namespace tests
                     httpServerMock.Object,
                     gameLoopMock.Object
                 },
+                Array.Empty<IEngineModule>(),
                 new CVarReplicator(configManager, new NetDataWriterPool(), new Mock<IPlayerManager>().Object),
                 new Shared.Config.ConsoleCommandManager());
 

@@ -101,6 +101,8 @@ namespace Core.VM.Runtime
             Context.Dispose();
         }
 
+        public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectTypeManager) };
+
         public override Dictionary<string, object> GetDiagnosticInfo()
         {
             var info = base.GetDiagnosticInfo();

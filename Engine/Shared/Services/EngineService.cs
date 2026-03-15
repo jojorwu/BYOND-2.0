@@ -15,7 +15,7 @@ namespace Shared.Services;
         public virtual int Priority => 0;
 
         /// <inheritdoc />
-        public virtual IEnumerable<string> Dependencies => System.Array.Empty<string>();
+        public virtual IEnumerable<Type> Dependencies => System.Type.EmptyTypes;
 
         /// <inheritdoc />
         public virtual bool IsCritical => true;

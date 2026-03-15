@@ -22,18 +22,18 @@ public class ServiceDependencyGraph
 
     private void BuildGraph()
     {
-        var nameToService = new Dictionary<string, IEngineService>(StringComparer.OrdinalIgnoreCase);
+        var typeToService = new Dictionary<Type, IEngineService>();
         foreach (var s in _services)
         {
-            if (!string.IsNullOrEmpty(s.Name))
+            var type = s.GetType();
+            typeToService[type] = s;
+
+            foreach (var @interface in type.GetInterfaces())
             {
-                if (nameToService.ContainsKey(s.Name))
+                if (!typeToService.ContainsKey(@interface))
                 {
-                    // If multiple services have the same name, we can't reliably depend on them by name.
-                    // This might happen if someone registers the same service twice under different interfaces.
-                    continue;
+                    typeToService[@interface] = s;
                 }
-                nameToService[s.Name] = s;
             }
         }
 
@@ -42,9 +42,9 @@ public class ServiceDependencyGraph
             var deps = new HashSet<IEngineService>();
 
             // Explicit dependencies
-            foreach (var depName in service.Dependencies)
+            foreach (var depType in service.Dependencies)
             {
-                if (nameToService.TryGetValue(depName, out var dep))
+                if (typeToService.TryGetValue(depType, out var dep))
                 {
                     deps.Add(dep);
                 }

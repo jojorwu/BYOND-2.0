@@ -170,7 +170,7 @@ namespace Client
             };
         }
 
-        private async void LoadCSharpShader()
+        private async Task LoadCSharpShader()
         {
             string code = @"
 

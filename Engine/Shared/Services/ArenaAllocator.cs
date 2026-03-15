@@ -80,11 +80,11 @@ namespace Shared.Services;
                 _blocks.RemoveRange(1024, _blocks.Count - 1024);
             }
 
+            _currentBlockIndex = 0;
             foreach (var block in _blocks)
             {
                 block.Offset = 0;
             }
-            _currentBlockIndex = 0;
         }
 
         public void Dispose()

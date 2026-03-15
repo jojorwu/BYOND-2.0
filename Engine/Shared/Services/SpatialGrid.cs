@@ -121,7 +121,9 @@ namespace Shared;
 
         public void Add(IGameObject obj)
         {
-            var key = GetCellKey(obj.X, obj.Y);
+            var x = obj.X;
+            var y = obj.Y;
+            var key = GetCellKey(x, y);
 
             if (obj.CurrentGridCellKey != null)
             {
@@ -140,7 +142,7 @@ namespace Shared;
                         oldCell.Lock.Enter(ref lock1);
                         cell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
+                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                     }
                     finally
                     {
@@ -156,7 +158,7 @@ namespace Shared;
                         cell.Lock.Enter(ref lock1);
                         oldCell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
+                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                     }
                     finally
                     {
@@ -172,7 +174,7 @@ namespace Shared;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, (GetGridCoord(obj.X), GetGridCoord(obj.Y)));
+                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                 }
                 finally
                 {

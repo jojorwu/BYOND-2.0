@@ -70,6 +70,17 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         }
     }
 
+    public void ForEach<T, TVisitor>(ref TVisitor visitor) where T : class, IComponent where TVisitor : struct, Archetype.IComponentVisitor<T>
+    {
+        if (_typeToArchetypesCache.TryGetValue(typeof(T), out var archetypes))
+        {
+            foreach (var archetype in archetypes)
+            {
+                archetype.ForEach<T, TVisitor>(ref visitor);
+            }
+        }
+    }
+
     public void AddComponent<T>(IGameObject entity, T component) where T : class, IComponent
     {
         AddComponent(entity, (IComponent)component);

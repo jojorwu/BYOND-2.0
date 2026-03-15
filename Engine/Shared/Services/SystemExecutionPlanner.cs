@@ -128,7 +128,7 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
         }
 
         // Track remaining systems to be scheduled in this layer
-        bool[] scheduled = new bool[count];
+        var scheduled = new ResourceMask();
         int remainingCount = count;
 
         while (remainingCount > 0)
@@ -139,7 +139,7 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
 
             for (int i = 0; i < count; i++)
             {
-                if (scheduled[i]) continue;
+                if (scheduled.Get(i)) continue;
 
                 var readMask = systemReadMasks[i];
                 var writeMask = systemWriteMasks[i];
@@ -159,7 +159,7 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
                     lockedForWrite.UnionWith(writeMask);
                     lockedForRead.UnionWith(readMask);
 
-                    scheduled[i] = true;
+                    scheduled.Set(i);
                     remainingCount--;
                 }
             }
@@ -174,7 +174,7 @@ public class SystemExecutionPlanner : ISystemExecutionPlanner
                 var remainingSystems = new List<ISystem>();
                 for (int i = 0; i < count; i++)
                 {
-                    if (!scheduled[i]) remainingSystems.Add(systems[i]);
+                    if (!scheduled.Get(i)) remainingSystems.Add(systems[i]);
                 }
                 subLayers.Add(remainingSystems);
                 remainingCount = 0;

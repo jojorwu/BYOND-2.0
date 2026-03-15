@@ -34,6 +34,38 @@ public struct ResourceMask : IEquatable<ResourceMask>
         else throw new ArgumentOutOfRangeException(nameof(index), $"Resource index {index} exceeds the supported mask limit (512).");
     }
 
+    public void Unset(int index)
+    {
+        uint idx = (uint)index;
+        if (idx < 64) _mask0 &= ~(1UL << (int)idx);
+        else if (idx < 128) _mask1 &= ~(1UL << (int)(idx - 64));
+        else if (idx < 192) _mask2 &= ~(1UL << (int)(idx - 128));
+        else if (idx < 256) _mask3 &= ~(1UL << (int)(idx - 192));
+        else if (idx < 320) _mask4 &= ~(1UL << (int)(idx - 256));
+        else if (idx < 384) _mask5 &= ~(1UL << (int)(idx - 320));
+        else if (idx < 448) _mask6 &= ~(1UL << (int)(idx - 384));
+        else if (idx < 512) _mask7 &= ~(1UL << (int)(idx - 448));
+    }
+
+    public bool Get(int index)
+    {
+        uint idx = (uint)index;
+        if (idx < 64) return (_mask0 & (1UL << (int)idx)) != 0;
+        if (idx < 128) return (_mask1 & (1UL << (int)(idx - 64))) != 0;
+        if (idx < 192) return (_mask2 & (1UL << (int)(idx - 128))) != 0;
+        if (idx < 256) return (_mask3 & (1UL << (int)(idx - 192))) != 0;
+        if (idx < 320) return (_mask4 & (1UL << (int)(idx - 256))) != 0;
+        if (idx < 384) return (_mask5 & (1UL << (int)(idx - 320))) != 0;
+        if (idx < 448) return (_mask6 & (1UL << (int)(idx - 384))) != 0;
+        if (idx < 512) return (_mask7 & (1UL << (int)(idx - 448))) != 0;
+        return false;
+    }
+
+    public int Count => BitOperations.PopCount(_mask0) + BitOperations.PopCount(_mask1) +
+                        BitOperations.PopCount(_mask2) + BitOperations.PopCount(_mask3) +
+                        BitOperations.PopCount(_mask4) + BitOperations.PopCount(_mask5) +
+                        BitOperations.PopCount(_mask6) + BitOperations.PopCount(_mask7);
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void UnionWith(ResourceMask other)
     {

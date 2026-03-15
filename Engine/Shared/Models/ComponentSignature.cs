@@ -12,9 +12,33 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 
     public ComponentSignature(IEnumerable<Type> types)
     {
-        Types = types.OrderBy(t => t.TypeHandle.Value.ToInt64()).ToArray();
-        Mask = new ComponentMask();
+        // Use a more efficient construction for component signatures
+        if (types is Type[] array)
+        {
+            Types = new Type[array.Length];
+            Array.Copy(array, Types, array.Length);
+        }
+        else
+        {
+            Types = types.ToArray();
+        }
 
+        // Standard entity component sets are small (usually < 16),
+        // so a simple Insertion Sort is faster than LINQ OrderBy
+        for (int i = 1; i < Types.Length; i++)
+        {
+            var key = Types[i];
+            long keyHandle = key.TypeHandle.Value.ToInt64();
+            int j = i - 1;
+            while (j >= 0 && Types[j].TypeHandle.Value.ToInt64() > keyHandle)
+            {
+                Types[j + 1] = Types[j];
+                j--;
+            }
+            Types[j + 1] = key;
+        }
+
+        Mask = new ComponentMask();
         var hash = new HashCode();
         foreach (var type in Types)
         {

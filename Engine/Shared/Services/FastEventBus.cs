@@ -97,9 +97,12 @@ public class FastEventBus : IEventBus
             }
 
             var asyncActions = _asyncActions;
+            if (asyncActions.Length == 0) return;
+
             for (int i = 0; i < asyncActions.Length; i++)
             {
-                await asyncActions[i](eventData);
+                var task = asyncActions[i](eventData);
+                if (!task.IsCompleted) await task;
             }
         }
 

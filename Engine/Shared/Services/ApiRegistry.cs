@@ -43,9 +43,16 @@ public class ApiRegistry : IApiRegistry
                 return (T)provider;
             }
         }
-        else if (_typeProviders.TryGetValue(typeof(T), out var provider))
+        else
         {
-            return (T)provider;
+            // Fast-path: use volatile array to avoid dictionary lookup for type-based resolution
+            var providers = _allProviders;
+            var targetType = typeof(T);
+            for (int i = 0; i < providers.Length; i++)
+            {
+                if (targetType.IsInstanceOfType(providers[i]))
+                    return (T)providers[i];
+            }
         }
 
         throw new KeyNotFoundException($"API provider '{name ?? typeof(T).Name}' not found.");

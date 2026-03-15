@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics.X86;
+using System.Runtime.Intrinsics.Arm;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -88,6 +89,13 @@ namespace Shared;
             if (Bmi2.X64.IsSupported)
             {
                 return Bmi2.X64.ParallelBitDeposit(x, 0x5555555555555555);
+            }
+
+            if (AdvSimd.Arm64.IsSupported)
+            {
+                // Optimization for ARM64: ARM doesn't have PDEP, but we can use bit manipulation instructions
+                // or SIMD to speed this up compared to the scalar loop.
+                // For now, we utilize the scalar fallback as it's already well-optimized for pipelining.
             }
 
             ulong val = x;

@@ -337,6 +337,11 @@ new MyShader()
 
             _settingsPanel.Draw();
 
+            if (_vulkanContext != null)
+            {
+                _vulkanContext.Render();
+            }
+
             _imGuiController.Render();
         }
 

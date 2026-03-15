@@ -51,14 +51,26 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
     {
         if (_disposed) throw new ObjectDisposedException(nameof(CommandDispatcher));
 
-        var context = new CommandContext(new CommandWrapper<TResult>(command));
-        await ExecuteWithMiddleware(context, async () =>
-        {
-            context.Result = await command.ExecuteAsync();
-        });
+        var wrapper = _wrapperPool.Rent();
+        wrapper.Set(command);
+        var context = _contextPool.Rent();
+        context.Command = wrapper;
 
-        if (context.Exception != null) throw context.Exception;
-        return (TResult)context.Result!;
+        try
+        {
+            await ExecuteWithMiddleware(context, async () =>
+            {
+                context.Result = await command.ExecuteAsync();
+            });
+
+            if (context.Exception != null) throw context.Exception;
+            return (TResult)context.Result!;
+        }
+        finally
+        {
+            _contextPool.Return(context);
+            _wrapperPool.Return(wrapper);
+        }
     }
 
     private async Task ExecuteWithMiddleware(CommandContext context, Func<Task> finalAction)
@@ -93,7 +105,18 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
         }
     }
 
+    private static readonly SharedPool<CommandContext> _contextPool = new(() => new CommandContext());
+    private static readonly SharedPool<CommandWrapperPoolable> _wrapperPool = new(() => new CommandWrapperPoolable());
     private static readonly SharedPool<MiddlewareRunner> _runnerPool = new(() => new MiddlewareRunner());
+
+    private class CommandWrapperPoolable : ICommand, IPoolable
+    {
+        private object? _inner;
+        public string Name => ((dynamic)_inner!).Name;
+        public void Set(object inner) => _inner = inner;
+        public Task ExecuteAsync() => ((dynamic)_inner!).ExecuteAsync();
+        public void Reset() => _inner = null;
+    }
 
     private class MiddlewareRunner
     {
@@ -137,15 +160,23 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
             {
                 _jobSystem.Schedule(async () =>
                 {
-                    var context = new CommandContext(command);
-                    await ExecuteWithMiddleware(context, async () =>
+                    var context = _contextPool.Rent();
+                    context.Command = command;
+                    try
                     {
-                        await command.ExecuteAsync();
-                    });
+                        await ExecuteWithMiddleware(context, async () =>
+                        {
+                            await command.ExecuteAsync();
+                        });
 
-                    if (context.Exception != null)
+                        if (context.Exception != null)
+                        {
+                            _logger.LogError(context.Exception, "Error executing command: {CommandName}", command.Name);
+                        }
+                    }
+                    finally
                     {
-                        _logger.LogError(context.Exception, "Error executing command: {CommandName}", command.Name);
+                        _contextPool.Return(context);
                     }
                 }, track: false, priority: JobPriority.Critical);
             }

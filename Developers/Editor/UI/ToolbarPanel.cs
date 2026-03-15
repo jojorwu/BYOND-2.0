@@ -71,9 +71,8 @@ namespace Editor.UI
                     if (ImGui.IsItemHovered()) ImGui.SetTooltip($"Select the {tool.Name} tool.");
                     ImGui.SameLine();
                 }
-
-                ImGui.End();
             }
+            ImGui.End();
             ImGui.PopStyleVar();
         }
     }

@@ -16,6 +16,7 @@ namespace Client
         {
             return services
                 .AddSharedEngineServices()
+                .AddEngineModule<Core.CoreModule>()
                 .AddClientCoreServices()
                 .AddClientAssetServices();
         }

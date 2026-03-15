@@ -47,20 +47,23 @@ out vec4 FragColor;
 in vec2 TexCoords;
 uniform sampler2D uImage;
 uniform bool uHorizontal;
-uniform float uWeight[9] = float[] (0.15317, 0.144893, 0.122649, 0.092902, 0.06297, 0.038146, 0.020621, 0.009968, 0.004313);
+
+// 13-tap gaussian with linear sampling weights
+uniform float uWeight[5] = float[] (0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+uniform float uOffset[5] = float[] (0.0, 1.384615, 3.230769, 5.076923, 6.923077);
 
 void main() {
     vec2 tex_offset = 1.0 / textureSize(uImage, 0);
     vec3 result = texture(uImage, TexCoords).rgb * uWeight[0];
     if(uHorizontal) {
-        for(int i = 1; i < 9; ++i) {
-            result += texture(uImage, TexCoords + vec2(tex_offset.x * i, 0.0)).rgb * uWeight[i];
-            result += texture(uImage, TexCoords - vec2(tex_offset.x * i, 0.0)).rgb * uWeight[i];
+        for(int i = 1; i < 5; ++i) {
+            result += texture(uImage, TexCoords + vec2(tex_offset.x * uOffset[i], 0.0)).rgb * uWeight[i];
+            result += texture(uImage, TexCoords - vec2(tex_offset.x * uOffset[i], 0.0)).rgb * uWeight[i];
         }
     } else {
-        for(int i = 1; i < 9; ++i) {
-            result += texture(uImage, TexCoords + vec2(0.0, tex_offset.y * i)).rgb * uWeight[i];
-            result += texture(uImage, TexCoords - vec2(0.0, tex_offset.y * i)).rgb * uWeight[i];
+        for(int i = 1; i < 5; ++i) {
+            result += texture(uImage, TexCoords + vec2(0.0, tex_offset.y * uOffset[i])).rgb * uWeight[i];
+            result += texture(uImage, TexCoords - vec2(0.0, tex_offset.y * uOffset[i])).rgb * uWeight[i];
         }
     }
     FragColor = vec4(result, 1.0);

@@ -32,25 +32,32 @@ uniform float uFeedback; // History blend weight
 void main() {
     vec3 color = texture(uScreenTexture, TexCoords).rgb;
 
-    // Simple Sharpening
-    vec3 neighbor = texture(uScreenTexture, TexCoords + vec2(uTexelSize.x, 0.0)).rgb;
-    neighbor += texture(uScreenTexture, TexCoords - vec2(uTexelSize.x, 0.0)).rgb;
-    neighbor += texture(uScreenTexture, TexCoords + vec2(0.0, uTexelSize.y)).rgb;
-    neighbor += texture(uScreenTexture, TexCoords - vec2(0.0, uTexelSize.y)).rgb;
-    color = color * 2.0 - neighbor * 0.25;
+    // CAS-style Sharpening (approximate)
+    vec3 n = texture(uScreenTexture, TexCoords + vec2(0.0, -uTexelSize.y)).rgb;
+    vec3 w = texture(uScreenTexture, TexCoords + vec2(-uTexelSize.x, 0.0)).rgb;
+    vec3 e = texture(uScreenTexture, TexCoords + vec2(uTexelSize.x, 0.0)).rgb;
+    vec3 s = texture(uScreenTexture, TexCoords + vec2(0.0, uTexelSize.y)).rgb;
+    float sharpStrength = -0.125;
+    color = color + (color * 4.0 - (n + w + e + s)) * sharpStrength;
 
-    // Chromatic Aberration
-    float caOffset = length(TexCoords - 0.5) * 0.003;
-    float red = texture(uScreenTexture, TexCoords + vec2(caOffset, 0.0)).r;
+    // Enhanced Chromatic Aberration (Radial)
+    vec2 caDir = TexCoords - 0.5;
+    float caDist = length(caDir);
+    float caAmount = caDist * caDist * 0.008;
+    float red = texture(uScreenTexture, TexCoords - caDir * caAmount).r;
     float green = texture(uScreenTexture, TexCoords).g;
-    float blue = texture(uScreenTexture, TexCoords - vec2(caOffset, 0.0)).b;
-    color = mix(color, vec3(red, green, blue), 0.5);
+    float blue = texture(uScreenTexture, TexCoords + caDir * caAmount).b;
+    color = vec3(red, green, blue);
 
-    // TAA: Sample history with slight jitter compensation (basic version)
+    // TAA: Exponential Moving Average with clamping to neighborhood
     vec3 history = texture(uHistoryTexture, TexCoords).rgb;
+    vec3 minColor = min(color, min(n, min(w, min(e, s))));
+    vec3 maxColor = max(color, max(n, max(w, max(e, s))));
+    history = clamp(history, minColor, maxColor);
     color = mix(color, history, uFeedback);
 
-    // ACES Filmic Tone Mapping
+    // Improved ACES Filmic Tone Mapping (Narkowicz 2015)
+    color *= 0.6; // Exposure adjustment
     const float a = 2.51;
     const float b = 0.03;
     const float c = 2.43;

@@ -79,16 +79,21 @@ void main() {
     float intensity = alpha * (diff + spec);
     if (intensity < 0.01) discard;
 
-    // Simple Shadow Raycasting
+    // Enhanced Shadow Raycasting (Jittered for Soft Shadows)
     float dToLight = distance(WorldPos, uLightPos);
     float shadow = 1.0;
 
-    if (dToLight > 8.0) {
+    if (dToLight > 4.0) {
         vec2 dir = normalize(uLightPos - WorldPos);
         float noise = fract(sin(dot(WorldPos, vec2(12.9898, 78.233))) * 43758.5453);
-        float start = 4.0 + noise * 6.0;
-        for (float i = start; i < dToLight - 4.0; i += 8.0) {
-            vec2 samplePos = WorldPos + dir * i;
+
+        // Soft shadow jitter
+        float jitter = (noise - 0.5) * 2.0;
+        vec2 jitteredDir = normalize(dir + vec2(-dir.y, dir.x) * jitter * 0.05);
+
+        float stepSize = 4.0;
+        for (float i = 4.0; i < dToLight - 4.0; i += stepSize) {
+            vec2 samplePos = WorldPos + jitteredDir * i;
             vec2 uv = (samplePos - uScreenBounds.xy) / (uScreenBounds.zw - uScreenBounds.xy);
             if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
                 if (texture(uOccluderMap, uv).r > 0.5) {
@@ -99,8 +104,8 @@ void main() {
         }
     }
 
-    // Quadratic falloff for light intensity
-    float falloff = 1.0 / (1.0 + 0.005 * dToLight + 0.0001 * dToLight * dToLight);
+    // Physically-based falloff (inverse square with smoothing)
+    float falloff = pow(clamp(1.0 - pow(dToLight / uRadius, 4.0), 0.0, 1.0), 2.0) / (dToLight * dToLight + 1.0);
     FragColor = vec4(uColor.rgb, uColor.a * intensity * shadow * falloff);
 }";
 

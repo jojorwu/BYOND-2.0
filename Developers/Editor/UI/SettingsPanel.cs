@@ -179,9 +179,8 @@ namespace Editor.UI
                 {
                     isOpen = false;
                 }
-
-                ImGui.End();
             }
+            ImGui.End();
             IsOpen = isOpen;
         }
 

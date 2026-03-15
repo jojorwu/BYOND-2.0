@@ -139,5 +139,8 @@ namespace Core
             services.AddSingleton<IProjectManager, Core.Projects.ProjectManager>();
             services.AddSingleton<IServerDiscoveryService, Core.Networking.MockServerDiscoveryService>();
         }
+
+        public void PreTick() { }
+        public void PostTick() { }
     }
 }

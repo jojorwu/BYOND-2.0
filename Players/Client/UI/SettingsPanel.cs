@@ -79,8 +79,8 @@ namespace Client.UI
                 {
                     IsOpen = false;
                 }
-                ImGui.End();
             }
+            ImGui.End();
         }
 
         private void DrawCategoryCVars(string category)

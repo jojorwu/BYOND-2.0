@@ -10,27 +10,27 @@ namespace Client.UI
             var style = ImGui.GetStyle();
             var colors = style.Colors;
 
-            style.WindowRounding = 8.0f;
-            style.FrameRounding = 4.0f;
-            style.PopupRounding = 4.0f;
+            style.WindowRounding = 12.0f;
+            style.FrameRounding = 6.0f;
+            style.PopupRounding = 6.0f;
             style.ScrollbarRounding = 12.0f;
             style.GrabRounding = 4.0f;
             style.TabRounding = 4.0f;
-            style.WindowBorderSize = 1.0f;
+            style.WindowBorderSize = 0.0f;
             style.FrameBorderSize = 0.0f;
 
-            colors[(int)ImGuiCol.Text] = new Vector4(0.90f, 0.90f, 0.90f, 1.00f);
+            colors[(int)ImGuiCol.Text] = new Vector4(0.95f, 0.95f, 0.95f, 1.00f);
             colors[(int)ImGuiCol.TextDisabled] = new Vector4(0.50f, 0.50f, 0.50f, 1.00f);
-            colors[(int)ImGuiCol.WindowBg] = new Vector4(0.06f, 0.06f, 0.06f, 0.94f);
+            colors[(int)ImGuiCol.WindowBg] = new Vector4(0.10f, 0.10f, 0.12f, 0.95f);
             colors[(int)ImGuiCol.ChildBg] = new Vector4(0.00f, 0.00f, 0.00f, 0.00f);
             colors[(int)ImGuiCol.PopupBg] = new Vector4(0.08f, 0.08f, 0.08f, 0.94f);
             colors[(int)ImGuiCol.Border] = new Vector4(0.43f, 0.43f, 0.50f, 0.50f);
             colors[(int)ImGuiCol.BorderShadow] = new Vector4(0.00f, 0.00f, 0.00f, 0.00f);
-            colors[(int)ImGuiCol.FrameBg] = new Vector4(0.16f, 0.29f, 0.48f, 0.54f);
-            colors[(int)ImGuiCol.FrameBgHovered] = new Vector4(0.26f, 0.59f, 0.98f, 0.40f);
-            colors[(int)ImGuiCol.FrameBgActive] = new Vector4(0.26f, 0.59f, 0.98f, 0.67f);
+            colors[(int)ImGuiCol.FrameBg] = new Vector4(0.20f, 0.20f, 0.22f, 1.00f);
+            colors[(int)ImGuiCol.FrameBgHovered] = new Vector4(0.25f, 0.25f, 0.27f, 1.00f);
+            colors[(int)ImGuiCol.FrameBgActive] = new Vector4(0.30f, 0.30f, 0.32f, 1.00f);
             colors[(int)ImGuiCol.TitleBg] = new Vector4(0.04f, 0.04f, 0.04f, 1.00f);
-            colors[(int)ImGuiCol.TitleBgActive] = new Vector4(0.16f, 0.29f, 0.48f, 1.00f);
+            colors[(int)ImGuiCol.TitleBgActive] = new Vector4(0.20f, 0.40f, 0.80f, 1.00f);
             colors[(int)ImGuiCol.TitleBgCollapsed] = new Vector4(0.00f, 0.00f, 0.00f, 0.51f);
             colors[(int)ImGuiCol.MenuBarBg] = new Vector4(0.14f, 0.14f, 0.14f, 1.00f);
             colors[(int)ImGuiCol.ScrollbarBg] = new Vector4(0.02f, 0.02f, 0.02f, 0.53f);

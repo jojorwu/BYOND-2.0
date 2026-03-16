@@ -45,13 +45,15 @@ public class ApiRegistry : IApiRegistry
         }
         else
         {
-            // Fast-path: use volatile array to avoid dictionary lookup for type-based resolution
+            // Fast-path: use volatile array to avoid dictionary lookup for type-based resolution.
+            // Iterating over a small array is significantly faster than dictionary hashing.
             var providers = _allProviders;
             var targetType = typeof(T);
             for (int i = 0; i < providers.Length; i++)
             {
-                if (targetType.IsInstanceOfType(providers[i]))
-                    return (T)providers[i];
+                var provider = providers[i];
+                if (provider is T typedProvider)
+                    return typedProvider;
             }
         }
 

@@ -279,6 +279,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         var objValue = state.Locals[srcIdx];
                                         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                         {
+                                            // Persistent Inline Cache: utilize opcode-relative addressing for fast property access
                                             ref var cache = ref state.Proc._inlineCache[pcForCache];
                                             if (cache.ObjectType == obj.ObjectType)
                                             {
@@ -2229,7 +2230,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         double floatVal = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
                                         ref var localVal = ref state.Locals[localIdx];
-                                        if (localVal.Type <= DreamValueType.Integer) localVal = new DreamValue(localVal.GetValueAsDouble() * floatVal);
+                                        // Arithmetic Fast-path: manual numeric type switching
+                                        if (localVal.Type == DreamValueType.Float) localVal = new DreamValue(localVal.UnsafeRawDouble * floatVal);
+                                        else if (localVal.Type == DreamValueType.Integer) localVal = new DreamValue(localVal.UnsafeRawLong * (long)floatVal);
                                         else localVal = localVal * floatVal;
                                     }
                                     break;
@@ -2240,9 +2243,11 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         double floatVal = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
                                         ref var localVal = ref state.Locals[localIdx];
+                                        // Arithmetic Fast-path: avoid DreamValue division operator overhead
                                         if (floatVal != 0)
                                         {
-                                            if (localVal.Type <= DreamValueType.Integer) localVal = new DreamValue(localVal.GetValueAsDouble() / floatVal);
+                                            if (localVal.Type == DreamValueType.Float) localVal = new DreamValue(localVal.UnsafeRawDouble / floatVal);
+                                            else if (localVal.Type == DreamValueType.Integer) localVal = new DreamValue(localVal.UnsafeRawLong / (long)floatVal);
                                             else localVal = localVal / floatVal;
                                         }
                                         else localVal = new DreamValue(0.0);
@@ -2325,7 +2330,9 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         double val = *(double*)(state.BytecodePtr + state.PC);
                                         state.PC += 8;
                                         ref var a = ref state.Locals[idx];
-                                        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.GetValueAsDouble() + val);
+                                        // Arithmetic Fast-path: direct numeric type switching to bypass DreamValue overhead
+                                        if (a.Type == DreamValueType.Float) a = new DreamValue(a.UnsafeRawDouble + val);
+                                        else if (a.Type == DreamValueType.Integer) a = new DreamValue(a.UnsafeRawLong + (long)val);
                                         else a = a + val;
                                     }
                                     break;

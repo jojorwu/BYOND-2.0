@@ -1958,6 +1958,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int size = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if (size < 0 || state.StackPtr < size) throw new ScriptRuntimeException($"Stack underflow during CreateList: {size}", state.Proc, state.PC - 5, thread);
                                         var list = new DreamList(thread.Context.ListType!, 0);
                                         if (size > 0)
                                         {
@@ -1971,6 +1972,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int size = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if (size < 0 || state.StackPtr < size * 2) throw new ScriptRuntimeException($"Stack underflow during CreateAssociativeList: {size}", state.Proc, state.PC - 5, thread);
                                         var list = new DreamList(thread.Context.ListType!);
                                         if (size > 0)
                                         {

@@ -182,6 +182,10 @@ namespace Shared.Services;
             int length = offset - objectStartOffset;
             byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
             destination.Slice(objectStartOffset, length).CopyTo(buffer);
+            if (cache.TryGetValue(obj.Id, out var oldEntry))
+            {
+                ArrayPool<byte>.Shared.Return(oldEntry.Buffer);
+            }
             cache[obj.Id] = (buffer, length, obj.Version);
 
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;

@@ -278,7 +278,7 @@ public partial class DreamThread
     {
         var size = ReadInt32(proc, ref pc);
         if (size < 0 || size > _stackPtr)
-            throw new ScriptRuntimeException($"Invalid list size: {size}", proc, pc, this);
+            throw new ScriptRuntimeException($"Stack underflow during CreateList: {size}", proc, pc, this);
 
         var list = new DreamList(Context.ListType!, 0);
         if (size > 0)
@@ -293,7 +293,7 @@ public partial class DreamThread
     {
         var size = ReadInt32(proc, ref pc);
         if (size < 0 || size * 2 > _stackPtr)
-            throw new ScriptRuntimeException($"Invalid associative list size: {size}", proc, pc, this);
+            throw new ScriptRuntimeException($"Stack underflow during CreateAssociativeList: {size}", proc, pc, this);
         var list = new DreamList(Context.ListType!);
         if (size > 0)
         {

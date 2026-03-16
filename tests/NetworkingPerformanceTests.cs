@@ -33,16 +33,18 @@ namespace tests
                 objects.Add(obj);
             }
 
+            var buffer = new byte[65536];
             // Warm up
-            service.Serialize(objects);
+            service.SerializeTo(buffer, objects, null, out _);
 
             long startAlloc = GC.GetAllocatedBytesForCurrentThread();
 
             // Perform multiple serializations
             for (int i = 0; i < 10; i++)
             {
-                byte[] data = service.Serialize(objects);
-                Assert.That(data.Length, Is.GreaterThan(0));
+                int written = service.SerializeTo(buffer, objects, null, out var truncated);
+                Assert.That(truncated, Is.False);
+                Assert.That(written, Is.GreaterThan(0));
             }
 
             long endAlloc = GC.GetAllocatedBytesForCurrentThread();

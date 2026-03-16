@@ -69,7 +69,7 @@ namespace Editor.UI
                     if (ImGui.CollapsingHeader("General", ImGuiTreeNodeFlags.DefaultOpen))
                     {
                         ImGui.LabelText("ID", selectedObject.Id.ToString());
-                        ImGui.LabelText("Type", selectedObject.ObjectType.Name);
+                        ImGui.LabelText("Type", selectedObject.ObjectType?.Name ?? "Unknown");
                     }
 
                     if (ImGui.CollapsingHeader("Transform", ImGuiTreeNodeFlags.DefaultOpen))

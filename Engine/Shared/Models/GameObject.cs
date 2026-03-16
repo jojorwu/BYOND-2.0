@@ -368,6 +368,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public virtual void AddContent(IGameObject obj)
     {
+        if (obj == null) return;
         if (obj is GameObject gameObj)
         {
             gameObj.Loc = this;
@@ -380,6 +381,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public virtual void RemoveContent(IGameObject obj)
     {
+        if (obj == null) return;
         if (obj is GameObject gameObj)
         {
             if (gameObj.Loc == this)
@@ -395,6 +397,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     internal void AddContentInternal(IGameObject obj)
     {
+        if (obj == null) return;
         lock (_contentsLock)
         {
             if (!System.Array.Exists(_contents, x => x == obj))
@@ -409,6 +412,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     internal void RemoveContentInternal(IGameObject obj)
     {
+        if (obj == null) return;
         lock (_contentsLock)
         {
             int index = System.Array.IndexOf(_contents, obj);

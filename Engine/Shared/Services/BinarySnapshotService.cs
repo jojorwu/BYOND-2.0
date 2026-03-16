@@ -105,9 +105,11 @@ namespace Shared.Services;
             int count = 0;
             while (v >= 0x80)
             {
+                if (count >= span.Length) return 0;
                 span[count++] = (byte)(v | 0x80);
                 v >>= 7;
             }
+            if (count >= span.Length) return 0;
             span[count++] = (byte)v;
             return count;
         }
@@ -228,13 +230,15 @@ namespace Shared.Services;
             long result = 0;
             int shift = 0;
             bytesRead = 0;
-            while (true)
+            while (bytesRead < span.Length)
             {
                 byte b = span[bytesRead++];
                 result |= (long)(b & 0x7f) << shift;
                 if ((b & 0x80) == 0) return result;
                 shift += 7;
+                if (shift >= 70) throw new Exception("Malformed VarInt");
             }
+            throw new Exception("Unexpected end of stream while reading VarInt");
         }
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)

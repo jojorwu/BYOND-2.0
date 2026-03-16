@@ -34,6 +34,9 @@ public struct ResourceMask : IEquatable<ResourceMask>
         else throw new ArgumentOutOfRangeException(nameof(index), $"Resource index {index} exceeds the supported mask limit (512).");
     }
 
+    /// <summary>
+    /// Unsets the bit at the specified index.
+    /// </summary>
     public void Unset(int index)
     {
         uint idx = (uint)index;

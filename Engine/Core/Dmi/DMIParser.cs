@@ -258,17 +258,17 @@ public static class DmiParser {
         public TimeSpan Delay;
     }
 
-    public static ParsedDMIDescription ParseDMI(Stream stream) {
+    public static ParsedDMIDescription ParseDMI(Stream stream, int? mapFormat = null) {
         if (VerifyBmp(stream)) {
-            return ParseDMIBmp(stream);
+            return ParseDMIBmp(stream, mapFormat);
         } else if (VerifyPng(stream)) {
-            return ParseDMIPng(stream);
+            return ParseDMIPng(stream, mapFormat);
         } else {
             throw new Exception("Provided stream was not a valid image format (invalid magic bytes)");
         }
     }
 
-    private static ParsedDMIDescription ParseDMIBmp(Stream stream) {
+    private static ParsedDMIDescription ParseDMIBmp(Stream stream, int? mapFormat = null) {
         stream.Seek(14, SeekOrigin.Begin);
         var reader = new BinaryReader(stream);
         var headerSize = reader.ReadUInt32();
@@ -283,11 +283,14 @@ public static class DmiParser {
             throw new Exception($"Unrecognized BMP header (size {headerSize})");
         }
 
-        // TODO: Use CreateSplitStates if world.map_format == TILED_ICON_MAP
+        if (mapFormat == 32768) { // TILED_ICON_MAP
+            return ParsedDMIDescription.CreateSplitStates(width, height, 32); // Default icon size
+        }
+
         return ParsedDMIDescription.CreateSingleFrame((int)width, (int)height);
     }
 
-    private static ParsedDMIDescription ParseDMIPng(Stream stream) {
+    private static ParsedDMIDescription ParseDMIPng(Stream stream, int? mapFormat = null) {
         var reader = new BinaryReader(stream);
         Vector2u? imageSize = null;
 
@@ -347,6 +350,9 @@ public static class DmiParser {
         }
 
         if (imageSize != null) {
+            if (mapFormat == 32768) { // TILED_ICON_MAP
+                return ParsedDMIDescription.CreateSplitStates(imageSize.Value.X, imageSize.Value.Y, 32);
+            }
             // No DMI description found, but we do have an image header
             // So treat this PNG as a single icon frame spanning the whole image
             return ParsedDMIDescription.CreateSingleFrame((int)imageSize.Value.X, (int)imageSize.Value.Y);

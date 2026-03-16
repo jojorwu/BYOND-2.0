@@ -337,8 +337,8 @@ namespace Client.Graphics.Vulkan
 
         public void Render()
         {
-            _vk.WaitForFences(_device, 1, _inFlightFence, true, ulong.MaxValue);
-            _vk.ResetFences(_device, 1, _inFlightFence);
+            _vk.WaitForFences(_device, 1, in _inFlightFence, true, ulong.MaxValue);
+            _vk.ResetFences(_device, 1, in _inFlightFence);
 
             uint imageIndex = 0;
             _khrSwapchain.AcquireNextImage(_device, _swapchain, ulong.MaxValue, _imageAvailableSemaphore, default, ref imageIndex);

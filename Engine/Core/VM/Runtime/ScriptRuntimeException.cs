@@ -12,13 +12,13 @@ namespace Core.VM.Runtime
     /// </summary>
     public class ScriptRuntimeException : Exception
     {
-        public IDreamProc Proc { get; }
+        public IDreamProc? Proc { get; }
         public int PC { get; }
         private readonly CallFrame[] _capturedStack;
         private readonly int _stackDepth;
         public DreamValue? ThrownValue { get; set; }
 
-        public ScriptRuntimeException(string message, IDreamProc proc, int pc, DreamThread thread)
+        public ScriptRuntimeException(string message, IDreamProc? proc, int pc, DreamThread thread)
             : base(FormatMessage(message, proc, pc))
         {
             Proc = proc;
@@ -28,7 +28,7 @@ namespace Core.VM.Runtime
             Array.Copy(thread._callStack, _capturedStack, _stackDepth);
         }
 
-        public ScriptRuntimeException(string message, IDreamProc proc, int pc, DreamThread thread, Exception innerException)
+        public ScriptRuntimeException(string message, IDreamProc? proc, int pc, DreamThread thread, Exception innerException)
             : base(FormatMessage(message, proc, pc), innerException)
         {
             Proc = proc;
@@ -40,9 +40,9 @@ namespace Core.VM.Runtime
 
         public IEnumerable<CallFrame> CallStack => _capturedStack.Take(_stackDepth).Reverse();
 
-        private static string FormatMessage(string message, IDreamProc proc, int pc)
+        private static string FormatMessage(string message, IDreamProc? proc, int pc)
         {
-            return $"{message} (at {proc.Name}, PC: {pc})";
+            return $"{message} (at {proc?.Name ?? "unknown"}, PC: {pc})";
         }
 
         public override string ToString()
@@ -53,7 +53,7 @@ namespace Core.VM.Runtime
             for (int i = _stackDepth - 1; i >= 0; i--)
             {
                 var frame = _capturedStack[i];
-                sb.AppendLine($"  at {frame.Proc.Name} (PC: {frame.PC})");
+                sb.AppendLine($"  at {frame.Proc?.Name ?? "unknown"} (PC: {frame.PC})");
             }
             if (InnerException != null)
             {

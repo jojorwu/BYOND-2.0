@@ -159,7 +159,7 @@ namespace Client
             _renderPipeline.AddPass(new LightingPass(_lightingRenderer, _gBuffer, _occluderMap, _sceneFramebuffer, _particleSystem));
             _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer, _configManager));
 
-            LoadCSharpShader();
+            _ = LoadCSharpShader();
 
             _configManager.OnCVarChanged += (key, value) =>
             {

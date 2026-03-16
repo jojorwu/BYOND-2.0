@@ -33,7 +33,8 @@ namespace Client
         private readonly IObjectTypeManager _typeManager;
         private readonly IObjectFactory _objectFactory;
         private IWindow _window;
-        private GL _gl = null!;
+        private GL? _gl;
+        private Client.Graphics.Vulkan.VulkanContext? _vulkanContext;
         private LogicThread _logicThread = null!;
         private SpriteRenderer _spriteRenderer = null!;
         private ModelRenderer _modelRenderer = null!;
@@ -112,7 +113,19 @@ namespace Client
                 input.Keyboards[i].KeyDown += KeyDown;
             }
 
-            _gl = GL.GetApi(_window);
+            var backend = _configManager.GetCVar<string>(ConfigKeys.GraphicsBackend);
+            if (backend.Equals("Vulkan", StringComparison.OrdinalIgnoreCase))
+            {
+                _vulkanContext = new Client.Graphics.Vulkan.VulkanContext(_window);
+                // ImGui with Vulkan requires more setup, for now we initialize GL as fallback for UI if possible
+                // but strictly following backend for logic
+                _gl = GL.GetApi(_window);
+            }
+            else
+            {
+                _gl = GL.GetApi(_window);
+            }
+
             _imGuiController = new ImGuiController(_gl, _window, input);
             _connectionPanel = new ConnectionPanel();
             _mainHud = new MainHud();
@@ -146,7 +159,7 @@ namespace Client
             _renderPipeline.AddPass(new LightingPass(_lightingRenderer, _gBuffer, _occluderMap, _sceneFramebuffer, _particleSystem));
             _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer, _configManager));
 
-            LoadCSharpShader();
+            _ = LoadCSharpShader();
 
             _configManager.OnCVarChanged += (key, value) =>
             {
@@ -157,7 +170,7 @@ namespace Client
             };
         }
 
-        private async void LoadCSharpShader()
+        private async Task LoadCSharpShader()
         {
             string code = @"
 
@@ -289,8 +302,12 @@ new MyShader()
 
             if (_clientState == ClientState.Connecting)
             {
-                _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
-                _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+                if (_gl != null)
+                {
+                    _gl.ClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+                    _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+                }
+
                 _connectionPanel.Draw();
             }
             else if (_clientState == ClientState.InGame)
@@ -301,7 +318,7 @@ new MyShader()
                 if (_currentState != null)
                 {
                     var renderContext = new RenderContext(
-                        _gl,
+                        _gl!,
                         _previousState,
                         _currentState,
                         _alpha,
@@ -319,6 +336,11 @@ new MyShader()
             }
 
             _settingsPanel.Draw();
+
+            if (_vulkanContext != null)
+            {
+                _vulkanContext.Render();
+            }
 
             _imGuiController.Render();
         }
@@ -389,6 +411,7 @@ new MyShader()
         private void OnClose()
         {
             _logicThread?.Stop();
+            _vulkanContext?.Dispose();
             _spriteRenderer.Dispose();
             _modelRenderer.Dispose();
             _worldRenderer.Dispose();

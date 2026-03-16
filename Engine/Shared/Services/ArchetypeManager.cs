@@ -186,9 +186,6 @@ public class ArchetypeManager : EngineService, IArchetypeManager
                             _removeTransitionsCache.TryGetValue((currentArchetype, componentType), out targetArchetype);
                         }
 
-                        var components = GetEntityComponentsInternal(entity.Id, currentArchetype);
-                        components.Remove(componentType);
-
                         if (targetArchetype != null)
                         {
                             int oldIndex = entity.ArchetypeIndex;

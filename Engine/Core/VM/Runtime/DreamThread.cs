@@ -43,7 +43,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         {
             var newStack = ArrayPool<TryBlock>.Shared.Rent(_tryStack.Length * 2);
             Array.Copy(_tryStack, newStack, _tryStack.Length);
-            ArrayPool<TryBlock>.Shared.Return(_tryStack);
+            ArrayPool<TryBlock>.Shared.Return(_tryStack, true);
             _tryStack = newStack;
         }
         _tryStack[_tryStackPtr++] = tryBlock;
@@ -51,7 +51,11 @@ public partial class DreamThread : IScriptThread, IDisposable
 
     internal void PopTryBlock()
     {
-        if (_tryStackPtr > 0) _tryStackPtr--;
+        if (_tryStackPtr > 0)
+        {
+            _tryStackPtr--;
+            _tryStack[_tryStackPtr] = default; // Clear reference (DMReference.Name)
+        }
     }
 
     private readonly IEnumerator<DreamValue>?[] _activeEnumeratorsArray = new IEnumerator<DreamValue>[1024];
@@ -93,12 +97,16 @@ public partial class DreamThread : IScriptThread, IDisposable
     {
         if (id >= 0 && id < 1024)
         {
+            _activeEnumeratorsArray[id]?.Dispose();
             _activeEnumeratorsArray[id] = null;
             _enumeratorListsArray[id] = null;
         }
         else
         {
-            ActiveEnumerators.Remove(id);
+            if (ActiveEnumerators.Remove(id, out var enumerator))
+            {
+                enumerator.Dispose();
+            }
             EnumeratorLists.Remove(id);
         }
     }
@@ -181,8 +189,17 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Push(DreamValue value)
     {
-        var currentFrame = _callStackPtr > 0 ? _callStack[_callStackPtr - 1] : default;
-        _stack.Push(value, MaxStackSize, currentFrame.Proc, currentFrame.PC, this);
+        if (_callStackPtr > 0)
+        {
+            var currentFrame = _callStack[_callStackPtr - 1];
+            _stack.Push(value, MaxStackSize, currentFrame.Proc, currentFrame.PC, this);
+        }
+        else
+        {
+            // Fallback for when there's no call frame (e.g. initial execution setup)
+            _stack.EnsureCapacity(1, MaxStackSize);
+            _stack.Array[_stack.Pointer++] = value;
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -497,8 +514,15 @@ public partial class DreamThread : IScriptThread, IDisposable
     {
         if (_tryStack != null)
         {
-            ArrayPool<TryBlock>.Shared.Return(_tryStack);
+            ArrayPool<TryBlock>.Shared.Return(_tryStack, true);
             _tryStack = null!;
+        }
+
+        for (int i = 0; i < 1024; i++)
+        {
+            _activeEnumeratorsArray[i]?.Dispose();
+            _activeEnumeratorsArray[i] = null;
+            _enumeratorListsArray[i] = null;
         }
 
         foreach (var enumerator in ActiveEnumerators.Values)

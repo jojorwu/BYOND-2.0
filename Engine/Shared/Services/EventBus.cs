@@ -9,7 +9,7 @@ using Shared.Messaging;
 namespace Shared.Services;
     public class EventBus : IEventBus
     {
-        private readonly ConcurrentDictionary<Type, Delegate[]> _handlers = new();
+        private readonly ConcurrentDictionary<Type, object[]> _handlers = new();
         private readonly object _lock = new();
 
         public void Subscribe<T>(Action<T> handler)
@@ -22,7 +22,12 @@ namespace Shared.Services;
             SubscribeInternal(typeof(T), handler);
         }
 
-        private void SubscribeInternal(Type type, Delegate handler)
+        public void Subscribe<T>(IEventHandler<T> handler)
+        {
+            SubscribeInternal(typeof(T), handler);
+        }
+
+        private void SubscribeInternal(Type type, object handler)
         {
             lock (_lock)
             {
@@ -30,7 +35,7 @@ namespace Shared.Services;
                     _ => new[] { handler },
                     (_, existing) =>
                     {
-                        var updated = new Delegate[existing.Length + 1];
+                        var updated = new object[existing.Length + 1];
                         Array.Copy(existing, updated, existing.Length);
                         updated[existing.Length] = handler;
                         return updated;
@@ -48,7 +53,12 @@ namespace Shared.Services;
             UnsubscribeInternal(typeof(T), handler);
         }
 
-        private void UnsubscribeInternal(Type type, Delegate handler)
+        public void Unsubscribe<T>(IEventHandler<T> handler)
+        {
+            UnsubscribeInternal(typeof(T), handler);
+        }
+
+        private void UnsubscribeInternal(Type type, object handler)
         {
             lock (_lock)
             {
@@ -63,7 +73,7 @@ namespace Shared.Services;
                     }
                     else
                     {
-                        var updated = new Delegate[existing.Length - 1];
+                        var updated = new object[existing.Length - 1];
                         Array.Copy(existing, 0, updated, 0, index);
                         Array.Copy(existing, index + 1, updated, index, existing.Length - index - 1);
                         _handlers[type] = updated;
@@ -81,7 +91,11 @@ namespace Shared.Services;
                 for (int i = 0; i < span.Length; i++)
                 {
                     var handler = span[i];
-                    if (handler is Action<T> action)
+                    if (handler is IEventHandler<T> interfaceHandler)
+                    {
+                        interfaceHandler.HandleEvent(eventData);
+                    }
+                    else if (handler is Action<T> action)
                     {
                         action(eventData);
                     }
@@ -103,7 +117,11 @@ namespace Shared.Services;
                 if (span.Length == 1)
                 {
                     var handler = span[0];
-                    if (handler is Action<T> action)
+                    if (handler is IEventHandler<T> interfaceHandler)
+                    {
+                        interfaceHandler.HandleEvent(eventData);
+                    }
+                    else if (handler is Action<T> action)
                     {
                         action(eventData);
                     }
@@ -119,7 +137,11 @@ namespace Shared.Services;
                 for (int i = 0; i < span.Length; i++)
                 {
                     var handler = span[i];
-                    if (handler is Action<T> action)
+                    if (handler is IEventHandler<T> interfaceHandler)
+                    {
+                        interfaceHandler.HandleEvent(eventData);
+                    }
+                    else if (handler is Action<T> action)
                     {
                         action(eventData);
                     }

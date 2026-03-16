@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Shared.Models;
 
 namespace Shared.Services;
     public class ComponentMessageBus : IComponentMessageBus
@@ -44,10 +45,19 @@ namespace Shared.Services;
                     var archetypes = am.GetArchetypesWithComponents(targetTypes);
                     var arrays = System.Buffers.ArrayPool<Shared.Models.Archetype.IComponentArray>.Shared.Rent(targetTypes.Length);
 
+                    var filterMask = new ComponentMask();
+                    foreach (var type in targetTypes)
+                    {
+                        filterMask.Set(ComponentIdRegistry.GetId(type));
+                    }
+
                     try
                     {
                         foreach (var arch in archetypes)
                         {
+                            // Rapidly skip archetypes that don't overlap with our targets
+                            if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
+
                             int arrayCount = 0;
                             for (int i = 0; i < targetTypes.Length; i++)
                             {

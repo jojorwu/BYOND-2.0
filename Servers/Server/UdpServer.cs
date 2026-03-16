@@ -9,6 +9,7 @@ using Shared.Interfaces;
 using Core;
 using Shared.Config;
 using System.Linq;
+using System.Buffers;
 
 namespace Server
 {
@@ -91,13 +92,32 @@ namespace Server
                 var interestedObjects = _interestManager.GetInterestedObjects(peer);
                 var objectsToSend = interestedObjects.Any() ? interestedObjects : objects;
 
-                byte[] snapshot = _binarySnapshotService.Serialize(objectsToSend, peer.LastSentVersions);
-                if (snapshot.Length > 1) // 1 byte for end marker
+                // Use the modern SerializeTo API with a pooled buffer
+                int bufferSize = 65536;
+                while (true)
                 {
-                    byte[] message = new byte[snapshot.Length + 1];
-                    message[0] = (byte)SnapshotMessageType.Binary;
-                    Buffer.BlockCopy(snapshot, 0, message, 1, snapshot.Length);
-                    _ = peer.SendAsync(message);
+                    byte[] rented = ArrayPool<byte>.Shared.Rent(bufferSize);
+                    try
+                    {
+                        int written = _binarySnapshotService.SerializeTo(rented, objectsToSend, peer.LastSentVersions, out bool truncated);
+                        if (!truncated)
+                        {
+                            if (written > 0)
+                            {
+                                byte[] message = new byte[written + 1];
+                                message[0] = (byte)SnapshotMessageType.Binary;
+                                Buffer.BlockCopy(rented, 0, message, 1, written);
+                                _ = peer.SendAsync(message);
+                            }
+                            break;
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(rented);
+                    }
+                    bufferSize *= 2;
+                    if (bufferSize > 1024 * 1024 * 10) break; // 10MB limit per player snapshot
                 }
             });
         }

@@ -11,6 +11,7 @@ using LiteNetLib.Utils;
 using Core;
 using Shared.Services;
 using Microsoft.Extensions.Options;
+using System.IO;
 
 namespace tests
 {
@@ -88,6 +89,8 @@ namespace tests
                     httpServerMock.Object,
                     gameLoopMock.Object
                 },
+                Array.Empty<IEngineModule>(),
+                new Mock<IDiagnosticBus>().Object,
                 new CVarReplicator(configManager, new NetDataWriterPool(), new Mock<IPlayerManager>().Object),
                 new Shared.Config.ConsoleCommandManager());
 

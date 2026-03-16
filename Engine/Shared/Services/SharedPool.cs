@@ -14,7 +14,7 @@ namespace Shared.Services;
         private readonly ConcurrentQueue<T> _globalQueue = new();
         private readonly ConcurrentStack<T> _fallbackStack = new();
         private const int LocalCapacity = 4096;
-        private const int MaxGlobalCapacity = 10485760;
+        private const int MaxGlobalCapacity = 1048576; // 1M instead of 10M for global safety
 
         private class LocalCache
         {
@@ -73,6 +73,8 @@ namespace Shared.Services;
             }
             else
             {
+                // Fallback to stack when global queue is pressured
+                // This maintains high throughput but limits unbounded growth of the queue
                 _fallbackStack.Push(obj);
             }
         }
@@ -90,5 +92,8 @@ namespace Shared.Services;
             }
 
             _fallbackStack.Clear();
+
+            // Note: We don't clear thread-local caches here as they are small (4096)
+            // and clearing them from other threads is not possible.
         }
     }

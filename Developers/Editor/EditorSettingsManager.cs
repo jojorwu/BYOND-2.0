@@ -10,7 +10,7 @@ namespace Editor
         private const string SettingsFileName = "editor_settings.json";
         private static readonly string SettingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BYOND2.0", SettingsFileName);
 
-        public EditorSettings Settings { get; private set; }
+        public EditorSettings Settings { get; private set; } = new();
 
         public EditorSettingsManager()
         {
@@ -42,7 +42,11 @@ namespace Editor
         {
             var options = new JsonSerializerOptions { WriteIndented = true };
             var json = JsonSerializer.Serialize(Settings, options);
-            Directory.CreateDirectory(Path.GetDirectoryName(SettingsFilePath));
+            var directory = Path.GetDirectoryName(SettingsFilePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
             File.WriteAllText(SettingsFilePath, json);
         }
     }

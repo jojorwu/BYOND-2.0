@@ -24,15 +24,24 @@ public interface ICommand<TResult>
 /// <summary>
 /// Context for command execution middleware.
 /// </summary>
-public class CommandContext
+public class CommandContext : IPoolable
 {
-    public ICommand Command { get; }
+    public ICommand Command { get; internal set; } = null!;
     public object? Result { get; set; }
     public Exception? Exception { get; set; }
 
     public CommandContext(ICommand command)
     {
         Command = command;
+    }
+
+    public CommandContext() { }
+
+    public void Reset()
+    {
+        Command = null!;
+        Result = null;
+        Exception = null;
     }
 }
 

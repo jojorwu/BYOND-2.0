@@ -13,6 +13,8 @@ namespace Core
 {
     public class ScriptManager : EngineService, IScriptManager
     {
+        public override IEnumerable<System.Type> Dependencies => new[] { typeof(IDreamVM) };
+
         private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
         private readonly ILogger<ScriptManager> _logger;
@@ -61,6 +63,11 @@ namespace Core
 
         public string? ExecuteCommand(string command)
         {
+            if (command == null)
+            {
+                throw new System.ArgumentNullException(nameof(command));
+            }
+
             foreach (var system in _systems)
             {
                 var result = system.ExecuteString(command);

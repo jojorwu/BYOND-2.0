@@ -15,7 +15,7 @@ namespace tests
     {
         private class TestSystem : ISystem
         {
-            public string Name { get; set; }
+            public string Name { get; set; } = string.Empty;
             public ExecutionPhase Phase { get; set; } = ExecutionPhase.Simulation;
             public string[] Dependencies { get; set; } = Array.Empty<string>();
             public Type[] ReadResources { get; set; } = Array.Empty<Type>();

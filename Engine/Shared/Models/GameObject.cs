@@ -797,6 +797,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         void Visit(int index, in DreamValue value);
     }
 
+    /// <summary>
+    /// Zero-allocation iteration over changed variables using a struct-based visitor.
+    /// Utilizes C# 13 'allows ref struct' constraint for peak efficiency.
+    /// </summary>
     public void VisitChanges<T>(ref T visitor) where T : struct, IChangeVisitor, allows ref struct
     {
         lock (_lock)
@@ -812,6 +816,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             }
         }
     }
+
 
     public DeltaState GetDeltaState()
     {

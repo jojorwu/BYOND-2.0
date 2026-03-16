@@ -39,20 +39,30 @@ namespace Editor.UI
             _gl = gl;
         }
 
-        public async void Draw(Scene scene)
+        private bool _isLoadingMap = false;
+
+        public void Draw(Scene scene)
         {
-            // This is not ideal, but for now we'll reload the map if the scene's gamestate doesn't have it.
-            if (scene.GameState.Map == null && File.Exists(scene.FilePath))
+            // Fix: Refactored async loading to avoid dangerous async void in UI thread
+            if (scene.GameState.Map == null && File.Exists(scene.FilePath) && !_isLoadingMap)
             {
-                try
+                _isLoadingMap = true;
+                Task.Run(async () =>
                 {
-                    var map = await _gameApi.Map.LoadMapAsync(scene.FilePath);
-                    scene.GameState.Map = map;
-                }
-                catch (System.Exception e)
-                {
-                    System.Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
-                }
+                    try
+                    {
+                        var map = await _gameApi.Map.LoadMapAsync(scene.FilePath);
+                        scene.GameState.Map = map;
+                    }
+                    catch (System.Exception e)
+                    {
+                        System.Console.WriteLine($"[ERROR] Failed to load map: {e.Message}");
+                    }
+                    finally
+                    {
+                        _isLoadingMap = false;
+                    }
+                });
             }
 
             ImGui.Begin("Viewport");

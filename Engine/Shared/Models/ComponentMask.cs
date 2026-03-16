@@ -53,6 +53,7 @@ public struct ComponentMask : IEquatable<ComponentMask>
     {
         if (Vector256.IsHardwareAccelerated)
         {
+            // Fully SIMD-optimized 512-bit check
             var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0);
             var ov0 = Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
             var v1 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask4);

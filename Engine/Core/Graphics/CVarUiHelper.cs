@@ -12,19 +12,30 @@ public static class CVarUiHelper
 {
     public static void DrawCVarEditor(CVarInfo info, IConfigurationManager manager)
     {
-        if (!CVarUiRegistry.TryDraw(info, manager))
+        if (ImGui.BeginTable($"CVarEditor_{info.Name}", 2, ImGuiTableFlags.SizingStretchProp))
         {
-            ImGui.Text($"{info.Name}: {info.Value} (Unsupported UI)");
-        }
+            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, 200);
+            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
 
-        if (!string.IsNullOrEmpty(info.Description))
-        {
-            ImGui.SameLine();
-            ImGui.TextDisabled("(?)");
-            if (ImGui.IsItemHovered())
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(info.Name);
+            if (!string.IsNullOrEmpty(info.Description))
             {
-                ImGui.SetTooltip(info.Description);
+                ImGui.SameLine();
+                ImGui.TextDisabled("(?)");
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip(info.Description);
+                }
             }
+
+            ImGui.TableNextColumn();
+            if (!CVarUiRegistry.TryDraw(info, manager))
+            {
+                ImGui.Text($"{info.Value} (Unsupported)");
+            }
+            ImGui.EndTable();
         }
     }
 

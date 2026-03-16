@@ -8,7 +8,7 @@ namespace Editor.History
         private readonly IGameObject _target;
         private readonly long _x, _y, _z;
 
-        public string Name => $"Delete {_target.ObjectType.Name}";
+        public string Name => $"Delete {_target.ObjectType?.Name ?? "Unknown"}";
 
         public DeleteObjectCommand(IGameState gameState, IGameObject target)
         {

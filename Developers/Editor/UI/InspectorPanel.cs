@@ -82,7 +82,7 @@ namespace Editor.UI
                         }
                     }
 
-                    if (ImGui.CollapsingHeader("Variables", ImGuiTreeNodeFlags.DefaultOpen))
+                    if (ImGui.CollapsingHeader("Variables", ImGuiTreeNodeFlags.DefaultOpen) && selectedObject.ObjectType != null)
                     {
                         for (int i = 0; i < selectedObject.ObjectType.VariableNames.Count; i++)
                         {

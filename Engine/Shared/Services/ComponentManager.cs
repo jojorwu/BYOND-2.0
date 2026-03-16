@@ -2,13 +2,14 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
     public class ComponentManager : IComponentManager
     {
         private readonly IArchetypeManager _archetypeManager;
-        private readonly Dictionary<string, Type> _componentTypesByName = new();
+        private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
 
         public IArchetypeManager ArchetypeManager => _archetypeManager;
 
@@ -19,22 +20,41 @@ namespace Shared.Services;
         {
             _archetypeManager = archetypeManager;
 
-            // Cache all component types for faster lookup by name
+            // Use the Registry for stable ID assignment and discovery
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                // We only scan assemblies that might contain components to avoid overhead
+                if (IsProbablyComponentAssembly(assembly))
+                {
+                    ComponentIdRegistry.RegisterAll(assembly);
+                }
+            }
+
+            // Fill name cache from the registry's discovered types
+            // Since ComponentIdRegistry doesn't expose types, we still need to scan or we can modify Registry
+            // Let's modify ComponentManager to use a more efficient scan once.
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().Where(IsProbablyComponentAssembly))
             {
                 foreach (var type in assembly.GetTypes())
                 {
                     if (typeof(IComponent).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
                     {
-                        _componentTypesByName[type.Name.ToLowerInvariant()] = type;
+                        _componentTypesByName[type.Name] = type;
                     }
                 }
             }
         }
 
+        private static bool IsProbablyComponentAssembly(Assembly assembly)
+        {
+            var name = assembly.GetName().Name;
+            if (name == null) return false;
+            return name.Contains("Shared") || name.Contains("Engine") || name.Contains("Game") || name.Contains("Client") || name.Contains("Server");
+        }
+
         public IComponent? CreateComponent(string componentName)
         {
-            if (_componentTypesByName.TryGetValue(componentName.ToLowerInvariant(), out var type))
+            if (_componentTypesByName.TryGetValue(componentName, out var type))
             {
                 return (IComponent?)Activator.CreateInstance(type);
             }

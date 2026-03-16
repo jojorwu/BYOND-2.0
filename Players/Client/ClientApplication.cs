@@ -17,8 +17,9 @@ namespace Client
             ILogger<ClientApplication> logger,
             IEnumerable<IEngineService> services,
             IEnumerable<IEngineModule> modules,
+            IDiagnosticBus diagnosticBus,
             Game game)
-            : base(logger, services, modules)
+            : base(logger, services, modules, diagnosticBus)
         {
             _game = game;
         }

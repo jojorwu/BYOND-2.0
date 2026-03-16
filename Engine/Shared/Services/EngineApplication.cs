@@ -24,11 +24,14 @@ public abstract class EngineApplication : IHostedService
     private readonly Dictionary<string, ServiceStatus> _serviceHealth = new();
     public IReadOnlyDictionary<string, ServiceStatus> ServiceHealth => _serviceHealth;
 
-    protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services, IEnumerable<IEngineModule> modules)
+    protected readonly IDiagnosticBus _diagnosticBus;
+
+    protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services, IEnumerable<IEngineModule> modules, IDiagnosticBus diagnosticBus)
     {
         _logger = logger;
         _services = services.ToList();
         _modules = modules.ToList();
+        _diagnosticBus = diagnosticBus;
 
         foreach (var service in _services)
         {
@@ -78,17 +81,38 @@ public abstract class EngineApplication : IHostedService
                         serviceName,
                         service.InitializationDurationMs,
                         service.StartupDurationMs);
+
+                    _diagnosticBus.Publish("EngineApplication", $"Service {serviceName} started", DiagnosticSeverity.Info, m =>
+                    {
+                        m["Service"] = serviceName;
+                        m["InitializationDurationMs"] = service.InitializationDurationMs;
+                        m["StartupDurationMs"] = service.StartupDurationMs;
+                    });
                 }
                 catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
                 {
                     _serviceHealth[serviceName] = ServiceStatus.Failed;
                     _logger.LogError("    [TIMEOUT] Service {ServiceName} failed to start within {Timeout}ms", serviceName, StartupTimeout.TotalMilliseconds);
+
+                    _diagnosticBus.Publish("EngineApplication", $"Service {serviceName} timeout", DiagnosticSeverity.Error, m =>
+                    {
+                        m["Service"] = serviceName;
+                        m["TimeoutMs"] = StartupTimeout.TotalMilliseconds;
+                    });
+
                     if (service.IsCritical) throw new TimeoutException($"Critical service {serviceName} timed out during startup.");
                 }
                 catch (Exception ex)
                 {
                     _serviceHealth[serviceName] = ServiceStatus.Failed;
                     _logger.LogError(ex, "    [FAIL] Failed to start service: {ServiceName}", serviceName);
+
+                    _diagnosticBus.Publish("EngineApplication", $"Service {serviceName} failed to start", DiagnosticSeverity.Critical, m =>
+                    {
+                        m["Service"] = serviceName;
+                        m["Error"] = ex.Message;
+                    });
+
                     if (service.IsCritical) throw;
                 }
             });
@@ -101,6 +125,12 @@ public abstract class EngineApplication : IHostedService
 
         sw.Stop();
         _logger.LogInformation("{AppName} lifecycle started successfully in {Elapsed}ms", GetType().Name, sw.ElapsedMilliseconds);
+
+        _diagnosticBus.Publish("EngineApplication", $"{GetType().Name} lifecycle started", DiagnosticSeverity.Info, m =>
+        {
+            m["Application"] = GetType().Name;
+            m["TotalStartupDurationMs"] = sw.ElapsedMilliseconds;
+        });
 
         await OnStartAsync(cancellationToken);
     }

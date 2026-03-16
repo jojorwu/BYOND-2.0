@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
 using Shared.Interfaces;
 
 namespace Shared.Services;
@@ -10,16 +11,43 @@ public class DiagnosticBus : IDiagnosticBus
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
     private readonly object _lock = new();
 
-    public void Publish(DiagnosticEvent diagnosticEvent)
+    // Pool of DiagnosticEvent objects to eliminate allocations on Publish
+    private readonly ConcurrentQueue<DiagnosticEvent> _pool = new();
+    private const int MaxPoolSize = 1024;
+
+    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<Dictionary<string, object>>? metricsAction = null)
     {
         var subscribers = _subscribers;
-        for (int i = 0; i < subscribers.Length; i++)
+        if (subscribers.Length == 0) return;
+
+        if (!_pool.TryDequeue(out var ev))
         {
-            try
+            ev = new DiagnosticEvent();
+        }
+
+        try
+        {
+            ev.Source = source;
+            ev.Message = message;
+            ev.Severity = severity;
+            metricsAction?.Invoke(ev.Metrics);
+
+            for (int i = 0; i < subscribers.Length; i++)
             {
-                subscribers[i](diagnosticEvent);
+                try
+                {
+                    subscribers[i](ev);
+                }
+                catch { /* Diagnostics should never throw */ }
             }
-            catch { /* Diagnostics should never throw */ }
+        }
+        finally
+        {
+            ev.Clear();
+            if (_pool.Count < MaxPoolSize)
+            {
+                _pool.Enqueue(ev);
+            }
         }
     }
 

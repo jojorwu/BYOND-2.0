@@ -155,11 +155,12 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             // Execute Phases
             for (int i = 0; i < Phases.Length; i++)
             {
+                var phase = Phases[i];
                 var layers = _phaseExecutionLayers[i];
                 if (layers == null) continue;
 
                 var phaseSw = System.Diagnostics.Stopwatch.StartNew();
-                using (_profilingService.Measure($"SystemManager.Phase.{Phases[i]}"))
+                using (_profilingService.Measure($"SystemManager.Phase.{phase}"))
                 {
                     for (int j = 0; j < layers.Length; j++)
                     {
@@ -213,7 +214,12 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                         }
                     }
                 }
-                _diagnosticBus.Publish(new DiagnosticEvent("SystemManager", $"Phase {Phases[i]} execution completed", DiagnosticSeverity.Info, new Dictionary<string, object> { { "Phase", Phases[i].ToString() }, { "DurationMs", phaseSw.Elapsed.TotalMilliseconds } }));
+
+                _diagnosticBus.Publish("SystemManager", $"Phase {phase} execution completed", DiagnosticSeverity.Info, m =>
+                {
+                    m["Phase"] = phase.ToString();
+                    m["DurationMs"] = phaseSw.Elapsed.TotalMilliseconds;
+                });
             }
 
             // Module Post-Tick
@@ -266,7 +272,11 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
             system.PostTick();
 
-            _diagnosticBus.Publish(new DiagnosticEvent("SystemManager", $"System {system.Name} execution completed", DiagnosticSeverity.Info, new Dictionary<string, object> { { "System", system.Name }, { "DurationMs", sw.Elapsed.TotalMilliseconds } }));
+            _diagnosticBus.Publish("SystemManager", $"System {system.Name} execution completed", DiagnosticSeverity.Info, m =>
+            {
+                m["System"] = system.Name;
+                m["DurationMs"] = sw.Elapsed.TotalMilliseconds;
+            });
 
             var jobs = system.CreateJobs();
             if (jobs != null)

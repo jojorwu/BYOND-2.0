@@ -82,6 +82,11 @@ namespace Shared.Interfaces;
         bool Enabled => true;
 
         /// <summary>
+        /// Gets whether matching archetypes should be processed in parallel.
+        /// </summary>
+        bool ParallelArchetypes => false;
+
+        /// <summary>
         /// Types of resources this system reads from.
         /// Used for safe parallel scheduling.
         /// </summary>

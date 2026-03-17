@@ -261,13 +261,33 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             var queries = info.Queries;
             if (queries.Length > 0)
             {
-                for (int i = 0; i < queries.Length; i++)
+                if (system.ParallelArchetypes)
                 {
-                    var query = queries[i];
-                    foreach (var archetype in query.GetMatchingArchetypes())
+                    var matchingArchetypes = new List<Archetype>();
+                    for (int i = 0; i < queries.Length; i++)
                     {
-                        system.Tick(archetype, ecb);
+                        matchingArchetypes.AddRange(queries[i].GetMatchingArchetypes());
+                    }
+
+                    if (matchingArchetypes.Count > 0)
+                    {
+                        _jobSystem.ForEachAsync(matchingArchetypes, arch =>
+                        {
+                            system.Tick(arch, ecb);
+                        }).GetAwaiter().GetResult();
                         batchHandled = true;
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < queries.Length; i++)
+                    {
+                        var query = queries[i];
+                        foreach (var archetype in query.GetMatchingArchetypes())
+                        {
+                            system.Tick(archetype, ecb);
+                            batchHandled = true;
+                        }
                     }
                 }
             }

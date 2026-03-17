@@ -43,7 +43,6 @@ namespace Shared.Services;
                 if (targetTypes != null && targetTypes.Length > 0)
                 {
                     var archetypes = am.GetArchetypesWithComponents(targetTypes);
-                    var arrays = System.Buffers.ArrayPool<Shared.Models.Archetype.IComponentArray>.Shared.Rent(targetTypes.Length);
 
                     var filterMask = new ComponentMask();
                     foreach (var type in targetTypes)
@@ -51,42 +50,21 @@ namespace Shared.Services;
                         filterMask.Set(ComponentIdRegistry.GetId(type));
                     }
 
-                    try
+                    foreach (var arch in archetypes)
                     {
-                        foreach (var arch in archetypes)
+                        // Rapidly skip archetypes that don't overlap with our targets
+                        if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
+
+                        // Use entity snapshot to avoid holding archetype lock during long broadcast
+                        var entities = arch.GetEntitiesSnapshot();
+                        for (int i = 0; i < entities.Length; i++)
                         {
-                            // Rapidly skip archetypes that don't overlap with our targets
-                            if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
+                            var entity = entities[i];
+                            if (entity == null) continue;
 
-                            int arrayCount = 0;
-                            for (int i = 0; i < targetTypes.Length; i++)
-                            {
-                                var array = arch.GetComponentsInternal(targetTypes[i]);
-                                if (array != null) arrays[arrayCount++] = array;
-                            }
-
-                            if (arrayCount == 0) continue;
-
-                            arch.ForEachEntity(entity =>
-                            {
-                                if (entity is GameObject g)
-                                {
-                                    int idx = g.ArchetypeIndex;
-                                    for (int i = 0; i < arrayCount; i++)
-                                    {
-                                        var component = arrays[i].Get(idx);
-                                        if (component != null && component.Enabled)
-                                        {
-                                            component.OnMessage(message);
-                                        }
-                                    }
-                                }
-                            });
+                            // Re-dispatch via GameObject to use its optimized local component resolution
+                            entity.SendMessage(message);
                         }
-                    }
-                    finally
-                    {
-                        System.Buffers.ArrayPool<Shared.Models.Archetype.IComponentArray>.Shared.Return(arrays, clearArray: true);
                     }
                 }
                 else

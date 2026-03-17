@@ -298,6 +298,8 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _registry.SystemsChanged -= MarkDirty;
+
         foreach (var system in _registry.GetSystems())
         {
             await system.ShutdownAsync();

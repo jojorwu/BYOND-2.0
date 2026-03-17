@@ -132,13 +132,27 @@ public class FastEventBus : IEventBus
             }
 
             var asyncActions = _asyncActions;
-            if (asyncActions.Length == 0) return;
+            int asyncCount = asyncActions.Length;
+            if (asyncCount == 0) return;
 
-            for (int i = 0; i < asyncActions.Length; i++)
+            if (asyncCount == 1)
             {
-                var task = asyncActions[i](eventData);
-                // Optimized Check: Bypasses state machine overhead for synchronous handlers.
-                // If already completed, GetResult() will propagate any exceptions.
+                var task = asyncActions[0](eventData);
+                if (!task.IsCompleted) await task;
+                else task.GetAwaiter().GetResult();
+                return;
+            }
+
+            // Start all async tasks concurrently
+            var tasks = new ValueTask[asyncCount];
+            for (int i = 0; i < asyncCount; i++)
+            {
+                tasks[i] = asyncActions[i](eventData);
+            }
+
+            for (int i = 0; i < asyncCount; i++)
+            {
+                var task = tasks[i];
                 if (!task.IsCompleted) await task;
                 else task.GetAwaiter().GetResult();
             }

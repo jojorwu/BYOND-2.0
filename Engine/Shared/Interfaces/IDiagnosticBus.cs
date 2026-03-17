@@ -36,5 +36,6 @@ public class DiagnosticEvent
 public interface IDiagnosticBus
 {
     void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<Dictionary<string, object>>? metricsAction = null);
+        void Publish<TState>(string source, string message, TState state, Action<Dictionary<string, object>, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info);
     IDisposable Subscribe(Action<DiagnosticEvent> callback);
 }

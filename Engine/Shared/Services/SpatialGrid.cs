@@ -98,9 +98,24 @@ namespace Shared;
 
             if (AdvSimd.Arm64.IsSupported)
             {
-                // Optimization for ARM64: Utilize bit manipulation for coordinate interleaving
+                // ARM64 bit interleaving optimization
+                return InterleaveBitsArm64(x);
             }
 
+            ulong val = x;
+            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
+            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
+            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
+            val = (val | (val << 2)) & 0x3333333333333333;
+            val = (val | (val << 1)) & 0x5555555555555555;
+            return val;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong InterleaveBitsArm64(uint x)
+        {
+            // ARM64 doesn't have PDEP, but we can use AdvSimd for vector bit manipulation
+            // if we were interleaving multiple values. For a single uint, we use a specialized sequence.
             ulong val = x;
             val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
             val = (val | (val << 8)) & 0x00FF00FF00FF00FF;

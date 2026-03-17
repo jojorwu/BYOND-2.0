@@ -105,11 +105,9 @@ namespace Shared.Services;
             int count = 0;
             while (v >= 0x80)
             {
-                if (count >= span.Length) return 0;
                 span[count++] = (byte)(v | 0x80);
                 v >>= 7;
             }
-            if (count >= span.Length) return 0;
             span[count++] = (byte)v;
             return count;
         }
@@ -138,8 +136,8 @@ namespace Shared.Services;
             }
 
             // Check if we have enough space for the basic object data
-            // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
-            if (offset + 32 > destination.Length)
+            // Estimate: 7 fields * 10 bytes max per VarInt = 70 bytes. Use 128 for safety.
+            if (offset + 128 > destination.Length)
             {
                 truncated = true;
                 return true;
@@ -236,9 +234,9 @@ namespace Shared.Services;
                 result |= (long)(b & 0x7f) << shift;
                 if ((b & 0x80) == 0) return result;
                 shift += 7;
-                if (shift >= 70) throw new Exception("Malformed VarInt");
+                if (shift >= 70) throw new InvalidDataException("Malformed VarInt: too many bytes");
             }
-            throw new Exception("Unexpected end of stream while reading VarInt");
+            throw new InvalidDataException("Unexpected end of stream while reading VarInt");
         }
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)

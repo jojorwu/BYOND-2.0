@@ -7,9 +7,19 @@ namespace Shared.Interfaces;
     public interface ISystemRegistry
     {
         /// <summary>
+        /// Invoked when the set of registered systems changes.
+        /// </summary>
+        event Action? SystemsChanged;
+
+        /// <summary>
         /// Registers a new system with the engine.
         /// </summary>
         void Register(ISystem system);
+
+        /// <summary>
+        /// Registers multiple systems with the engine efficiently.
+        /// </summary>
+        void RegisterRange(IEnumerable<ISystem> systems);
 
         /// <summary>
         /// Unregisters a system from the engine.

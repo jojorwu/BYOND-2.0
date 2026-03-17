@@ -176,6 +176,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public long CommittedZ => _committedZ;
 
+    public string CommittedIcon => ObjectType is { IconIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : string.Empty;
+    public string CommittedIconState => ObjectType is { IconStateIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : string.Empty;
+    public int CommittedDir => ObjectType is { DirIndex: var idx and not -1 } ? (int)_committedStore.Get(idx).GetValueAsDouble() : 2;
+    public double CommittedAlpha => ObjectType is { AlphaIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 255.0;
+    public string CommittedColor => ObjectType is { ColorIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : "#ffffff";
+    public double CommittedLayer => ObjectType is { LayerIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 2.0;
+    public double CommittedPixelX => ObjectType is { PixelXIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 0.0;
+    public double CommittedPixelY => ObjectType is { PixelYIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 0.0;
+
     public string Icon
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -45,7 +45,6 @@ namespace Shared;
         }
 
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
-        private readonly ConcurrentQueue<Cell> _activeCells = new();
         private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
@@ -185,7 +184,6 @@ namespace Shared;
 
         private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
         {
-            if (cell.Count == 0) _activeCells.Enqueue(cell);
             obj.NextInGridCell = cell.Head;
             obj.PrevInGridCell = null;
             if (cell.Head != null) cell.Head.PrevInGridCell = obj;

@@ -87,6 +87,18 @@ namespace Shared;
         long CommittedZ { get; }
 
         /// <summary>
+        /// Committed visual properties for high-performance lock-free reading.
+        /// </summary>
+        string CommittedIcon { get; }
+        string CommittedIconState { get; }
+        int CommittedDir { get; }
+        double CommittedAlpha { get; }
+        string CommittedColor { get; }
+        double CommittedLayer { get; }
+        double CommittedPixelX { get; }
+        double CommittedPixelY { get; }
+
+        /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>
         void CommitState();

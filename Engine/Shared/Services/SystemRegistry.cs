@@ -5,6 +5,7 @@ using Shared.Interfaces;
 namespace Shared.Services;
     public class SystemRegistry : ISystemRegistry
     {
+        public event Action? SystemsChanged;
         private readonly ConcurrentDictionary<string, ISystem> _systems = new();
         private volatile ISystem[] _allSystems = Array.Empty<ISystem>();
 
@@ -15,6 +16,20 @@ namespace Shared.Services;
             {
                 _allSystems = _systems.Values.ToArray();
             }
+            SystemsChanged?.Invoke();
+        }
+
+        public void RegisterRange(IEnumerable<ISystem> systems)
+        {
+            foreach (var system in systems)
+            {
+                _systems[system.Name] = system;
+            }
+            lock (_systems)
+            {
+                _allSystems = _systems.Values.ToArray();
+            }
+            SystemsChanged?.Invoke();
         }
 
         public void Unregister(string systemName)
@@ -25,6 +40,7 @@ namespace Shared.Services;
                 {
                     _allSystems = _systems.Values.ToArray();
                 }
+                SystemsChanged?.Invoke();
             }
         }
 

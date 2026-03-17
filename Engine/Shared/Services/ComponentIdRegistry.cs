@@ -52,4 +52,9 @@ public static class ComponentIdRegistry
     }
 
     public static int Count => _nextId;
+
+    /// <summary>
+    /// Gets all registered component types.
+    /// </summary>
+    public static IEnumerable<Type> RegisteredTypes => _typeToId.Keys;
 }

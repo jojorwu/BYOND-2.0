@@ -216,23 +216,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                             goto Done;
                         }
 
-                        // Dispatch block to reduce check overhead
-                        for (int i = 0; i < 8; i++)
+                        // Optimized chunked instruction dispatch:
+                        // Execute instructions in batches of 16 to reduce budget checking overhead
+                        // while still maintaining responsiveness.
+                        int remainingBudget = instructionBudget - instructionsExecutedThisTick;
+                        if (remainingBudget <= 0) goto Done;
+                        int chunk = Math.Min(remainingBudget, 16);
+
+                        for (int i = 0; i < chunk; i++)
                         {
                             if (thread.State != DreamThreadState.Running) break;
 
-                            // Small budget extension (Micro-yielding mitigation):
-                            // If we're at the very end of our budget but about to execute a non-branching instruction,
-                            // allow one more to reduce context-switching on procs that are almost done.
-                            if (instructionsExecutedThisTick >= instructionBudget && i == 0)
-                            {
-                                var nextOp = (Opcode)state.BytecodePtr[state.PC];
-                                if (!OpcodeMetadataCache.IsBranch(nextOp) && !OpcodeMetadataCache.CanModifyCallStack(nextOp))
-                                {
-                                    // Allow this one instruction to proceed
-                                }
-                                else break;
-                            }
                             if (state.PC >= state.BytecodeArray.Length)
                             {
                                 thread._stackPtr = state.StackPtr;

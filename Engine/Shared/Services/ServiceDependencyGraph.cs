@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 
@@ -99,9 +101,13 @@ public class ServiceDependencyGraph
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    if (service.IsCritical) { completionTcs.TrySetException(new Exception($"Critical service {service.GetType().Name} failed.")); return; }
+                    if (service.IsCritical)
+                    {
+                        completionTcs.TrySetException(ex);
+                        return;
+                    }
                 }
                 finally
                 {
@@ -110,21 +116,22 @@ public class ServiceDependencyGraph
                         completionTcs.TrySetResult();
                     }
                 }
-
-                // If new items were added, continue processing
-                if (!ready.IsEmpty) continue;
             }
         }
 
-        if (ready.IsEmpty)
+        if (_services.Count == 0) return;
+        if (ready.IsEmpty) throw new InvalidOperationException("Circular dependency detected in service graph.");
+
+        // Start multiple workers to ensure true parallelism
+        int workerCount = Math.Min(_services.Count, Environment.ProcessorCount);
+        var workers = new Task[workerCount];
+        for (int i = 0; i < workerCount; i++)
         {
-             if (_services.Count > 0) throw new InvalidOperationException("Circular dependency detected in service graph.");
-             return;
+            workers[i] = Task.Run(ProcessReadyAsync);
         }
 
-        // Start initial processing
-        _ = ProcessReadyAsync();
-        await completionTcs.Task;
+        await Task.WhenAny(completionTcs.Task, Task.WhenAll(workers));
+        if (completionTcs.Task.IsFaulted) await completionTcs.Task;
 
         if (processedCount < _services.Count)
         {
@@ -176,19 +183,20 @@ public class ServiceDependencyGraph
                         completionTcs.TrySetResult();
                     }
                 }
-
-                if (!ready.IsEmpty) continue;
             }
         }
 
-        if (ready.IsEmpty)
+        if (_services.Count == 0) return;
+        if (ready.IsEmpty) throw new InvalidOperationException("Circular dependency detected during service shutdown.");
+
+        int workerCount = Math.Min(_services.Count, Environment.ProcessorCount);
+        var workers = new Task[workerCount];
+        for (int i = 0; i < workerCount; i++)
         {
-            if (_services.Count > 0) throw new InvalidOperationException("Circular dependency detected during service shutdown.");
-            return;
+            workers[i] = Task.Run(ProcessReadyAsync);
         }
 
-        _ = ProcessReadyAsync();
-        await completionTcs.Task;
+        await Task.WhenAny(completionTcs.Task, Task.WhenAll(workers));
 
         if (processedCount < _services.Count)
         {

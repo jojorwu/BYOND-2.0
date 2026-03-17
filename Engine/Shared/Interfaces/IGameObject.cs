@@ -65,14 +65,9 @@ namespace Shared;
         int ArchetypeIndex { get; set; }
 
         /// <summary>
-        /// Internal SpatialGrid metadata: next object in the same grid cell.
+        /// Internal SpatialGrid metadata: index of the object within its current grid cell array.
         /// </summary>
-        IGameObject? NextInGridCell { get; set; }
-
-        /// <summary>
-        /// Internal SpatialGrid metadata: previous object in the same grid cell.
-        /// </summary>
-        IGameObject? PrevInGridCell { get; set; }
+        int SpatialGridIndex { get; set; }
 
         /// <summary>
         /// Internal SpatialGrid metadata: the key of the cell this object is currently in.

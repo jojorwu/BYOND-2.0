@@ -232,7 +232,13 @@ namespace Shared.Services;
             {
                 byte b = span[bytesRead++];
                 result |= (long)(b & 0x7f) << shift;
-                if ((b & 0x80) == 0) return result;
+                if ((b & 0x80) == 0)
+                {
+                    // Ensure the result fits in a long (max 64 bits)
+                    if (shift > 63 || (shift == 63 && (b & 0x7e) != 0))
+                        throw new InvalidDataException("VarInt too large for 64-bit integer");
+                    return result;
+                }
                 shift += 7;
                 if (shift >= 70) throw new InvalidDataException("Malformed VarInt: too many bytes");
             }
@@ -241,17 +247,23 @@ namespace Shared.Services;
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
             ReadOnlySpan<byte> span = data;
             int offset = 0;
             var unresolvedReferences = new List<(GameObject target, int propIdx, long refId)>();
 
             while (offset < span.Length)
             {
+                if (offset + 1 > span.Length) break;
+
                 long id = ReadVarInt(span.Slice(offset), out int idBytes);
                 offset += idBytes;
                 if (id == 0) break;
 
                 GameObject.EnsureNextId(id);
+
+                if (offset + 5 > span.Length) throw new InvalidDataException("Unexpected end of stream during object header");
 
                 long version = ReadVarInt(span.Slice(offset), out int vBytes);
                 offset += vBytes;
@@ -290,12 +302,18 @@ namespace Shared.Services;
                     gameObject.SetPosition(x, y, z);
                 }
 
+                if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream before property count");
+
                 int propertyCount = (int)ReadVarInt(span.Slice(offset), out int propCountBytes);
                 offset += propCountBytes;
                 for (int i = 0; i < propertyCount; i++)
                 {
+                    if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream during property deserialization");
+
                     int propIdx = (int)ReadVarInt(span.Slice(offset), out int propIdxBytes);
                     offset += propIdxBytes;
+
+                    if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream before property value");
                     var val = DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
                     offset += valBytes;
 

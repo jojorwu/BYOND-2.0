@@ -90,9 +90,9 @@ namespace Server
             {
                 // Filter objects by interest if the player has an AOI defined
                 var interestedObjects = _interestManager.GetInterestedObjects(peer);
-                var objectsToSend = interestedObjects.Any() ? interestedObjects : objects;
 
                 // Use the modern SerializeTo API with a pooled buffer
+                var objectsToSend = interestedObjects.IsDefault ? objects : (IEnumerable<IGameObject>)interestedObjects;
                 int bufferSize = 65536;
                 while (true)
                 {

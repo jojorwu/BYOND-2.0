@@ -15,27 +15,33 @@ namespace Shared;
     {
         private class Cell : IDisposable
         {
-            public IGameObject? Head;
+            public IGameObject[] Objects = Array.Empty<IGameObject>();
             public int Count;
             public SpinLock Lock = new(false);
 
             public void Clear()
             {
-                var current = Head;
-                while (current != null)
+                for (int i = 0; i < Count; i++)
                 {
-                    var next = current.NextInGridCell;
-                    current.NextInGridCell = null;
-                    current.PrevInGridCell = null;
-                    current.CurrentGridCellKey = null;
-                    current = next;
+                    var obj = Objects[i];
+                    if (obj != null)
+                    {
+                        obj.SpatialGridIndex = -1;
+                        obj.CurrentGridCellKey = null;
+                    }
+                    Objects[i] = null!;
                 }
-                Head = null;
+                if (Objects.Length > 0)
+                {
+                    ArrayPool<IGameObject>.Shared.Return(Objects, true);
+                    Objects = Array.Empty<IGameObject>();
+                }
                 Count = 0;
             }
 
             public void Dispose()
             {
+                Clear();
             }
         }
 
@@ -184,11 +190,20 @@ namespace Shared;
 
         private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
         {
-            obj.NextInGridCell = cell.Head;
-            obj.PrevInGridCell = null;
-            if (cell.Head != null) cell.Head.PrevInGridCell = obj;
-            cell.Head = obj;
-            cell.Count++;
+            if (cell.Count == cell.Objects.Length)
+            {
+                int newSize = cell.Objects.Length == 0 ? 4 : cell.Objects.Length * 2;
+                var newArray = ArrayPool<IGameObject>.Shared.Rent(newSize);
+                if (cell.Count > 0)
+                {
+                    Array.Copy(cell.Objects, newArray, cell.Count);
+                    ArrayPool<IGameObject>.Shared.Return(cell.Objects, true);
+                }
+                cell.Objects = newArray;
+            }
+
+            obj.SpatialGridIndex = cell.Count;
+            cell.Objects[cell.Count++] = obj;
             obj.CurrentGridCellKey = key;
         }
 
@@ -213,15 +228,22 @@ namespace Shared;
 
         private void RemoveInternal(IGameObject obj, Cell cell)
         {
-            if (cell.Head == obj) cell.Head = obj.NextInGridCell;
-            if (obj.PrevInGridCell != null) obj.PrevInGridCell.NextInGridCell = obj.NextInGridCell;
-            if (obj.NextInGridCell != null) obj.NextInGridCell.PrevInGridCell = obj.PrevInGridCell;
+            int index = obj.SpatialGridIndex;
+            if (index == -1) return;
 
-            var oldKey = obj.CurrentGridCellKey;
-            obj.NextInGridCell = null;
-            obj.PrevInGridCell = null;
-            obj.CurrentGridCellKey = null;
+            int lastIndex = cell.Count - 1;
+            if (index < lastIndex)
+            {
+                var lastObj = cell.Objects[lastIndex];
+                cell.Objects[index] = lastObj;
+                lastObj.SpatialGridIndex = index;
+            }
+
+            cell.Objects[lastIndex] = null!;
             cell.Count--;
+            obj.SpatialGridIndex = -1;
+            var oldKey = obj.CurrentGridCellKey;
+            obj.CurrentGridCellKey = null;
 
             if (cell.Count == 0 && oldKey != null)
             {
@@ -243,7 +265,7 @@ namespace Shared;
 
         public delegate void QueryCallback<TState>(IGameObject obj, ref TState state);
 
-        public struct BoxEnumerator
+        public struct BoxEnumerator : IEnumerator<IGameObject>
         {
             private readonly SpatialGrid _grid;
             private readonly Box2l _box;
@@ -251,9 +273,10 @@ namespace Shared;
             private readonly long _endGY;
             private long _currentGX;
             private long _currentGY;
-            private IGameObject? _currentInCell;
+            private int _currentIndexInCell;
             private Cell? _currentCell;
             private bool _lockTaken;
+            private IGameObject? _current;
 
             public BoxEnumerator(SpatialGrid grid, Box2l box)
             {
@@ -263,58 +286,67 @@ namespace Shared;
                 _currentGY = grid.GetGridCoord(box.Bottom);
                 _endGX = grid.GetGridCoord(box.Right);
                 _endGY = grid.GetGridCoord(box.Top);
-                _currentInCell = null;
+                _currentIndexInCell = -1;
                 _currentCell = null;
                 _lockTaken = false;
+                _current = null;
             }
 
             public bool MoveNext()
             {
                 while (true)
                 {
-                    if (_currentInCell != null)
+                    if (_currentCell != null)
                     {
-                        _currentInCell = _currentInCell.NextInGridCell;
-                    }
-
-                    while (_currentInCell == null)
-                    {
-                        if (_lockTaken && _currentCell != null)
+                        _currentIndexInCell++;
+                        if (_currentIndexInCell < _currentCell.Count)
                         {
-                            _currentCell.Lock.Exit(false);
-                            _lockTaken = false;
-                        }
-
-                        if (_currentGY > _endGY)
-                        {
-                            _currentGY = _grid.GetGridCoord(_box.Bottom);
-                            _currentGX++;
-                        }
-
-                        if (_currentGX > _endGX) return false;
-
-                        ulong key = GetMortonCode(_currentGX, _currentGY);
-                        _currentGY++;
-
-                        if (_grid._grid.TryGetValue(key, out _currentCell))
-                        {
-                            if (Volatile.Read(ref _currentCell.Head) != null)
+                            _current = _currentCell.Objects[_currentIndexInCell];
+                            if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
+                                _current.Y >= _box.Bottom && _current.Y <= _box.Top)
                             {
-                                _currentCell.Lock.Enter(ref _lockTaken);
-                                _currentInCell = _currentCell.Head;
+                                return true;
                             }
+                            continue;
                         }
                     }
 
-                    if (_currentInCell.X >= _box.Left && _currentInCell.X <= _box.Right &&
-                        _currentInCell.Y >= _box.Bottom && _currentInCell.Y <= _box.Top)
+                    if (_lockTaken && _currentCell != null)
                     {
-                        return true;
+                        _currentCell.Lock.Exit(false);
+                        _lockTaken = false;
+                    }
+
+                    if (_currentGY > _endGY)
+                    {
+                        _currentGY = _grid.GetGridCoord(_box.Bottom);
+                        _currentGX++;
+                    }
+
+                    if (_currentGX > _endGX) return false;
+
+                    ulong key = GetMortonCode(_currentGX, _currentGY);
+                    _currentGY++;
+
+                    if (_grid._grid.TryGetValue(key, out _currentCell))
+                    {
+                        if (Volatile.Read(ref _currentCell.Count) > 0)
+                        {
+                            _currentCell.Lock.Enter(ref _lockTaken);
+                            _currentIndexInCell = -1;
+                        }
+                        else
+                        {
+                            _currentCell = null;
+                        }
                     }
                 }
             }
 
-            public IGameObject Current => _currentInCell!;
+            public IGameObject Current => _current!;
+            object System.Collections.IEnumerator.Current => Current;
+
+            public void Reset() => throw new NotSupportedException();
 
             public void Dispose()
             {

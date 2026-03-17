@@ -66,8 +66,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
-    public IGameObject? NextInGridCell { get; set; }
-    public IGameObject? PrevInGridCell { get; set; }
+    public int SpatialGridIndex { get; set; } = -1;
     public (long X, long Y)? CurrentGridCellKey { get; set; }
     public IStateMachine? StateMachine { get; set; }
 
@@ -940,8 +939,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         Archetype = null;
         ArchetypeIndex = -1;
         ActiveThreads = null;
-        NextInGridCell = null;
-        PrevInGridCell = null;
+        SpatialGridIndex = -1;
         CurrentGridCellKey = null;
 
         lock (_contentsLock)

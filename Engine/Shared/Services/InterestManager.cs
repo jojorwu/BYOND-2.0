@@ -31,52 +31,33 @@ namespace Shared.Services;
             _playerStates[peer] = new PlayerInterestState { X = x, Y = y, Range = range };
         }
 
-        public IEnumerable<IGameObject> GetInterestedObjects(INetworkPeer peer)
+        public InterestedObjectEnumerable GetInterestedObjects(INetworkPeer peer)
         {
             if (_playerStates.TryGetValue(peer, out var state))
             {
                 var box = new Box2l(state.X - state.Range, state.Y - state.Range, state.X + state.Range, state.Y + state.Range);
-
-                // Optimized spatial query using pre-allocated pooled list.
-                // By returning a pooled list, we avoid IEnumerable enumerator allocations
-                // and list resizing during high-frequency networking ticks.
-                var results = _listPool.Rent();
-                _spatialGrid.GetObjectsInBox(box, (IList<IGameObject>)results);
-                return new PooledListWrapper(results);
+                return new InterestedObjectEnumerable(_spatialGrid, box);
             }
-            return Enumerable.Empty<IGameObject>();
+            return default;
         }
 
-        private struct PooledListWrapper : IEnumerable<IGameObject>, IEnumerator<IGameObject>
+        public struct InterestedObjectEnumerable : IEnumerable<IGameObject>
         {
-            private List<IGameObject> _list;
-            private int _index;
+            private readonly SpatialGrid _grid;
+            private readonly Box2l _box;
 
-            public PooledListWrapper(List<IGameObject> list)
+            public bool IsDefault => _grid == null;
+
+            public InterestedObjectEnumerable(SpatialGrid grid, Box2l box)
             {
-                _list = list;
-                _index = -1;
+                _grid = grid;
+                _box = box;
             }
 
-            public IGameObject Current => _list[_index];
-            object System.Collections.IEnumerator.Current => Current;
+            public SpatialGrid.BoxEnumerator GetEnumerator() => _grid?.GetEnumerator(_box) ?? default;
 
-            public bool MoveNext() => ++_index < _list.Count;
-
-            public void Reset() => _index = -1;
-
-            public void Dispose()
-            {
-                if (_list != null)
-                {
-                    _list.Clear();
-                    _listPool.Return(_list);
-                    _list = null!;
-                }
-            }
-
-            public IEnumerator<IGameObject> GetEnumerator() => this;
-            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => this;
+            IEnumerator<IGameObject> IEnumerable<IGameObject>.GetEnumerator() => GetEnumerator();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
         public void ClearPlayerInterest(INetworkPeer peer)

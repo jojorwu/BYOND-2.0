@@ -19,10 +19,13 @@ public class FlatVariableStore : IVariableStore
         {
             if (_values.Length > 0)
             {
-                ArrayPool<DreamValue>.Shared.Return(_values);
+                ArrayPool<DreamValue>.Shared.Return(_values, clearArray: true);
             }
             _values = ArrayPool<DreamValue>.Shared.Rent(capacity);
         }
+
+        // Ensure the rented array is cleared before use to prevent data leakage from previous owners
+        Array.Clear(_values, 0, capacity);
         _length = capacity;
     }
 
@@ -47,10 +50,13 @@ public class FlatVariableStore : IVariableStore
             while (newCapacity <= index) newCapacity *= 2;
 
             var newValues = ArrayPool<DreamValue>.Shared.Rent(newCapacity);
+            // Clear new portion of the array
+            Array.Clear(newValues, 0, newValues.Length);
+
             if (_length > 0)
             {
                 _values.AsSpan(0, _length).CopyTo(newValues);
-                ArrayPool<DreamValue>.Shared.Return(_values);
+                ArrayPool<DreamValue>.Shared.Return(_values, clearArray: true);
             }
             _values = newValues;
         }
@@ -63,7 +69,7 @@ public class FlatVariableStore : IVariableStore
     {
         if (_values.Length < source.Length)
         {
-            if (_values.Length > 0) ArrayPool<DreamValue>.Shared.Return(_values);
+            if (_values.Length > 0) ArrayPool<DreamValue>.Shared.Return(_values, clearArray: true);
             _values = ArrayPool<DreamValue>.Shared.Rent(source.Length);
         }
         source.AsSpan().CopyTo(_values);
@@ -74,7 +80,7 @@ public class FlatVariableStore : IVariableStore
     {
         if (_values.Length > 0)
         {
-            ArrayPool<DreamValue>.Shared.Return(_values);
+            ArrayPool<DreamValue>.Shared.Return(_values, clearArray: true);
             _values = Array.Empty<DreamValue>();
         }
         _length = 0;

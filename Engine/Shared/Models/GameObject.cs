@@ -932,6 +932,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             Interlocked.Exchange(ref _committedZ, 0);
             _densityVal = 1;
             _isDirty = 0;
+
+            _variableStore.Dispose();
+            _committedStore.Dispose();
         }
         Version = 0;
         Archetype = null;

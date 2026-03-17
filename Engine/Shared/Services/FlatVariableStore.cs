@@ -1,6 +1,7 @@
 using Shared;
 using Shared.Interfaces;
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 
 namespace Shared.Services;
@@ -8,22 +9,27 @@ namespace Shared.Services;
 public class FlatVariableStore : IVariableStore
 {
     private DreamValue[] _values = Array.Empty<DreamValue>();
+    private int _length;
 
-    public int Length => _values.Length;
+    public int Length => _length;
 
     public void Initialize(int capacity)
     {
         if (_values.Length < capacity)
         {
-            _values = new DreamValue[capacity];
+            if (_values.Length > 0)
+            {
+                ArrayPool<DreamValue>.Shared.Return(_values);
+            }
+            _values = ArrayPool<DreamValue>.Shared.Rent(capacity);
         }
+        _length = capacity;
     }
 
     public DreamValue Get(int index)
     {
-        var vals = _values;
-        if ((uint)index < (uint)vals.Length)
-            return vals[index];
+        if ((uint)index < (uint)_length)
+            return _values[index];
         return DreamValue.Null;
     }
 
@@ -37,27 +43,40 @@ public class FlatVariableStore : IVariableStore
     {
         if ((uint)index >= (uint)_values.Length)
         {
-            int newSize = _values.Length == 0 ? 8 : _values.Length * 2;
-            while (newSize <= index) newSize *= 2;
+            int newCapacity = _values.Length == 0 ? 8 : _values.Length * 2;
+            while (newCapacity <= index) newCapacity *= 2;
 
-            var newValues = new DreamValue[newSize];
-            if (_values.Length > 0) _values.AsSpan().CopyTo(newValues);
+            var newValues = ArrayPool<DreamValue>.Shared.Rent(newCapacity);
+            if (_length > 0)
+            {
+                _values.AsSpan(0, _length).CopyTo(newValues);
+                ArrayPool<DreamValue>.Shared.Return(_values);
+            }
             _values = newValues;
         }
+
+        if (index >= _length) _length = index + 1;
         _values[index] = value;
     }
 
     public void CopyFrom(DreamValue[] source)
     {
-        if (_values.Length != source.Length)
+        if (_values.Length < source.Length)
         {
-            _values = new DreamValue[source.Length];
+            if (_values.Length > 0) ArrayPool<DreamValue>.Shared.Return(_values);
+            _values = ArrayPool<DreamValue>.Shared.Rent(source.Length);
         }
         source.AsSpan().CopyTo(_values);
+        _length = source.Length;
     }
 
     public void Dispose()
     {
-        _values = Array.Empty<DreamValue>();
+        if (_values.Length > 0)
+        {
+            ArrayPool<DreamValue>.Shared.Return(_values);
+            _values = Array.Empty<DreamValue>();
+        }
+        _length = 0;
     }
 }

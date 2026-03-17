@@ -160,34 +160,58 @@ namespace Shared.Services;
                     _objectFactory.Create(cmd.ObjectType!, cmd.X, cmd.Y, cmd.Z);
                 }
 
-                // Handle grouped updates and destructions per entity to minimize structural transitions
-                var pooledIndices = _intListPool.Rent();
-                try
+                // Handle grouped updates and destructions per entity.
+                // Parallelize across entities to maximize throughput while maintaining per-entity order.
+                if (_uniqueTargets.Count > 64)
                 {
-                    for (int i = 0; i < _uniqueTargets.Count; i++)
+                    System.Threading.Tasks.Parallel.ForEach(_uniqueTargets, target =>
                     {
-                        var target = _uniqueTargets[i];
                         int lastIdx = _targetToLastCommand[target];
+                        var indices = new List<int>(); // Local list for parallel safety
 
-                        pooledIndices.Clear();
                         int walker = lastIdx;
                         while (walker != -1)
                         {
-                            pooledIndices.Add(walker);
+                            indices.Add(walker);
                             walker = allCommands[walker].PrevIndex;
                         }
 
-                        // Execute in original order (reverse of our linked list)
-                        for (int j = pooledIndices.Count - 1; j >= 0; j--)
+                        for (int j = indices.Count - 1; j >= 0; j--)
                         {
-                            var cmd = allCommands[pooledIndices[j]];
-                            ExecuteCommand(target, cmd);
+                            ExecuteCommand(target, allCommands[indices[j]]);
+                        }
+                    });
+                }
+                else
+                {
+                    var pooledIndices = _intListPool.Rent();
+                    try
+                    {
+                        for (int i = 0; i < _uniqueTargets.Count; i++)
+                        {
+                            var target = _uniqueTargets[i];
+                            int lastIdx = _targetToLastCommand[target];
+
+                            pooledIndices.Clear();
+                            int walker = lastIdx;
+                            while (walker != -1)
+                            {
+                                pooledIndices.Add(walker);
+                                walker = allCommands[walker].PrevIndex;
+                            }
+
+                            // Execute in original order (reverse of our linked list)
+                            for (int j = pooledIndices.Count - 1; j >= 0; j--)
+                            {
+                                var cmd = allCommands[pooledIndices[j]];
+                                ExecuteCommand(target, cmd);
+                            }
                         }
                     }
-                }
-                finally
-                {
-                    _intListPool.Return(pooledIndices);
+                    finally
+                    {
+                        _intListPool.Return(pooledIndices);
+                    }
                 }
             }
             finally

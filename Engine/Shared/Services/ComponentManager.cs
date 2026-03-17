@@ -6,7 +6,7 @@ using System.Reflection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class ComponentManager : IComponentManager
+public class ComponentManager : IComponentManager, IEngineLifecycle
     {
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
@@ -19,7 +19,10 @@ namespace Shared.Services;
         public ComponentManager(IArchetypeManager archetypeManager)
         {
             _archetypeManager = archetypeManager;
+    }
 
+    public Task PostInitializeAsync(CancellationToken cancellationToken)
+    {
             // Use the Registry for stable ID assignment and discovery
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -35,6 +38,8 @@ namespace Shared.Services;
             {
                 _componentTypesByName[type.Name] = type;
             }
+
+        return Task.CompletedTask;
         }
 
         private static bool IsProbablyComponentAssembly(Assembly assembly)

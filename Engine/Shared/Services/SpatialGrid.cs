@@ -15,25 +15,25 @@ namespace Shared;
     {
         private class Cell : IDisposable
         {
-            public IGameObject[] Objects = Array.Empty<IGameObject>();
+            public volatile IGameObject[] Objects = Array.Empty<IGameObject>();
             public int Count;
             public SpinLock Lock = new(false);
 
             public void Clear()
             {
+                var objs = Objects;
                 for (int i = 0; i < Count; i++)
                 {
-                    var obj = Objects[i];
+                    var obj = objs[i];
                     if (obj != null)
                     {
                         obj.SpatialGridIndex = -1;
                         obj.CurrentGridCellKey = null;
                     }
-                    Objects[i] = null!;
                 }
-                if (Objects.Length > 0)
+                if (objs.Length > 0)
                 {
-                    ArrayPool<IGameObject>.Shared.Return(Objects, true);
+                    ArrayPool<IGameObject>.Shared.Return(objs, true);
                     Objects = Array.Empty<IGameObject>();
                 }
                 Count = 0;
@@ -205,20 +205,28 @@ namespace Shared;
 
         private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
         {
-            if (cell.Count == cell.Objects.Length)
+            // Copy-On-Write to ensure lock-free reads during iteration
+            int newCount = cell.Count + 1;
+            int newSize = cell.Objects.Length;
+            if (newCount > newSize)
             {
-                int newSize = cell.Objects.Length == 0 ? 4 : cell.Objects.Length * 2;
-                var newArray = ArrayPool<IGameObject>.Shared.Rent(newSize);
-                if (cell.Count > 0)
-                {
-                    Array.Copy(cell.Objects, newArray, cell.Count);
-                    ArrayPool<IGameObject>.Shared.Return(cell.Objects, true);
-                }
-                cell.Objects = newArray;
+                newSize = newSize == 0 ? 4 : newSize * 2;
+            }
+
+            var newArray = ArrayPool<IGameObject>.Shared.Rent(newSize);
+            if (cell.Count > 0)
+            {
+                Array.Copy(cell.Objects, newArray, cell.Count);
+                // We don't return the old array immediately to avoid race conditions with active enumerators.
+                // The IShrinkable/Cleanup logic will handle returning detached arrays if we track them,
+                // but for now we rely on Garbage Collector or pooled return during Cell.Clear.
+                // Improvement: track 'dead' arrays for deferred return.
             }
 
             obj.SpatialGridIndex = cell.Count;
-            cell.Objects[cell.Count++] = obj;
+            newArray[cell.Count] = obj;
+            cell.Objects = newArray;
+            cell.Count = newCount;
             obj.CurrentGridCellKey = key;
         }
 
@@ -247,14 +255,21 @@ namespace Shared;
             if (index == -1) return;
 
             int lastIndex = cell.Count - 1;
-            if (index < lastIndex)
+            var newArray = ArrayPool<IGameObject>.Shared.Rent(cell.Objects.Length);
+
+            if (lastIndex > 0)
             {
-                var lastObj = cell.Objects[lastIndex];
-                cell.Objects[index] = lastObj;
-                lastObj.SpatialGridIndex = index;
+                Array.Copy(cell.Objects, newArray, cell.Count);
+                if (index < lastIndex)
+                {
+                    var lastObj = newArray[lastIndex];
+                    newArray[index] = lastObj;
+                    lastObj.SpatialGridIndex = index;
+                }
+                newArray[lastIndex] = null!;
             }
 
-            cell.Objects[lastIndex] = null!;
+            cell.Objects = newArray;
             cell.Count--;
             obj.SpatialGridIndex = -1;
             var oldKey = obj.CurrentGridCellKey;
@@ -314,9 +329,11 @@ namespace Shared;
                     if (_currentCell != null)
                     {
                         _currentIndexInCell++;
-                        if (_currentIndexInCell < _currentCell.Count)
+                        // Lock-free read of COW array
+                        var objs = _currentCell.Objects;
+                        if (_currentIndexInCell < _currentCell.Count && _currentIndexInCell < objs.Length)
                         {
-                            _current = _currentCell.Objects[_currentIndexInCell];
+                            _current = objs[_currentIndexInCell];
                             if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
                                 _current.Y >= _box.Bottom && _current.Y <= _box.Top)
                             {
@@ -324,12 +341,6 @@ namespace Shared;
                             }
                             continue;
                         }
-                    }
-
-                    if (_lockTaken && _currentCell != null)
-                    {
-                        _currentCell.Lock.Exit(false);
-                        _lockTaken = false;
                     }
 
                     if (_currentGY > _endGY)
@@ -347,7 +358,6 @@ namespace Shared;
                     {
                         if (Volatile.Read(ref _currentCell.Count) > 0)
                         {
-                            _currentCell.Lock.Enter(ref _lockTaken);
                             _currentIndexInCell = -1;
                         }
                         else

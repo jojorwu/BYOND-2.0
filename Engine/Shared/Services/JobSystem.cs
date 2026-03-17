@@ -253,6 +253,11 @@ namespace Shared.Services;
             return Schedule(new AsyncActionJob(action, priority, weight), dependency, track, priority);
         }
 
+        public JobHandle Schedule<TState>(Action<TState> action, TState state, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
+        {
+            return Schedule(new StateActionJob<TState>(action, state, priority, weight), dependency, track, priority);
+        }
+
         public JobHandle CombineDependencies(params JobHandle[] dependencies)
         {
             if (dependencies == null || dependencies.Length == 0) return default;
@@ -288,74 +293,46 @@ namespace Shared.Services;
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action, JobPriority priority = JobPriority.Normal)
         {
-            const int BatchSize = 1024;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
+            if (count == 0) return;
+            if (count == 1) { action(list[0]); return; }
 
-            if (count <= 1)
-            {
-                for (int i = 0; i < count; i++) action(list[i]);
-                return;
-            }
+            int workerCount = _workers.Length;
+            int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
+            var handles = new List<Task>((count + batchSize - 1) / batchSize);
 
-            var handles = new List<Task>();
-            if (count <= BatchSize)
+            for (int i = 0; i < count; i += batchSize)
             {
-                foreach (var item in list) handles.Add(Schedule(() => action(item), priority: priority, track: false).Task!);
-            }
-            else
-            {
-                for (int i = 0; i < count; i += BatchSize)
+                int start = i;
+                int end = Math.Min(i + batchSize, count);
+                handles.Add(Schedule(() =>
                 {
-                    int start = i;
-                    int end = Math.Min(i + BatchSize, count);
-                    handles.Add(Schedule(() =>
-                    {
-                        for (int j = start; j < end; j++)
-                        {
-                            action(list[j]);
-                        }
-                    }, priority: priority, track: false).Task!);
-                }
+                    for (int j = start; j < end; j++) action(list[j]);
+                }, priority: priority, track: false).Task!);
             }
             await Task.WhenAll(handles);
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
         {
-            const int BatchSize = 1024;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
+            if (count == 0) return;
+            if (count == 1) { action(list[0], 0); return; }
 
-            if (count <= 1)
-            {
-                for (int i = 0; i < count; i++) action(list[i], i);
-                return;
-            }
+            int workerCount = _workers.Length;
+            int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
+            var handles = new List<Task>((count + batchSize - 1) / batchSize);
 
-            var handles = new List<Task>();
-            if (count <= BatchSize)
+            for (int i = 0; i < count; i += batchSize)
             {
-                for (int i = 0; i < count; i++)
+                int start = i;
+                int end = Math.Min(i + batchSize, count);
+                handles.Add(Schedule(() =>
                 {
-                    int index = i;
-                    handles.Add(Schedule(() => action(list[index], index), priority: priority, track: false).Task!);
-                }
-            }
-            else
-            {
-                for (int i = 0; i < count; i += BatchSize)
-                {
-                    int start = i;
-                    int end = Math.Min(i + BatchSize, count);
-                    handles.Add(Schedule(() =>
-                    {
-                        for (int j = start; j < end; j++)
-                        {
-                            action(list[j], j);
-                        }
-                    }, priority: priority, track: false).Task!);
-                }
+                    for (int j = start; j < end; j++) action(list[j], j);
+                }, priority: priority, track: false).Task!);
             }
             await Task.WhenAll(handles);
         }
@@ -509,5 +486,27 @@ namespace Shared.Services;
             }
 
             public Task ExecuteAsync() => _action();
+        }
+
+        private class StateActionJob<TState> : IJob
+        {
+            private readonly Action<TState> _action;
+            private readonly TState _state;
+            public JobPriority Priority { get; }
+            public int Weight { get; }
+
+            public StateActionJob(Action<TState> action, TState state, JobPriority priority = JobPriority.Normal, int weight = 1)
+            {
+                _action = action;
+                _state = state;
+                Priority = priority;
+                Weight = weight;
+            }
+
+            public Task ExecuteAsync()
+            {
+                _action(_state);
+                return Task.CompletedTask;
+            }
         }
     }

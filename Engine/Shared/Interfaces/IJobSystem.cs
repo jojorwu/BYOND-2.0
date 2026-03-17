@@ -51,6 +51,11 @@ namespace Shared.Interfaces;
         JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1);
 
         /// <summary>
+        /// Schedules an action with state as a job, eliminating closure allocations.
+        /// </summary>
+        JobHandle Schedule<TState>(Action<TState> action, TState state, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1);
+
+        /// <summary>
         /// Combines multiple job handles into one.
         /// </summary>
         JobHandle CombineDependencies(params JobHandle[] dependencies);

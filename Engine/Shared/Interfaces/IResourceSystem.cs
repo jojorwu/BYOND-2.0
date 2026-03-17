@@ -10,6 +10,7 @@ public interface IResourceSystem
 {
     Task<T?> LoadResourceAsync<T>(string path) where T : class;
     void RegisterProvider(IResourceProvider provider);
+    void ClearCache();
 }
 
 public interface IResourceProvider

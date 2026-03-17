@@ -20,6 +20,7 @@ namespace Shared.Services;
         public readonly ArenaAllocator Arena = new();
         private readonly Thread _thread;
         private readonly ManualResetEventSlim _wakeEvent = new(false);
+        private readonly JobSystem? _jobSystem;
         private readonly Func<WorkerThread, IJob?>? _stealFunc;
         private bool _disposed;
 
@@ -29,8 +30,9 @@ namespace Shared.Services;
         public bool IsBusy { get; private set; }
         public DateTime LastActiveTime { get; private set; } = DateTime.UtcNow;
 
-        public WorkerThread(string name, Func<WorkerThread, IJob?>? stealFunc = null)
+        public WorkerThread(string name, JobSystem? jobSystem = null, Func<WorkerThread, IJob?>? stealFunc = null)
         {
+            _jobSystem = jobSystem;
             _stealFunc = stealFunc;
             _thread = new Thread(Run)
             {
@@ -82,6 +84,13 @@ namespace Shared.Services;
             while (!_disposed)
             {
                 IJob? job = null;
+
+                // Priority 0: Check global critical queue first
+                if (_jobSystem != null && _jobSystem.CriticalQueue.TryPop(out job))
+                {
+                    ExecuteJob(job);
+                    continue;
+                }
 
                 // Fast-path: check approximate count before locking
                 if (_approximateCount > 0)

@@ -13,6 +13,7 @@ namespace Shared.Services;
     {
         private const int MaxTrackedJobs = 1000000;
         private volatile WorkerThread[] _workers;
+        private readonly ConcurrentStack<IJob> _criticalQueue = new();
         private readonly ConcurrentBag<TaskCompletionSource> _pendingJobTrackers = new();
         private readonly int _minWorkers;
         private readonly int _maxWorkers;
@@ -30,7 +31,7 @@ namespace Shared.Services;
             _workers = new WorkerThread[initialCount];
             for (int i = 0; i < initialCount; i++)
             {
-                _workers[i] = new WorkerThread($"Engine-Worker-{i}", TryStealJob);
+                _workers[i] = new WorkerThread($"Engine-Worker-{i}", this, TryStealJob);
             }
 
             foreach (var worker in _workers)
@@ -120,6 +121,13 @@ namespace Shared.Services;
             }
 
             var finalJob = new TrackingJob(job, tcs, track, _logger);
+
+            if (job.Priority == JobPriority.Critical)
+            {
+                _criticalQueue.Push(finalJob);
+                foreach (var worker in _workers) worker.Wake();
+                return new JobHandle(tcs.Task);
+            }
 
             var currentWorkers = _workers;
             int count = currentWorkers.Length;
@@ -215,7 +223,7 @@ namespace Shared.Services;
                     Array.Copy(_workers, newWorkers, currentCount);
                     for (int i = currentCount; i < targetCount; i++)
                     {
-                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", TryStealJob);
+                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", this, TryStealJob);
                         newWorkers[i].Start();
                     }
                     _workers = newWorkers;
@@ -354,32 +362,28 @@ namespace Shared.Services;
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
         {
-            const int BatchSize = 1024;
             var list = source as IReadOnlyList<T> ?? source.ToList();
             int count = list.Count;
+            if (count == 0) return;
+            if (count == 1) { await action(list[0]); return; }
 
-            var handles = new List<Task>();
-            if (count <= BatchSize)
+            int workerCount = _workers.Length;
+            int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
+            var handles = new List<Task>((count + batchSize - 1) / batchSize);
+
+            for (int i = 0; i < count; i += batchSize)
             {
-                foreach (var item in list) handles.Add(Schedule(() => action(item), priority: priority, track: false).Task!);
-            }
-            else
-            {
-                for (int i = 0; i < count; i += BatchSize)
+                int start = i;
+                int end = Math.Min(i + batchSize, count);
+                handles.Add(Schedule(async () =>
                 {
-                    int start = i;
-                    int end = Math.Min(i + BatchSize, count);
-                    handles.Add(Schedule(async () =>
-                    {
-                        for (int j = start; j < end; j++)
-                        {
-                            await action(list[j]);
-                        }
-                    }, priority: priority, track: false).Task!);
-                }
+                    for (int j = start; j < end; j++) await action(list[j]);
+                }, priority: priority, track: false).Task!);
             }
             await Task.WhenAll(handles);
         }
+
+        public ConcurrentStack<IJob> CriticalQueue => _criticalQueue;
 
         public IArenaAllocator? GetCurrentArena()
         {

@@ -13,6 +13,7 @@ namespace Launcher.UI
         public bool IsServerBrowserRequested { get; set; }
         public bool IsServerRequested { get; set; }
         public bool IsClientRequested { get; set; }
+        public string ServerAddress => _serverAddress;
 
         private bool _showErrorModal = false;
         private string _errorMessage = "";
@@ -21,7 +22,8 @@ namespace Launcher.UI
         private readonly IComputeService _computeService;
 
         private int _selectedTab = 0;
-        private readonly List<string> _tabs = new() { "Home", "Play", "Settings" };
+        private readonly List<string> _tabs = new() { "Home", "Play", "Develop", "Settings" };
+        private string _serverAddress = "127.0.0.1:1234";
 
         private bool _checkForUpdates = true;
         private bool _sendAnalytics = false;
@@ -134,18 +136,36 @@ namespace Launcher.UI
         {
             ImGui.TextWrapped("Welcome to BYOND 2.0! This engine is designed for high-performance multiplayer games with a focus on deep simulation and community-driven content.");
             ImGui.Spacing();
-            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Latest News:");
-            ImGui.BeginChild("News", new Vector2(0, 0), ImGuiChildFlags.None, ImGuiWindowFlags.None);
-            ImGui.TextWrapped("- [2024-05-20] Multi-threaded Z-level processing implemented.");
-            ImGui.TextWrapped("- [2024-05-18] Hot-reloading via Lua now supports complex object hierarchies.");
-            ImGui.TextWrapped("- [2024-05-15] New 2.5D rendering pipeline added to the Client.");
+
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, new Vector4(0.12f, 0.12f, 0.14f, 1.0f));
+            ImGui.BeginChild("NewsHeader", new Vector2(0, 30), ImGuiChildFlags.Borders, ImGuiWindowFlags.NoScrollbar);
+            ImGui.SetCursorPosY(6);
+            ImGui.SetCursorPosX(10);
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "LATEST NEWS");
             ImGui.EndChild();
+            ImGui.PopStyleColor();
+
+            ImGui.BeginChild("News", new Vector2(0, 0), ImGuiChildFlags.Borders, ImGuiWindowFlags.None);
+            ImGui.Spacing();
+            DrawNewsItem("2024-05-20", "Multi-threaded Z-level processing implemented.");
+            DrawNewsItem("2024-05-18", "Hot-reloading via Lua now supports complex object hierarchies.");
+            DrawNewsItem("2024-05-15", "New 2.5D rendering pipeline added to the Client.");
+            ImGui.EndChild();
+        }
+
+        private void DrawNewsItem(string date, string text)
+        {
+            ImGui.SetCursorPosX(10);
+            ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1.0f), $"[{date}]");
+            ImGui.SameLine();
+            ImGui.TextWrapped(text);
+            ImGui.Spacing();
         }
 
         private void DrawPlayTab()
         {
             ImGui.Columns(2, "PlayColumns", false);
-            ImGui.SetColumnWidth(0, 300);
+            ImGui.SetColumnWidth(0, 350);
 
             if (ImGui.Button("Server Browser", new Vector2(-1, 60)))
             {
@@ -154,13 +174,18 @@ namespace Launcher.UI
             ImGui.TextDisabled("Find and join community servers.");
 
             ImGui.Spacing();
+            ImGui.Separator();
             ImGui.Spacing();
 
-            if (ImGui.Button("Direct Connect", new Vector2(-1, 60)))
+            ImGui.Text("Server Address:");
+            ImGui.SetNextItemWidth(-1);
+            ImGui.InputText("##serveraddr", ref _serverAddress, 128);
+
+            if (ImGui.Button("Connect", new Vector2(-1, 60)))
             {
                 IsClientRequested = true;
             }
-            ImGui.TextDisabled("Open the client to manually enter a server address.");
+            ImGui.TextDisabled("Connect to the specified server address.");
 
             ImGui.NextColumn();
 
@@ -198,20 +223,33 @@ namespace Launcher.UI
 
         private void DrawDevelopTab()
         {
-            if (ImGui.Button("Open Project Editor", new Vector2(250, 50)))
+            ImGui.Text("Development Tools");
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            if (ImGui.Button("Open Project Editor", new Vector2(300, 60)))
             {
                 IsEditorRequested = true;
             }
-            ImGui.TextDisabled("Create and edit your game maps, scripts, and assets.");
+            ImGui.TextDisabled("Create and edit game maps, scripts, and assets.");
 
             ImGui.Spacing();
             ImGui.Spacing();
 
-            if (ImGui.Button("Start Local Server", new Vector2(250, 50)))
+            if (ImGui.Button("Start Local Server", new Vector2(300, 60)))
             {
                 IsServerRequested = true;
             }
             ImGui.TextDisabled("Host a server on your local machine for testing.");
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+
+            ImGui.TextColored(new Vector4(0.2f, 0.7f, 1.0f, 1.0f), "Engine Components Status:");
+            DrawComponentStatus(EngineComponent.Compiler);
+            DrawComponentStatus(EngineComponent.Server);
+            DrawComponentStatus(EngineComponent.Editor);
         }
 
         private void DrawSettingsTab()

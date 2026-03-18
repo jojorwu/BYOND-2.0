@@ -88,11 +88,22 @@ namespace Shared.Services;
                 name += ".exe";
             }
 
+            // Check for direct executable
             string path = Path.Combine(_basePath, name);
             if (File.Exists(path)) return path;
 
+            // Check for dll (cross-platform)
+            string dllName = name.Replace(".exe", "") + ".dll";
+            string dllPath = Path.Combine(_basePath, dllName);
+            if (File.Exists(dllPath)) return dllPath;
+
+            // Check bin/ executable
             path = Path.Combine(_basePath, "bin", name);
             if (File.Exists(path)) return path;
+
+            // Check bin/ dll
+            dllPath = Path.Combine(_basePath, "bin", dllName);
+            if (File.Exists(dllPath)) return dllPath;
 
             return name;
         }

@@ -21,7 +21,11 @@ public class MathBenchmark
         var settings = new ServerSettings { VmMaxInstructions = 1000000000 };
         var vm = new DreamVM(Microsoft.Extensions.Options.Options.Create(settings),
                              Microsoft.Extensions.Logging.Abstractions.NullLogger<DreamVM>.Instance,
-                             new INativeProcProvider[] { new StandardNativeProcProvider() });
+                             new INativeProcProvider[] {
+                                 new MathNativeProcProvider(),
+                                 new SpatialNativeProcProvider(),
+                                 new SystemNativeProcProvider()
+                             });
 
         // Benchmark 1: Simple Addition Loop (10,000,000 iterations)
         RunAdditionBenchmark(vm);

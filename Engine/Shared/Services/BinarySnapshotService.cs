@@ -100,9 +100,6 @@ namespace Shared.Services;
             serializer.Visit(propIdx, val);
         }
 
-        [Obsolete("Use Shared.Utils.VarInt.Write instead")]
-        public static int WriteVarInt(Span<byte> span, long value) => Utils.VarInt.Write(span, value);
-
         private bool SerializeObject(Span<byte> destination, IGameObject obj, IDictionary<long, long>? lastVersions, ref int offset, out bool truncated)
         {
             truncated = false;
@@ -182,38 +179,6 @@ namespace Shared.Services;
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             return false;
         }
-
-        [Obsolete("Use SerializeTo with rented buffer instead")]
-        public byte[] Serialize(IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions = null)
-        {
-            int bufferSize = 65536;
-            while (true)
-            {
-                var rentedBuffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-                try
-                {
-                    int bytesWritten = SerializeTo(rentedBuffer, objects, lastVersions, out bool truncated);
-                    if (!truncated)
-                    {
-                        byte[] result = new byte[bytesWritten];
-                        rentedBuffer.AsSpan(0, bytesWritten).CopyTo(result);
-                        return result;
-                    }
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(rentedBuffer);
-                }
-
-                if (bufferSize >= 1024 * 1024 * 512) // 512MB safety limit
-                    throw new Exception("World state too large to serialize into a single snapshot");
-
-                bufferSize *= 2;
-            }
-        }
-
-        [Obsolete("Use Shared.Utils.VarInt.Read instead")]
-        public long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead) => Utils.VarInt.Read(span, out bytesRead);
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {

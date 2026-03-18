@@ -11,10 +11,10 @@ namespace Shared.Services;
     public class SharedPool<T> : IObjectPool<T> where T : class
     {
         private readonly Func<T> _factory;
-        private readonly ConcurrentQueue<T> _globalQueue = new();
-        private readonly ConcurrentStack<T> _fallbackStack = new();
+        private readonly ConcurrentStack<T> _globalStack = new();
+        private volatile int _globalCount;
         private const int LocalCapacity = 4096;
-        private const int MaxGlobalCapacity = 1048576; // 1M instead of 10M for global safety
+        private const int MaxGlobalCapacity = 1048576;
 
         private class LocalCache
         {
@@ -41,14 +41,10 @@ namespace Shared.Services;
                 return item;
             }
 
-            if (_globalQueue.TryDequeue(out var globalObj))
+            if (_globalStack.TryPop(out var globalObj))
             {
+                Interlocked.Decrement(ref _globalCount);
                 return globalObj;
-            }
-
-            if (_fallbackStack.TryPop(out var fallbackObj))
-            {
-                return fallbackObj;
             }
 
             return _factory();
@@ -67,33 +63,20 @@ namespace Shared.Services;
             {
                 cache.Items[cache.Count++] = obj;
             }
-            else if (_globalQueue.Count < MaxGlobalCapacity)
+            else if (_globalCount < MaxGlobalCapacity)
             {
-                _globalQueue.Enqueue(obj);
-            }
-            else
-            {
-                // Fallback to stack when global queue is pressured
-                // This maintains high throughput but limits unbounded growth of the queue
-                _fallbackStack.Push(obj);
+                _globalStack.Push(obj);
+                Interlocked.Increment(ref _globalCount);
             }
         }
 
         public void Shrink()
         {
-            // Prune global queue to half its current size if it's large
-            int count = _globalQueue.Count;
-            if (count > LocalCapacity * 2)
+            // Prune global stack if it's large
+            if (_globalCount > LocalCapacity * 2)
             {
-                for (int i = 0; i < count / 2; i++)
-                {
-                    _globalQueue.TryDequeue(out _);
-                }
+                _globalStack.Clear();
+                _globalCount = 0;
             }
-
-            _fallbackStack.Clear();
-
-            // Note: We don't clear thread-local caches here as they are small (4096)
-            // and clearing them from other threads is not possible.
         }
     }

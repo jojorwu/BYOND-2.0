@@ -35,6 +35,7 @@ public class SystemManager : ISystemManager, IAsyncDisposable
     private readonly IComponentQueryService _queryService;
     private readonly IDiagnosticBus _diagnosticBus;
     private bool _isDirty = true;
+    private long _tickCount = 0;
 
     public SystemManager(
         ISystemRegistry registry,
@@ -60,12 +61,14 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         _queryService = queryService;
         _diagnosticBus = diagnosticBus;
 
+        _registry.SystemsChanged += MarkDirty;
+
         foreach (var system in systems)
         {
             var info = InitializeSystem(system);
             _systemInfoCache[system] = info;
-            _registry.Register(system);
         }
+        _registry.RegisterRange(systems);
     }
 
     private SystemExecutionInfo InitializeSystem(ISystem system)
@@ -234,10 +237,14 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                 await _jobSystem.ResetAllArenasAsync();
 
                 // Shrink all registered pools/caches in parallel to reduce tail latency
-                await _jobSystem.ForEachAsync(_shrinkables, shrinkable =>
+                // Maintenance throttling: only shrink every 100 ticks to avoid redundant overhead
+                if (Interlocked.Increment(ref _tickCount) % 100 == 0)
                 {
-                    shrinkable.Shrink();
-                });
+                    await _jobSystem.ForEachAsync(_shrinkables, shrinkable =>
+                    {
+                        shrinkable.Shrink();
+                    });
+                }
             }
         }
     }
@@ -254,13 +261,33 @@ public class SystemManager : ISystemManager, IAsyncDisposable
             var queries = info.Queries;
             if (queries.Length > 0)
             {
-                for (int i = 0; i < queries.Length; i++)
+                if (system.ParallelArchetypes)
                 {
-                    var query = queries[i];
-                    foreach (var archetype in query.GetMatchingArchetypes())
+                    var matchingArchetypes = new List<Archetype>();
+                    for (int i = 0; i < queries.Length; i++)
                     {
-                        system.Tick(archetype, ecb);
+                        matchingArchetypes.AddRange(queries[i].GetMatchingArchetypes());
+                    }
+
+                    if (matchingArchetypes.Count > 0)
+                    {
+                        _jobSystem.ForEachAsync(matchingArchetypes, arch =>
+                        {
+                            system.Tick(arch, ecb);
+                        }).GetAwaiter().GetResult();
                         batchHandled = true;
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < queries.Length; i++)
+                    {
+                        var query = queries[i];
+                        foreach (var archetype in query.GetMatchingArchetypes())
+                        {
+                            system.Tick(archetype, ecb);
+                            batchHandled = true;
+                        }
                     }
                 }
             }
@@ -291,6 +318,8 @@ public class SystemManager : ISystemManager, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _registry.SystemsChanged -= MarkDirty;
+
         foreach (var system in _registry.GetSystems())
         {
             await system.ShutdownAsync();

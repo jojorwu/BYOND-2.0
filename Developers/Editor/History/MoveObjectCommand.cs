@@ -8,7 +8,7 @@ namespace Editor.History
         private readonly long _oldX, _oldY, _oldZ;
         private readonly long _newX, _newY, _newZ;
 
-        public string Name => $"Move {_target.ObjectType.Name}";
+        public string Name => $"Move {_target.ObjectType?.Name ?? "Unknown"}";
 
         public MoveObjectCommand(IGameObject target, long oldX, long oldY, long oldZ, long newX, long newY, long newZ)
         {

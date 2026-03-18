@@ -66,8 +66,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
-    public IGameObject? NextInGridCell { get; set; }
-    public IGameObject? PrevInGridCell { get; set; }
+    public int SpatialGridIndex { get; set; } = -1;
     public (long X, long Y)? CurrentGridCellKey { get; set; }
     public IStateMachine? StateMachine { get; set; }
 
@@ -175,6 +174,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// Gets the committed Z-coordinate, used for consistent reads across threads.
     /// </summary>
     public long CommittedZ => _committedZ;
+
+    public string CommittedIcon => ObjectType is { IconIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : string.Empty;
+    public string CommittedIconState => ObjectType is { IconStateIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : string.Empty;
+    public int CommittedDir => ObjectType is { DirIndex: var idx and not -1 } ? (int)_committedStore.Get(idx).GetValueAsDouble() : 2;
+    public double CommittedAlpha => ObjectType is { AlphaIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 255.0;
+    public string CommittedColor => ObjectType is { ColorIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : "#ffffff";
+    public double CommittedLayer => ObjectType is { LayerIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 2.0;
+    public double CommittedPixelX => ObjectType is { PixelXIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 0.0;
+    public double CommittedPixelY => ObjectType is { PixelYIndex: var idx and not -1 } ? _committedStore.Get(idx).GetValueAsDouble() : 0.0;
 
     public string Icon
     {
@@ -368,6 +376,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public virtual void AddContent(IGameObject obj)
     {
+        if (obj == null) return;
         if (obj is GameObject gameObj)
         {
             gameObj.Loc = this;
@@ -380,6 +389,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public virtual void RemoveContent(IGameObject obj)
     {
+        if (obj == null) return;
         if (obj is GameObject gameObj)
         {
             if (gameObj.Loc == this)
@@ -395,6 +405,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     internal void AddContentInternal(IGameObject obj)
     {
+        if (obj == null) return;
         lock (_contentsLock)
         {
             if (!System.Array.Exists(_contents, x => x == obj))
@@ -409,6 +420,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     internal void RemoveContentInternal(IGameObject obj)
     {
+        if (obj == null) return;
         lock (_contentsLock)
         {
             int index = System.Array.IndexOf(_contents, obj);
@@ -919,13 +931,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             Interlocked.Exchange(ref _committedZ, 0);
             _densityVal = 1;
             _isDirty = 0;
+
+            _variableStore.Dispose();
+            _committedStore.Dispose();
         }
         Version = 0;
         Archetype = null;
         ArchetypeIndex = -1;
         ActiveThreads = null;
-        NextInGridCell = null;
-        PrevInGridCell = null;
+        SpatialGridIndex = -1;
         CurrentGridCellKey = null;
 
         lock (_contentsLock)

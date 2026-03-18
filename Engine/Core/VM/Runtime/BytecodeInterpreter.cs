@@ -157,6 +157,7 @@ internal unsafe ref struct InterpreterState
         {
             var nameId = *(int*)(BytecodePtr + PC);
             PC += 4;
+            if ((uint)nameId >= (uint)Thread.Context.Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {nameId}", Proc, PC - 5, Thread);
             return new DMReference { RefType = refType, Name = Thread.Context.Strings[nameId] };
         }
 
@@ -215,23 +216,17 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                             goto Done;
                         }
 
-                        // Dispatch block to reduce check overhead
-                        for (int i = 0; i < 8; i++)
+                        // Optimized chunked instruction dispatch:
+                        // Execute instructions in batches of 16 to reduce budget checking overhead
+                        // while still maintaining responsiveness.
+                        int remainingBudget = instructionBudget - instructionsExecutedThisTick;
+                        if (remainingBudget <= 0) goto Done;
+                        int chunk = Math.Min(remainingBudget, 16);
+
+                        for (int i = 0; i < chunk; i++)
                         {
                             if (thread.State != DreamThreadState.Running) break;
 
-                            // Small budget extension (Micro-yielding mitigation):
-                            // If we're at the very end of our budget but about to execute a non-branching instruction,
-                            // allow one more to reduce context-switching on procs that are almost done.
-                            if (instructionsExecutedThisTick >= instructionBudget && i == 0)
-                            {
-                                var nextOp = (Opcode)state.BytecodePtr[state.PC];
-                                if (!OpcodeMetadataCache.IsBranch(nextOp) && !OpcodeMetadataCache.CanModifyCallStack(nextOp))
-                                {
-                                    // Allow this one instruction to proceed
-                                }
-                                else break;
-                            }
                             if (state.PC >= state.BytecodeArray.Length)
                             {
                                 thread._stackPtr = state.StackPtr;
@@ -276,6 +271,10 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         int pcForCache = state.PC - 13;
 
+                                        if ((uint)srcIdx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Source local index out of bounds", state.Proc, pcForCache, state.Thread);
+                                        if ((uint)targetIdx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Target local index out of bounds", state.Proc, pcForCache, state.Thread);
+                                        if ((uint)nameId >= (uint)state.Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {nameId}", state.Proc, pcForCache, state.Thread);
+
                                         var objValue = state.Locals[srcIdx];
                                         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
                                         {
@@ -307,6 +306,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         int address = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)globalIdx >= (uint)state.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {globalIdx}", state.Proc, state.PC - 9, state.Thread);
                                         var val = state.Globals[globalIdx];
 
                                         bool isFalse;
@@ -324,6 +324,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                         // Manual inlining of Push for high-frequency PushLocal
                                         if (state.StackPtr >= state.Stack.Length)
                                         {
@@ -342,6 +343,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                         state.Locals[idx] = state.Stack[state.StackPtr - 1];
                                     }
                                     break;
@@ -511,6 +513,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 {
                                                     int idx = *(int*)(state.BytecodePtr + state.PC);
                                                     state.PC += 4;
+                                                    if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                                     state.Locals[idx].TryGetValue(out targetProc);
                                                 }
                                                 break;
@@ -518,6 +521,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 {
                                                     int idx = *(int*)(state.BytecodePtr + state.PC);
                                                     state.PC += 4;
+                                                    if ((uint)idx >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                                     state.Arguments[idx].TryGetValue(out targetProc);
                                                 }
                                                 break;
@@ -525,6 +529,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                                 {
                                                     int idx = *(int*)(state.BytecodePtr + state.PC);
                                                     state.PC += 4;
+                                                    if ((uint)idx >= (uint)state.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {idx}", state.Proc, state.PC - 5, state.Thread);
                                                     state.Globals[idx].TryGetValue(out targetProc);
                                                 }
                                                 break;
@@ -604,6 +609,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int count = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if (count < 0 || count > state.StackPtr) throw new ScriptRuntimeException($"Stack underflow during MassConcatenation: {count}", state.Proc, state.PC - 5, thread);
                                         int baseIdx = state.StackPtr - count;
                                         var result = _formatStringBuilder.Value!;
                                         result.Clear();
@@ -622,6 +628,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         int formatCount = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)stringId >= (uint)state.Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC - 9, thread);
+                                        if (formatCount < 0 || formatCount > state.StackPtr) throw new ScriptRuntimeException($"Stack underflow during FormatString: {formatCount}", state.Proc, state.PC - 9, thread);
                                         var formatString = state.Strings[stringId];
                                         int baseIdx = state.StackPtr - formatCount;
                                         var result = _formatStringBuilder.Value!;
@@ -829,6 +837,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)idx >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                         state.Push(state.Arguments[idx]);
                                     }
                                     break;
@@ -881,6 +890,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         state.PC += 4;
                                         int address = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 9, state.Thread);
                                         var val = state.Locals[idx];
 
                                         bool isFalse;
@@ -1267,18 +1277,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                             state.Locals[idx] = state.Stack[state.StackPtr - 1];
                                         }
                                         else if (refType == DMReference.Type.Argument)
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                             state.Arguments[idx] = state.Stack[state.StackPtr - 1];
                                         }
                                         else if (refType == DMReference.Type.Global)
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {idx}", state.Proc, state.PC - 5, state.Thread);
                                             state.Globals[idx] = state.Stack[state.StackPtr - 1];
                                         }
                                         else if (refType == DMReference.Type.ListIndex)
@@ -1374,6 +1387,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             state.PC += 4;
                                             int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 9, state.Thread);
                                             var enumerator = thread.GetEnumerator(enumeratorId);
                                             if (enumerator != null && enumerator.MoveNext()) state.Locals[idx] = enumerator.Current;
                                             else state.PC = jumpAddress;
@@ -1384,6 +1398,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             state.PC += 4;
                                             int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC - 9, state.Thread);
                                             var enumerator = thread.GetEnumerator(enumeratorId);
                                             if (enumerator != null && enumerator.MoveNext()) state.Arguments[idx] = enumerator.Current;
                                             else state.PC = jumpAddress;
@@ -1394,6 +1409,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                             state.PC += 4;
                                             int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)thread.Context.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {idx}", state.Proc, state.PC - 9, state.Thread);
                                             var enumerator = thread.GetEnumerator(enumeratorId);
                                             if (enumerator != null && enumerator.MoveNext()) thread.Context.Globals[idx] = enumerator.Current;
                                             else state.PC = jumpAddress;
@@ -1463,6 +1479,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int procId = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)procId >= (uint)thread.Context.AllProcs.Count) throw new ScriptRuntimeException($"Invalid proc ID: {procId}", state.Proc, state.PC - 5, state.Thread);
                                         state.Push(new DreamValue((IDreamProc)thread.Context.AllProcs[procId]));
                                     }
                                     break;
@@ -1470,6 +1487,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int id = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if ((uint)id >= (uint)state.Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {id}", state.Proc, state.PC - 5, state.Thread);
                                         state.Push(new DreamValue(state.Strings[id]));
                                     }
                                     break;
@@ -1480,18 +1498,21 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                             state.Push(state.Locals[idx]);
                                         }
                                         else if (refType == DMReference.Type.Argument)
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC - 5, state.Thread);
                                             state.Push(state.Arguments[idx]);
                                         }
                                         else if (refType == DMReference.Type.Global)
                                         {
                                             int idx = *(int*)(state.BytecodePtr + state.PC);
                                             state.PC += 4;
+                                            if ((uint)idx >= (uint)state.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {idx}", state.Proc, state.PC - 5, state.Thread);
                                             state.Push(thread.Context.GetGlobal(idx));
                                         }
                                         else if (refType == DMReference.Type.ListIndex)
@@ -1604,6 +1625,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         int id = *(int*)(state.BytecodePtr + state.PC);
                                         int pcForCache = state.PC - 1;
                                         state.PC += 4;
+                                        if ((uint)id >= (uint)state.Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {id}", state.Proc, state.PC - 5, state.Thread);
                                         var inst = state.Frame.Instance;
                                         if (inst != null)
                                         {
@@ -1633,6 +1655,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                         int id = *(int*)(state.BytecodePtr + state.PC);
                                         int pcForCache = state.PC - 1;
                                         state.PC += 4;
+                                        if ((uint)id >= (uint)state.Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {id}", state.Proc, state.PC - 5, state.Thread);
                                         var val = state.Stack[--state.StackPtr];
                                         var inst = state.Frame.Instance;
                                         if (inst != null)
@@ -1958,6 +1981,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int size = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if (size < 0 || state.StackPtr < size) throw new ScriptRuntimeException($"Stack underflow during CreateList: {size}", state.Proc, state.PC - 5, thread);
                                         var list = new DreamList(thread.Context.ListType!, 0);
                                         if (size > 0)
                                         {
@@ -1971,6 +1995,7 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                                     {
                                         int size = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
+                                        if (size < 0 || state.StackPtr < size * 2) throw new ScriptRuntimeException($"Stack underflow during CreateAssociativeList: {size}", state.Proc, state.PC - 5, thread);
                                         var list = new DreamList(thread.Context.ListType!);
                                         if (size > 0)
                                         {
@@ -3741,7 +3766,8 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.Thread.Context.Globals[globalIdx]);
+                    if ((uint)globalIdx >= (uint)state.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {globalIdx}", state.Proc, state.PC - 5, state.Thread);
+                    state.Push(state.Globals[globalIdx]);
                 }
                 break;
             case DMReference.Type.Src:
@@ -4460,33 +4486,41 @@ public unsafe partial class BytecodeInterpreter : IBytecodeInterpreter
             state.PC += 4;
             int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
             state.PC += 4;
+
+            if ((uint)idx1 >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index 1 out of bounds", state.Proc, state.PC - 14, state.Thread);
+            if ((uint)idx2 >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index 2 out of bounds", state.Proc, state.PC - 14, state.Thread);
+
             var enumerator = state.Thread.GetEnumerator(enumeratorId);
             if (enumerator != null && enumerator.MoveNext())
             {
                 var key = enumerator.Current;
-                                                state.Locals[idx2] = key;
+                state.Locals[idx2] = key;
                 var list = state.Thread.GetEnumeratorList(enumeratorId);
-                                                state.Locals[idx1] = list != null ? list.GetValue(key) : DreamValue.Null;
-                                            }
-                                            else state.PC = jumpAddress;
-                                        }
-                                        else if (refType1 == DMReference.Type.Argument && (DMReference.Type)state.BytecodePtr[state.PC + 5] == DMReference.Type.Argument)
-                                        {
-                                            state.PC++;
-                                            int idx1 = *(int*)(state.BytecodePtr + state.PC);
-                                            state.PC += 4;
-                                            state.PC++;
-                                            int idx2 = *(int*)(state.BytecodePtr + state.PC);
-                                            state.PC += 4;
-                                            int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
-                                            state.PC += 4;
-                                            var enumerator = state.Thread.GetEnumerator(enumeratorId);
-                                            if (enumerator != null && enumerator.MoveNext())
-                                            {
-                                                var key = enumerator.Current;
-                                                state.Arguments[idx2] = key;
-                                                var list = state.Thread.GetEnumeratorList(enumeratorId);
-                                                state.Arguments[idx1] = list != null ? list.GetValue(key) : DreamValue.Null;
+                state.Locals[idx1] = list != null ? list.GetValue(key) : DreamValue.Null;
+            }
+            else state.PC = jumpAddress;
+        }
+        else if (refType1 == DMReference.Type.Argument && (DMReference.Type)state.BytecodePtr[state.PC + 5] == DMReference.Type.Argument)
+        {
+            state.PC++;
+            int idx1 = *(int*)(state.BytecodePtr + state.PC);
+            state.PC += 4;
+            state.PC++;
+            int idx2 = *(int*)(state.BytecodePtr + state.PC);
+            state.PC += 4;
+            int jumpAddress = *(int*)(state.BytecodePtr + state.PC);
+            state.PC += 4;
+
+            if ((uint)idx1 >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index 1 out of bounds", state.Proc, state.PC - 14, state.Thread);
+            if ((uint)idx2 >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index 2 out of bounds", state.Proc, state.PC - 14, state.Thread);
+
+            var enumerator = state.Thread.GetEnumerator(enumeratorId);
+            if (enumerator != null && enumerator.MoveNext())
+            {
+                var key = enumerator.Current;
+                state.Arguments[idx2] = key;
+                var list = state.Thread.GetEnumeratorList(enumeratorId);
+                state.Arguments[idx1] = list != null ? list.GetValue(key) : DreamValue.Null;
             }
             else state.PC = jumpAddress;
         }

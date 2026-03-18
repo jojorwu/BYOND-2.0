@@ -3,6 +3,8 @@ namespace Shared;
     {
         public static string Sanitize(IProject project, string userProvidedPath, string expectedRootFolder)
         {
+            if (userProvidedPath == null) throw new System.ArgumentNullException(nameof(userProvidedPath));
+
             // Get the full path of the project's root for the given type (e.g., /tmp/proj/scripts)
             var fullRootPath = System.IO.Path.GetFullPath(project.GetFullPath(expectedRootFolder));
 

@@ -65,14 +65,9 @@ namespace Shared;
         int ArchetypeIndex { get; set; }
 
         /// <summary>
-        /// Internal SpatialGrid metadata: next object in the same grid cell.
+        /// Internal SpatialGrid metadata: index of the object within its current grid cell array.
         /// </summary>
-        IGameObject? NextInGridCell { get; set; }
-
-        /// <summary>
-        /// Internal SpatialGrid metadata: previous object in the same grid cell.
-        /// </summary>
-        IGameObject? PrevInGridCell { get; set; }
+        int SpatialGridIndex { get; set; }
 
         /// <summary>
         /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
@@ -85,6 +80,18 @@ namespace Shared;
         long CommittedX { get; }
         long CommittedY { get; }
         long CommittedZ { get; }
+
+        /// <summary>
+        /// Committed visual properties for high-performance lock-free reading.
+        /// </summary>
+        string CommittedIcon { get; }
+        string CommittedIconState { get; }
+        int CommittedDir { get; }
+        double CommittedAlpha { get; }
+        string CommittedColor { get; }
+        double CommittedLayer { get; }
+        double CommittedPixelX { get; }
+        double CommittedPixelY { get; }
 
         /// <summary>
         /// Commits the current state to the read-only buffer.

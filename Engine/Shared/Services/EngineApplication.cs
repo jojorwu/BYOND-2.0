@@ -116,6 +116,9 @@ public abstract class EngineApplication : IHostedService
                     if (service.IsCritical) throw;
                 }
             });
+
+            // Post-Initialize lifecycle stage
+            await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.PostInitializeAsync(globalCts.Token)));
         }
         catch (Exception ex)
         {
@@ -133,6 +136,9 @@ public abstract class EngineApplication : IHostedService
         });
 
         await OnStartAsync(cancellationToken);
+
+        // OnStarted lifecycle stage
+        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.OnStartedAsync(cancellationToken)));
     }
 
     /// <summary>
@@ -141,6 +147,9 @@ public abstract class EngineApplication : IHostedService
     public virtual async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping {AppName} Lifecycle with Dependency Graph...", GetType().Name);
+
+        // Pre-Shutdown lifecycle stage
+        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.PreShutdownAsync(cancellationToken)));
 
         await OnStopAsync(cancellationToken);
 
@@ -170,6 +179,9 @@ public abstract class EngineApplication : IHostedService
         {
             _logger.LogError(ex, "Lifecycle shutdown failed.");
         }
+
+        // Post-Shutdown lifecycle stage
+        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.PostShutdownAsync(cancellationToken)));
 
         _logger.LogInformation("{AppName} lifecycle stopped.", GetType().Name);
     }

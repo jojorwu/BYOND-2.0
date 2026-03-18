@@ -85,6 +85,36 @@ public struct ResourceMask : IEquatable<ResourceMask>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void IntersectWith(ResourceMask other)
+    {
+        if (Vector256.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) &= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) &= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
+        }
+        else
+        {
+            _mask0 &= other._mask0; _mask1 &= other._mask1; _mask2 &= other._mask2; _mask3 &= other._mask3;
+            _mask4 &= other._mask4; _mask5 &= other._mask5; _mask6 &= other._mask6; _mask7 &= other._mask7;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Not()
+    {
+        if (Vector256.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) = ~Unsafe.As<ulong, Vector256<ulong>>(ref _mask0);
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) = ~Unsafe.As<ulong, Vector256<ulong>>(ref _mask4);
+        }
+        else
+        {
+            _mask0 = ~_mask0; _mask1 = ~_mask1; _mask2 = ~_mask2; _mask3 = ~_mask3;
+            _mask4 = ~_mask4; _mask5 = ~_mask5; _mask6 = ~_mask6; _mask7 = ~_mask7;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Overlaps(ResourceMask other)
     {
         if (Vector256.IsHardwareAccelerated)
@@ -100,9 +130,18 @@ public struct ResourceMask : IEquatable<ResourceMask>
                (_mask6 & other._mask6) != 0 || (_mask7 & other._mask7) != 0;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
-        _mask0 = _mask1 = _mask2 = _mask3 = _mask4 = _mask5 = _mask6 = _mask7 = 0;
+        if (Vector256.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) = Vector256<ulong>.Zero;
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) = Vector256<ulong>.Zero;
+        }
+        else
+        {
+            _mask0 = _mask1 = _mask2 = _mask3 = _mask4 = _mask5 = _mask6 = _mask7 = 0;
+        }
     }
 
     public bool Supports(int index) => (uint)index < 512;

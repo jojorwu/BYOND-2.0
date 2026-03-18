@@ -35,7 +35,7 @@ namespace tests.Performance
             }
             sw.Stop();
             long builtinTime = sw.ElapsedMilliseconds;
-            TestContext.WriteLine($"Built-in property access (icon): {builtinTime}ms");
+            TestContext.Out.WriteLine($"Built-in property access (icon): {builtinTime}ms");
 
             sw.Restart();
             for(int i=0; i<Iterations; i++) {
@@ -44,7 +44,7 @@ namespace tests.Performance
             }
             sw.Stop();
             long customTime = sw.ElapsedMilliseconds;
-            TestContext.WriteLine($"Custom variable access: {customTime}ms");
+            TestContext.Out.WriteLine($"Custom variable access: {customTime}ms");
 
             // Built-in should be faster because it avoids the lock and index lookup in the base class
             // for common names, and uses a direct field.

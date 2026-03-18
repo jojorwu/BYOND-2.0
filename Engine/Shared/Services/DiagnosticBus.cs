@@ -12,7 +12,8 @@ public class DiagnosticBus : IDiagnosticBus
     private readonly object _lock = new();
 
     // Pool of DiagnosticEvent objects to eliminate allocations on Publish
-    private readonly ConcurrentQueue<DiagnosticEvent> _pool = new();
+    private readonly ConcurrentStack<DiagnosticEvent> _pool = new();
+    private volatile int _poolCount;
     private const int MaxPoolSize = 1024;
 
     public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<Dictionary<string, object>>? metricsAction = null)
@@ -20,9 +21,13 @@ public class DiagnosticBus : IDiagnosticBus
         var subscribers = _subscribers;
         if (subscribers.Length == 0) return;
 
-        if (!_pool.TryDequeue(out var ev))
+        if (!_pool.TryPop(out var ev))
         {
             ev = new DiagnosticEvent();
+        }
+        else
+        {
+            Interlocked.Decrement(ref _poolCount);
         }
 
         try
@@ -44,9 +49,51 @@ public class DiagnosticBus : IDiagnosticBus
         finally
         {
             ev.Clear();
-            if (_pool.Count < MaxPoolSize)
+            if (_poolCount < MaxPoolSize)
             {
-                _pool.Enqueue(ev);
+                _pool.Push(ev);
+                Interlocked.Increment(ref _poolCount);
+            }
+        }
+    }
+
+    public void Publish<TState>(string source, string message, TState state, Action<Dictionary<string, object>, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
+    {
+        var subscribers = _subscribers;
+        if (subscribers.Length == 0) return;
+
+        if (!_pool.TryPop(out var ev))
+        {
+            ev = new DiagnosticEvent();
+        }
+        else
+        {
+            Interlocked.Decrement(ref _poolCount);
+        }
+
+        try
+        {
+            ev.Source = source;
+            ev.Message = message;
+            ev.Severity = severity;
+            metricsAction(ev.Metrics, state);
+
+            for (int i = 0; i < subscribers.Length; i++)
+            {
+                try
+                {
+                    subscribers[i](ev);
+                }
+                catch { /* Diagnostics should never throw */ }
+            }
+        }
+        finally
+        {
+            ev.Clear();
+            if (_poolCount < MaxPoolSize)
+            {
+                _pool.Push(ev);
+                Interlocked.Increment(ref _poolCount);
             }
         }
     }

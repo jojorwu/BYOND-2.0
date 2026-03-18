@@ -6,7 +6,7 @@ using System.Reflection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class ComponentManager : IComponentManager
+public class ComponentManager : IComponentManager, IEngineLifecycle
     {
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
@@ -19,7 +19,10 @@ namespace Shared.Services;
         public ComponentManager(IArchetypeManager archetypeManager)
         {
             _archetypeManager = archetypeManager;
+    }
 
+    public Task PostInitializeAsync(CancellationToken cancellationToken)
+    {
             // Use the Registry for stable ID assignment and discovery
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -31,18 +34,12 @@ namespace Shared.Services;
             }
 
             // Fill name cache from the registry's discovered types
-            // Since ComponentIdRegistry doesn't expose types, we still need to scan or we can modify Registry
-            // Let's modify ComponentManager to use a more efficient scan once.
-            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies().Where(IsProbablyComponentAssembly))
+            foreach (var type in ComponentIdRegistry.RegisteredTypes)
             {
-                foreach (var type in assembly.GetTypes())
-                {
-                    if (typeof(IComponent).IsAssignableFrom(type) && !type.IsInterface && !type.IsAbstract)
-                    {
-                        _componentTypesByName[type.Name] = type;
-                    }
-                }
+                _componentTypesByName[type.Name] = type;
             }
+
+        return Task.CompletedTask;
         }
 
         private static bool IsProbablyComponentAssembly(Assembly assembly)

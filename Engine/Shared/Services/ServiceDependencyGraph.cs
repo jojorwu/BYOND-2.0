@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 
@@ -76,51 +78,60 @@ public class ServiceDependencyGraph
             }
         }
 
-        var ready = new Queue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderByDescending(s => s.Priority));
+        var ready = new ConcurrentQueue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderByDescending(s => s.Priority));
         int processedCount = 0;
-        var lockObj = new object();
+        var completionTcs = new TaskCompletionSource();
+        int pendingCount = 0;
 
-        while (ready.Count > 0)
+        async Task ProcessReadyAsync()
         {
-            List<IEngineService> currentBatch;
-            lock (lockObj)
+            while (ready.TryDequeue(out var service))
             {
-                currentBatch = ready.ToList();
-                ready.Clear();
-            }
-
-            var tasks = currentBatch.Select(async s =>
-            {
+                Interlocked.Increment(ref pendingCount);
                 try
                 {
-                    await action(s);
+                    await action(service);
                     Interlocked.Increment(ref processedCount);
 
-                    var nextBatch = new List<IEngineService>();
-                    foreach (var dependent in dependents[s])
+                    foreach (var dependent in dependents[service])
                     {
                         if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent)) == 0)
                         {
-                            nextBatch.Add(dependent);
-                        }
-                    }
-
-                    if (nextBatch.Count > 0)
-                    {
-                        lock (lockObj)
-                        {
-                            foreach (var n in nextBatch.OrderByDescending(x => x.Priority)) ready.Enqueue(n);
+                            ready.Enqueue(dependent);
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    if (s.IsCritical) throw;
+                    if (service.IsCritical)
+                    {
+                        completionTcs.TrySetException(ex);
+                        return;
+                    }
                 }
-            });
-
-            await Task.WhenAll(tasks);
+                finally
+                {
+                    if (Interlocked.Decrement(ref pendingCount) == 0 && ready.IsEmpty)
+                    {
+                        completionTcs.TrySetResult();
+                    }
+                }
+            }
         }
+
+        if (_services.Count == 0) return;
+        if (ready.IsEmpty) throw new InvalidOperationException("Circular dependency detected in service graph.");
+
+        // Start multiple workers to ensure true parallelism
+        int workerCount = Math.Min(_services.Count, Environment.ProcessorCount);
+        var workers = new Task[workerCount];
+        for (int i = 0; i < workerCount; i++)
+        {
+            workers[i] = Task.Run(ProcessReadyAsync);
+        }
+
+        await Task.WhenAny(completionTcs.Task, Task.WhenAll(workers));
+        if (completionTcs.Task.IsFaulted) await completionTcs.Task;
 
         if (processedCount < _services.Count)
         {
@@ -142,44 +153,50 @@ public class ServiceDependencyGraph
             }
         }
 
-        var ready = new Queue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderBy(s => s.Priority));
+        var ready = new ConcurrentQueue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderBy(s => s.Priority));
         int processedCount = 0;
-        var lockObj = new object();
+        var completionTcs = new TaskCompletionSource();
+        int pendingCount = 0;
 
-        while (ready.Count > 0)
+        async Task ProcessReadyAsync()
         {
-            List<IEngineService> currentBatch;
-            lock (lockObj)
+            while (ready.TryDequeue(out var service))
             {
-                currentBatch = ready.ToList();
-                ready.Clear();
+                Interlocked.Increment(ref pendingCount);
+                try
+                {
+                    await shutdownAction(service);
+                    Interlocked.Increment(ref processedCount);
+
+                    foreach (var dep in dependents[service])
+                    {
+                        if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dep)) == 0)
+                        {
+                            ready.Enqueue(dep);
+                        }
+                    }
+                }
+                finally
+                {
+                    if (Interlocked.Decrement(ref pendingCount) == 0 && ready.IsEmpty)
+                    {
+                        completionTcs.TrySetResult();
+                    }
+                }
             }
-
-            var tasks = currentBatch.Select(async s =>
-            {
-                await shutdownAction(s);
-                Interlocked.Increment(ref processedCount);
-
-                var nextBatch = new List<IEngineService>();
-                foreach (var dep in dependents[s])
-                {
-                    if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dep)) == 0)
-                    {
-                        nextBatch.Add(dep);
-                    }
-                }
-
-                if (nextBatch.Count > 0)
-                {
-                    lock (lockObj)
-                    {
-                        foreach (var n in nextBatch.OrderBy(x => x.Priority)) ready.Enqueue(n);
-                    }
-                }
-            });
-
-            await Task.WhenAll(tasks);
         }
+
+        if (_services.Count == 0) return;
+        if (ready.IsEmpty) throw new InvalidOperationException("Circular dependency detected during service shutdown.");
+
+        int workerCount = Math.Min(_services.Count, Environment.ProcessorCount);
+        var workers = new Task[workerCount];
+        for (int i = 0; i < workerCount; i++)
+        {
+            workers[i] = Task.Run(ProcessReadyAsync);
+        }
+
+        await Task.WhenAny(completionTcs.Task, Task.WhenAll(workers));
 
         if (processedCount < _services.Count)
         {

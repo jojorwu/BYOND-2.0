@@ -21,7 +21,7 @@ namespace Shared.Interfaces;
         /// </summary>
         /// <param name="peer">The network peer.</param>
         /// <returns>A collection of objects within the player's interest range.</returns>
-        IEnumerable<IGameObject> GetInterestedObjects(INetworkPeer peer);
+        Services.InterestManager.InterestedObjectEnumerable GetInterestedObjects(INetworkPeer peer);
 
         /// <summary>
         /// Clears interest data for a player when they disconnect.

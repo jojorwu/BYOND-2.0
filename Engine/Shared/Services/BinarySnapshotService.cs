@@ -136,8 +136,8 @@ namespace Shared.Services;
             }
 
             // Check if we have enough space for the basic object data
-            // Estimate: ID(5) + Version(5) + Type(5) + 3*Int(4) + PropCount(5) = 32 bytes
-            if (offset + 32 > destination.Length)
+            // Estimate: 7 fields * 10 bytes max per VarInt = 70 bytes. Use 128 for safety.
+            if (offset + 128 > destination.Length)
             {
                 truncated = true;
                 return true;
@@ -182,6 +182,10 @@ namespace Shared.Services;
             int length = offset - objectStartOffset;
             byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
             destination.Slice(objectStartOffset, length).CopyTo(buffer);
+            if (cache.TryGetValue(obj.Id, out var oldEntry))
+            {
+                ArrayPool<byte>.Shared.Return(oldEntry.Buffer);
+            }
             cache[obj.Id] = (buffer, length, obj.Version);
 
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
@@ -224,28 +228,42 @@ namespace Shared.Services;
             long result = 0;
             int shift = 0;
             bytesRead = 0;
-            while (true)
+            while (bytesRead < span.Length)
             {
                 byte b = span[bytesRead++];
                 result |= (long)(b & 0x7f) << shift;
-                if ((b & 0x80) == 0) return result;
+                if ((b & 0x80) == 0)
+                {
+                    // Ensure the result fits in a long (max 64 bits)
+                    if (shift > 63 || (shift == 63 && (b & 0x7e) != 0))
+                        throw new InvalidDataException("VarInt too large for 64-bit integer");
+                    return result;
+                }
                 shift += 7;
+                if (shift >= 70) throw new InvalidDataException("Malformed VarInt: too many bytes");
             }
+            throw new InvalidDataException("Unexpected end of stream while reading VarInt");
         }
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
             ReadOnlySpan<byte> span = data;
             int offset = 0;
             var unresolvedReferences = new List<(GameObject target, int propIdx, long refId)>();
 
             while (offset < span.Length)
             {
+                if (offset + 1 > span.Length) break;
+
                 long id = ReadVarInt(span.Slice(offset), out int idBytes);
                 offset += idBytes;
                 if (id == 0) break;
 
                 GameObject.EnsureNextId(id);
+
+                if (offset + 5 > span.Length) throw new InvalidDataException("Unexpected end of stream during object header");
 
                 long version = ReadVarInt(span.Slice(offset), out int vBytes);
                 offset += vBytes;
@@ -284,12 +302,18 @@ namespace Shared.Services;
                     gameObject.SetPosition(x, y, z);
                 }
 
+                if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream before property count");
+
                 int propertyCount = (int)ReadVarInt(span.Slice(offset), out int propCountBytes);
                 offset += propCountBytes;
                 for (int i = 0; i < propertyCount; i++)
                 {
+                    if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream during property deserialization");
+
                     int propIdx = (int)ReadVarInt(span.Slice(offset), out int propIdxBytes);
                     offset += propIdxBytes;
+
+                    if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream before property value");
                     var val = DreamValue.ReadFrom(span.Slice(offset), out int valBytes);
                     offset += valBytes;
 

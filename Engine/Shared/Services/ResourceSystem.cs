@@ -5,18 +5,20 @@ using Shared.Interfaces;
 
 namespace Shared.Services;
 
-public class ResourceSystem : IResourceSystem
+public class ResourceSystem : IResourceSystem, IShrinkable
 {
-    private readonly ConcurrentDictionary<string, object> _cache = new();
+    private readonly ConcurrentDictionary<string, Task<object?>> _cache = new();
     private readonly List<IResourceProvider> _providers = new();
 
     public async Task<T?> LoadResourceAsync<T>(string path) where T : class
     {
-        if (_cache.TryGetValue(path, out var cached))
-        {
-            return cached as T;
-        }
+        var task = _cache.GetOrAdd(path, p => LoadInternalAsync(p));
+        var result = await task;
+        return result as T;
+    }
 
+    private async Task<object?> LoadInternalAsync(string path)
+    {
         foreach (var provider in _providers)
         {
             if (provider.CanHandle(path))
@@ -24,8 +26,7 @@ public class ResourceSystem : IResourceSystem
                 var resource = await provider.LoadAsync(path);
                 if (resource != null)
                 {
-                    _cache[path] = resource;
-                    return resource as T;
+                    return resource;
                 }
             }
         }
@@ -37,4 +38,11 @@ public class ResourceSystem : IResourceSystem
     {
         _providers.Add(provider);
     }
+
+    public void ClearCache()
+    {
+        _cache.Clear();
+    }
+
+    public void Shrink() => ClearCache();
 }

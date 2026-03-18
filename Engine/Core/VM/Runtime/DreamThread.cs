@@ -58,56 +58,52 @@ public partial class DreamThread : IScriptThread, IDisposable
         }
     }
 
-    private readonly IEnumerator<DreamValue>?[] _activeEnumeratorsArray = new IEnumerator<DreamValue>[1024];
-    private readonly DreamList?[] _enumeratorListsArray = new DreamList[1024];
-    public readonly Dictionary<int, IEnumerator<DreamValue>> ActiveEnumerators = new();
-    public readonly Dictionary<int, DreamList> EnumeratorLists = new();
+    private record struct EnumeratorEntry(IEnumerator<DreamValue>? Enumerator, DreamList? List);
+    private EnumeratorEntry[] _enumerators = ArrayPool<EnumeratorEntry>.Shared.Rent(64);
+    private int _maxEnumeratorId = -1;
+
+    private void EnsureEnumeratorCapacity(int id)
+    {
+        if (id >= _enumerators.Length)
+        {
+            int newSize = _enumerators.Length;
+            while (newSize <= id) newSize *= 2;
+            var newArr = ArrayPool<EnumeratorEntry>.Shared.Rent(newSize);
+            Array.Copy(_enumerators, newArr, _enumerators.Length);
+            Array.Clear(newArr, _enumerators.Length, newArr.Length - _enumerators.Length);
+            ArrayPool<EnumeratorEntry>.Shared.Return(_enumerators, true);
+            _enumerators = newArr;
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public IEnumerator<DreamValue>? GetEnumerator(int id)
     {
-        if (id >= 0 && id < 1024) return _activeEnumeratorsArray[id];
-        return ActiveEnumerators.TryGetValue(id, out var enumerator) ? enumerator : null;
+        return (id >= 0 && id < _enumerators.Length) ? _enumerators[id].Enumerator : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetEnumerator(int id, IEnumerator<DreamValue> enumerator, DreamList? list)
     {
-        if (id >= 0 && id < 1024)
-        {
-            _activeEnumeratorsArray[id] = enumerator;
-            _enumeratorListsArray[id] = list;
-        }
-        else
-        {
-            ActiveEnumerators[id] = enumerator;
-            if (list != null) EnumeratorLists[id] = list;
-        }
+        if (id < 0) return;
+        EnsureEnumeratorCapacity(id);
+        _enumerators[id] = new EnumeratorEntry(enumerator, list);
+        if (id > _maxEnumeratorId) _maxEnumeratorId = id;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamList? GetEnumeratorList(int id)
     {
-        if (id >= 0 && id < 1024) return _enumeratorListsArray[id];
-        return EnumeratorLists.TryGetValue(id, out var list) ? list : null;
+        return (id >= 0 && id < _enumerators.Length) ? _enumerators[id].List : null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RemoveEnumerator(int id)
     {
-        if (id >= 0 && id < 1024)
+        if (id >= 0 && id < _enumerators.Length)
         {
-            _activeEnumeratorsArray[id]?.Dispose();
-            _activeEnumeratorsArray[id] = null;
-            _enumeratorListsArray[id] = null;
-        }
-        else
-        {
-            if (ActiveEnumerators.Remove(id, out var enumerator))
-            {
-                enumerator.Dispose();
-            }
-            EnumeratorLists.Remove(id);
+            _enumerators[id].Enumerator?.Dispose();
+            _enumerators[id] = default;
         }
     }
     public int StackCount => _stackPtr;
@@ -518,19 +514,16 @@ public partial class DreamThread : IScriptThread, IDisposable
             _tryStack = null!;
         }
 
-        for (int i = 0; i < 1024; i++)
+        if (_enumerators != null)
         {
-            _activeEnumeratorsArray[i]?.Dispose();
-            _activeEnumeratorsArray[i] = null;
-            _enumeratorListsArray[i] = null;
+            for (int i = 0; i <= _maxEnumeratorId; i++)
+            {
+                _enumerators[i].Enumerator?.Dispose();
+            }
+            ArrayPool<EnumeratorEntry>.Shared.Return(_enumerators, true);
+            _enumerators = null!;
         }
 
-        foreach (var enumerator in ActiveEnumerators.Values)
-        {
-            enumerator.Dispose();
-        }
-        ActiveEnumerators.Clear();
-        EnumeratorLists.Clear();
         Usr = null;
 
         // Clear call stack references

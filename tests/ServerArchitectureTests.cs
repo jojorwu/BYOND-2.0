@@ -33,7 +33,7 @@ namespace tests
         public void PerformanceMonitor_CalculatesTPSCorrectly()
         {
             var loggerMock = new Mock<ILogger<PerformanceMonitor>>();
-            var monitor = new PerformanceMonitor(loggerMock.Object, null);
+            var monitor = new PerformanceMonitor(loggerMock.Object, new Mock<IProfilingService>().Object);
 
             for (int i = 0; i < 50; i++) monitor.RecordTick();
 
@@ -47,7 +47,7 @@ namespace tests
             var pm = new Mock<IPlayerManager>().Object;
             var set = new ServerSettings();
             var rm = new Mock<IRegionManager>().Object;
-            var perf = new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object, null);
+            var perf = new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object, new Mock<IProfilingService>().Object);
             var im = new Mock<IInterestManager>().Object;
 
             var context = new ServerContext(gs, pm, Options.Create(set), rm, perf, im);
@@ -74,7 +74,7 @@ namespace tests
             // Mocking classes with complex constructors
             var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, new Mock<ISystemManager>().Object, new Mock<ITimerService>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
             var httpServerMock = new Mock<HttpServer>(Options.Create(settings), projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
-            var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object, null);
+            var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object, new Mock<IProfilingService>().Object);
 
             var udpServerEngineMock = udpServerMock.As<IEngineService>();
             var scriptHostEngineMock = scriptHostMock.As<IEngineService>();

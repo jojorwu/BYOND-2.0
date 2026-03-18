@@ -29,7 +29,8 @@ namespace Editor.UI
             {
                 foreach (var gameObject in map.GetAllGameObjects())
                 {
-                    var label = $"{gameObject.ObjectType.Name} ({gameObject.Id})";
+                    var typeName = gameObject.ObjectType?.Name ?? "Unknown";
+                    var label = $"{typeName} ({gameObject.Id})";
                     if (string.IsNullOrEmpty(_searchString) || label.Contains(_searchString, System.StringComparison.OrdinalIgnoreCase))
                     {
                         if (ImGui.Selectable(label, _selectionManager.SelectedObject == gameObject))
@@ -42,7 +43,7 @@ namespace Editor.UI
                             {
                                 Camera.Position = new System.Numerics.Vector2(gameObject.X * EditorConstants.TileSize, gameObject.Y * EditorConstants.TileSize);
                             }
-                            if (ImGui.MenuItem("Duplicate"))
+                            if (ImGui.MenuItem("Duplicate") && gameObject.ObjectType != null)
                             {
                                 var newObj = _gameApi.Objects.CreateObject(gameObject.ObjectType.Id, gameObject.X, gameObject.Y, gameObject.Z);
                                 if (newObj != null)
@@ -72,7 +73,7 @@ namespace Editor.UI
 
             if (ImGui.BeginPopupModal("DeleteConfirmation"))
             {
-                ImGui.Text($"Are you sure you want to delete '{_objectToDelete?.ObjectType.Name} ({_objectToDelete?.Id})'?");
+                ImGui.Text($"Are you sure you want to delete '{_objectToDelete?.ObjectType?.Name ?? "Unknown"} ({_objectToDelete?.Id})'?");
                 if (ImGui.Button("Yes"))
                 {
                     if (_objectToDelete != null)

@@ -31,6 +31,8 @@ public class Archetype
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
     private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly IComponentArray?[] _componentArrays;
+    internal readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
+    internal readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
     private readonly object _lock = new();
     private int _count = 0;
     private int _capacity = 0;
@@ -132,8 +134,14 @@ public class Archetype
             if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
             IGameObject entity = _entities[index];
-            entity.Archetype = null;
-            entity.ArchetypeIndex = -1;
+
+            // Only clear properties if the entity currently belongs to this archetype instance.
+            // This prevents race conditions where a fast transition has already assigned a new archetype.
+            if (entity.Archetype == this)
+            {
+                entity.Archetype = null;
+                entity.ArchetypeIndex = -1;
+            }
 
             int lastIndex = _count - 1;
             var arrays = _componentArrays;

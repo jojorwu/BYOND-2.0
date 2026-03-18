@@ -9,7 +9,7 @@ namespace Editor.History
         private readonly DreamValue _oldValue;
         private readonly DreamValue _newValue;
 
-        public string Name => $"Change {_propertyName} on {_target.ObjectType.Name}";
+        public string Name => $"Change {_propertyName} on {_target.ObjectType?.Name ?? "Unknown"}";
 
         public ChangePropertyCommand(IGameObject target, string propertyName, DreamValue oldValue, DreamValue newValue)
         {

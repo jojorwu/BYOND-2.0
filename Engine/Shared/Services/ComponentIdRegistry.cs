@@ -15,6 +15,7 @@ public static class ComponentIdRegistry
 {
     private static int _nextId = 0;
     private static readonly ConcurrentDictionary<Type, int> _typeToId = new();
+    private static readonly ConcurrentDictionary<Assembly, bool> _processedAssemblies = new();
 
     public static int GetId<T>() where T : class, IComponent => GetId(typeof(T));
 
@@ -41,6 +42,8 @@ public static class ComponentIdRegistry
     /// </summary>
     public static void RegisterAll(Assembly assembly)
     {
+        if (!_processedAssemblies.TryAdd(assembly, true)) return;
+
         var componentTypes = assembly.GetTypes()
             .Where(t => t.IsClass && !t.IsAbstract && typeof(IComponent).IsAssignableFrom(t))
             .OrderBy(t => t.FullName); // Sort by FullName for deterministic IDs if called in same order
@@ -52,4 +55,9 @@ public static class ComponentIdRegistry
     }
 
     public static int Count => _nextId;
+
+    /// <summary>
+    /// Gets all registered component types.
+    /// </summary>
+    public static IEnumerable<Type> RegisteredTypes => _typeToId.Keys;
 }

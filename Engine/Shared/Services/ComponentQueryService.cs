@@ -80,19 +80,46 @@ namespace Shared.Services;
                 }
             }
 
-            public IEnumerator<IGameObject> GetEnumerator()
+            public QueryEnumerator GetEnumerator()
             {
-                var archetypes = _archetypes;
-                foreach (var arch in archetypes)
-                {
-                    foreach (var entity in arch.GetEntitiesSnapshot())
-                    {
-                        yield return entity;
-                    }
-                }
+                return new QueryEnumerator(_archetypes);
             }
 
+            IEnumerator<IGameObject> IEnumerable<IGameObject>.GetEnumerator() => GetEnumerator();
             System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+            public struct QueryEnumerator : IEnumerator<IGameObject>
+            {
+                private readonly Archetype[] _archetypes;
+                private int _archetypeIndex;
+                private Archetype.EntityEnumerator _entityEnumerator;
+
+                public QueryEnumerator(Archetype[] archetypes)
+                {
+                    _archetypes = archetypes;
+                    _archetypeIndex = 0;
+                    _entityEnumerator = archetypes.Length > 0 ? archetypes[0].GetEntities() : default;
+                }
+
+                public bool MoveNext()
+                {
+                    while (true)
+                    {
+                        if (_entityEnumerator.MoveNext()) return true;
+
+                        if (++_archetypeIndex >= _archetypes.Length) return false;
+                        _entityEnumerator = _archetypes[_archetypeIndex].GetEntities();
+                    }
+                }
+
+                public IGameObject Current => _entityEnumerator.Current;
+                object System.Collections.IEnumerator.Current => Current;
+                public void Reset()
+                {
+                    _archetypeIndex = 0;
+                    _entityEnumerator = _archetypes.Length > 0 ? _archetypes[0].GetEntities() : default;
+                }
+                public void Dispose() { }
+            }
         }
 
         private readonly IComponentManager _componentManager;

@@ -27,6 +27,7 @@ namespace Client
             services.AddSingleton<IClient>(p => p.GetRequiredService<Game>());
 
             services.AddSingleton<ClientApplication>();
+            services.AddSingleton<IEngine>(p => p.GetRequiredService<ClientApplication>());
             services.AddHostedService(p => p.GetRequiredService<ClientApplication>());
 
             return services;

@@ -53,13 +53,16 @@ public static class SharedServiceCollectionExtensions
 
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
         services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
-        services.AddSingleton<ISystemManager, SystemManager>();
+        services.AddSingleton<SystemManager>();
+        services.AddSingleton<ISystemManager>(sp => sp.GetRequiredService<SystemManager>());
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<SystemManager>());
         services.AddSingleton<IArchetypeManager, ArchetypeManager>();
         services.AddSingleton<ComponentManager>();
         services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
         services.AddSingleton<IComponentQueryService>(sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetService<IGameState>()));
         services.AddSingleton<IComponentMessageBus, ComponentMessageBus>();
+        services.AddSystem<Systems.StateCommitSystem>();
         services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
         return services;
     }

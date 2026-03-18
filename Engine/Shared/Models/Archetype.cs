@@ -174,7 +174,7 @@ public class Archetype
         }
     }
 
-    internal ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
+    public ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
     {
         int id = Services.ComponentIdRegistry.GetId(typeof(T));
         if (id < _componentArrays.Length)
@@ -479,5 +479,36 @@ public class Archetype
         {
             Array.Copy(_entities, 0, destination, offset, _count);
         }
+    }
+
+    /// <summary>
+    /// Allocation-free entity enumerator for internal use under lock or snapshot.
+    /// </summary>
+    public struct EntityEnumerator : IEnumerator<IGameObject>
+    {
+        private readonly IGameObject[] _entities;
+        private readonly int _count;
+        private int _index;
+
+        public EntityEnumerator(IGameObject[] entities, int count)
+        {
+            _entities = entities;
+            _count = count;
+            _index = -1;
+        }
+
+        public bool MoveNext() => ++_index < _count;
+        public IGameObject Current => _entities[_index];
+        object IEnumerator.Current => Current;
+        public void Reset() => _index = -1;
+        public void Dispose() { }
+        public EntityEnumerator GetEnumerator() => this;
+    }
+
+    public EntityEnumerator GetEntities()
+    {
+        // Internal method should only be used when the caller handles synchronization
+        // or uses a snapshot (which is already a copy of the array reference).
+        return new EntityEnumerator(_entities, _count);
     }
 }

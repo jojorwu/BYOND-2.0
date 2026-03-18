@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Moq;
 using Server;
 using Core;
+using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ namespace tests
     public class GameLoopTests
     {
         private Mock<IGameLoopStrategy> _strategyMock = null!;
-        private Mock<ISystemManager> _systemManagerMock = null!;
+        private Mock<ServerApplication> _appMock = null!;
         private Mock<IRegionManager> _regionManagerMock = null!;
         private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;
@@ -25,7 +26,10 @@ namespace tests
         public void SetUp()
         {
             _strategyMock = new Mock<IGameLoopStrategy>();
-            _systemManagerMock = new Mock<ISystemManager>();
+            var engineMock = new Mock<IEngine>();
+            var serviceProviderMock = new Mock<IServiceProvider>();
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(IEngine))).Returns(engineMock.Object);
+
             _regionManagerMock = new Mock<IRegionManager>();
             _serverSettings = new ServerSettings { Performance = { TickRate = 60 } };
             _serverContextMock = new Mock<IServerContext>();
@@ -33,7 +37,7 @@ namespace tests
             _serverContextMock.Setup(c => c.Settings).Returns(_serverSettings);
             _serverContextMock.Setup(c => c.PerformanceMonitor).Returns(new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object, null));
 
-            _gameLoop = new GameLoop(_strategyMock.Object, _systemManagerMock.Object, new Mock<Shared.Interfaces.ITimerService>().Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
+            _gameLoop = new GameLoop(_strategyMock.Object, serviceProviderMock.Object, new Mock<Shared.Interfaces.ITimerService>().Object, _serverContextMock.Object, new Mock<ILogger<GameLoop>>().Object);
             _cancellationTokenSource = new CancellationTokenSource();
         }
 

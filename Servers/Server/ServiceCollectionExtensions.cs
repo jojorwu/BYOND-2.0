@@ -108,7 +108,13 @@ namespace Server
                     : (IGameLoopStrategy)provider.GetRequiredService<GlobalGameLoopStrategy>();
             });
 
-            services.AddSingleton<GameLoop>();
+            services.AddSingleton<GameLoop>(sp => new GameLoop(
+                sp.GetRequiredService<IGameLoopStrategy>(),
+                sp, // Pass ServiceProvider to break circular dependency
+                sp.GetRequiredService<ITimerService>(),
+                sp.GetRequiredService<IServerContext>(),
+                sp.GetRequiredService<ILogger<GameLoop>>()
+            ));
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameLoop>());
 
             return services;

@@ -71,16 +71,30 @@ namespace tests
             var settings = new ServerSettings { HttpServer = { Enabled = false } };
             var projectMock = new Mock<IProject>();
 
+            var configManager = new Shared.Config.ConfigurationManager();
+            var replicator = new CVarReplicator(configManager, new NetDataWriterPool(), new Mock<IPlayerManager>().Object);
+            var commandManager = new Shared.Config.ConsoleCommandManager();
+
+            var app = new ServerApplication(
+                loggerMock.Object,
+                Enumerable.Empty<IEngineService>(),
+                Enumerable.Empty<IEngineModule>(),
+                new Mock<IDiagnosticBus>().Object,
+                replicator,
+                commandManager);
+
             // Mocking classes with complex constructors
-            var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, new Mock<ISystemManager>().Object, new Mock<ITimerService>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
+            var serviceProviderMock = new Mock<IServiceProvider>();
+            serviceProviderMock.Setup(sp => sp.GetService(typeof(IEngine))).Returns(app);
+            var gameLoopMock = new Mock<GameLoop>(new Mock<IGameLoopStrategy>().Object, serviceProviderMock.Object, new Mock<ITimerService>().Object, new Mock<IServerContext>().Object, new Mock<ILogger<GameLoop>>().Object);
             var httpServerMock = new Mock<HttpServer>(Options.Create(settings), projectMock.Object, new Mock<ILogger<HttpServer>>().Object);
             var perfMonitorMock = new Mock<PerformanceMonitor>(new Mock<ILogger<PerformanceMonitor>>().Object, new Mock<IProfilingService>().Object);
 
             var udpServerEngineMock = udpServerMock.As<IEngineService>();
             var scriptHostEngineMock = scriptHostMock.As<IEngineService>();
 
-            var configManager = new Shared.Config.ConfigurationManager();
-            var app = new ServerApplication(
+            // Re-create app with proper service list
+            app = new ServerApplication(
                 loggerMock.Object,
                 new IEngineService[] {
                     perfMonitorMock.Object,
@@ -91,8 +105,8 @@ namespace tests
                 },
                 Array.Empty<IEngineModule>(),
                 new Mock<IDiagnosticBus>().Object,
-                new CVarReplicator(configManager, new NetDataWriterPool(), new Mock<IPlayerManager>().Object),
-                new Shared.Config.ConsoleCommandManager());
+                replicator,
+                commandManager);
 
             var cts = new CancellationTokenSource();
 

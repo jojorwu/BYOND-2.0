@@ -17,7 +17,7 @@ public interface ISystemManager
     Task TickAsync();
 }
 
-public class SystemManager : ISystemManager, IAsyncDisposable
+public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDisposable
 {
     private record SystemExecutionInfo(ISystem System, IEntityQuery[] Queries);
 
@@ -29,13 +29,11 @@ public class SystemManager : ISystemManager, IAsyncDisposable
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
     private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
-    private readonly IEnumerable<IShrinkable> _shrinkables;
-    private readonly IEnumerable<IEngineModule> _modules;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IComponentQueryService _queryService;
     private readonly IDiagnosticBus _diagnosticBus;
+    private readonly IEnumerable<ISystem> _initialSystems;
     private bool _isDirty = true;
-    private long _tickCount = 0;
 
     public SystemManager(
         ISystemRegistry registry,
@@ -43,8 +41,6 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         IProfilingService profilingService,
         IJobSystem jobSystem,
         IObjectPool<EntityCommandBuffer> ecbPool,
-        IEnumerable<IShrinkable> shrinkables,
-        IEnumerable<IEngineModule> modules,
         IEnumerable<ISystem> systems,
         ILoggerFactory loggerFactory,
         IComponentQueryService queryService,
@@ -55,20 +51,28 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         _profilingService = profilingService;
         _jobSystem = jobSystem;
         _ecbPool = ecbPool;
-        _shrinkables = shrinkables;
-        _modules = modules;
         _loggerFactory = loggerFactory;
         _queryService = queryService;
         _diagnosticBus = diagnosticBus;
+        _initialSystems = systems;
 
         _registry.SystemsChanged += MarkDirty;
+    }
 
-        foreach (var system in systems)
+    public override Task InitializeAsync()
+    {
+        foreach (var system in _initialSystems)
         {
             var info = InitializeSystem(system);
             _systemInfoCache[system] = info;
         }
-        _registry.RegisterRange(systems);
+        _registry.RegisterRange(_initialSystems);
+        return Task.CompletedTask;
+    }
+
+    Task ITickable.TickAsync()
+    {
+        return TickAsync();
     }
 
     private SystemExecutionInfo InitializeSystem(ISystem system)
@@ -149,12 +153,6 @@ public class SystemManager : ISystemManager, IAsyncDisposable
         var totalSw = System.Diagnostics.Stopwatch.StartNew();
         using (_profilingService.Measure("SystemManager.Tick"))
         {
-            // Module Pre-Tick
-            foreach (var module in _modules)
-            {
-                module.PreTick();
-            }
-
             // Execute Phases
             for (int i = 0; i < Phases.Length; i++)
             {
@@ -225,26 +223,10 @@ public class SystemManager : ISystemManager, IAsyncDisposable
                 });
             }
 
-            // Module Post-Tick
-            foreach (var module in _modules)
-            {
-                module.PostTick();
-            }
-
-            // Cleanup Phase: Reset all worker arenas and shrink all registered pools/caches
+            // Cleanup Phase: Reset all worker arenas
             using (_profilingService.Measure("SystemManager.Cleanup"))
             {
                 await _jobSystem.ResetAllArenasAsync();
-
-                // Shrink all registered pools/caches in parallel to reduce tail latency
-                // Maintenance throttling: only shrink every 100 ticks to avoid redundant overhead
-                if (Interlocked.Increment(ref _tickCount) % 100 == 0)
-                {
-                    await _jobSystem.ForEachAsync(_shrinkables, shrinkable =>
-                    {
-                        shrinkable.Shrink();
-                    });
-                }
             }
         }
     }

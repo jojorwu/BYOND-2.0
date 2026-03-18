@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Shared.Utils;
 
 namespace Shared.Services;
     public class BinarySnapshotService : EngineService, IShrinkable
@@ -61,7 +62,7 @@ namespace Shared.Services;
 
             if (offset < destination.Length)
             {
-                offset += WriteVarInt(destination.Slice(offset), 0); // End of stream marker
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0); // End of stream marker
             }
 
             return offset;
@@ -89,7 +90,7 @@ namespace Shared.Services;
                     return;
                 }
 
-                Offset += WriteVarInt(Destination.Slice(Offset), propIdx);
+                Offset += Utils.VarInt.Write(Destination.Slice(Offset), propIdx);
                 Offset += val.WriteTo(Destination.Slice(Offset));
             }
         }
@@ -99,18 +100,8 @@ namespace Shared.Services;
             serializer.Visit(propIdx, val);
         }
 
-        public static int WriteVarInt(Span<byte> span, long value)
-        {
-            ulong v = (ulong)value;
-            int count = 0;
-            while (v >= 0x80)
-            {
-                span[count++] = (byte)(v | 0x80);
-                v >>= 7;
-            }
-            span[count++] = (byte)v;
-            return count;
-        }
+        [Obsolete("Use Shared.Utils.VarInt.Write instead")]
+        public static int WriteVarInt(Span<byte> span, long value) => Utils.VarInt.Write(span, value);
 
         private bool SerializeObject(Span<byte> destination, IGameObject obj, IDictionary<long, long>? lastVersions, ref int offset, out bool truncated)
         {
@@ -145,19 +136,19 @@ namespace Shared.Services;
 
             int startOffset = offset;
             int objectStartOffset = offset;
-            offset += WriteVarInt(destination.Slice(offset), obj.Id);
-            offset += WriteVarInt(destination.Slice(offset), obj.Version);
-            offset += WriteVarInt(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
-            offset += WriteVarInt(destination.Slice(offset), obj.X);
-            offset += WriteVarInt(destination.Slice(offset), obj.Y);
-            offset += WriteVarInt(destination.Slice(offset), obj.Z);
+            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Id);
+            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Version);
+            offset += Utils.VarInt.Write(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
+            offset += Utils.VarInt.Write(destination.Slice(offset), obj.X);
+            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Y);
+            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Z);
 
             if (obj.ObjectType != null && obj is GameObject g)
             {
                 var counter = new ChangeCounter();
                 g.VisitChanges(ref counter);
 
-                offset += WriteVarInt(destination.Slice(offset), counter.Count);
+                offset += Utils.VarInt.Write(destination.Slice(offset), counter.Count);
 
                 if (counter.Count > 0)
                 {
@@ -175,7 +166,7 @@ namespace Shared.Services;
             }
             else
             {
-                offset += WriteVarInt(destination.Slice(offset), 0);
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
             }
 
             // Cache the result for reuse in the same tick
@@ -221,29 +212,8 @@ namespace Shared.Services;
             }
         }
 
-
-
-        public long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
-        {
-            long result = 0;
-            int shift = 0;
-            bytesRead = 0;
-            while (bytesRead < span.Length)
-            {
-                byte b = span[bytesRead++];
-                result |= (long)(b & 0x7f) << shift;
-                if ((b & 0x80) == 0)
-                {
-                    // Ensure the result fits in a long (max 64 bits)
-                    if (shift > 63 || (shift == 63 && (b & 0x7e) != 0))
-                        throw new InvalidDataException("VarInt too large for 64-bit integer");
-                    return result;
-                }
-                shift += 7;
-                if (shift >= 70) throw new InvalidDataException("Malformed VarInt: too many bytes");
-            }
-            throw new InvalidDataException("Unexpected end of stream while reading VarInt");
-        }
+        [Obsolete("Use Shared.Utils.VarInt.Read instead")]
+        public long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead) => Utils.VarInt.Read(span, out bytesRead);
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
@@ -257,7 +227,7 @@ namespace Shared.Services;
             {
                 if (offset + 1 > span.Length) break;
 
-                long id = ReadVarInt(span.Slice(offset), out int idBytes);
+                long id = Utils.VarInt.Read(span.Slice(offset), out int idBytes);
                 offset += idBytes;
                 if (id == 0) break;
 
@@ -265,16 +235,16 @@ namespace Shared.Services;
 
                 if (offset + 5 > span.Length) throw new InvalidDataException("Unexpected end of stream during object header");
 
-                long version = ReadVarInt(span.Slice(offset), out int vBytes);
+                long version = Utils.VarInt.Read(span.Slice(offset), out int vBytes);
                 offset += vBytes;
-                long typeId = ReadVarInt(span.Slice(offset), out int tBytes);
+                long typeId = Utils.VarInt.Read(span.Slice(offset), out int tBytes);
                 offset += tBytes;
 
-                long x = ReadVarInt(span.Slice(offset), out int xBytes);
+                long x = Utils.VarInt.Read(span.Slice(offset), out int xBytes);
                 offset += xBytes;
-                long y = ReadVarInt(span.Slice(offset), out int yBytes);
+                long y = Utils.VarInt.Read(span.Slice(offset), out int yBytes);
                 offset += yBytes;
-                long z = ReadVarInt(span.Slice(offset), out int zBytes);
+                long z = Utils.VarInt.Read(span.Slice(offset), out int zBytes);
                 offset += zBytes;
 
                 bool skip = false;
@@ -304,13 +274,13 @@ namespace Shared.Services;
 
                 if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream before property count");
 
-                int propertyCount = (int)ReadVarInt(span.Slice(offset), out int propCountBytes);
+                int propertyCount = (int)Utils.VarInt.Read(span.Slice(offset), out int propCountBytes);
                 offset += propCountBytes;
                 for (int i = 0; i < propertyCount; i++)
                 {
                     if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream during property deserialization");
 
-                    int propIdx = (int)ReadVarInt(span.Slice(offset), out int propIdxBytes);
+                    int propIdx = (int)Utils.VarInt.Read(span.Slice(offset), out int propIdxBytes);
                     offset += propIdxBytes;
 
                     if (offset + 1 > span.Length) throw new InvalidDataException("Unexpected end of stream before property value");

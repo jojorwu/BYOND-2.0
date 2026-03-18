@@ -85,9 +85,10 @@ namespace Shared.Services;
                 var archetypes = _archetypes;
                 foreach (var arch in archetypes)
                 {
-                    foreach (var entity in arch.GetEntitiesSnapshot())
+                    var enumerator = arch.GetEntities();
+                    while (enumerator.MoveNext())
                     {
-                        yield return entity;
+                        yield return enumerator.Current;
                     }
                 }
             }

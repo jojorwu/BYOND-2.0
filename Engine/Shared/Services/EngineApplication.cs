@@ -13,18 +13,22 @@ namespace Shared.Services;
 /// Base class for engine-based applications (Server, Client, Editor)
 /// that manages a collection of <see cref="IEngineService"/> components.
 /// </summary>
-public abstract class EngineApplication : IHostedService
+public abstract class EngineApplication : IHostedService, IEngine
 {
     protected readonly ILogger _logger;
     protected readonly List<IEngineService> _services;
     protected readonly List<IEngineModule> _modules;
+    protected readonly List<ITickable> _tickables = new();
+    protected readonly List<IShrinkable> _shrinkables = new();
     private ServiceDependencyGraph? _graph;
+    private IJobSystem? _jobSystem;
     protected virtual TimeSpan StartupTimeout => TimeSpan.FromSeconds(30);
 
     private readonly Dictionary<string, ServiceStatus> _serviceHealth = new();
     public IReadOnlyDictionary<string, ServiceStatus> ServiceHealth => _serviceHealth;
 
     protected readonly IDiagnosticBus _diagnosticBus;
+    private long _tickCount = 0;
 
     protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services, IEnumerable<IEngineModule> modules, IDiagnosticBus diagnosticBus)
     {
@@ -37,6 +41,14 @@ public abstract class EngineApplication : IHostedService
         {
             var name = service.Name ?? service.GetType().Name;
             _serviceHealth[name] = ServiceStatus.Stopped;
+
+            if (service is ITickable tickable) _tickables.Add(tickable);
+            if (service is IShrinkable shrinkable) _shrinkables.Add(shrinkable);
+        }
+
+        foreach (var module in _modules)
+        {
+            if (module is IShrinkable shrinkable) _shrinkables.Add(shrinkable);
         }
 
         _logger.LogInformation("{AppName} initialized with {ServiceCount} services and {ModuleCount} modules.", GetType().Name, _services.Count, _modules.Count);
@@ -208,6 +220,24 @@ public abstract class EngineApplication : IHostedService
     }
 
     /// <summary>
+    /// Executes a standard engine tick.
+    /// </summary>
+    public virtual async Task TickAsync()
+    {
+        PreTick();
+        foreach (var tickable in _tickables)
+        {
+            await tickable.TickAsync();
+        }
+        PostTick();
+
+        if (Interlocked.Increment(ref _tickCount) % 100 == 0)
+        {
+            await MaintainAsync();
+        }
+    }
+
+    /// <summary>
     /// Executes PostTick on all registered modules.
     /// </summary>
     public void PostTick()
@@ -215,6 +245,26 @@ public abstract class EngineApplication : IHostedService
         foreach (var module in _modules)
         {
             module.PostTick();
+        }
+    }
+
+    /// <summary>
+    /// Performs periodic maintenance on all registered services in parallel.
+    /// </summary>
+    public virtual async Task MaintainAsync()
+    {
+        _jobSystem ??= _services.OfType<IJobSystem>().FirstOrDefault();
+
+        if (_jobSystem != null)
+        {
+            await _jobSystem.ForEachAsync(_shrinkables, s => s.Shrink());
+        }
+        else
+        {
+            foreach (var shrinkable in _shrinkables)
+            {
+                shrinkable.Shrink();
+            }
         }
     }
 }

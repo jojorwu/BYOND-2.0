@@ -1,4 +1,5 @@
 using Shared.Enums;
+using Shared.Utils;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -788,7 +789,7 @@ namespace Shared;
                 case DreamValueType.String:
                     {
                         int len = System.Text.Encoding.UTF8.GetByteCount((string)_objectValue!);
-                        size += GetVarIntSize(len) + len;
+                        size += Utils.VarInt.GetSize(len) + len;
                     }
                     break;
                 case DreamValueType.Null:
@@ -799,29 +800,17 @@ namespace Shared;
                     else
                     {
                         int len = System.Text.Encoding.UTF8.GetByteCount(ToString());
-                        size += GetVarIntSize(len) + len;
+                        size += Utils.VarInt.GetSize(len) + len;
                     }
                     break;
                 default:
                     {
                         int len = System.Text.Encoding.UTF8.GetByteCount(ToString());
-                        size += GetVarIntSize(len) + len;
+                        size += Utils.VarInt.GetSize(len) + len;
                     }
                     break;
             }
             return size;
-        }
-
-        private static int GetVarIntSize(long value)
-        {
-            ulong v = (ulong)value;
-            int count = 1;
-            while (v >= 0x80)
-            {
-                v >>= 7;
-                count++;
-            }
-            return count;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -842,7 +831,7 @@ namespace Shared;
                         var s = (string)_objectValue!;
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
                         // VarInt length prefix
-                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Utils.VarInt.Write(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -861,7 +850,7 @@ namespace Shared;
                         span[offset++] = 0; // String-based ref flag
                         var s = (_objectValue != null) ? _objectValue.ToString() ?? string.Empty : string.Empty;
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
-                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Utils.VarInt.Write(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -870,7 +859,7 @@ namespace Shared;
                     {
                         var s = ToString();
                         int bytesWritten = System.Text.Encoding.UTF8.GetByteCount(s);
-                        int lenBytes = Services.BinarySnapshotService.WriteVarInt(span.Slice(offset), bytesWritten);
+                        int lenBytes = Utils.VarInt.Write(span.Slice(offset), bytesWritten);
                         offset += lenBytes;
                         System.Text.Encoding.UTF8.GetBytes(s, span.Slice(offset));
                         return offset + bytesWritten;
@@ -892,7 +881,7 @@ namespace Shared;
                     return new DreamValue(System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(span.Slice(offset)));
                 case DreamValueType.String:
                     {
-                        long len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        long len = Utils.VarInt.Read(span.Slice(offset), out int lenBytes);
                         offset += lenBytes;
                         bytesRead = offset + (int)len;
                         return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
@@ -908,32 +897,18 @@ namespace Shared;
                     }
                     else
                     {
-                        long len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        long len = Utils.VarInt.Read(span.Slice(offset), out int lenBytes);
                         offset += lenBytes;
                         bytesRead = offset + (int)len;
                         return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
                     }
                 default:
                     {
-                        long len = ReadVarInt(span.Slice(offset), out int lenBytes);
+                        long len = Utils.VarInt.Read(span.Slice(offset), out int lenBytes);
                         offset += lenBytes;
                         bytesRead = offset + (int)len;
                         return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
                     }
-            }
-        }
-
-        private static long ReadVarInt(ReadOnlySpan<byte> span, out int bytesRead)
-        {
-            long result = 0;
-            int shift = 0;
-            bytesRead = 0;
-            while (true)
-            {
-                byte b = span[bytesRead++];
-                result |= (long)(b & 0x7f) << shift;
-                if ((b & 0x80) == 0) return result;
-                shift += 7;
             }
         }
     }

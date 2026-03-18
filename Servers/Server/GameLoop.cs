@@ -14,17 +14,17 @@ namespace Server
     {
         public override int Priority => -100; // Low priority, start last
         private readonly IGameLoopStrategy _strategy;
-        private readonly ISystemManager _systemManager;
+        private readonly IServiceProvider _serviceProvider;
         private readonly ITimerService _timerService;
         private readonly IServerContext _context;
         private readonly ILogger<GameLoop> _logger;
         private Task? _gameLoopTask;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        public GameLoop(IGameLoopStrategy strategy, ISystemManager systemManager, ITimerService timerService, IServerContext context, ILogger<GameLoop> logger)
+        public GameLoop(IGameLoopStrategy strategy, IServiceProvider serviceProvider, ITimerService timerService, IServerContext context, ILogger<GameLoop> logger)
         {
             _strategy = strategy;
-            _systemManager = systemManager;
+            _serviceProvider = serviceProvider;
             _timerService = timerService;
             _context = context;
             _logger = logger;
@@ -47,6 +47,9 @@ namespace Server
             var stopwatch = Stopwatch.StartNew();
             var accumulator = TimeSpan.Zero;
 
+            // Resolve IEngine lazily to break circular dependency with ServerApplication
+            var engine = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IEngine>(_serviceProvider);
+
             while (!token.IsCancellationRequested)
             {
                 var elapsed = stopwatch.Elapsed;
@@ -57,14 +60,9 @@ namespace Server
                 {
                     _timerService.Tick();
                     await _strategy.TickAsync(token);
-                    await _systemManager.TickAsync();
 
-                    // Commit object state for consistent reading by other systems (e.g. networking/rendering)
-                    foreach (var obj in _context.GameState.GetDirtyObjects())
-                    {
-                        obj.CommitState();
-                        obj.ClearDirty();
-                    }
+                    // Use the unified EngineApplication Tick logic which handles Systems and Maintenance
+                    await engine.TickAsync();
 
                     _context.PerformanceMonitor.RecordTick();
                     accumulator -= targetFrameTime;

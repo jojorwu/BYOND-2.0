@@ -174,7 +174,7 @@ public class Archetype
         }
     }
 
-    internal ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
+    public ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
     {
         int id = Services.ComponentIdRegistry.GetId(typeof(T));
         if (id < _componentArrays.Length)

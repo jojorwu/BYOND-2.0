@@ -126,6 +126,7 @@ namespace Server
             services.AddSingleton<IEngineService>(p => p.GetRequiredService<HttpServer>());
 
             services.AddSingleton<ServerApplication>();
+            services.AddSingleton<IEngine>(sp => sp.GetRequiredService<ServerApplication>());
             services.AddHostedService(provider => provider.GetRequiredService<ServerApplication>());
 
             return services;

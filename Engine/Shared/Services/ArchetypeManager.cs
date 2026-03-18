@@ -36,8 +36,6 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
-    private readonly Dictionary<(Archetype, Type), Archetype> _addTransitionsCache = new();
-    private readonly Dictionary<(Archetype, Type), Archetype> _removeTransitionsCache = new();
     private readonly object _archetypeLock = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
@@ -414,8 +412,6 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         var archetypes = _archetypes;
         info["ArchetypeCount"] = archetypes.Length;
         info["EntityCount"] = _entityToArchetype.Count;
-        info["AddTransitionsCacheSize"] = _addTransitionsCache.Count;
-        info["RemoveTransitionsCacheSize"] = _removeTransitionsCache.Count;
         return info;
     }
 }

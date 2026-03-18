@@ -29,9 +29,11 @@ public static class VarInt
         int count = 0;
         while (v >= 0x80)
         {
+            if (count >= span.Length) throw new IndexOutOfRangeException("Span too small for VarInt");
             span[count++] = (byte)(v | 0x80);
             v >>= 7;
         }
+        if (count >= span.Length) throw new IndexOutOfRangeException("Span too small for VarInt");
         span[count++] = (byte)v;
         return count;
     }

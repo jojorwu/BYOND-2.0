@@ -25,6 +25,7 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton<IEngineManager, EngineManager>();
+        services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
         services.AddSingleton<IEventBus, FastEventBus>();
         services.AddSingleton<ITimerService, TimerService>();
         services.AddSingleton<ProfilingService>();
@@ -72,6 +73,8 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IDiagnosticBus, DiagnosticBus>();
         services.AddSingleton<IPluginManager, PluginManager>();
         services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
+        services.AddSingleton<ICommandMiddleware, LoggingCommandMiddleware>();
+        services.AddSingleton<ICommandMiddleware, DiagnosticCommandMiddleware>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<LoggingPacketMiddleware>();
         services.AddSingleton<IPacketDispatcher>(sp =>

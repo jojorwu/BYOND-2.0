@@ -14,14 +14,14 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
     private readonly ILogger<CommandDispatcher> _logger;
     private readonly IJobSystem _jobSystem;
     private readonly Task _processorTask;
-    private readonly List<ICommandMiddleware> _middlewares = new();
-    private volatile ICommandMiddleware[] _middlewareCache = Array.Empty<ICommandMiddleware>();
+    private readonly CommandPipeline _pipeline;
     private bool _disposed;
 
-    public CommandDispatcher(ILogger<CommandDispatcher> logger, IJobSystem jobSystem)
+    public CommandDispatcher(ILogger<CommandDispatcher> logger, IJobSystem jobSystem, IEnumerable<ICommandMiddleware> middlewares)
     {
         _logger = logger;
         _jobSystem = jobSystem;
+        _pipeline = new CommandPipeline(middlewares);
         _commandChannel = Channel.CreateBounded<ICommand>(new BoundedChannelOptions(1000000)
         {
             SingleReader = true,
@@ -30,15 +30,6 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
         });
 
         _processorTask = Task.Run(ProcessCommandsAsync);
-    }
-
-    public void AddMiddleware(ICommandMiddleware middleware)
-    {
-        lock (_middlewares)
-        {
-            _middlewares.Add(middleware);
-            _middlewareCache = _middlewares.ToArray();
-        }
     }
 
     public async ValueTask DispatchAsync(ICommand command)
@@ -58,7 +49,7 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
 
         try
         {
-            await ExecuteWithMiddleware(context, async () =>
+            await _pipeline.ExecuteAsync(context, async () =>
             {
                 context.Result = await command.ExecuteAsync();
             });
@@ -73,41 +64,8 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
         }
     }
 
-    private async Task ExecuteWithMiddleware(CommandContext context, Func<Task> finalAction)
-    {
-        var middlewares = _middlewareCache;
-
-        if (middlewares.Length == 0)
-        {
-            try
-            {
-                await finalAction();
-            }
-            catch (Exception ex)
-            {
-                context.Exception = ex;
-            }
-            return;
-        }
-
-        var runner = _runnerPool.Rent();
-        try
-        {
-            await runner.ExecuteAsync(middlewares, context, finalAction);
-        }
-        catch (Exception ex)
-        {
-            context.Exception = ex;
-        }
-        finally
-        {
-            _runnerPool.Return(runner);
-        }
-    }
-
     private static readonly SharedPool<CommandContext> _contextPool = new(() => new CommandContext());
     private static readonly SharedPool<CommandWrapperPoolable> _wrapperPool = new(() => new CommandWrapperPoolable());
-    private static readonly SharedPool<MiddlewareRunner> _runnerPool = new(() => new MiddlewareRunner());
 
     private class CommandWrapperPoolable : ICommand, IPoolable
     {
@@ -165,7 +123,7 @@ public class CommandDispatcher : ICommandDispatcher, IDisposable
                     context.Command = command;
                     try
                     {
-                        await ExecuteWithMiddleware(context, async () =>
+                        await _pipeline.ExecuteAsync(context, async () =>
                         {
                             await command.ExecuteAsync();
                         });

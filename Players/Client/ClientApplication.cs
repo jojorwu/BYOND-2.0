@@ -18,10 +18,12 @@ namespace Client
             IEnumerable<IEngineService> services,
             IEnumerable<IEngineModule> modules,
             IDiagnosticBus diagnosticBus,
-            Game game)
+            Game game,
+            ILifecycleOrchestrator orchestrator)
             : base(logger, services, modules, diagnosticBus)
         {
             _game = game;
+            SetOrchestrator(orchestrator);
         }
 
         protected override Task OnStartAsync(CancellationToken cancellationToken)

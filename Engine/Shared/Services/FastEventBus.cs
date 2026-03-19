@@ -12,6 +12,7 @@ public class FastEventBus : IEventBus
     private interface IHandlerList
     {
         void Publish(object eventData);
+        void PublishRef<TEvent>(in TEvent eventData) where TEvent : struct;
         ValueTask PublishAsync(object eventData);
         void Unsubscribe(object handler);
     }
@@ -117,6 +118,27 @@ public class FastEventBus : IEventBus
             }
         }
 
+        public void PublishRef(in T eventData)
+        {
+            var interfaces = _interfaceHandlers;
+            for (int i = 0; i < interfaces.Length; i++)
+            {
+                interfaces[i].HandleEvent(eventData);
+            }
+
+            var actions = _actions;
+            for (int i = 0; i < actions.Length; i++)
+            {
+                actions[i](eventData);
+            }
+
+            var asyncActions = _asyncActions;
+            for (int i = 0; i < asyncActions.Length; i++)
+            {
+                _ = asyncActions[i](eventData);
+            }
+        }
+
         public async ValueTask PublishAsync(T eventData)
         {
             var interfaces = _interfaceHandlers;
@@ -159,6 +181,17 @@ public class FastEventBus : IEventBus
         }
 
         void IHandlerList.Publish(object eventData) => Publish((T)eventData);
+        void IHandlerList.PublishRef<TEvent>(in TEvent eventData)
+        {
+            if (typeof(TEvent) == typeof(T))
+            {
+                PublishRef(in System.Runtime.CompilerServices.Unsafe.As<TEvent, T>(ref System.Runtime.CompilerServices.Unsafe.AsRef(in eventData)));
+            }
+            else
+            {
+                Publish((T)(object)eventData);
+            }
+        }
         ValueTask IHandlerList.PublishAsync(object eventData) => PublishAsync((T)eventData);
     }
 
@@ -198,6 +231,12 @@ public class FastEventBus : IEventBus
     }
 
     public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
+
+    public void Publish<T>(in T eventData) where T : struct
+    {
+        var handlers = GetHandlers<T>();
+        handlers.PublishRef(in eventData);
+    }
 
     public ValueTask PublishAsync<T>(T eventData) => GetHandlers<T>().PublishAsync(eventData);
 

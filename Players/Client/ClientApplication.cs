@@ -17,10 +17,12 @@ namespace Client
             ILogger<ClientApplication> logger,
             IEnumerable<IEngineService> services,
             IEnumerable<IEngineModule> modules,
+            IEnumerable<ITickable> tickables,
+            IEnumerable<IShrinkable> shrinkables,
             IDiagnosticBus diagnosticBus,
             Game game,
             ILifecycleOrchestrator orchestrator)
-            : base(logger, services, modules, diagnosticBus)
+            : base(logger, services, modules, tickables, shrinkables, diagnosticBus)
         {
             _game = game;
             SetOrchestrator(orchestrator);

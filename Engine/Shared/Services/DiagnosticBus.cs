@@ -6,7 +6,7 @@ using Shared.Interfaces;
 
 namespace Shared.Services;
 
-public class DiagnosticBus : IDiagnosticBus
+public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
     private readonly object _lock = new();
@@ -96,6 +96,17 @@ public class DiagnosticBus : IDiagnosticBus
                 Interlocked.Increment(ref _poolCount);
             }
         }
+    }
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _subscribers = Array.Empty<Action<DiagnosticEvent>>();
+        }
+        _pool.Clear();
+        _poolCount = 0;
+        return base.StopAsync(cancellationToken);
     }
 
     public IDisposable Subscribe(Action<DiagnosticEvent> callback)

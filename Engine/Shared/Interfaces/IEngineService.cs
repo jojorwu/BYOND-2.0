@@ -53,6 +53,11 @@ namespace Shared.Interfaces;
         ServiceStatus Status { get; }
 
         /// <summary>
+        /// Explicitly sets the status of the service.
+        /// </summary>
+        void SetStatus(ServiceStatus status);
+
+        /// <summary>
         /// Retrieves diagnostic information about the service for monitoring and debugging.
         /// </summary>
         Dictionary<string, object> GetDiagnosticInfo();

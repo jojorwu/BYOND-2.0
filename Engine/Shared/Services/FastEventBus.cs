@@ -7,7 +7,7 @@ using Shared.Messaging;
 
 namespace Shared.Services;
 
-public class FastEventBus : IEventBus
+public class FastEventBus : EngineService, IEventBus
 {
     private interface IHandlerList
     {
@@ -231,6 +231,12 @@ public class FastEventBus : IEventBus
     }
 
     public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        Clear();
+        return base.StopAsync(cancellationToken);
+    }
 
     public void Publish<T>(in T eventData) where T : struct
     {

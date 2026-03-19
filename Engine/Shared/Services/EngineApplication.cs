@@ -28,25 +28,23 @@ public abstract class EngineApplication : IHostedService, IEngine
     protected readonly IDiagnosticBus _diagnosticBus;
     private long _tickCount = 0;
 
-    protected EngineApplication(ILogger logger, IEnumerable<IEngineService> services, IEnumerable<IEngineModule> modules, IDiagnosticBus diagnosticBus)
+    protected EngineApplication(
+        ILogger logger,
+        IEnumerable<IEngineService> services,
+        IEnumerable<IEngineModule> modules,
+        IEnumerable<ITickable> tickables,
+        IEnumerable<IShrinkable> shrinkables,
+        IDiagnosticBus diagnosticBus)
     {
         _logger = logger;
         _services = services.ToList();
         _modules = modules.ToList();
+        _tickables = tickables.ToList();
+        _shrinkables = shrinkables.ToList();
         _diagnosticBus = diagnosticBus;
 
-        foreach (var service in _services)
-        {
-            if (service is ITickable tickable) _tickables.Add(tickable);
-            if (service is IShrinkable shrinkable) _shrinkables.Add(shrinkable);
-        }
-
-        foreach (var module in _modules)
-        {
-            if (module is IShrinkable shrinkable) _shrinkables.Add(shrinkable);
-        }
-
-        _logger.LogInformation("{AppName} initialized with {ServiceCount} services and {ModuleCount} modules.", GetType().Name, _services.Count, _modules.Count);
+        _logger.LogInformation("{AppName} initialized with {ServiceCount} services, {ModuleCount} modules, {TickableCount} tickables, and {ShrinkableCount} shrinkables.",
+            GetType().Name, _services.Count, _modules.Count, _tickables.Count, _shrinkables.Count);
     }
 
     protected void SetOrchestrator(ILifecycleOrchestrator orchestrator) => _orchestrator = orchestrator;

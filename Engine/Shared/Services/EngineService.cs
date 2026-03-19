@@ -30,6 +30,12 @@ namespace Shared.Services;
         }
 
         /// <inheritdoc />
+        public void SetStatus(ServiceStatus status)
+        {
+            Status = status;
+        }
+
+        /// <inheritdoc />
         public long InitializationDurationMs { get; protected set; }
 
         /// <inheritdoc />

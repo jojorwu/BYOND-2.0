@@ -26,7 +26,9 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<IEngineManager, EngineManager>();
         services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
-        services.AddSingleton<IEventBus, FastEventBus>();
+        services.AddSingleton<FastEventBus>();
+        services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<FastEventBus>());
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<FastEventBus>());
         services.AddSingleton<ITimerService, TimerService>();
         services.AddSingleton<ProfilingService>();
         services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
@@ -56,8 +58,11 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
         services.AddSingleton<SystemManager>();
         services.AddSingleton<ISystemManager>(sp => sp.GetRequiredService<SystemManager>());
+        services.AddSingleton<ITickable>(sp => sp.GetRequiredService<SystemManager>());
         services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<SystemManager>());
-        services.AddSingleton<IArchetypeManager, ArchetypeManager>();
+        services.AddSingleton<ArchetypeManager>();
+        services.AddSingleton<IArchetypeManager>(sp => sp.GetRequiredService<ArchetypeManager>());
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<ArchetypeManager>());
         services.AddSingleton<ComponentManager>();
         services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
@@ -70,7 +75,9 @@ public static class SharedServiceCollectionExtensions
 
     public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
     {
-        services.AddSingleton<IDiagnosticBus, DiagnosticBus>();
+        services.AddSingleton<DiagnosticBus>();
+        services.AddSingleton<IDiagnosticBus>(sp => sp.GetRequiredService<DiagnosticBus>());
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<DiagnosticBus>());
         services.AddSingleton<IPluginManager, PluginManager>();
         services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
         services.AddSingleton<ICommandMiddleware, LoggingCommandMiddleware>();
@@ -97,12 +104,14 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddSingleton<IJobSystem, JobSystem>();
         services.AddSingleton<SoundResourceProvider>();
-        services.AddSingleton<IResourceSystem>(sp =>
+        services.AddSingleton<ResourceSystem>(sp =>
         {
             var system = new ResourceSystem();
             system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
             return system;
         });
+        services.AddSingleton<IResourceSystem>(sp => sp.GetRequiredService<ResourceSystem>());
+        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ResourceSystem>());
         return services;
     }
 

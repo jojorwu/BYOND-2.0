@@ -49,6 +49,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
             {
                 _logger.LogDebug("    -> Loading {ServiceName}...", serviceName);
                 _serviceHealth[serviceName] = ServiceStatus.Starting;
+                service.SetStatus(ServiceStatus.Starting);
 
                 var initSw = System.Diagnostics.Stopwatch.StartNew();
                 await service.InitializeAsync();
@@ -60,6 +61,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
                 service.SetDurations(initSw.ElapsedMilliseconds, startSw.ElapsedMilliseconds);
                 _serviceHealth[serviceName] = ServiceStatus.Running;
+                service.SetStatus(ServiceStatus.Running);
 
                 _logger.LogInformation("    [OK] {ServiceName} loaded (Init: {Init}ms, Start: {Start}ms)",
                     serviceName,
@@ -76,6 +78,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
             catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
             {
                 _serviceHealth[serviceName] = ServiceStatus.Failed;
+                service.SetStatus(ServiceStatus.Failed);
                 _logger.LogError("    [TIMEOUT] Service {ServiceName} failed to start within {Timeout}ms", serviceName, StartupTimeout.TotalMilliseconds);
 
                 _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} timeout", DiagnosticSeverity.Error, m =>
@@ -89,6 +92,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
             catch (Exception ex)
             {
                 _serviceHealth[serviceName] = ServiceStatus.Failed;
+                service.SetStatus(ServiceStatus.Failed);
                 _logger.LogError(ex, "    [FAIL] Failed to start service: {ServiceName}", serviceName);
 
                 _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} failed to start", DiagnosticSeverity.Critical, m =>
@@ -119,8 +123,10 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
                 {
                     _logger.LogDebug("    <- Stopping {ServiceName}...", serviceName);
                     _serviceHealth[serviceName] = ServiceStatus.Stopping;
+                    service.SetStatus(ServiceStatus.Stopping);
                     await service.StopAsync(cancellationToken);
                     _serviceHealth[serviceName] = ServiceStatus.Stopped;
+                    service.SetStatus(ServiceStatus.Stopped);
                     _logger.LogInformation("    [OK] {ServiceName} stopped", serviceName);
                 }
                 catch (Exception ex)

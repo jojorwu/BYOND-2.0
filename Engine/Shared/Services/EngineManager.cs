@@ -9,7 +9,7 @@ using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class EngineManager : IEngineManager
+    public class EngineManager : EngineService, IEngineManager
     {
         private string _basePath;
         private const string SettingsFileName = "launcher_settings.json";
@@ -119,7 +119,7 @@ namespace Shared.Services;
             _logger?.LogInformation("Requesting installation of component: {Component}", component);
         }
 
-        public Task InitializeAsync()
+        public override Task InitializeAsync()
         {
             return Task.CompletedTask;
         }

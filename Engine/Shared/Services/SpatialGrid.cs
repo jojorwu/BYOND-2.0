@@ -9,9 +9,10 @@ using System.Collections.Concurrent;
 using System.Buffers;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
+using Shared.Services;
 
 namespace Shared;
-    public class SpatialGrid : IDisposable, IShrinkable
+    public class SpatialGrid : EngineService, IDisposable, IShrinkable
     {
         private class Cell : IDisposable
         {
@@ -509,6 +510,13 @@ namespace Shared;
             {
                 enumerator.Dispose();
             }
+        }
+
+        public override Task StopAsync(CancellationToken cancellationToken)
+        {
+            _grid.Clear();
+            _cellPool.Clear();
+            return base.StopAsync(cancellationToken);
         }
 
         public void Dispose()

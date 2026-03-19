@@ -5,7 +5,7 @@ using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentMessageBus : IComponentMessageBus
+    public class ComponentMessageBus : EngineService, IComponentMessageBus
     {
         private readonly IComponentManager _componentManager;
         private readonly ConcurrentDictionary<Type, int[]> _targetIdsCache = new();

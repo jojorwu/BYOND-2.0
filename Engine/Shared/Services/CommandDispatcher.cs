@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
 
-public class CommandDispatcher : ICommandDispatcher, IDisposable
+public class CommandDispatcher : EngineService, ICommandDispatcher, IDisposable
 {
     private readonly Channel<ICommand> _commandChannel;
     private readonly ILogger<CommandDispatcher> _logger;

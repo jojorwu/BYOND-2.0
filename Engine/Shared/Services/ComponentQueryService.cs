@@ -123,19 +123,18 @@ namespace Shared.Services;
         }
 
         private readonly IComponentManager _componentManager;
+        private readonly IArchetypeManager _archetypeManager;
         private readonly IGameState? _gameState;
         private readonly ConcurrentDictionary<Type, (Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)[]> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
 
-        public ComponentQueryService(IComponentManager componentManager, IGameState? gameState = null)
+        public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, IGameState? gameState = null)
         {
             _componentManager = componentManager;
+            _archetypeManager = archetypeManager;
             _gameState = gameState;
 
-            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
-            {
-                am.ArchetypeCreated += OnArchetypeCreated;
-            }
+            _archetypeManager.ArchetypeCreated += OnArchetypeCreated;
         }
 
         public IEnumerable<IGameObject> Query<T>() where T : class, IComponent
@@ -162,11 +161,8 @@ namespace Shared.Services;
             var queryResult = new QueryResult(_gameState);
 
             // Initial population
-            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
-            {
-                var matchingArchetypes = am.GetArchetypesWithComponents(componentTypes);
-                queryResult.AddArchetypes(matchingArchetypes);
-            }
+            var matchingArchetypes = _archetypeManager.GetArchetypesWithComponents(componentTypes);
+            queryResult.AddArchetypes(matchingArchetypes);
 
             if (_queryCache.TryAdd(key, queryResult))
             {

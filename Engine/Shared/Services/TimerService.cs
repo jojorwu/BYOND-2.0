@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class TimerService : ITimerService
+    public class TimerService : EngineService, ITimerService
     {
         private readonly PriorityQueue<Action, DateTime> _timers = new();
         private readonly List<Action> _executionBuffer = new();

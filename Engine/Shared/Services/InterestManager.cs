@@ -6,7 +6,7 @@ using Shared.Interfaces;
 using Robust.Shared.Maths;
 
 namespace Shared.Services;
-    public class InterestManager : IInterestManager
+    public class InterestManager : EngineService, IInterestManager
     {
         private readonly SpatialGrid _spatialGrid;
         private static readonly ThreadLocal<List<IGameObject>> _queryBuffer = new(() => new List<IGameObject>(65536));

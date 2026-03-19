@@ -5,11 +5,39 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
 using Shared.Messaging;
 using Shared.Services;
-
 namespace Shared.Services;
-
 public static class SharedServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers a service as a singleton implementation and also under one or more interfaces.
+    /// This ensures that the same singleton instance is returned regardless of which interface is used for resolution.
+    /// </summary>
+    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services, params Type[] interfaceTypes)
+        where TImplementation : class, IEngineService
+    {
+        services.AddSingleton<TImplementation>();
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<TImplementation>());
+        foreach (var type in interfaceTypes)
+        {
+            services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
+        }
+        return services;
+    }
+    /// <summary>
+    /// Registers a service as a singleton implementation and also under one or more interfaces.
+    /// Allows providing a factory for the implementation.
+    /// </summary>
+    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services, Func<IServiceProvider, TImplementation> factory, params Type[] interfaceTypes)
+        where TImplementation : class, IEngineService
+    {
+        services.AddSingleton<TImplementation>(factory);
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<TImplementation>());
+        foreach (var type in interfaceTypes)
+        {
+            services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
+        }
+        return services;
+    }
     public static IServiceCollection AddSharedEngineServices(this IServiceCollection services)
     {
         services.AddSingleton<Shared.Config.IConfigurationManager, Shared.Config.ConfigurationManager>();
@@ -18,24 +46,16 @@ public static class SharedServiceCollectionExtensions
         services.AddEcsServices();
         services.AddNetworkingServices();
         services.AddJobSystem();
-
         return services;
     }
-
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
-        services.AddSingleton<IEngineManager, EngineManager>();
+        services.AddEngineService<EngineManager>(typeof(IEngineManager));
         services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
-        services.AddSingleton<FastEventBus>();
-        services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<FastEventBus>());
-        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<FastEventBus>());
-        services.AddSingleton<ITimerService, TimerService>();
-        services.AddSingleton<ProfilingService>();
-        services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ProfilingService>());
-        services.AddSingleton<ObjectTypeManager>();
-        services.AddSingleton<IObjectTypeManager>(p => p.GetRequiredService<ObjectTypeManager>());
-        services.AddSingleton<IEngineService>(p => p.GetRequiredService<ObjectTypeManager>());
+        services.AddEngineService<FastEventBus>(typeof(IEventBus));
+        services.AddEngineService<TimerService>(typeof(ITimerService));
+        services.AddEngineService<ProfilingService>(typeof(IProfilingService), typeof(IShrinkable));
+        services.AddEngineService<ObjectTypeManager>(typeof(IObjectTypeManager));
         services.AddSingleton<StringInterner>();
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
         services.AddSingleton<IEntityRegistry, EntityRegistry>();
@@ -43,46 +63,35 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IArenaAllocator, ArenaProxy>();
         return services;
     }
-
     public static IServiceCollection AddEcsServices(this IServiceCollection services)
     {
         services.AddSingleton<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()));
         services.AddSingleton<IObjectPool<GameObject>>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
-
         services.AddSingleton<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())));
         services.AddSingleton<IObjectPool<EntityCommandBuffer>>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
         services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
-
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
         services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
-        services.AddSingleton<SystemManager>();
-        services.AddSingleton<ISystemManager>(sp => sp.GetRequiredService<SystemManager>());
-        services.AddSingleton<ITickable>(sp => sp.GetRequiredService<SystemManager>());
-        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<SystemManager>());
-        services.AddSingleton<ArchetypeManager>();
-        services.AddSingleton<IArchetypeManager>(sp => sp.GetRequiredService<ArchetypeManager>());
-        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<ArchetypeManager>());
-        services.AddSingleton<ComponentManager>();
-        services.AddSingleton<IComponentManager>(sp => sp.GetRequiredService<ComponentManager>());
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ComponentManager>());
-        services.AddSingleton<IComponentQueryService>(sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetService<IGameState>()));
-        services.AddSingleton<IComponentMessageBus, ComponentMessageBus>();
+        services.AddEngineService<SystemManager>(typeof(ISystemManager), typeof(ITickable));
+        services.AddEngineService<ArchetypeManager>(typeof(IArchetypeManager));
+        services.AddEngineService<ComponentManager>(typeof(IComponentManager), typeof(IShrinkable));
+        services.AddEngineService<ComponentQueryService>(
+            sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IArchetypeManager>(), sp.GetService<IGameState>()),
+            typeof(IComponentQueryService));
+        services.AddEngineService<ComponentMessageBus>(typeof(IComponentMessageBus));
         services.AddSystem<Systems.StateCommitSystem>();
         services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
         return services;
     }
-
     public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
     {
-        services.AddSingleton<DiagnosticBus>();
-        services.AddSingleton<IDiagnosticBus>(sp => sp.GetRequiredService<DiagnosticBus>());
-        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<DiagnosticBus>());
-        services.AddSingleton<IPluginManager, PluginManager>();
+        services.AddEngineService<DiagnosticBus>(typeof(IDiagnosticBus));
+        services.AddEngineService<PluginManager>(typeof(IPluginManager));
         services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
         services.AddSingleton<ICommandMiddleware, LoggingCommandMiddleware>();
         services.AddSingleton<ICommandMiddleware, DiagnosticCommandMiddleware>();
-        services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
+        services.AddEngineService<CommandDispatcher>(typeof(ICommandDispatcher));
         services.AddSingleton<LoggingPacketMiddleware>();
         services.AddSingleton<IPacketDispatcher>(sp =>
         {
@@ -91,30 +100,24 @@ public static class SharedServiceCollectionExtensions
             return dispatcher;
         });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
-        services.AddSingleton<BinarySnapshotService>();
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<BinarySnapshotService>());
-        services.AddSingleton<SpatialGrid>();
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SpatialGrid>());
-        services.AddSingleton<IInterestManager, InterestManager>();
+        services.AddEngineService<BinarySnapshotService>(typeof(IShrinkable));
+        services.AddEngineService<SpatialGrid>(typeof(IShrinkable));
+        services.AddEngineService<InterestManager>(typeof(IInterestManager));
         return services;
     }
-
     public static IServiceCollection AddJobSystem(this IServiceCollection services)
     {
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddSingleton<IJobSystem, JobSystem>();
         services.AddSingleton<SoundResourceProvider>();
-        services.AddSingleton<ResourceSystem>(sp =>
+        services.AddEngineService<ResourceSystem>(sp =>
         {
             var system = new ResourceSystem();
             system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
             return system;
-        });
-        services.AddSingleton<IResourceSystem>(sp => sp.GetRequiredService<ResourceSystem>());
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<ResourceSystem>());
+        }, typeof(IResourceSystem), typeof(IShrinkable));
         return services;
     }
-
     /// <summary>
     /// Scans the given assembly for types implementing IEngineService and registers them as singletons.
     /// Also registers them under all implemented interfaces from the Shared.Interfaces namespace.
@@ -123,12 +126,10 @@ public static class SharedServiceCollectionExtensions
     {
         var serviceTypes = assembly.GetTypes()
             .Where(t => typeof(IEngineService).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
-
         foreach (var type in serviceTypes)
         {
             services.AddSingleton(type);
             services.AddSingleton(typeof(IEngineService), sp => sp.GetRequiredService(type));
-
             var interfaces = type.GetInterfaces();
             foreach (var @interface in interfaces)
             {
@@ -138,10 +139,8 @@ public static class SharedServiceCollectionExtensions
                 }
             }
         }
-
         return services;
     }
-
     /// <summary>
     /// Registers an engine module and its associated services.
     /// </summary>
@@ -149,10 +148,11 @@ public static class SharedServiceCollectionExtensions
     {
         var module = new T();
         services.AddSingleton<IEngineModule>(module);
+        if (module is IShrinkable) services.AddSingleton<IShrinkable>(module as IShrinkable);
+        if (module is ITickable) services.AddSingleton<ITickable>(module as ITickable);
         module.RegisterServices(services);
         return services;
     }
-
     /// <summary>
     /// Scans the given assembly for types implementing IEngineModule and registers them.
     /// </summary>
@@ -160,19 +160,18 @@ public static class SharedServiceCollectionExtensions
     {
         var moduleTypes = assembly.GetTypes()
             .Where(t => typeof(IEngineModule).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
-
         foreach (var type in moduleTypes)
         {
             if (Activator.CreateInstance(type) is IEngineModule module)
             {
                 services.AddSingleton(typeof(IEngineModule), module);
+                if (module is IShrinkable) services.AddSingleton<IShrinkable>(module as IShrinkable);
+                if (module is ITickable) services.AddSingleton<ITickable>(module as ITickable);
                 module.RegisterServices(services);
             }
         }
-
         return services;
     }
-
     /// <summary>
     /// Registers a system in the DI container so it can be automatically discovered by the SystemManager.
     /// </summary>
@@ -181,7 +180,6 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<ISystem, T>();
         return services;
     }
-
     /// <summary>
     /// Scans the given assembly for types implementing ISystem and registers them.
     /// </summary>
@@ -189,12 +187,10 @@ public static class SharedServiceCollectionExtensions
     {
         var systemTypes = assembly.GetTypes()
             .Where(t => typeof(ISystem).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
-
         foreach (var type in systemTypes)
         {
             services.AddSingleton(typeof(ISystem), type);
         }
-
         return services;
     }
 }

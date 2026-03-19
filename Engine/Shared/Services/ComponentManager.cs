@@ -6,7 +6,7 @@ using System.Reflection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-public class ComponentManager : IComponentManager, IEngineLifecycle
+public class ComponentManager : EngineService, IComponentManager, IEngineLifecycle
     {
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);

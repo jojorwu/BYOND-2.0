@@ -6,7 +6,7 @@ using System.Linq;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-    public class ProfilingService : IProfilingService, IShrinkable
+    public class ProfilingService : EngineService, IProfilingService, IShrinkable
     {
         private readonly ConcurrentDictionary<string, MetricData> _metrics = new();
         private const int MaxSamples = 100000;

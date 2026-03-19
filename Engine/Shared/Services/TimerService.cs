@@ -1,13 +1,22 @@
 using System;
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
     public class TimerService : EngineService, ITimerService
     {
-        private readonly PriorityQueue<Action, DateTime> _timers = new();
+        private readonly PriorityQueue<Action, DateTimeOffset> _timers = new();
         private readonly List<Action> _executionBuffer = new();
         private readonly object _lock = new();
+        private readonly TimeProvider _timeProvider;
+        private readonly ILogger<TimerService> _logger;
+
+        public TimerService(TimeProvider timeProvider, ILogger<TimerService> logger)
+        {
+            _timeProvider = timeProvider;
+            _logger = logger;
+        }
 
         public void AddTimer(DateTime executeAt, Action callback)
         {
@@ -19,12 +28,12 @@ namespace Shared.Services;
 
         public void AddTimer(TimeSpan delay, Action callback)
         {
-            AddTimer(DateTime.UtcNow + delay, callback);
+            AddTimer(_timeProvider.GetUtcNow().UtcDateTime + delay, callback);
         }
 
         public void Tick()
         {
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow();
 
             lock (_lock)
             {
@@ -46,7 +55,7 @@ namespace Shared.Services;
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error executing timer: {ex}");
+                        _logger.LogError(ex, "Error executing timer");
                     }
                 }
                 _executionBuffer.Clear();

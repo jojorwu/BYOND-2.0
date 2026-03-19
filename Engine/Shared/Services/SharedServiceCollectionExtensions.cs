@@ -17,6 +17,18 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<TImplementation>();
         services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<TImplementation>());
+        if (typeof(IEngineLifecycle).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IEngineLifecycle>(sp => (IEngineLifecycle)sp.GetRequiredService<TImplementation>());
+        }
+        if (typeof(ITickable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<ITickable>(sp => (ITickable)sp.GetRequiredService<TImplementation>());
+        }
+        if (typeof(IShrinkable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
+        }
         foreach (var type in interfaceTypes)
         {
             services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
@@ -32,6 +44,18 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<TImplementation>(factory);
         services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<TImplementation>());
+        if (typeof(IEngineLifecycle).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IEngineLifecycle>(sp => (IEngineLifecycle)sp.GetRequiredService<TImplementation>());
+        }
+        if (typeof(ITickable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<ITickable>(sp => (ITickable)sp.GetRequiredService<TImplementation>());
+        }
+        if (typeof(IShrinkable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
+        }
         foreach (var type in interfaceTypes)
         {
             services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
@@ -40,8 +64,8 @@ public static class SharedServiceCollectionExtensions
     }
     public static IServiceCollection AddSharedEngineServices(this IServiceCollection services)
     {
-        services.AddSingleton<Shared.Config.IConfigurationManager, Shared.Config.ConfigurationManager>();
-        services.AddSingleton<Shared.Config.IConsoleCommandManager, Shared.Config.ConsoleCommandManager>();
+        services.AddEngineService<Shared.Config.ConfigurationManager>(typeof(Shared.Config.IConfigurationManager));
+        services.AddEngineService<Shared.Config.ConsoleCommandManager>(typeof(Shared.Config.IConsoleCommandManager));
         services.AddCoreServices();
         services.AddEcsServices();
         services.AddNetworkingServices();
@@ -50,14 +74,14 @@ public static class SharedServiceCollectionExtensions
     }
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
+        services.AddSingleton(TimeProvider.System);
         services.AddEngineService<EngineManager>(typeof(IEngineManager));
         services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
         services.AddEngineService<FastEventBus>(typeof(IEventBus));
         services.AddEngineService<TimerService>(typeof(ITimerService));
-        services.AddEngineService<ProfilingService>(typeof(IProfilingService), typeof(IShrinkable));
+        services.AddEngineService<ProfilingService>(typeof(IProfilingService));
         services.AddEngineService<ObjectTypeManager>(typeof(IObjectTypeManager));
-        services.AddSingleton<StringInterner>();
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<StringInterner>());
+        services.AddEngineService<StringInterner>();
         services.AddSingleton<IEntityRegistry, EntityRegistry>();
         services.AddSingleton<IObjectFactory, ObjectFactory>();
         services.AddSingleton<IArenaAllocator, ArenaProxy>();
@@ -65,17 +89,13 @@ public static class SharedServiceCollectionExtensions
     }
     public static IServiceCollection AddEcsServices(this IServiceCollection services)
     {
-        services.AddSingleton<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()));
-        services.AddSingleton<IObjectPool<GameObject>>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<GameObject>>());
-        services.AddSingleton<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())));
-        services.AddSingleton<IObjectPool<EntityCommandBuffer>>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
-        services.AddSingleton<IShrinkable>(sp => sp.GetRequiredService<SharedPool<EntityCommandBuffer>>());
+        services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), typeof(IObjectPool<GameObject>));
+        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())), typeof(IObjectPool<EntityCommandBuffer>));
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
         services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
-        services.AddEngineService<SystemManager>(typeof(ISystemManager), typeof(ITickable));
+        services.AddEngineService<SystemManager>(typeof(ISystemManager));
         services.AddEngineService<ArchetypeManager>(typeof(IArchetypeManager));
-        services.AddEngineService<ComponentManager>(typeof(IComponentManager), typeof(IShrinkable));
+        services.AddEngineService<ComponentManager>(typeof(IComponentManager));
         services.AddEngineService<ComponentQueryService>(
             sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IArchetypeManager>(), sp.GetService<IGameState>()),
             typeof(IComponentQueryService));
@@ -100,22 +120,22 @@ public static class SharedServiceCollectionExtensions
             return dispatcher;
         });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
-        services.AddEngineService<BinarySnapshotService>(typeof(IShrinkable));
-        services.AddEngineService<SpatialGrid>(typeof(IShrinkable));
+        services.AddEngineService<BinarySnapshotService>();
+        services.AddEngineService<SpatialGrid>();
         services.AddEngineService<InterestManager>(typeof(IInterestManager));
         return services;
     }
     public static IServiceCollection AddJobSystem(this IServiceCollection services)
     {
         services.AddSingleton<IComputeService, ComputeService>();
-        services.AddSingleton<IJobSystem, JobSystem>();
+        services.AddEngineService<JobSystem>(typeof(IJobSystem));
         services.AddSingleton<SoundResourceProvider>();
         services.AddEngineService<ResourceSystem>(sp =>
         {
             var system = new ResourceSystem();
             system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
             return system;
-        }, typeof(IResourceSystem), typeof(IShrinkable));
+        }, typeof(IResourceSystem));
         return services;
     }
     /// <summary>
@@ -148,8 +168,8 @@ public static class SharedServiceCollectionExtensions
     {
         var module = new T();
         services.AddSingleton<IEngineModule>(module);
-        if (module is IShrinkable) services.AddSingleton<IShrinkable>(module as IShrinkable);
-        if (module is ITickable) services.AddSingleton<ITickable>(module as ITickable);
+        if (module is IShrinkable shrinkable) services.AddSingleton<IShrinkable>(shrinkable);
+        if (module is ITickable tickable) services.AddSingleton<ITickable>(tickable);
         module.RegisterServices(services);
         return services;
     }
@@ -165,8 +185,8 @@ public static class SharedServiceCollectionExtensions
             if (Activator.CreateInstance(type) is IEngineModule module)
             {
                 services.AddSingleton(typeof(IEngineModule), module);
-                if (module is IShrinkable) services.AddSingleton<IShrinkable>(module as IShrinkable);
-                if (module is ITickable) services.AddSingleton<ITickable>(module as ITickable);
+                if (module is IShrinkable shrinkable) services.AddSingleton<IShrinkable>(shrinkable);
+                if (module is ITickable tickable) services.AddSingleton<ITickable>(tickable);
                 module.RegisterServices(services);
             }
         }

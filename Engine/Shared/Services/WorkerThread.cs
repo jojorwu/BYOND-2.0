@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Shared.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
     /// <summary>
@@ -22,18 +23,23 @@ namespace Shared.Services;
         private readonly ManualResetEventSlim _wakeEvent = new(false);
         private readonly JobSystem? _jobSystem;
         private readonly Func<WorkerThread, IJob?>? _stealFunc;
+        private readonly TimeProvider _timeProvider;
+        private readonly ILogger? _logger;
         private bool _disposed;
 
         public int JobCount { get { lock (_lock) return _jobQueue.Count; } }
         public int ApproximateJobCount => _approximateCount;
         public int ApproximateTotalWeight => _totalWeight;
         public bool IsBusy { get; private set; }
-        public DateTime LastActiveTime { get; private set; } = DateTime.UtcNow;
+        public DateTimeOffset LastActiveTime { get; private set; }
 
-        public WorkerThread(string name, JobSystem? jobSystem = null, Func<WorkerThread, IJob?>? stealFunc = null)
+        public WorkerThread(string name, TimeProvider timeProvider, JobSystem? jobSystem = null, Func<WorkerThread, IJob?>? stealFunc = null, ILogger? logger = null)
         {
             _jobSystem = jobSystem;
             _stealFunc = stealFunc;
+            _timeProvider = timeProvider;
+            _logger = logger;
+            LastActiveTime = _timeProvider.GetUtcNow();
             _thread = new Thread(Run)
             {
                 Name = name,
@@ -148,14 +154,21 @@ namespace Shared.Services;
         internal void ExecuteJob(IJob job)
         {
             IsBusy = true;
-            LastActiveTime = DateTime.UtcNow;
+            LastActiveTime = _timeProvider.GetUtcNow();
             try
             {
                 job.ExecuteAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error executing job in {Thread.CurrentThread.Name}: {ex}");
+                if (_logger != null)
+                {
+                    _logger.LogError(ex, "Error executing job in {ThreadName}", Thread.CurrentThread.Name);
+                }
+                else
+                {
+                    Console.WriteLine($"Error executing job in {Thread.CurrentThread.Name}: {ex}");
+                }
             }
             finally
             {

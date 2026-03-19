@@ -20,6 +20,7 @@ public abstract class EngineApplication : IHostedService, IEngine
     protected readonly List<IEngineModule> _modules;
     protected readonly List<ITickable> _tickables = new();
     protected readonly List<IShrinkable> _shrinkables = new();
+    protected readonly List<IEngineLifecycle> _lifecycles;
     private ILifecycleOrchestrator? _orchestrator;
     private IJobSystem? _jobSystem;
 
@@ -34,6 +35,7 @@ public abstract class EngineApplication : IHostedService, IEngine
         IEnumerable<IEngineModule> modules,
         IEnumerable<ITickable> tickables,
         IEnumerable<IShrinkable> shrinkables,
+        IEnumerable<IEngineLifecycle> lifecycles,
         IDiagnosticBus diagnosticBus)
     {
         _logger = logger;
@@ -41,6 +43,7 @@ public abstract class EngineApplication : IHostedService, IEngine
         _modules = modules.ToList();
         _tickables = tickables.ToList();
         _shrinkables = shrinkables.ToList();
+        _lifecycles = lifecycles.ToList();
         _diagnosticBus = diagnosticBus;
 
         _logger.LogInformation("{AppName} initialized with {ServiceCount} services, {ModuleCount} modules, {TickableCount} tickables, and {ShrinkableCount} shrinkables.",
@@ -81,7 +84,7 @@ public abstract class EngineApplication : IHostedService, IEngine
         await OnStartAsync(cancellationToken);
 
         // OnStarted lifecycle stage
-        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.OnStartedAsync(cancellationToken)));
+        await Task.WhenAll(_lifecycles.Select(s => s.OnStartedAsync(cancellationToken)));
     }
 
     /// <summary>

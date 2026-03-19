@@ -81,6 +81,7 @@ namespace tests
                 Enumerable.Empty<IEngineModule>(),
                 Enumerable.Empty<ITickable>(),
                 Enumerable.Empty<IShrinkable>(),
+                Enumerable.Empty<IEngineLifecycle>(),
                 new Mock<IDiagnosticBus>().Object,
                 replicator,
                 commandManager,
@@ -107,7 +108,8 @@ namespace tests
             var orchestrator = new DefaultLifecycleOrchestrator(
                 new Mock<ILogger<DefaultLifecycleOrchestrator>>().Object,
                 new Mock<IDiagnosticBus>().Object,
-                services);
+                services,
+                services.OfType<IEngineLifecycle>());
 
             app = new ServerApplication(
                 loggerMock.Object,
@@ -115,6 +117,7 @@ namespace tests
                 Array.Empty<IEngineModule>(),
                 services.OfType<ITickable>(),
                 services.OfType<IShrinkable>(),
+                services.OfType<IEngineLifecycle>(),
                 new Mock<IDiagnosticBus>().Object,
                 replicator,
                 commandManager,

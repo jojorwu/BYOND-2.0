@@ -21,26 +21,6 @@ namespace Shared.Services;
         private readonly object _workerLock = new();
         private readonly ILogger<JobSystem> _logger;
 
-        public JobSystem(ILogger<JobSystem> logger)
-        {
-            _logger = logger;
-            _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
-            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
-
-            int initialCount = Math.Max(1, Environment.ProcessorCount);
-            _workers = new WorkerThread[initialCount];
-            for (int i = 0; i < initialCount; i++)
-            {
-                _workers[i] = new WorkerThread($"Engine-Worker-{i}", this, TryStealJob);
-            }
-
-            foreach (var worker in _workers)
-            {
-                worker.Start();
-            }
-
-            _maintenanceTimer = new Timer(_ => UpdateDynamicSizing(), null, 1000, 1000);
-        }
 
         private IJob? TryStealJob(WorkerThread stealer)
         {
@@ -169,12 +149,36 @@ namespace Shared.Services;
             return new JobHandle(tcs.Task);
         }
 
+        private readonly TimeProvider _timeProvider;
+
+        public JobSystem(ILogger<JobSystem> logger, TimeProvider timeProvider)
+        {
+            _logger = logger;
+            _timeProvider = timeProvider;
+            _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
+            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
+
+            int initialCount = Math.Max(1, Environment.ProcessorCount);
+            _workers = new WorkerThread[initialCount];
+            for (int i = 0; i < initialCount; i++)
+            {
+                _workers[i] = new WorkerThread($"Engine-Worker-{i}", _timeProvider, this, TryStealJob);
+            }
+
+            foreach (var worker in _workers)
+            {
+                worker.Start();
+            }
+
+            _maintenanceTimer = new Timer(_ => UpdateDynamicSizing(), null, 1000, 1000);
+        }
+
         private void UpdateDynamicSizing()
         {
             var currentWorkers = _workers;
             int busyCount = 0;
             int totalPending = 0;
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow();
 
             foreach (var worker in currentWorkers)
             {
@@ -223,7 +227,7 @@ namespace Shared.Services;
                     Array.Copy(_workers, newWorkers, currentCount);
                     for (int i = currentCount; i < targetCount; i++)
                     {
-                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", this, TryStealJob);
+                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", _timeProvider, this, TryStealJob);
                         newWorkers[i].Start();
                     }
                     _workers = newWorkers;

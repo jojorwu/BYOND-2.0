@@ -27,11 +27,12 @@ namespace Server
             IEnumerable<IEngineModule> modules,
             IEnumerable<ITickable> tickables,
             IEnumerable<IShrinkable> shrinkables,
+            IEnumerable<IEngineLifecycle> lifecycles,
             IDiagnosticBus diagnosticBus,
             CVarReplicator replicator,
             Shared.Config.IConsoleCommandManager commandManager,
             ILifecycleOrchestrator orchestrator)
-            : base(logger, services, modules, tickables, shrinkables, diagnosticBus)
+            : base(logger, services, modules, tickables, shrinkables, lifecycles, diagnosticBus)
         {
             _replicator = replicator;
             _commandManager = commandManager;

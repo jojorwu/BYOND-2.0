@@ -13,6 +13,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
     private readonly ILogger<DefaultLifecycleOrchestrator> _logger;
     private readonly IDiagnosticBus _diagnosticBus;
     private readonly IEnumerable<IEngineService> _services;
+    private readonly IEnumerable<IEngineLifecycle> _lifecycles;
     private readonly ServiceDependencyGraph _graph;
     private readonly Dictionary<string, ServiceStatus> _serviceHealth = new();
 
@@ -23,11 +24,13 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
     public DefaultLifecycleOrchestrator(
         ILogger<DefaultLifecycleOrchestrator> logger,
         IDiagnosticBus diagnosticBus,
-        IEnumerable<IEngineService> services)
+        IEnumerable<IEngineService> services,
+        IEnumerable<IEngineLifecycle> lifecycles)
     {
         _logger = logger;
         _diagnosticBus = diagnosticBus;
         _services = services;
+        _lifecycles = lifecycles;
         _graph = new ServiceDependencyGraph(_services);
 
         foreach (var service in _services)
@@ -106,13 +109,13 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         });
 
         // Post-Initialize lifecycle stage
-        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.PostInitializeAsync(globalCts.Token)));
+        await Task.WhenAll(_lifecycles.Select(s => s.PostInitializeAsync(globalCts.Token)));
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         // Pre-Shutdown lifecycle stage
-        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.PreShutdownAsync(cancellationToken)));
+        await Task.WhenAll(_lifecycles.Select(s => s.PreShutdownAsync(cancellationToken)));
 
         try
         {
@@ -142,6 +145,6 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         }
 
         // Post-Shutdown lifecycle stage
-        await Task.WhenAll(_services.OfType<IEngineLifecycle>().Select(s => s.PostShutdownAsync(cancellationToken)));
+        await Task.WhenAll(_lifecycles.Select(s => s.PostShutdownAsync(cancellationToken)));
     }
 }

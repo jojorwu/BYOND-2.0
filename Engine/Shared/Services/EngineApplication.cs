@@ -76,8 +76,8 @@ public abstract class EngineApplication : IHostedService, IEngine
 
         _diagnosticBus.Publish("EngineApplication", $"{GetType().Name} lifecycle started", DiagnosticSeverity.Info, m =>
         {
-            m["Application"] = GetType().Name;
-            m["TotalStartupDurationMs"] = sw.ElapsedMilliseconds;
+            m.Add("Application", GetType().Name);
+            m.Add("TotalStartupDurationMs", sw.ElapsedMilliseconds);
         });
 
         await OnStartAsync(cancellationToken);

@@ -68,9 +68,9 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
                 _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} started", DiagnosticSeverity.Info, m =>
                 {
-                    m["Service"] = serviceName;
-                    m["InitializationDurationMs"] = service.InitializationDurationMs;
-                    m["StartupDurationMs"] = service.StartupDurationMs;
+                    m.Add("Service", serviceName);
+                    m.Add("InitializationDurationMs", service.InitializationDurationMs);
+                    m.Add("StartupDurationMs", service.StartupDurationMs);
                 });
             }
             catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
@@ -80,8 +80,8 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
                 _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} timeout", DiagnosticSeverity.Error, m =>
                 {
-                    m["Service"] = serviceName;
-                    m["TimeoutMs"] = StartupTimeout.TotalMilliseconds;
+                    m.Add("Service", serviceName);
+                    m.Add("TimeoutMs", StartupTimeout.TotalMilliseconds);
                 });
 
                 if (service.IsCritical) throw new TimeoutException($"Critical service {serviceName} timed out during startup.");
@@ -93,8 +93,8 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
                 _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} failed to start", DiagnosticSeverity.Critical, m =>
                 {
-                    m["Service"] = serviceName;
-                    m["Error"] = ex.Message;
+                    m.Add("Service", serviceName);
+                    m.Add("Error", ex.Message);
                 });
 
                 if (service.IsCritical) throw;

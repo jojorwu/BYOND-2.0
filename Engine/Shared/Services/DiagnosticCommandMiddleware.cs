@@ -23,9 +23,9 @@ public class DiagnosticCommandMiddleware : ICommandMiddleware
             sw.Stop();
             _diagnosticBus.Publish("CommandDispatcher", $"Command {context.Command.Name} executed", DiagnosticSeverity.Info, m =>
             {
-                m["Command"] = context.Command.Name;
-                m["Status"] = "Success";
-                m["DurationMs"] = sw.ElapsedMilliseconds;
+                m.Add("Command", context.Command.Name);
+                m.Add("Status", "Success");
+                m.Add("DurationMs", sw.ElapsedMilliseconds);
             });
         }
         catch (Exception ex)
@@ -33,10 +33,10 @@ public class DiagnosticCommandMiddleware : ICommandMiddleware
             sw.Stop();
             _diagnosticBus.Publish("CommandDispatcher", $"Command {context.Command.Name} failed", DiagnosticSeverity.Error, m =>
             {
-                m["Command"] = context.Command.Name;
-                m["Status"] = "Failure";
-                m["Error"] = ex.Message;
-                m["DurationMs"] = sw.ElapsedMilliseconds;
+                m.Add("Command", context.Command.Name);
+                m.Add("Status", "Failure");
+                m.Add("Error", ex.Message);
+                m.Add("DurationMs", sw.ElapsedMilliseconds);
             });
             throw;
         }

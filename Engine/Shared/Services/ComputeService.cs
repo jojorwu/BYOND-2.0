@@ -64,7 +64,12 @@ namespace Shared.Services;
             {
                 return File.Exists("C:\\Windows\\System32\\nvcuda.dll");
             }
-            return false; // Linux check would be different (e.g., /proc/driver/nvidia)
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return File.Exists("/usr/lib/x86_64-linux-gnu/libcuda.so") ||
+                       Directory.Exists("/proc/driver/nvidia");
+            }
+            return false;
         }
 
         private bool IsAmdDetected()
@@ -73,6 +78,11 @@ namespace Shared.Services;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 return File.Exists("C:\\Windows\\System32\\amdocl64.dll");
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return File.Exists("/usr/lib/x86_64-linux-gnu/libamdocl64.so") ||
+                       File.Exists("/usr/lib/libamdocl64.so");
             }
             return false;
         }

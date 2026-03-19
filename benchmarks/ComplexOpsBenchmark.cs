@@ -207,7 +207,11 @@ public class ComplexOpsBenchmark
         var settings = new DreamVmConfiguration { MaxInstructions = 1000000000 };
         var vm = new DreamVM(Microsoft.Extensions.Options.Options.Create(settings),
                              Microsoft.Extensions.Logging.Abstractions.NullLogger<DreamVM>.Instance,
-                             new INativeProcProvider[] { new StandardNativeProcProvider() });
+                             new INativeProcProvider[] {
+                                 new MathNativeProcProvider(),
+                                 new SpatialNativeProcProvider(),
+                                 new SystemNativeProcProvider()
+                             });
 
         var proc = new DreamProc("recurse", bc.ToArray(), new[] { "n" }, 0);
         vm.Context.AllProcs.Add(proc);

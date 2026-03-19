@@ -27,11 +27,13 @@ namespace Server
             IEnumerable<IEngineModule> modules,
             IDiagnosticBus diagnosticBus,
             CVarReplicator replicator,
-            Shared.Config.IConsoleCommandManager commandManager)
+            Shared.Config.IConsoleCommandManager commandManager,
+            ILifecycleOrchestrator orchestrator)
             : base(logger, services, modules, diagnosticBus)
         {
             _replicator = replicator;
             _commandManager = commandManager;
+            SetOrchestrator(orchestrator);
         }
 
         protected override Task OnStartAsync(CancellationToken cancellationToken)

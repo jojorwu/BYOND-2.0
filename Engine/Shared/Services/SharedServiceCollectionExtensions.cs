@@ -25,7 +25,10 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton<IEngineManager, EngineManager>();
-        services.AddSingleton<IEventBus, FastEventBus>();
+        services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
+        services.AddSingleton<FastEventBus>();
+        services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<FastEventBus>());
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<FastEventBus>());
         services.AddSingleton<ITimerService, TimerService>();
         services.AddSingleton<ProfilingService>();
         services.AddSingleton<IProfilingService>(sp => sp.GetRequiredService<ProfilingService>());
@@ -69,9 +72,13 @@ public static class SharedServiceCollectionExtensions
 
     public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
     {
-        services.AddSingleton<IDiagnosticBus, DiagnosticBus>();
+        services.AddSingleton<DiagnosticBus>();
+        services.AddSingleton<IDiagnosticBus>(sp => sp.GetRequiredService<DiagnosticBus>());
+        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<DiagnosticBus>());
         services.AddSingleton<IPluginManager, PluginManager>();
         services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
+        services.AddSingleton<ICommandMiddleware, LoggingCommandMiddleware>();
+        services.AddSingleton<ICommandMiddleware, DiagnosticCommandMiddleware>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
         services.AddSingleton<LoggingPacketMiddleware>();
         services.AddSingleton<IPacketDispatcher>(sp =>

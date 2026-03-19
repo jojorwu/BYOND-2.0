@@ -21,7 +21,11 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _vm = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() });
+            _vm = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] {
+                new MathNativeProcProvider(),
+                new SpatialNativeProcProvider(),
+                new SystemNativeProcProvider()
+            });
         }
 
         [TearDown]

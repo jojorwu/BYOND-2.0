@@ -10,6 +10,7 @@ using Server;
 using Shared.Services;
 using Core.Maps;
 using Core.Api;
+using Core.VM.Procs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -53,7 +54,11 @@ namespace Core.Tests
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
-            _dreamVM = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new Core.VM.Procs.StandardNativeProcProvider() }, objectFactory);
+            _dreamVM = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] {
+                new MathNativeProcProvider(),
+                new SpatialNativeProcProvider(),
+                new SystemNativeProcProvider()
+            }, objectFactory);
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool, componentManager);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);

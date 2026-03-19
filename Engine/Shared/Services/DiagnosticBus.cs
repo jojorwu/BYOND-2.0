@@ -6,7 +6,7 @@ using Shared.Interfaces;
 
 namespace Shared.Services;
 
-public class DiagnosticBus : IDiagnosticBus
+public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
     private readonly object _lock = new();
@@ -16,7 +16,7 @@ public class DiagnosticBus : IDiagnosticBus
     private volatile int _poolCount;
     private const int MaxPoolSize = 1024;
 
-    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<Dictionary<string, object>>? metricsAction = null)
+    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null)
     {
         var subscribers = _subscribers;
         if (subscribers.Length == 0) return;
@@ -35,7 +35,7 @@ public class DiagnosticBus : IDiagnosticBus
             ev.Source = source;
             ev.Message = message;
             ev.Severity = severity;
-            metricsAction?.Invoke(ev.Metrics);
+            metricsAction?.Invoke(ev);
 
             for (int i = 0; i < subscribers.Length; i++)
             {
@@ -57,7 +57,7 @@ public class DiagnosticBus : IDiagnosticBus
         }
     }
 
-    public void Publish<TState>(string source, string message, TState state, Action<Dictionary<string, object>, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
+    public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
     {
         var subscribers = _subscribers;
         if (subscribers.Length == 0) return;
@@ -76,7 +76,7 @@ public class DiagnosticBus : IDiagnosticBus
             ev.Source = source;
             ev.Message = message;
             ev.Severity = severity;
-            metricsAction(ev.Metrics, state);
+            metricsAction(ev, state);
 
             for (int i = 0; i < subscribers.Length; i++)
             {
@@ -108,6 +108,20 @@ public class DiagnosticBus : IDiagnosticBus
             _subscribers = updated;
         }
         return new Unsubscriber(this, callback);
+    }
+
+    public void Clear()
+    {
+        lock (_lock)
+        {
+            _subscribers = Array.Empty<Action<DiagnosticEvent>>();
+        }
+    }
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        Clear();
+        return base.StopAsync(cancellationToken);
     }
 
     private class Unsubscriber : IDisposable

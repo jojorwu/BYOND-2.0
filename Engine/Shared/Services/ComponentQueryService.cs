@@ -6,7 +6,7 @@ using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentQueryService : EngineService, IComponentQueryService
+    public class ComponentQueryService : EngineService, IComponentQueryService, IDisposable
     {
         private class QueryResult : IEntityQuery
         {
@@ -124,9 +124,8 @@ namespace Shared.Services;
 
         private readonly IComponentManager _componentManager;
         private readonly IGameState? _gameState;
-        private readonly ConcurrentDictionary<Type, List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)>> _subscriptions = new();
+        private readonly ConcurrentDictionary<Type, (Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)[]> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
-        private readonly ConcurrentDictionary<ComponentSignature, Type[]> _cacheKeyToTypes = new();
 
         public ComponentQueryService(IComponentManager componentManager, IGameState? gameState = null)
         {
@@ -137,6 +136,16 @@ namespace Shared.Services;
             {
                 am.ArchetypeCreated += OnArchetypeCreated;
             }
+        }
+
+        public void Dispose()
+        {
+            if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
+            {
+                am.ArchetypeCreated -= OnArchetypeCreated;
+            }
+            _queryCache.Clear();
+            _subscriptions.Clear();
         }
 
         public IEnumerable<IGameObject> Query<T>() where T : class, IComponent
@@ -161,7 +170,6 @@ namespace Shared.Services;
             }
 
             var queryResult = new QueryResult(_gameState);
-            _cacheKeyToTypes[key] = componentTypes.ToArray();
 
             // Initial population
             if (_componentManager is ComponentManager cm && cm.ArchetypeManager is ArchetypeManager am)
@@ -208,41 +216,54 @@ namespace Shared.Services;
 
         public void Subscribe<T>(Action<ComponentEventArgs> onAdded, Action<ComponentEventArgs> onRemoved) where T : class, IComponent
         {
-            var list = _subscriptions.GetOrAdd(typeof(T), _ => new List<(Action<ComponentEventArgs>, Action<ComponentEventArgs>)>());
-            lock (list)
-            {
-                list.Add((onAdded, onRemoved));
-            }
+            _subscriptions.AddOrUpdate(typeof(T),
+                _ => new[] { (onAdded, onRemoved) },
+                (_, existing) =>
+                {
+                    var updated = new (Action<ComponentEventArgs>, Action<ComponentEventArgs>)[existing.Length + 1];
+                    Array.Copy(existing, updated, existing.Length);
+                    updated[existing.Length] = (onAdded, onRemoved);
+                    return updated;
+                });
         }
 
         public void Unsubscribe<T>(Action<ComponentEventArgs> onAdded, Action<ComponentEventArgs> onRemoved) where T : class, IComponent
         {
-            if (_subscriptions.TryGetValue(typeof(T), out var list))
-            {
-                lock (list)
+            _subscriptions.AddOrUpdate(typeof(T),
+                _ => Array.Empty<(Action<ComponentEventArgs>, Action<ComponentEventArgs>)>(),
+                (_, existing) =>
                 {
-                    list.Remove((onAdded, onRemoved));
-                }
-            }
+                    int index = Array.IndexOf(existing, (onAdded, onRemoved));
+                    if (index == -1) return existing;
+
+                    if (existing.Length == 1) return Array.Empty<(Action<ComponentEventArgs>, Action<ComponentEventArgs>)>();
+
+                    var updated = new (Action<ComponentEventArgs>, Action<ComponentEventArgs>)[existing.Length - 1];
+                    if (index > 0) Array.Copy(existing, 0, updated, 0, index);
+                    if (index < existing.Length - 1) Array.Copy(existing, index + 1, updated, index, existing.Length - index - 1);
+                    return updated;
+                });
         }
 
         private void OnComponentAdded(object? sender, ComponentEventArgs e)
         {
-            if (_subscriptions.TryGetValue(e.ComponentType, out var list))
+            if (_subscriptions.TryGetValue(e.ComponentType, out var handlers))
             {
-                List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;
-                lock (list) copy = list.ToList();
-                foreach (var sub in copy) sub.Added(e);
+                for (int i = 0; i < handlers.Length; i++)
+                {
+                    handlers[i].Added(e);
+                }
             }
         }
 
         private void OnComponentRemoved(object? sender, ComponentEventArgs e)
         {
-            if (_subscriptions.TryGetValue(e.ComponentType, out var list))
+            if (_subscriptions.TryGetValue(e.ComponentType, out var handlers))
             {
-                List<(Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)> copy;
-                lock (list) copy = list.ToList();
-                foreach (var sub in copy) sub.Removed(e);
+                for (int i = 0; i < handlers.Length; i++)
+                {
+                    handlers[i].Removed(e);
+                }
             }
         }
 

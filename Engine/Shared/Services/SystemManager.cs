@@ -218,8 +218,8 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
                 _diagnosticBus.Publish("SystemManager", $"Phase {phase} execution completed", DiagnosticSeverity.Info, m =>
                 {
-                    m["Phase"] = phase.ToString();
-                    m["DurationMs"] = phaseSw.Elapsed.TotalMilliseconds;
+                    m.Add("Phase", phase.ToString());
+                    m.Add("DurationMs", phaseSw.Elapsed.TotalMilliseconds);
                 });
             }
 
@@ -283,8 +283,8 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             _diagnosticBus.Publish("SystemManager", $"System {system.Name} execution completed", DiagnosticSeverity.Info, m =>
             {
-                m["System"] = system.Name;
-                m["DurationMs"] = sw.Elapsed.TotalMilliseconds;
+                m.Add("System", system.Name);
+                m.Add("DurationMs", sw.Elapsed.TotalMilliseconds);
             });
 
             var jobs = system.CreateJobs();

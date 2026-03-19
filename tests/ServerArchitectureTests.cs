@@ -81,7 +81,8 @@ namespace tests
                 Enumerable.Empty<IEngineModule>(),
                 new Mock<IDiagnosticBus>().Object,
                 replicator,
-                commandManager);
+                commandManager,
+                new Mock<ILifecycleOrchestrator>().Object);
 
             // Mocking classes with complex constructors
             var serviceProviderMock = new Mock<IServiceProvider>();
@@ -94,19 +95,26 @@ namespace tests
             var scriptHostEngineMock = scriptHostMock.As<IEngineService>();
 
             // Re-create app with proper service list
-            app = new ServerApplication(
-                loggerMock.Object,
-                new IEngineService[] {
+            var services = new IEngineService[] {
                     perfMonitorMock.Object,
                     scriptHostEngineMock.Object,
                     udpServerEngineMock.Object,
                     httpServerMock.Object,
                     gameLoopMock.Object
-                },
+                };
+            var orchestrator = new DefaultLifecycleOrchestrator(
+                new Mock<ILogger<DefaultLifecycleOrchestrator>>().Object,
+                new Mock<IDiagnosticBus>().Object,
+                services);
+
+            app = new ServerApplication(
+                loggerMock.Object,
+                services,
                 Array.Empty<IEngineModule>(),
                 new Mock<IDiagnosticBus>().Object,
                 replicator,
-                commandManager);
+                commandManager,
+                orchestrator);
 
             var cts = new CancellationTokenSource();
 

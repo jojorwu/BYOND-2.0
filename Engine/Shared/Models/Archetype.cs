@@ -391,23 +391,56 @@ public class Archetype
         return null;
     }
 
-    public IEnumerable<IComponent> GetAllComponents(long entityId)
+    public struct ComponentEnumerator : IEnumerator<IComponent>, IEnumerable<IComponent>
+    {
+        private readonly Archetype _archetype;
+        private readonly int _entityIndex;
+        private int _arrayIndex;
+        private IComponent? _current;
+
+        public ComponentEnumerator(Archetype archetype, int entityIndex)
+        {
+            _archetype = archetype;
+            _entityIndex = entityIndex;
+            _arrayIndex = -1;
+            _current = null;
+        }
+
+        public bool MoveNext()
+        {
+            if (_archetype == null) return false;
+            var arrays = _archetype._componentArrays;
+            while (++_arrayIndex < arrays.Length)
+            {
+                var array = arrays[_arrayIndex];
+                if (array != null)
+                {
+                    _current = array.Get(_entityIndex);
+                    if (_current != null) return true;
+                }
+            }
+            return false;
+        }
+
+        public IComponent Current => _current!;
+        object IEnumerator.Current => _current!;
+        public void Reset() => _arrayIndex = -1;
+        public void Dispose() { }
+        public IEnumerator<IComponent> GetEnumerator() => this;
+        IEnumerator IEnumerable.GetEnumerator() => this;
+    }
+
+    public ComponentEnumerator GetAllComponents(long entityId)
     {
         lock (_lock)
         {
             if (!_entityIdToIndex.TryGetValue(entityId, out int index))
-                return Array.Empty<IComponent>();
+                return default;
 
-            var results = new List<IComponent>(Signature.Types.Count());
-            foreach (var type in Signature.Types)
-            {
-                int id = Services.ComponentIdRegistry.GetId(type);
-                var comp = _componentArrays[id]?.Get(index);
-                if (comp != null) results.Add(comp);
-            }
-            return results;
+            return new ComponentEnumerator(this, index);
         }
     }
+
 
     public void Compact()
     {

@@ -31,7 +31,7 @@ public interface IArchetypeManager
     void Compact();
 }
 
-public class ArchetypeManager : EngineService, IArchetypeManager
+public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
 {
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
@@ -404,6 +404,14 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         {
             archetype.Compact();
         });
+    }
+
+    public void Shrink()
+    {
+        Compact();
+        _typeToArchetypesCache.Clear();
+        // We don't clear _signatureToArchetype or _archetypes as they are needed for the ECS to function.
+        // But clearing the cache forces it to be rebuilt, which might prune some stale references if they exist.
     }
 
     public override Dictionary<string, object> GetDiagnosticInfo()

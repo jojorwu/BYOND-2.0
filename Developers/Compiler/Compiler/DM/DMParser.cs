@@ -4,8 +4,10 @@ using System.Linq;
 using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM;
 
-namespace DMCompiler.Compiler.DM {
-    public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token>(compiler, lexer) {
+namespace DMCompiler.Compiler.DM;
+
+public partial class DMParser(DMCompiler compiler, DMLexer lexer) : Parser<Token>(compiler, lexer)
+{
         protected Location CurrentLoc => Current().Location;
         protected DreamPath CurrentPath = DreamPath.Root;
 
@@ -2894,5 +2896,4 @@ namespace DMCompiler.Compiler.DM {
 
             return hasDelimiter;
         }
-    }
 }

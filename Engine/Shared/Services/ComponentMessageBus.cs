@@ -8,6 +8,7 @@ namespace Shared.Services;
     public class ComponentMessageBus : IComponentMessageBus
     {
         private readonly IComponentManager _componentManager;
+        private readonly ConcurrentDictionary<Type, int[]> _targetIdsCache = new();
 
         public ComponentMessageBus(IComponentManager componentManager)
         {
@@ -45,9 +46,19 @@ namespace Shared.Services;
                     var archetypes = am.GetArchetypesWithComponents(targetTypes);
 
                     var filterMask = new ComponentMask();
-                    foreach (var type in targetTypes)
+                    var targetIds = _targetIdsCache.GetOrAdd(message.GetType(), _ =>
                     {
-                        filterMask.Set(ComponentIdRegistry.GetId(type));
+                        var ids = new int[targetTypes.Length];
+                        for (int i = 0; i < targetTypes.Length; i++)
+                        {
+                            ids[i] = ComponentIdRegistry.GetId(targetTypes[i]);
+                        }
+                        return ids;
+                    });
+
+                    foreach (var id in targetIds)
+                    {
+                        filterMask.Set(id);
                     }
 
                     foreach (var arch in archetypes)

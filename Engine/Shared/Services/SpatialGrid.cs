@@ -48,10 +48,17 @@ namespace Shared;
         public void Shrink()
         {
             CleanupEmptyCells();
+
+            // Return detached COW arrays to the pool
+            while (_replacedArrays.TryDequeue(out var array))
+            {
+                ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
         }
 
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
+        private readonly ConcurrentQueue<IGameObject[]> _replacedArrays = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
@@ -214,13 +221,16 @@ namespace Shared;
             }
 
             var newArray = ArrayPool<IGameObject>.Shared.Rent(newSize);
+            var oldArray = cell.Objects;
             if (cell.Count > 0)
             {
-                Array.Copy(cell.Objects, newArray, cell.Count);
-                // We don't return the old array immediately to avoid race conditions with active enumerators.
-                // The IShrinkable/Cleanup logic will handle returning detached arrays if we track them,
-                // but for now we rely on Garbage Collector or pooled return during Cell.Clear.
-                // Improvement: track 'dead' arrays for deferred return.
+                Array.Copy(oldArray, newArray, cell.Count);
+            }
+
+            if (oldArray.Length > 0)
+            {
+                // Enqueue old array for deferred return to avoid race with active enumerators
+                _replacedArrays.Enqueue(oldArray);
             }
 
             obj.SpatialGridIndex = cell.Count;
@@ -255,11 +265,12 @@ namespace Shared;
             if (index == -1) return;
 
             int lastIndex = cell.Count - 1;
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(cell.Objects.Length);
+            var oldArray = cell.Objects;
+            var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
 
             if (lastIndex > 0)
             {
-                Array.Copy(cell.Objects, newArray, cell.Count);
+                Array.Copy(oldArray, newArray, cell.Count);
                 if (index < lastIndex)
                 {
                     var lastObj = newArray[lastIndex];
@@ -267,6 +278,11 @@ namespace Shared;
                     lastObj.SpatialGridIndex = index;
                 }
                 newArray[lastIndex] = null!;
+            }
+
+            if (oldArray.Length > 0)
+            {
+                _replacedArrays.Enqueue(oldArray);
             }
 
             cell.Objects = newArray;

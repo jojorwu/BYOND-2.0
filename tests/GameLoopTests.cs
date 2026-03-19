@@ -15,7 +15,6 @@ namespace tests
     public class GameLoopTests
     {
         private Mock<IGameLoopStrategy> _strategyMock = null!;
-        private Mock<ServerApplication> _appMock = null!;
         private Mock<IRegionManager> _regionManagerMock = null!;
         private Mock<IServerContext> _serverContextMock = null!;
         private ServerSettings _serverSettings = null!;

@@ -116,7 +116,7 @@ namespace Launcher
             if (_mainMenuPanel.IsClientRequested)
             {
                 _mainMenuPanel.IsClientRequested = false; // Reset flag
-                StartComponent(EngineComponent.Client);
+                StartComponent(EngineComponent.Client, $"--connect {_mainMenuPanel.ServerAddress}");
             }
 
             if (_mainMenuPanel.IsCompileRequested)
@@ -138,20 +138,30 @@ namespace Launcher
         {
             if (_window == null || _mainMenuPanel == null) return;
 
-            string fileName = _engineManager.GetExecutablePath(component);
+            string path = _engineManager.GetExecutablePath(component);
 
             if (!_engineManager.IsComponentInstalled(component))
             {
-                _mainMenuPanel.ShowError($"{component} is not installed.\n\nPath: {fileName}");
+                _mainMenuPanel.ShowError($"{component} is not installed.\n\nPath: {path}");
                 return;
             }
 
             try
             {
+                string fileName = path;
+                string processArguments = arguments ?? string.Empty;
+
+                if (path.EndsWith(".dll"))
+                {
+                    fileName = "dotnet";
+                    processArguments = $"\"{path}\" {processArguments}";
+                }
+
                 var startInfo = new ProcessStartInfo
                 {
                     FileName = fileName,
-                    Arguments = arguments ?? string.Empty,
+                    Arguments = processArguments,
+                    WorkingDirectory = Path.GetDirectoryName(path) ?? AppContext.BaseDirectory,
 #if DEBUG
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
@@ -164,7 +174,7 @@ namespace Launcher
             }
             catch (Win32Exception e)
             {
-                _mainMenuPanel.ShowError($"Error starting {component}:\n{e.Message}\n\nPath: {fileName}");
+                _mainMenuPanel.ShowError($"Error starting {component}:\n{e.Message}\n\nPath: {path}");
             }
             catch (Exception e)
             {

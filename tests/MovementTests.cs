@@ -24,7 +24,11 @@ namespace tests
             _typeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
 
             var settings = Options.Create(new DreamVmConfiguration());
-            _vm = new DreamVM(settings, NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new StandardNativeProcProvider() });
+            _vm = new DreamVM(settings, NullLogger<DreamVM>.Instance, new INativeProcProvider[] {
+                new MathNativeProcProvider(),
+                new SpatialNativeProcProvider(),
+                new SystemNativeProcProvider()
+            });
             _vm.GameState = _gameState;
             _vm.ObjectTypeManager = _typeManager;
 
@@ -56,7 +60,7 @@ namespace tests
             var mobType = new ObjectType(2, "/mob");
             var mob = new GameObject(mobType, 1, 1, 0);
 
-            var nativeProcs = new StandardNativeProcProvider().GetNativeProcs();
+            var nativeProcs = new SpatialNativeProcProvider().GetNativeProcs();
             var stepProc = (NativeProc)nativeProcs["step"];
 
             var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0), _vm.Context, 1000);
@@ -76,7 +80,7 @@ namespace tests
             var mob = new GameObject(mobType, 1, 1, 0);
             var target = new GameObject(mobType, 3, 3, 0);
 
-            var nativeProcs = new StandardNativeProcProvider().GetNativeProcs();
+            var nativeProcs = new SpatialNativeProcProvider().GetNativeProcs();
             var stepToProc = (NativeProc)nativeProcs["step_to"];
 
             var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0), _vm.Context, 1000);
@@ -105,7 +109,7 @@ namespace tests
             gameApiMock.Setup(m => m.StdLib).Returns(standardLibraryApi);
             _vm.GameApi = gameApiMock.Object;
 
-            var nativeProcs = new StandardNativeProcProvider().GetNativeProcs();
+            var nativeProcs = new SpatialNativeProcProvider().GetNativeProcs();
             var stepProc = (NativeProc)nativeProcs["step"];
             var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0), _vm.Context, 1000);
 

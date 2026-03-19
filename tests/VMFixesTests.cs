@@ -23,7 +23,11 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _vm = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] { new StandardNativeProcProvider() });
+            _vm = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] {
+                new MathNativeProcProvider(),
+                new SpatialNativeProcProvider(),
+                new SystemNativeProcProvider()
+            });
         }
 
         [TearDown]
@@ -124,7 +128,7 @@ namespace tests
         [Test]
         public void MathProcs_WithInvalidInput_DoesNotCrash()
         {
-            var nativeProvider = new StandardNativeProcProvider();
+            var nativeProvider = new MathNativeProcProvider();
             var nativeProcs = nativeProvider.GetNativeProcs();
             var absProc = (NativeProc)nativeProcs["abs"];
             var sinProc = (NativeProc)nativeProcs["sin"];
@@ -148,7 +152,7 @@ namespace tests
         [Test]
         public void ArcTan_NativeProc_SupportsOverloads()
         {
-            var nativeProvider = new StandardNativeProcProvider();
+            var nativeProvider = new MathNativeProcProvider();
             var nativeProcs = nativeProvider.GetNativeProcs();
             var arctanProc = (NativeProc)nativeProcs["arctan"];
 
@@ -647,7 +651,7 @@ namespace tests
         [Test]
         public void RangeView_Registration_Test()
         {
-            var nativeProvider = new StandardNativeProcProvider();
+            var nativeProvider = new SpatialNativeProcProvider();
             var nativeProcs = nativeProvider.GetNativeProcs();
 
             Assert.That(nativeProcs.ContainsKey("range"), Is.True);

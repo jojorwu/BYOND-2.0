@@ -82,6 +82,11 @@ namespace Shared.Services;
             }
         }
 
+        public void Publish<T>(in T eventData) where T : struct
+        {
+            Publish(eventData);
+        }
+
         public void Publish<T>(T eventData)
         {
             if (_handlers.TryGetValue(typeof(T), out var handlers))

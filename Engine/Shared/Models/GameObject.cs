@@ -66,7 +66,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
-    public int SpatialGridIndex { get; set; } = -1;
+    private int _spatialGridIndex = -1;
+    public int SpatialGridIndex
+    {
+        get => Volatile.Read(ref _spatialGridIndex);
+        set => Interlocked.Exchange(ref _spatialGridIndex, value);
+    }
+
     public (long X, long Y)? CurrentGridCellKey { get; set; }
     public IStateMachine? StateMachine { get; set; }
 

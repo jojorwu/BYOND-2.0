@@ -21,6 +21,7 @@ namespace Shared.Messaging;
         void UnsubscribeAsync<T>(Func<T, ValueTask> handler);
         void Unsubscribe<T>(IEventHandler<T> handler);
         void Publish<T>(T eventData);
+        void Publish<T>(in T eventData) where T : struct;
         ValueTask PublishAsync<T>(T eventData);
 
         /// <summary>

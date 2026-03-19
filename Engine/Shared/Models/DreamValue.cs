@@ -734,21 +734,19 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsFalse()
         {
-            // Optimization for 64-bit systems: Use bitwise OR to check if both float/long and object are zero/null
-            // for the common Null case, then switch for specific type logic.
-            if ((_longValue | Unsafe.As<object?, long>(ref Unsafe.AsRef(in _objectValue))) == 0) return true;
+            // Direct bitwise check for the most common 'False' states (Null and 0.0/0)
+            // _longValue and _floatValue share the same memory, and _objectValue is null for numeric types.
+            // If the OR of both data slots is 0, the value is effectively Null or zero.
+            if ((_longValue | Unsafe.As<object?, long>(ref Unsafe.AsRef(in _objectValue))) == 0)
+                return true;
 
-            switch (Type)
+            return Type switch
             {
-                case DreamValueType.Float:
-                    return _floatValue == 0.0;
-                case DreamValueType.Integer:
-                    return _longValue == 0; // Handled by first check but kept for completeness
-                case DreamValueType.String:
-                    return ((string)_objectValue!).Length == 0;
-                default:
-                    return false;
-            }
+                DreamValueType.Float => _floatValue == 0.0,
+                DreamValueType.Integer => _longValue == 0,
+                DreamValueType.String => ((string)_objectValue!).Length == 0,
+                _ => false
+            };
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

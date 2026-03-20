@@ -292,9 +292,10 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Retrieves the bit-level 64-bit value regardless of the numeric tag.
-        /// Safe because Float and Integer share the same 8-byte offset.
+        /// Retrieves the numeric data as a 64-bit double, performing conversion if the tag is an Integer.
+        /// This is safe because both numeric types share the same 8-byte memory offset at FieldOffset(8).
         /// </summary>
+        /// <returns>The double-precision floating-point representation of the numeric value.</returns>
         public double RawDouble
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -302,9 +303,10 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Highly optimized direct access to the float field.
-        /// Use only when you have already verified the Type.
+        /// Highly optimized, zero-branch access to the floating-point field.
+        /// <para>Warning: You must ensure the Type is <see cref="DreamValueType.Float"/> before calling this to avoid interpreting raw integer bits as a double.</para>
         /// </summary>
+        /// <returns>The raw double value stored in the slot.</returns>
         public double UnsafeRawDouble
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -312,9 +314,10 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Retrieves the raw 64-bit integer bits regardless of the numeric tag.
-        /// Useful for bitwise operations and exact ID comparisons.
+        /// Retrieves the numeric data as a 64-bit long integer, performing conversion if the tag is a Float.
+        /// Useful for bitwise operations on values that might be stored as doubles.
         /// </summary>
+        /// <returns>The signed 64-bit integer representation of the numeric value.</returns>
         public long RawLong
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -322,9 +325,10 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Highly optimized direct access to the long field.
-        /// Use only when you have already verified the Type.
+        /// Highly optimized, zero-branch access to the integer data field.
+        /// <para>Warning: You must ensure the Type is <see cref="DreamValueType.Integer"/> or another ID-based type before calling this.</para>
         /// </summary>
+        /// <returns>The raw 64-bit integer value stored in the slot.</returns>
         public long UnsafeRawLong
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -332,9 +336,10 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Highly optimized direct access to the object reference field.
-        /// Use only when you have already verified the Type.
+        /// Highly optimized, zero-branch access to the object reference field.
+        /// <para>Warning: Use only after verifying the Type tag implies an object reference.</para>
         /// </summary>
+        /// <returns>The raw object reference stored in the heap-value slot.</returns>
         public object? UnsafeRawObject
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -398,10 +403,10 @@ namespace Shared;
             {
                 DreamValueType.Float => _floatValue.ToString(CultureInfo.InvariantCulture),
                 DreamValueType.Integer => _longValue.ToString(CultureInfo.InvariantCulture),
-                DreamValueType.String => (string)_objectValue! ?? string.Empty,
+                DreamValueType.String => Unsafe.As<object?, string>(ref Unsafe.AsRef(in _objectValue)) ?? string.Empty,
                 DreamValueType.DreamObject => _objectValue?.ToString() ?? string.Empty,
                 DreamValueType.Null => string.Empty,
-                DreamValueType.DreamType => ((ObjectType)_objectValue!).Name,
+                DreamValueType.DreamType => Unsafe.As<object?, ObjectType>(ref Unsafe.AsRef(in _objectValue)).Name,
                 _ => _objectValue?.ToString() ?? string.Empty
             };
         }
@@ -600,38 +605,44 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            // Hot path: identical memory layout (same type and value/reference)
+            // Hot path: identical memory layout (same type and data/reference)
             if (a.Type == b.Type)
             {
                 if (a.Type <= DreamValueType.Integer)
                 {
+                    // Integers must match exactly, floats use an epsilon for DM parity
                     if (a.Type == DreamValueType.Integer) return a._longValue == b._longValue;
-                    // Use a standard epsilon for DM float equality (1e-5)
                     return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 1e-5;
                 }
                 return ReferenceEquals(a._objectValue, b._objectValue);
             }
 
-            // DM Parity: null == 0
-            if (a.Type == DreamValueType.Null)
-            {
-                if (b.Type == DreamValueType.Float) return b._floatValue == 0 || Math.Abs(b._floatValue) < 1e-5;
-                if (b.Type == DreamValueType.Integer) return b._longValue == 0;
-                return false;
-            }
-            if (b.Type == DreamValueType.Null)
-            {
-                if (a.Type == DreamValueType.Float) return a._floatValue == 0 || Math.Abs(a._floatValue) < 1e-5;
-                if (a.Type == DreamValueType.Integer) return a._longValue == 0;
-                return false;
-            }
-
-            // Mixed numeric equality
+            // Mixed numeric equality (Integer <-> Float)
             if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
             {
                 double da = a.Type == DreamValueType.Float ? a._floatValue : (double)a._longValue;
                 double db = b.Type == DreamValueType.Float ? b._floatValue : (double)b._longValue;
                 return da == db || Math.Abs(da - db) < 1e-5;
+            }
+
+            // DM Parity: null == 0
+            if (a.Type == DreamValueType.Null)
+            {
+                if (b.Type <= DreamValueType.Integer)
+                {
+                    if (b.Type == DreamValueType.Integer) return b._longValue == 0;
+                    return b._floatValue == 0 || Math.Abs(b._floatValue) < 1e-5;
+                }
+                return false;
+            }
+            if (b.Type == DreamValueType.Null)
+            {
+                if (a.Type <= DreamValueType.Integer)
+                {
+                    if (a.Type == DreamValueType.Integer) return a._longValue == 0;
+                    return a._floatValue == 0 || Math.Abs(a._floatValue) < 1e-5;
+                }
+                return false;
             }
 
             return false;
@@ -734,19 +745,17 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsFalse()
         {
-            // Direct bitwise check for the most common 'False' states (Null and 0.0/0)
-            // _longValue and _floatValue share the same memory, and _objectValue is null for numeric types.
-            // If the OR of both data slots is 0, the value is effectively Null or zero.
+            // Absolute fast path: for numeric types and null, checking if the data slots are zero is sufficient.
+            // Since _floatValue and _longValue are in a union at offset 8, and _objectValue is at offset 16,
+            // the combined check covers Null, 0.0, and 0 in a single operation.
             if ((_longValue | Unsafe.As<object?, long>(ref Unsafe.AsRef(in _objectValue))) == 0)
                 return true;
 
-            return Type switch
-            {
-                DreamValueType.Float => _floatValue == 0.0,
-                DreamValueType.Integer => _longValue == 0,
-                DreamValueType.String => ((string)_objectValue!).Length == 0,
-                _ => false
-            };
+            // Handle string and other complex 'falsy' states.
+            if (Type == DreamValueType.String)
+                return Unsafe.As<object?, string>(ref Unsafe.AsRef(in _objectValue)).Length == 0;
+
+            return false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

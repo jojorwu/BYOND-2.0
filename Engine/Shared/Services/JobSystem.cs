@@ -447,10 +447,16 @@ namespace Shared.Services;
                 }
                 catch (Exception ex)
                 {
+                    // Enrich exception with job metadata for easier troubleshooting
+                    ex.Data["JobType"] = _inner.GetType().Name;
+                    ex.Data["JobPriority"] = Priority.ToString();
+                    ex.Data["JobWeight"] = Weight;
+
                     _tcs.TrySetException(ex);
                     if (!_isTracked)
                     {
-                        _logger.LogError(ex, "Untracked job failed");
+                        _logger.LogError(ex, "Untracked job failed: {JobType} (Priority: {Priority}, Weight: {Weight})",
+                            _inner.GetType().Name, Priority, Weight);
                     }
                 }
             }

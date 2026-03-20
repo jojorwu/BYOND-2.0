@@ -163,11 +163,12 @@ namespace Shared.Services;
             {
                 if (_logger != null)
                 {
-                    _logger.LogError(ex, "Error executing job in {ThreadName}", Thread.CurrentThread.Name);
+                    _logger.LogError(ex, "Error executing job in {ThreadName}. Job: {JobType}, Priority: {Priority}",
+                        Thread.CurrentThread.Name, job.GetType().Name, job.Priority);
                 }
                 else
                 {
-                    Console.WriteLine($"Error executing job in {Thread.CurrentThread.Name}: {ex}");
+                    Console.WriteLine($"Error executing job in {Thread.CurrentThread.Name}: {ex}. Job: {job.GetType().Name}, Priority: {job.Priority}");
                 }
             }
             finally

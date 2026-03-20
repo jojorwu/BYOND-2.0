@@ -33,7 +33,7 @@ public class Archetype
     internal readonly IComponentArray?[] _componentArrays;
     internal readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
     internal readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
-    private readonly object _lock = new();
+    private readonly System.Threading.Lock _lock = new();
     private int _count = 0;
     private int _capacity = 0;
     public ComponentSignature Signature { get; }

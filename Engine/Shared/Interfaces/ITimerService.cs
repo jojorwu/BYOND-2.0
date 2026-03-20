@@ -5,7 +5,7 @@ namespace Shared.Interfaces;
     /// <summary>
     /// Manages timed events and callbacks for efficient resource management.
     /// </summary>
-    public interface ITimerService
+    public interface ITimerService : ITickable
     {
         /// <summary>
         /// Registers a callback to be executed at a specific time.

@@ -372,7 +372,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
-    protected readonly object _contentsLock = new();
+    protected readonly System.Threading.Lock _contentsLock = new();
     protected volatile IGameObject[] _contents = System.Array.Empty<IGameObject>();
 
     /// <summary>

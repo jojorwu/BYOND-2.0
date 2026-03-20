@@ -25,7 +25,7 @@ public interface IArchetypeManager
     IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent;
     IEnumerable<IComponent> GetComponents(Type componentType);
     IEnumerable<IComponent> GetAllComponents(long entityId);
-    IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes);
+    IEnumerable<Archetype> GetArchetypesWithComponents(params ReadOnlySpan<Type> componentTypes);
     void ForEach<T>(Action<T, long> action) where T : class, IComponent;
     void ForEachEntity(Action<IGameObject> action);
     void Compact();
@@ -36,10 +36,10 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
-    private readonly object _archetypeLock = new();
+    private readonly System.Threading.Lock _archetypeLock = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
-    private readonly object[] _entityLocks = Enumerable.Range(0, 1024).Select(_ => new object()).ToArray();
+    private readonly System.Threading.Lock[] _entityLocks = Enumerable.Range(0, 1024).Select(_ => new System.Threading.Lock()).ToArray();
     private readonly ILogger<ArchetypeManager> _logger;
 
     public ArchetypeManager(ILogger<ArchetypeManager> logger)
@@ -47,7 +47,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         _logger = logger;
     }
 
-    private object GetEntityLock(long entityId) => _entityLocks[(ulong)entityId % (ulong)_entityLocks.Length];
+    private System.Threading.Lock GetEntityLock(long entityId) => _entityLocks[(ulong)entityId % (ulong)_entityLocks.Length];
 
     public void AddEntity(IGameObject entity)
     {
@@ -363,9 +363,9 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         return Enumerable.Empty<IComponent>();
     }
 
-    public IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes)
+    public IEnumerable<Archetype> GetArchetypesWithComponents(params ReadOnlySpan<Type> componentTypes)
     {
-        if (componentTypes.Length == 0) return Enumerable.Empty<Archetype>();
+        if (componentTypes.IsEmpty) return Enumerable.Empty<Archetype>();
 
         var queryMask = new ComponentMask();
         foreach (var type in componentTypes)

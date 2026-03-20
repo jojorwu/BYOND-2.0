@@ -61,4 +61,10 @@ namespace Shared.Services;
                 _executionBuffer.Clear();
             }
         }
+
+        public Task TickAsync()
+        {
+            Tick();
+            return Task.CompletedTask;
+        }
     }

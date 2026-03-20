@@ -262,9 +262,9 @@ namespace Shared.Services;
             return Schedule(new StateActionJob<TState>(action, state, priority, weight), dependency, track, priority);
         }
 
-        public JobHandle CombineDependencies(params JobHandle[] dependencies)
+        public JobHandle CombineDependencies(params ReadOnlySpan<JobHandle> dependencies)
         {
-            if (dependencies == null || dependencies.Length == 0) return default;
+            if (dependencies.IsEmpty) return default;
             if (dependencies.Length == 1) return dependencies[0];
 
             var tasks = new List<Task>();

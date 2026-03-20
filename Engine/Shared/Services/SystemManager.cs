@@ -253,9 +253,9 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
                     if (matchingArchetypes.Count > 0)
                     {
-                        await _jobSystem.ForEachAsync(matchingArchetypes, arch =>
+                        await _jobSystem.ForEachAsync(matchingArchetypes, async arch =>
                         {
-                            system.Tick(arch, ecb);
+                            await system.TickAsync(arch, ecb);
                         });
                         batchHandled = true;
                     }
@@ -267,7 +267,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                         var query = queries[i];
                         foreach (var archetype in query.GetMatchingArchetypes())
                         {
-                            system.Tick(archetype, ecb);
+                            await system.TickAsync(archetype, ecb);
                             batchHandled = true;
                         }
                     }
@@ -276,7 +276,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             if (!batchHandled)
             {
-                system.Tick(ecb);
+                await system.TickAsync(ecb);
             }
 
             system.PostTick();

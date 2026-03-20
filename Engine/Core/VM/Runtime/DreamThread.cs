@@ -32,7 +32,7 @@ public partial class DreamThread : IScriptThread, IDisposable
     public const int MaxStackSize = 10485760;
     internal DreamStack _stack;
     internal int _stackPtr { get => _stack.Pointer; set => _stack.Pointer = value; }
-    internal CallFrame[] _callStack = new CallFrame[1024];
+    internal CallFrame[] _callStack = ArrayPool<CallFrame>.Shared.Rent(1024);
     internal int _callStackPtr = 0;
     private TryBlock[] _tryStack = ArrayPool<TryBlock>.Shared.Rent(1024);
     private int _tryStackPtr = 0;
@@ -266,14 +266,30 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void PushCallFrame(CallFrame frame)
     {
-        if ((uint)_callStackPtr >= (uint)MaxCallStackDepth)
+        var depth = _callStackPtr;
+        if ((uint)depth >= (uint)MaxCallStackDepth)
             throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, this);
 
-        if (_callStackPtr >= _callStack.Length)
+        var stack = _callStack;
+        if ((uint)depth >= (uint)stack.Length)
         {
-            Array.Resize(ref _callStack, _callStack.Length * 2);
+            ExpandCallStack();
+            stack = _callStack;
         }
-        _callStack[_callStackPtr++] = frame;
+        stack[depth] = frame;
+        _callStackPtr = depth + 1;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ExpandCallStack()
+    {
+        int newSize = _callStack.Length * 2;
+        if (newSize > MaxCallStackDepth) newSize = MaxCallStackDepth;
+
+        var newStack = ArrayPool<CallFrame>.Shared.Rent(newSize);
+        Array.Copy(_callStack, newStack, _callStackPtr);
+        ArrayPool<CallFrame>.Shared.Return(_callStack, true);
+        _callStack = newStack;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -508,9 +524,17 @@ public partial class DreamThread : IScriptThread, IDisposable
 
     public void Dispose()
     {
+        if (_callStack != null)
+        {
+            Array.Clear(_callStack, 0, _callStackPtr);
+            ArrayPool<CallFrame>.Shared.Return(_callStack);
+            _callStack = null!;
+        }
+
         if (_tryStack != null)
         {
-            ArrayPool<TryBlock>.Shared.Return(_tryStack, true);
+            Array.Clear(_tryStack, 0, _tryStackPtr);
+            ArrayPool<TryBlock>.Shared.Return(_tryStack);
             _tryStack = null!;
         }
 
@@ -525,10 +549,6 @@ public partial class DreamThread : IScriptThread, IDisposable
         }
 
         Usr = null;
-
-        // Clear call stack references
-        Array.Clear(_callStack, 0, _callStackPtr);
-        _callStackPtr = 0;
 
         _stack.Dispose();
 

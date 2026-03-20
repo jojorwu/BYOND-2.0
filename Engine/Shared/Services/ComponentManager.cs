@@ -42,11 +42,13 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
         return Task.CompletedTask;
         }
 
+        private static readonly System.Buffers.SearchValues<string> _assemblyKeywords = System.Buffers.SearchValues.Create(["Shared", "Engine", "Game", "Client", "Server"], StringComparison.Ordinal);
+
         private static bool IsProbablyComponentAssembly(Assembly assembly)
         {
             var name = assembly.GetName().Name;
             if (name == null) return false;
-            return name.Contains("Shared") || name.Contains("Engine") || name.Contains("Game") || name.Contains("Client") || name.Contains("Server");
+            return name.AsSpan().ContainsAny(_assemblyKeywords);
         }
 
         public IComponent? CreateComponent(string componentName)

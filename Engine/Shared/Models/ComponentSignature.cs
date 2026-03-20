@@ -10,18 +10,13 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
     public readonly ComponentMask Mask;
     private readonly int _hashCode;
 
-    public ComponentSignature(IEnumerable<Type> types)
+    public ComponentSignature(IEnumerable<Type> types) : this(types is Type[] array ? array.AsSpan() : types.ToArray().AsSpan())
     {
-        // Use a more efficient construction for component signatures
-        if (types is Type[] array)
-        {
-            Types = new Type[array.Length];
-            Array.Copy(array, Types, array.Length);
-        }
-        else
-        {
-            Types = types.ToArray();
-        }
+    }
+
+    public ComponentSignature(ReadOnlySpan<Type> types)
+    {
+        Types = types.ToArray();
 
         // Standard entity component sets are small (usually < 16),
         // so a simple Insertion Sort is faster than LINQ OrderBy

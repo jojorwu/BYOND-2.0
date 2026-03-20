@@ -9,7 +9,7 @@ using System.Threading;
 namespace Shared;
     public class DreamObject : IDisposable, IBindable
     {
-        protected readonly object _lock = new();
+        protected readonly System.Threading.Lock _lock = new();
         protected IUiBindingService? _bindingService;
         public virtual ObjectType? ObjectType { get; set; }
 

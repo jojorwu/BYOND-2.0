@@ -15,7 +15,7 @@ namespace Shared.Services;
         {
             public readonly ComponentMask Mask;
             private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
-            private readonly object _lock = new();
+            private readonly System.Threading.Lock _lock = new();
             private readonly IGameState? _gameState;
             private IGameObject[]? _cachedSnapshot;
             private long _version = 0;
@@ -164,14 +164,14 @@ namespace Shared.Services;
             return Query(typeof(T));
         }
 
-        public IEnumerable<IGameObject> Query(params Type[] componentTypes)
+        public IEnumerable<IGameObject> Query(params ReadOnlySpan<Type> componentTypes)
         {
             return GetQuery(componentTypes);
         }
 
-        public IEntityQuery GetQuery(params Type[] componentTypes)
+        public IEntityQuery GetQuery(params ReadOnlySpan<Type> componentTypes)
         {
-            if (componentTypes == null || componentTypes.Length == 0)
+            if (componentTypes.IsEmpty)
                 return new QueryResult(_gameState, default);
 
             var key = new ComponentSignature(componentTypes);

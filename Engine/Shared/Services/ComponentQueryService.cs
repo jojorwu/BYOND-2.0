@@ -2,23 +2,28 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentQueryService : EngineService, IComponentQueryService
+    public class ComponentQueryService : EngineService, IComponentQueryService, IDisposable
     {
         private class QueryResult : IEntityQuery
         {
+            public readonly ComponentMask Mask;
             private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
             private readonly object _lock = new();
             private readonly IGameState? _gameState;
             private IGameObject[]? _cachedSnapshot;
             private long _version = 0;
 
-            public QueryResult(IGameState? gameState)
+            public QueryResult(IGameState? gameState, ComponentMask mask)
             {
                 _gameState = gameState;
+                Mask = mask;
             }
 
             public IReadOnlyList<IGameObject> Snapshot => BuildSnapshot();
@@ -28,6 +33,7 @@ namespace Shared.Services;
             {
                 lock (_lock)
                 {
+                    if (_archetypes.Contains(archetype)) return;
                     var updated = new Archetype[_archetypes.Length + 1];
                     Array.Copy(_archetypes, updated, _archetypes.Length);
                     updated[_archetypes.Length] = archetype;
@@ -41,7 +47,7 @@ namespace Shared.Services;
             {
                 lock (_lock)
                 {
-                    var matchingArray = matching.ToArray();
+                    var matchingArray = matching.Where(a => !_archetypes.Contains(a)).ToArray();
                     if (matchingArray.Length == 0) return;
 
                     var updated = new Archetype[_archetypes.Length + matchingArray.Length];
@@ -127,6 +133,7 @@ namespace Shared.Services;
         private readonly IGameState? _gameState;
         private readonly ConcurrentDictionary<Type, (Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)[]> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
+        private readonly ConcurrentDictionary<int, List<QueryResult>> _queriesByComponent = new();
 
         public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, IGameState? gameState = null)
         {
@@ -135,6 +142,21 @@ namespace Shared.Services;
             _gameState = gameState;
 
             _archetypeManager.ArchetypeCreated += OnArchetypeCreated;
+        }
+
+        public override Task StopAsync(CancellationToken cancellationToken)
+        {
+            Dispose();
+            return base.StopAsync(cancellationToken);
+        }
+
+        public void Dispose()
+        {
+            _archetypeManager.ArchetypeCreated -= OnArchetypeCreated;
+            _queryCache.Clear();
+            _subscriptions.Clear();
+            _queriesByComponent.Clear();
+            GC.SuppressFinalize(this);
         }
 
         public IEnumerable<IGameObject> Query<T>() where T : class, IComponent
@@ -150,7 +172,7 @@ namespace Shared.Services;
         public IEntityQuery GetQuery(params Type[] componentTypes)
         {
             if (componentTypes == null || componentTypes.Length == 0)
-                return new QueryResult(_gameState); // Empty
+                return new QueryResult(_gameState, default);
 
             var key = new ComponentSignature(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
@@ -158,7 +180,7 @@ namespace Shared.Services;
                 return cached;
             }
 
-            var queryResult = new QueryResult(_gameState);
+            var queryResult = new QueryResult(_gameState, key.Mask);
 
             // Initial population
             var matchingArchetypes = _archetypeManager.GetArchetypesWithComponents(componentTypes);
@@ -166,6 +188,15 @@ namespace Shared.Services;
 
             if (_queryCache.TryAdd(key, queryResult))
             {
+                // Register for faster lookup during archetype creation
+                var setBits = key.Mask.GetSetBits();
+                if (setBits.MoveNext())
+                {
+                    int componentId = setBits.Current;
+                    _queriesByComponent.AddOrUpdate(componentId,
+                        _ => new List<QueryResult> { queryResult },
+                        (_, list) => { lock (list) { list.Add(queryResult); } return list; });
+                }
                 return queryResult;
             }
 
@@ -174,14 +205,28 @@ namespace Shared.Services;
 
         private void OnArchetypeCreated(object? sender, Archetype archetype)
         {
-            foreach (var kvp in _queryCache)
-            {
-                var key = kvp.Key;
-                var queryResult = kvp.Value;
+            var archetypeMask = archetype.Signature.Mask;
+            var checkedQueries = new HashSet<QueryResult>();
 
-                if (archetype.Signature.Mask.ContainsAll(key.Mask))
+            var setBits = archetypeMask.GetSetBits();
+            while (setBits.MoveNext())
+            {
+                int componentId = setBits.Current;
+                if (_queriesByComponent.TryGetValue(componentId, out var queries))
                 {
-                    queryResult.AddArchetype(archetype);
+                    QueryResult[] snapshot;
+                    lock (queries) snapshot = queries.ToArray();
+
+                    foreach (var query in snapshot)
+                    {
+                        if (checkedQueries.Add(query))
+                        {
+                            if (archetypeMask.ContainsAll(query.Mask))
+                            {
+                                query.AddArchetype(archetype);
+                            }
+                        }
+                    }
                 }
             }
         }

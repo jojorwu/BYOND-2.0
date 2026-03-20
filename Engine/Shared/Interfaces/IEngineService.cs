@@ -14,7 +14,7 @@ namespace Shared.Interfaces;
     /// <summary>
     /// Defines the lifecycle and metadata for an engine-level service.
     /// </summary>
-    public interface IEngineService : IAsyncInitializable
+    public interface IEngineService : IAsyncInitializable, IHealthCheck
     {
         /// <summary>
         /// Human-readable name of the service.

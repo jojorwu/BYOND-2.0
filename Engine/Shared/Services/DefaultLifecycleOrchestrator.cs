@@ -42,6 +42,8 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        _ = Task.Run(() => MonitorHealthAsync(cancellationToken), cancellationToken);
+
         var globalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         globalCts.CancelAfter(StartupTimeout);
 
@@ -110,6 +112,37 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
         // Post-Initialize lifecycle stage
         await Task.WhenAll(_lifecycles.Select(s => s.PostInitializeAsync(globalCts.Token)));
+    }
+
+    private async Task MonitorHealthAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(5000, cancellationToken);
+                foreach (var service in _services)
+                {
+                    var name = service.Name ?? service.GetType().Name;
+                    var result = await service.CheckHealthAsync(cancellationToken);
+
+                    if (result.Status == HealthStatus.Unhealthy)
+                    {
+                        _logger.LogWarning("Service {ServiceName} is unhealthy: {Description}", name, result.Description);
+                        _diagnosticBus.Publish("HealthMonitor", $"Service {name} unhealthy", DiagnosticSeverity.Warning, m =>
+                        {
+                            m.Add("Service", name);
+                            m.Add("Description", result.Description ?? "No description");
+                        });
+                    }
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error monitoring service health");
+            }
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

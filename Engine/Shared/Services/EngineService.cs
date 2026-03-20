@@ -105,4 +105,17 @@ namespace Shared.Services;
                 { "StartDuration", StartupDurationMs }
             };
         }
+
+        /// <inheritdoc />
+        public virtual Task<HealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
+        {
+            var status = Status switch
+            {
+                ServiceStatus.Running => HealthStatus.Healthy,
+                ServiceStatus.Failed => HealthStatus.Unhealthy,
+                _ => HealthStatus.Degraded
+            };
+
+            return Task.FromResult(new HealthResult(status, $"Service is in {Status} state"));
+        }
     }

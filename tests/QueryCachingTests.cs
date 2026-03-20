@@ -30,6 +30,12 @@ namespace tests
         private ComponentQueryService _queryService;
         private IObjectFactory _objectFactory;
 
+        [TearDown]
+        public void TearDown()
+        {
+            _queryService.Dispose();
+        }
+
         [SetUp]
         public void SetUp()
         {

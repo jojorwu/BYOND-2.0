@@ -47,37 +47,56 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         var globalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         globalCts.CancelAfter(StartupTimeout);
 
+        // Phase 1: InitializeAsync (Parallel with Dependencies)
+        _logger.LogInformation("Starting Service Initialization Phase...");
         await _graph.ExecuteParallelAsync(async service =>
         {
             var serviceName = service.Name ?? service.GetType().Name;
             try
             {
-                _logger.LogDebug("    -> Loading {ServiceName}...", serviceName);
+                _logger.LogDebug("    -> Initializing {ServiceName}...", serviceName);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                await service.InitializeAsync();
+                sw.Stop();
+                service.SetDurations(sw.ElapsedMilliseconds, 0);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "    [FAIL] Initialization failed for service: {ServiceName}", serviceName);
+                if (service.IsCritical) throw;
+            }
+        });
+
+        // Phase 2: PostInitializeAsync (Parallel for all EngineLifecycles)
+        _logger.LogInformation("Executing Post-Initialization Hooks...");
+        await Task.WhenAll(_lifecycles.Select(s => s.PostInitializeAsync(globalCts.Token)));
+
+        // Phase 3: StartAsync (Parallel with Dependencies)
+        _logger.LogInformation("Starting Service Execution Phase...");
+        await _graph.ExecuteParallelAsync(async service =>
+        {
+            var serviceName = service.Name ?? service.GetType().Name;
+            try
+            {
+                _logger.LogDebug("    -> Starting {ServiceName}...", serviceName);
                 _serviceHealth[serviceName] = ServiceStatus.Starting;
                 service.SetStatus(ServiceStatus.Starting);
 
-                var initSw = System.Diagnostics.Stopwatch.StartNew();
-                await service.InitializeAsync();
-                initSw.Stop();
-
-                var startSw = System.Diagnostics.Stopwatch.StartNew();
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 await service.StartAsync(globalCts.Token);
-                startSw.Stop();
+                sw.Stop();
 
-                service.SetDurations(initSw.ElapsedMilliseconds, startSw.ElapsedMilliseconds);
+                service.SetDurations(service.InitializationDurationMs, sw.ElapsedMilliseconds);
                 _serviceHealth[serviceName] = ServiceStatus.Running;
                 service.SetStatus(ServiceStatus.Running);
 
-                _logger.LogInformation("    [OK] {ServiceName} loaded (Init: {Init}ms, Start: {Start}ms)",
-                    serviceName,
-                    service.InitializationDurationMs,
-                    service.StartupDurationMs);
+                _logger.LogInformation("    [OK] {ServiceName} started ({Start}ms)", serviceName, sw.ElapsedMilliseconds);
 
                 _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} started", DiagnosticSeverity.Info, m =>
                 {
                     m.Add("Service", serviceName);
-                    m.Add("InitializationDurationMs", service.InitializationDurationMs);
-                    m.Add("StartupDurationMs", service.StartupDurationMs);
+                    m.Add("InitMs", service.InitializationDurationMs);
+                    m.Add("StartMs", service.StartupDurationMs);
                 });
             }
             catch (OperationCanceledException) when (globalCts.IsCancellationRequested)
@@ -85,33 +104,20 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
                 _serviceHealth[serviceName] = ServiceStatus.Failed;
                 service.SetStatus(ServiceStatus.Failed);
                 _logger.LogError("    [TIMEOUT] Service {ServiceName} failed to start within {Timeout}ms", serviceName, StartupTimeout.TotalMilliseconds);
-
-                _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} timeout", DiagnosticSeverity.Error, m =>
-                {
-                    m.Add("Service", serviceName);
-                    m.Add("TimeoutMs", StartupTimeout.TotalMilliseconds);
-                });
-
                 if (service.IsCritical) throw new TimeoutException($"Critical service {serviceName} timed out during startup.");
             }
             catch (Exception ex)
             {
                 _serviceHealth[serviceName] = ServiceStatus.Failed;
                 service.SetStatus(ServiceStatus.Failed);
-                _logger.LogError(ex, "    [FAIL] Failed to start service: {ServiceName}", serviceName);
-
-                _diagnosticBus.Publish("LifecycleOrchestrator", $"Service {serviceName} failed to start", DiagnosticSeverity.Critical, m =>
-                {
-                    m.Add("Service", serviceName);
-                    m.Add("Error", ex.Message);
-                });
-
+                _logger.LogError(ex, "    [FAIL] Start failed for service: {ServiceName}", serviceName);
                 if (service.IsCritical) throw;
             }
         });
 
-        // Post-Initialize lifecycle stage
-        await Task.WhenAll(_lifecycles.Select(s => s.PostInitializeAsync(globalCts.Token)));
+        // Phase 4: OnStartedAsync (Parallel for all EngineLifecycles)
+        _logger.LogInformation("Executing OnStarted Hooks...");
+        await Task.WhenAll(_lifecycles.Select(s => s.OnStartedAsync(globalCts.Token)));
     }
 
     private async Task MonitorHealthAsync(CancellationToken cancellationToken)
@@ -147,9 +153,14 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        // Pre-Shutdown lifecycle stage
+        _logger.LogInformation("Starting Engine Shutdown Sequence...");
+
+        // Phase 1: PreShutdownAsync (Parallel for all EngineLifecycles)
+        _logger.LogInformation("Executing Pre-Shutdown Hooks...");
         await Task.WhenAll(_lifecycles.Select(s => s.PreShutdownAsync(cancellationToken)));
 
+        // Phase 2: StopAsync (Parallel with Reverse Dependencies)
+        _logger.LogInformation("Stopping Services...");
         try
         {
             await _graph.ShutdownParallelAsync(async service =>
@@ -168,16 +179,20 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
                 catch (Exception ex)
                 {
                     _serviceHealth[serviceName] = ServiceStatus.Failed;
+                    service.SetStatus(ServiceStatus.Failed);
                     _logger.LogError(ex, "    [FAIL] Error stopping service: {ServiceName}", serviceName);
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Lifecycle shutdown failed.");
+            _logger.LogError(ex, "Service shutdown phase failed.");
         }
 
-        // Post-Shutdown lifecycle stage
+        // Phase 3: PostShutdownAsync (Parallel for all EngineLifecycles)
+        _logger.LogInformation("Executing Post-Shutdown Hooks...");
         await Task.WhenAll(_lifecycles.Select(s => s.PostShutdownAsync(cancellationToken)));
+
+        _logger.LogInformation("Engine Shutdown Complete.");
     }
 }

@@ -8,18 +8,23 @@ using Shared.Enums;
 
 namespace Shared.Models;
 
-public struct ArchetypeChunk<T> where T : class, IComponent
+public readonly struct ArchetypeChunk<T> where T : class, IComponent
 {
     public readonly T[] Components;
     public readonly long[] EntityIds;
+    public readonly int Offset;
     public readonly int Count;
 
-    public ArchetypeChunk(T[] components, long[] entityIds, int count)
+    public ArchetypeChunk(T[] components, long[] entityIds, int offset, int count)
     {
         Components = components;
         EntityIds = entityIds;
+        Offset = offset;
         Count = count;
     }
+
+    public ReadOnlySpan<T> ComponentsSpan => Components.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> EntityIdsSpan => EntityIds.AsSpan(Offset, Count);
 }
 
 /// <summary>
@@ -83,10 +88,13 @@ public class Archetype
             _entityIds[index] = entity.Id;
             _entities[index] = entity;
             _entityIdToIndex[entity.Id] = index;
-            foreach (var type in Signature.Types)
+
+            var signatureTypes = Signature.Types;
+            var signatureIds = Signature.ComponentIds;
+            for (int i = 0; i < signatureTypes.Length; i++)
             {
-                if (components.TryGetValue(type, out var comp))
-                    _componentArrays[Services.ComponentIdRegistry.GetId(type)]!.Set(index, comp);
+                if (components.TryGetValue(signatureTypes[i], out var comp))
+                    _componentArrays[signatureIds[i]]!.Set(index, comp);
             }
             entity.Archetype = this;
             entity.ArchetypeIndex = index;
@@ -108,16 +116,21 @@ public class Archetype
             _entityIdToIndex[entity.Id] = index;
 
             var targetArrays = _componentArrays;
-            foreach (var type in Signature.Types)
+            var signatureTypes = Signature.Types;
+            var signatureIds = Signature.ComponentIds;
+
+            for (int i = 0; i < signatureTypes.Length; i++)
             {
-                int id = Services.ComponentIdRegistry.GetId(type);
+                var type = signatureTypes[i];
+                int id = signatureIds[i];
+
                 if (additional.HasValue && additional.Value.Type == type)
                 {
                     targetArrays[id]!.Set(index, additional.Value.Component);
                 }
                 else if (ignoreType != type && sourceArchetype != null)
                 {
-                    var sourceArray = sourceArchetype.GetComponentsInternal(type);
+                    var sourceArray = sourceArchetype.GetComponentsInternal(id);
                     sourceArray?.CopyTo(sourceIndex, targetArrays[id]!, index);
                 }
             }
@@ -174,26 +187,86 @@ public class Archetype
         }
     }
 
-    public ArchetypeChunk<T> GetChunk<T>() where T : class, IComponent
+    public ArchetypeChunkEnumerable<T> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent
     {
-        int id = Services.ComponentIdRegistry.GetId(typeof(T));
-        if (id < _componentArrays.Length)
+        int id = Services.ComponentId<T>.Value;
+        if (id >= _componentArrays.Length) return default;
+
+        var array = _componentArrays[id];
+        if (array == null) return default;
+
+        T[] data;
+        long[] entityIds;
+        int totalCount;
+
+        lock (_lock)
         {
-            var array = _componentArrays[id];
-            if (array != null)
-            {
-                lock (_lock)
-                {
-                    return new ArchetypeChunk<T>(((ComponentArray<T>)array).Data, _entityIds, _count);
-                }
-            }
+            data = ((ComponentArray<T>)array).Data;
+            entityIds = _entityIds;
+            totalCount = _count;
         }
-        return new ArchetypeChunk<T>(System.Array.Empty<T>(), System.Array.Empty<long>(), 0);
+
+        return new ArchetypeChunkEnumerable<T>(data, entityIds, totalCount, chunkSize);
+    }
+
+    public readonly struct ArchetypeChunkEnumerable<T> : IEnumerable<ArchetypeChunk<T>> where T : class, IComponent
+    {
+        private readonly T[] _data;
+        private readonly long[] _entityIds;
+        private readonly int _totalCount;
+        private readonly int _chunkSize;
+
+        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, int totalCount, int chunkSize)
+        {
+            _data = data;
+            _entityIds = entityIds;
+            _totalCount = totalCount;
+            _chunkSize = chunkSize;
+        }
+
+        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _totalCount, _chunkSize);
+        IEnumerator<ArchetypeChunk<T>> IEnumerable<ArchetypeChunk<T>>.GetEnumerator() => GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    public struct ArchetypeChunkEnumerator<T> : IEnumerator<ArchetypeChunk<T>> where T : class, IComponent
+    {
+        private readonly T[] _data;
+        private readonly long[] _entityIds;
+        private readonly int _totalCount;
+        private readonly int _chunkSize;
+        private int _currentOffset;
+        private ArchetypeChunk<T> _current;
+
+        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, int totalCount, int chunkSize)
+        {
+            _data = data;
+            _entityIds = entityIds;
+            _totalCount = totalCount;
+            _chunkSize = chunkSize;
+            _currentOffset = -chunkSize;
+            _current = default;
+        }
+
+        public bool MoveNext()
+        {
+            _currentOffset += _chunkSize;
+            if (_currentOffset >= _totalCount) return false;
+
+            int count = Math.Min(_chunkSize, _totalCount - _currentOffset);
+            _current = new ArchetypeChunk<T>(_data, _entityIds, _currentOffset, count);
+            return true;
+        }
+
+        public ArchetypeChunk<T> Current => _current;
+        object IEnumerator.Current => _current;
+        public void Reset() => _currentOffset = -_chunkSize;
+        public void Dispose() { }
     }
 
     internal T[] GetComponentsInternal<T>() where T : class, IComponent
     {
-        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        int id = Services.ComponentId<T>.Value;
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
@@ -202,10 +275,15 @@ public class Archetype
         return System.Array.Empty<T>();
     }
 
+    internal IComponentArray? GetComponentsInternal(int id)
+    {
+        return id < _componentArrays.Length ? _componentArrays[id] : null;
+    }
+
     internal IComponentArray? GetComponentsInternal(Type type)
     {
         int id = Services.ComponentIdRegistry.GetId(type);
-        return id < _componentArrays.Length ? _componentArrays[id] : null;
+        return GetComponentsInternal(id);
     }
 
     /// <summary>
@@ -214,7 +292,7 @@ public class Archetype
     /// </summary>
     public void ForEach<T>(Action<T, long> action) where T : class, IComponent
     {
-        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        int id = Services.ComponentId<T>.Value;
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
@@ -245,7 +323,7 @@ public class Archetype
     /// </summary>
     public void ForEach<T, TVisitor>(ref TVisitor visitor) where T : class, IComponent where TVisitor : struct, IComponentVisitor<T>
     {
-        int id = Services.ComponentIdRegistry.GetId(typeof(T));
+        int id = Services.ComponentId<T>.Value;
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
@@ -265,9 +343,8 @@ public class Archetype
         }
     }
 
-    internal void SetComponentInternal(int index, Type type, IComponent component)
+    internal void SetComponentInternal(int index, int id, IComponent component)
     {
-        int id = Services.ComponentIdRegistry.GetId(type);
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
@@ -279,6 +356,11 @@ public class Archetype
                 }
             }
         }
+    }
+
+    internal void SetComponentInternal(int index, Type type, IComponent component)
+    {
+        SetComponentInternal(index, Services.ComponentIdRegistry.GetId(type), component);
     }
 
     public void ForEachEntity(Action<IGameObject> action)

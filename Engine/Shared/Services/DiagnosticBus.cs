@@ -9,7 +9,7 @@ namespace Shared.Services;
 public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
-    private readonly object _lock = new();
+    private readonly System.Threading.Lock _lock = new();
 
     // Pool of DiagnosticEvent objects to eliminate allocations on Publish
     private readonly ConcurrentStack<DiagnosticEvent> _pool = new();
@@ -21,7 +21,8 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         var subscribers = _subscribers;
         if (subscribers.Length == 0) return;
 
-        if (!_pool.TryPop(out var ev))
+        DiagnosticEvent? ev;
+        if (!_pool.TryPop(out ev))
         {
             ev = new DiagnosticEvent();
         }
@@ -62,7 +63,8 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         var subscribers = _subscribers;
         if (subscribers.Length == 0) return;
 
-        if (!_pool.TryPop(out var ev))
+        DiagnosticEvent? ev;
+        if (!_pool.TryPop(out ev))
         {
             ev = new DiagnosticEvent();
         }

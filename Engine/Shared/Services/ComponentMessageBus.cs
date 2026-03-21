@@ -66,11 +66,10 @@ namespace Shared.Services;
                         // Rapidly skip archetypes that don't overlap with our targets
                         if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
 
-                        // Use entity snapshot to avoid holding archetype lock during long broadcast
-                        var entities = arch.GetEntitiesSnapshot();
-                        for (int i = 0; i < entities.Length; i++)
+                        var enumerator = arch.GetEntities();
+                        while (enumerator.MoveNext())
                         {
-                            var entity = entities[i];
+                            var entity = enumerator.Current;
                             if (entity == null) continue;
 
                             // Re-dispatch via GameObject to use its optimized local component resolution

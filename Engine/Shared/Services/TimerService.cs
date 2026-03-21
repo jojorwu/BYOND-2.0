@@ -8,7 +8,7 @@ namespace Shared.Services;
     {
         private readonly PriorityQueue<Action, DateTimeOffset> _timers = new();
         private readonly List<Action> _executionBuffer = new();
-        private readonly object _lock = new();
+        private readonly System.Threading.Lock _lock = new();
         private readonly TimeProvider _timeProvider;
         private readonly ILogger<TimerService> _logger;
 

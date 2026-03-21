@@ -101,9 +101,9 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             return _archetypeManager.GetComponents<T>();
         }
 
-        public IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+        public IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent
         {
-            return _archetypeManager.GetChunks<T>();
+            return _archetypeManager.GetChunks<T>(chunkSize);
         }
 
         public IEnumerable<IComponent> GetComponents(Type componentType)

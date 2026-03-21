@@ -7,6 +7,7 @@ namespace Shared.Models;
 public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 {
     public readonly Type[] Types;
+    public readonly int[] ComponentIds;
     public readonly ComponentMask Mask;
     private readonly int _hashCode;
 
@@ -33,19 +34,24 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
             Types[j + 1] = key;
         }
 
+        ComponentIds = new int[Types.Length];
         Mask = new ComponentMask();
         var hash = new HashCode();
-        foreach (var type in Types)
+        for (int i = 0; i < Types.Length; i++)
         {
+            var type = Types[i];
+            int id = Services.ComponentIdRegistry.GetId(type);
+            ComponentIds[i] = id;
             hash.Add(type);
-            Mask.Set(Services.ComponentIdRegistry.GetId(type));
+            Mask.Set(id);
         }
         _hashCode = hash.ToHashCode();
     }
 
-    private ComponentSignature(Type[] types, ComponentMask mask, int hashCode)
+    private ComponentSignature(Type[] types, int[] componentIds, ComponentMask mask, int hashCode)
     {
         Types = types;
+        ComponentIds = componentIds;
         Mask = mask;
         _hashCode = hashCode;
     }
@@ -76,15 +82,28 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         }
 
         var newTypes = new Type[Types.Length + 1];
-        if (insertPos > 0) Array.Copy(Types, 0, newTypes, 0, insertPos);
+        var newIds = new int[ComponentIds.Length + 1];
+
+        if (insertPos > 0)
+        {
+            Array.Copy(Types, 0, newTypes, 0, insertPos);
+            Array.Copy(ComponentIds, 0, newIds, 0, insertPos);
+        }
+
         newTypes[insertPos] = type;
-        if (insertPos < Types.Length) Array.Copy(Types, insertPos, newTypes, insertPos + 1, Types.Length - insertPos);
+        newIds[insertPos] = componentId;
+
+        if (insertPos < Types.Length)
+        {
+            Array.Copy(Types, insertPos, newTypes, insertPos + 1, Types.Length - insertPos);
+            Array.Copy(ComponentIds, insertPos, newIds, insertPos + 1, ComponentIds.Length - insertPos);
+        }
 
         var mask = Mask;
         mask.Set(componentId);
 
         // Fast hash update if possible, but for now we just use the mask as the primary equality component
-        return new ComponentSignature(newTypes, mask, _hashCode ^ type.GetHashCode());
+        return new ComponentSignature(newTypes, newIds, mask, _hashCode ^ type.GetHashCode());
     }
 
     public ComponentSignature Without(Type type)
@@ -112,13 +131,24 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
         if (removeIdx == -1) return this;
 
         var newTypes = new Type[Types.Length - 1];
-        if (removeIdx > 0) Array.Copy(Types, 0, newTypes, 0, removeIdx);
-        if (removeIdx < Types.Length - 1) Array.Copy(Types, removeIdx + 1, newTypes, removeIdx, Types.Length - removeIdx - 1);
+        var newIds = new int[ComponentIds.Length - 1];
+
+        if (removeIdx > 0)
+        {
+            Array.Copy(Types, 0, newTypes, 0, removeIdx);
+            Array.Copy(ComponentIds, 0, newIds, 0, removeIdx);
+        }
+
+        if (removeIdx < Types.Length - 1)
+        {
+            Array.Copy(Types, removeIdx + 1, newTypes, removeIdx, Types.Length - removeIdx - 1);
+            Array.Copy(ComponentIds, removeIdx + 1, newIds, removeIdx, ComponentIds.Length - removeIdx - 1);
+        }
 
         var newMask = Mask;
         newMask.Unset(componentId);
 
-        return new ComponentSignature(newTypes, newMask, _hashCode ^ type.GetHashCode());
+        return new ComponentSignature(newTypes, newIds, newMask, _hashCode ^ type.GetHashCode());
     }
 
     public bool Equals(ComponentSignature other)

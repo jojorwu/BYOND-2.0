@@ -17,15 +17,30 @@ namespace Shared.Services;
             RemoveComponent
         }
 
-        private struct Command
+        private readonly struct Command
         {
-            public CommandType Type;
-            public IGameObject? Target;
-            public ObjectType? ObjectType;
-            public IComponent? Component;
-            public Type? ComponentType;
-            public long X, Y, Z;
-            public int PrevIndex;
+            public readonly CommandType Type;
+            public readonly IGameObject? Target;
+            public readonly ObjectType? ObjectType;
+            public readonly IComponent? Component;
+            public readonly Type? ComponentType;
+            public readonly long X, Y, Z;
+            public readonly int PrevIndex;
+
+            public Command(CommandType type, IGameObject? target, ObjectType? objectType, IComponent? component, Type? componentType, long x, long y, long z, int prevIndex = -1)
+            {
+                Type = type;
+                Target = target;
+                ObjectType = objectType;
+                Component = component;
+                ComponentType = componentType;
+                X = x;
+                Y = y;
+                Z = z;
+                PrevIndex = prevIndex;
+            }
+
+            public Command WithPrevIndex(int prevIndex) => new(Type, Target, ObjectType, Component, ComponentType, X, Y, Z, prevIndex);
         }
 
         private class CommandList : IDisposable
@@ -91,22 +106,22 @@ namespace Shared.Services;
 
         public void CreateObject(ObjectType objectType, long x = 0, long y = 0, long z = 0)
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.Create, ObjectType = objectType, X = x, Y = y, Z = z });
+            _localCommands.Value!.Add(new Command(CommandType.Create, null, objectType, null, null, x, y, z));
         }
 
         public void DestroyObject(IGameObject obj)
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.Destroy, Target = obj });
+            _localCommands.Value!.Add(new Command(CommandType.Destroy, obj, null, null, null, 0, 0, 0));
         }
 
         public void AddComponent<T>(IGameObject obj, T component) where T : class, IComponent
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.AddComponent, Target = obj, Component = component });
+            _localCommands.Value!.Add(new Command(CommandType.AddComponent, obj, null, component, null, 0, 0, 0));
         }
 
         public void RemoveComponent<T>(IGameObject obj) where T : class, IComponent
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.RemoveComponent, Target = obj, ComponentType = typeof(T) });
+            _localCommands.Value!.Add(new Command(CommandType.RemoveComponent, obj, null, null, typeof(T), 0, 0, 0));
         }
 
         public void Playback()
@@ -139,11 +154,11 @@ namespace Shared.Services;
                         {
                             if (_targetToLastCommand.TryGetValue(cmd.Target, out int prevIdx))
                             {
-                                cmd.PrevIndex = prevIdx;
+                                cmd = cmd.WithPrevIndex(prevIdx);
                             }
                             else
                             {
-                                cmd.PrevIndex = -1;
+                                cmd = cmd.WithPrevIndex(-1);
                                 _uniqueTargets.Add(cmd.Target);
                             }
                             _targetToLastCommand[cmd.Target] = globalIdx;

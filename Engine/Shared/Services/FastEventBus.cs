@@ -22,7 +22,7 @@ public class FastEventBus : EngineService, IEventBus
         private volatile Action<T>[] _actions = Array.Empty<Action<T>>();
         private volatile Func<T, ValueTask>[] _asyncActions = Array.Empty<Func<T, ValueTask>>();
         private volatile IEventHandler<T>[] _interfaceHandlers = Array.Empty<IEventHandler<T>>();
-        private readonly object _lock = new();
+        private readonly System.Threading.Lock _lock = new();
 
         public void Subscribe(Action<T> handler)
         {

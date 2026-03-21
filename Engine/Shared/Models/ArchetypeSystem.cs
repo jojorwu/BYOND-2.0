@@ -24,8 +24,7 @@ public abstract class ArchetypeChunkSystem<T1> : BaseSystem where T1 : class, IC
     {
         foreach (var archetype in _query.GetMatchingArchetypes())
         {
-            var chunk = archetype.GetChunk<T1>();
-            if (chunk.Count > 0)
+            foreach (var chunk in archetype.GetChunks<T1>())
             {
                 Tick(chunk, ecb);
             }
@@ -49,12 +48,14 @@ public abstract class ArchetypeChunkSystem<T1, T2> : BaseSystem
     {
         foreach (var archetype in _query.GetMatchingArchetypes())
         {
-            var chunk1 = archetype.GetChunk<T1>();
-            var chunk2 = archetype.GetChunk<T2>();
+            // For multi-component chunks, we use a simple zip approach for now.
+            // In a more advanced implementation, we'd ensure chunk boundaries align.
+            var chunks1 = archetype.GetChunks<T1>().GetEnumerator();
+            var chunks2 = archetype.GetChunks<T2>().GetEnumerator();
 
-            if (chunk1.Count > 0)
+            while (chunks1.MoveNext() && chunks2.MoveNext())
             {
-                Tick(chunk1, chunk2, ecb);
+                Tick(chunks1.Current, chunks2.Current, ecb);
             }
         }
     }

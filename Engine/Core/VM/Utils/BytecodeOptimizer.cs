@@ -191,6 +191,8 @@ namespace Core.VM.Utils
                 optimized.Add((byte)opcode);
 
                 var metadata = OpcodeMetadataCache.GetMetadata(opcode);
+                if (metadata.RequiredArgs == null) continue;
+
                 int varCount = 0;
                 foreach (var argType in metadata.RequiredArgs)
                 {
@@ -885,6 +887,8 @@ namespace Core.VM.Utils
             {
                 Opcode opcode = (Opcode)bytecode[pc++];
                 var metadata = OpcodeMetadataCache.GetMetadata(opcode);
+                if (metadata.RequiredArgs == null) continue;
+
                 int varCount = 0;
                 foreach (var argType in metadata.RequiredArgs)
                 {

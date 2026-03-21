@@ -22,7 +22,7 @@ public interface IArchetypeManager
     T? GetComponent<T>(long entityId) where T : class, IComponent;
     IComponent? GetComponent(long entityId, Type componentType);
     IEnumerable<T> GetComponents<T>() where T : class, IComponent;
-    IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent;
+    IEnumerable<ArchetypeChunk<T>> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent;
     IEnumerable<IComponent> GetComponents(Type componentType);
     IEnumerable<IComponent> GetAllComponents(long entityId);
     IEnumerable<Archetype> GetArchetypesWithComponents(params ReadOnlySpan<Type> componentTypes);
@@ -96,9 +96,10 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
             if (currentArchetype != null)
             {
-                if (currentArchetype.Signature.Mask.Get(ComponentIdRegistry.GetId(componentType)))
+                int id = ComponentIdRegistry.GetId(componentType);
+                if (currentArchetype.Signature.Mask.Get(id))
                 {
-                    currentArchetype.SetComponentInternal(entity.ArchetypeIndex, componentType, component);
+                    currentArchetype.SetComponentInternal(entity.ArchetypeIndex, id, component);
                     return;
                 }
 
@@ -161,7 +162,8 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         {
             if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) && currentArchetype != null)
             {
-                if (currentArchetype.Signature.Mask.Get(ComponentIdRegistry.GetId(componentType)))
+                int id = ComponentIdRegistry.GetId(componentType);
+                if (currentArchetype.Signature.Mask.Get(id))
                 {
                     var component = currentArchetype.GetComponent(entity.Id, componentType);
                     if (component != null)
@@ -329,13 +331,16 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         }
     }
 
-    public IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+    public IEnumerable<ArchetypeChunk<T>> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent
     {
         if (_typeToArchetypesCache.TryGetValue(typeof(T), out var targetArchetypes))
         {
             foreach (var archetype in targetArchetypes)
             {
-                yield return archetype.GetChunk<T>();
+                foreach (var chunk in archetype.GetChunks<T>(chunkSize))
+                {
+                    yield return chunk;
+                }
             }
         }
     }
@@ -367,15 +372,39 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     {
         if (componentTypes.IsEmpty) return Enumerable.Empty<Archetype>();
 
+        // Heuristic: start with the rarest component type to minimize intersection overhead
+        Type? rarestType = null;
+        int minCount = int.MaxValue;
+
+        foreach (var type in componentTypes)
+        {
+            if (_typeToArchetypesCache.TryGetValue(type, out var archetypes))
+            {
+                if (archetypes.Length < minCount)
+                {
+                    minCount = archetypes.Length;
+                    rarestType = type;
+                }
+            }
+            else
+            {
+                // If any component type has NO archetypes, the query result is empty
+                return Enumerable.Empty<Archetype>();
+            }
+        }
+
+        if (rarestType == null) return Enumerable.Empty<Archetype>();
+
         var queryMask = new ComponentMask();
         foreach (var type in componentTypes)
         {
             queryMask.Set(ComponentIdRegistry.GetId(type));
         }
 
+        var candidates = _typeToArchetypesCache[rarestType];
         var results = new List<Archetype>();
-        var archetypes = _archetypes;
-        foreach (var archetype in archetypes)
+
+        foreach (var archetype in candidates)
         {
             if (archetype.Signature.Mask.ContainsAll(queryMask))
             {
@@ -392,7 +421,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         {
             foreach (var archetype in archetypes)
             {
-                archetype.ForEach(action);
+                archetype.ForEach<T>(action);
             }
         }
     }

@@ -122,11 +122,11 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
 
     private async Task MonitorHealthAsync(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        while (!cancellationToken.IsCancellationRequested && await timer.WaitForNextTickAsync(cancellationToken))
         {
             try
             {
-                await Task.Delay(5000, cancellationToken);
                 foreach (var service in _services)
                 {
                     var name = service.Name ?? service.GetType().Name;

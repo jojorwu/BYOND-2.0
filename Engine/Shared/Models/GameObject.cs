@@ -62,7 +62,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         Interlocked.Exchange(ref _isDirty, 0);
         lock (_lock)
         {
-            _changeMask = new ComponentMask();
+            _changeMask.Clear();
         }
     }
 
@@ -267,6 +267,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         lock (_lock)
         {
+            if (Interlocked.Exchange(ref _isDirty, 0) == 0) return;
+
             Interlocked.Exchange(ref _committedX, _x);
             Interlocked.Exchange(ref _committedY, _y);
             Interlocked.Exchange(ref _committedZ, _z);
@@ -274,13 +276,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             // Optimized commit: only update variables that have actually changed since last commit
             if (!_changeMask.IsEmpty)
             {
-                foreach (int i in _changeMask.GetSetBits())
+                var bits = _changeMask.GetSetBits();
+                while (bits.MoveNext())
                 {
+                    int i = bits.Current;
                     if (i < _variableStore.Length)
                     {
                         _committedStore.Set(i, _variableStore.Get(i));
                     }
                 }
+                _changeMask.Clear();
             }
         }
     }
@@ -293,8 +298,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             if (_changeMask.IsEmpty) return;
 
-            foreach (int i in _changeMask.GetSetBits())
+            var bits = _changeMask.GetSetBits();
+            while (bits.MoveNext())
             {
+                int i = bits.Current;
                 if (i < _variableStore.Length)
                 {
                     visitor(i, _variableStore.Get(i), ref state);
@@ -825,8 +832,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             if (_changeMask.IsEmpty) return;
 
-            foreach (int i in _changeMask.GetSetBits())
+            var bits = _changeMask.GetSetBits();
+            while (bits.MoveNext())
             {
+                int i = bits.Current;
                 if (i < _variableStore.Length)
                 {
                     visitor.Visit(i, _variableStore.Get(i));

@@ -24,6 +24,7 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     }
 
     public ReadOnlySpan<T> ComponentsSpan => Components.AsSpan(Offset, Count);
+    public Span<T> ComponentsMutableSpan => Components.AsSpan(Offset, Count);
     public ReadOnlySpan<long> EntityIdsSpan => EntityIds.AsSpan(Offset, Count);
 }
 

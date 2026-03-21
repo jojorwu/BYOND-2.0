@@ -208,17 +208,22 @@ namespace Shared.Services;
             var archetypeMask = archetype.Signature.Mask;
             var checkedQueries = new HashSet<QueryResult>();
 
-            var setBits = archetypeMask.GetSetBits();
-            while (setBits.MoveNext())
+            var bits = archetypeMask.GetSetBits();
+            while (bits.MoveNext())
             {
-                int componentId = setBits.Current;
+                int componentId = bits.Current;
                 if (_queriesByComponent.TryGetValue(componentId, out var queries))
                 {
                     QueryResult[] snapshot;
-                    lock (queries) snapshot = queries.ToArray();
-
-                    foreach (var query in snapshot)
+                    lock (queries)
                     {
+                        if (queries.Count == 0) continue;
+                        snapshot = queries.ToArray();
+                    }
+
+                    for (int i = 0; i < snapshot.Length; i++)
+                    {
+                        var query = snapshot[i];
                         if (checkedQueries.Add(query))
                         {
                             if (archetypeMask.ContainsAll(query.Mask))

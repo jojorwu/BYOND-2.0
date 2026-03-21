@@ -303,6 +303,8 @@ namespace Shared.Services;
             if (count == 1) { action(list[0]); return; }
 
             int workerCount = _workers.Length;
+            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead,
+            // while still splitting work across all available workers for large collections.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             var handles = new List<Task>((count + batchSize - 1) / batchSize);
 

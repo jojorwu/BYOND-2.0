@@ -267,16 +267,18 @@ public partial class DreamThread : IScriptThread, IDisposable
     public void PushCallFrame(CallFrame frame)
     {
         var depth = _callStackPtr;
-        if ((uint)depth >= (uint)MaxCallStackDepth)
-            throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, this);
-
         var stack = _callStack;
+
         if ((uint)depth >= (uint)stack.Length)
         {
+            if ((uint)depth >= (uint)MaxCallStackDepth)
+                throw new ScriptRuntimeException("Max call stack depth exceeded", frame.Proc, frame.PC, this);
+
             ExpandCallStack();
             stack = _callStack;
         }
-        stack[depth] = frame;
+
+        System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(stack), depth) = frame;
         _callStackPtr = depth + 1;
     }
 
@@ -287,7 +289,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         if (newSize > MaxCallStackDepth) newSize = MaxCallStackDepth;
 
         var newStack = ArrayPool<CallFrame>.Shared.Rent(newSize);
-        Array.Copy(_callStack, newStack, _callStackPtr);
+        _callStack.AsSpan(0, _callStackPtr).CopyTo(newStack);
         ArrayPool<CallFrame>.Shared.Return(_callStack, true);
         _callStack = newStack;
     }
@@ -295,9 +297,13 @@ public partial class DreamThread : IScriptThread, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public CallFrame PopCallFrame()
     {
-        if (_callStackPtr <= 0) throw new Exception("Call stack underflow");
-        var frame = _callStack[--_callStackPtr];
-        _callStack[_callStackPtr] = default; // Clear reference
+        int depth = _callStackPtr;
+        if ((uint)depth <= 0) throw new Exception("Call stack underflow");
+
+        ref var frameRef = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(_callStack), --depth);
+        var frame = frameRef;
+        frameRef = default; // Clear reference
+        _callStackPtr = depth;
         return frame;
     }
 

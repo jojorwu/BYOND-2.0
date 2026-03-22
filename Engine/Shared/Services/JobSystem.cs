@@ -18,7 +18,7 @@ namespace Shared.Services;
         private readonly int _minWorkers;
         private readonly int _maxWorkers;
         private readonly Timer _maintenanceTimer;
-        private readonly object _workerLock = new();
+        private readonly System.Threading.Lock _workerLock = new();
         private readonly ILogger<JobSystem> _logger;
 
 
@@ -215,7 +215,7 @@ namespace Shared.Services;
         {
             if (targetCount < _minWorkers || targetCount > _maxWorkers) return;
 
-            lock (_workerLock)
+            using (_workerLock.EnterScope())
             {
                 int currentCount = _workers.Length;
                 if (targetCount == currentCount) return;
@@ -328,6 +328,7 @@ namespace Shared.Services;
             if (count == 1) { action(list[0], 0); return; }
 
             int workerCount = _workers.Length;
+            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             var handles = new List<Task>((count + batchSize - 1) / batchSize);
 
@@ -351,6 +352,7 @@ namespace Shared.Services;
             if (count == 1) { await action(list[0]); return; }
 
             int workerCount = _workers.Length;
+            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             var handles = new List<Task>((count + batchSize - 1) / batchSize);
 

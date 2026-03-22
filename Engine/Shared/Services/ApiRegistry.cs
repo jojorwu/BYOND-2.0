@@ -10,6 +10,7 @@ public class ApiRegistry : IApiRegistry
     private readonly ConcurrentDictionary<string, IApiProvider> _providers = new();
     private readonly ConcurrentDictionary<Type, IApiProvider> _typeProviders = new();
     private volatile IApiProvider[] _allProviders = Array.Empty<IApiProvider>();
+    private readonly System.Threading.Lock _lock = new();
 
     public void Register<T>(T provider) where T : class, IApiProvider
     {
@@ -19,7 +20,7 @@ public class ApiRegistry : IApiRegistry
         if (type.IsInterface) _typeProviders[type] = provider;
         _typeProviders[provider.GetType()] = provider;
 
-        lock (_providers)
+        using (_lock.EnterScope())
         {
             _allProviders = _providers.Values.ToArray();
         }

@@ -1,6 +1,7 @@
 using Shared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Frozen;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
@@ -9,6 +10,8 @@ namespace Shared.Services;
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
         private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();
+        private volatile FrozenDictionary<string, ObjectType> _frozenTypes = FrozenDictionary<string, ObjectType>.Empty;
+        private volatile FrozenDictionary<int, ObjectType> _frozenTypesById = FrozenDictionary<int, ObjectType>.Empty;
         private readonly ConcurrentDictionary<string, List<ObjectType>> _unlinkedChildren = new();
         private readonly ILogger<ObjectTypeManager> _logger;
 
@@ -73,13 +76,15 @@ namespace Shared.Services;
 
         public ObjectType? GetObjectType(string name)
         {
-            _objectTypes.TryGetValue(name, out var objectType);
+            if (_frozenTypes.TryGetValue(name, out var objectType)) return objectType;
+            _objectTypes.TryGetValue(name, out objectType);
             return objectType;
         }
 
         public ObjectType? GetObjectType(int id)
         {
-            _objectTypesById.TryGetValue(id, out var objectType);
+            if (_frozenTypesById.TryGetValue(id, out var objectType)) return objectType;
+            _objectTypesById.TryGetValue(id, out objectType);
             return objectType;
         }
 
@@ -93,10 +98,18 @@ namespace Shared.Services;
             return GetObjectType("/turf") ?? throw new System.InvalidOperationException("Base turf type '/turf' is not registered.");
         }
 
+        public void Freeze()
+        {
+            _frozenTypes = _objectTypes.ToFrozenDictionary();
+            _frozenTypesById = _objectTypesById.ToFrozenDictionary();
+        }
+
         public void Clear()
         {
             _objectTypes.Clear();
             _objectTypesById.Clear();
+            _frozenTypes = FrozenDictionary<string, ObjectType>.Empty;
+            _frozenTypesById = FrozenDictionary<int, ObjectType>.Empty;
             _unlinkedChildren.Clear();
         }
     }

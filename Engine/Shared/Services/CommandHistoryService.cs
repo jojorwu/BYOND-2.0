@@ -21,7 +21,7 @@ public class CommandHistoryService : ICommandHistoryService
     private readonly Stack<IReversibleCommand> _undoStack = new();
     private readonly Stack<IReversibleCommand> _redoStack = new();
     private readonly ILogger<CommandHistoryService> _logger;
-    private readonly object _lock = new();
+    private readonly System.Threading.Lock _lock = new();
 
     public CommandHistoryService(ILogger<CommandHistoryService> logger)
     {
@@ -33,7 +33,7 @@ public class CommandHistoryService : ICommandHistoryService
 
     public void Push(IReversibleCommand command)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             _undoStack.Push(command);
             _redoStack.Clear(); // New command breaks redo chain
@@ -43,7 +43,7 @@ public class CommandHistoryService : ICommandHistoryService
     public async Task UndoAsync()
     {
         IReversibleCommand? command = null;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_undoStack.Count > 0)
             {
@@ -56,7 +56,7 @@ public class CommandHistoryService : ICommandHistoryService
             try
             {
                 await command.UndoAsync();
-                lock (_lock) _redoStack.Push(command);
+                using (_lock.EnterScope()) _redoStack.Push(command);
                 _logger.LogDebug("Undone command: {CommandName}", command.Name);
             }
             catch (Exception ex)
@@ -70,7 +70,7 @@ public class CommandHistoryService : ICommandHistoryService
     public async Task RedoAsync()
     {
         IReversibleCommand? command = null;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_redoStack.Count > 0)
             {
@@ -83,7 +83,7 @@ public class CommandHistoryService : ICommandHistoryService
             try
             {
                 await command.ExecuteAsync();
-                lock (_lock) _undoStack.Push(command);
+                using (_lock.EnterScope()) _undoStack.Push(command);
                 _logger.LogDebug("Redone command: {CommandName}", command.Name);
             }
             catch (Exception ex)
@@ -96,7 +96,7 @@ public class CommandHistoryService : ICommandHistoryService
 
     public void Clear()
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             _undoStack.Clear();
             _redoStack.Clear();

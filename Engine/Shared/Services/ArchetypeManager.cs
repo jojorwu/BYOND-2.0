@@ -51,7 +51,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
     public void AddEntity(IGameObject entity)
     {
-        lock (GetEntityLock(entity.Id))
+        using (GetEntityLock(entity.Id).EnterScope())
         {
             MoveToArchetypeInternal(entity, null, null);
         }
@@ -59,7 +59,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
     public void RemoveEntity(long entityId)
     {
-        lock (GetEntityLock(entityId))
+        using (GetEntityLock(entityId).EnterScope())
         {
             if (_entityToArchetype.TryRemove(entityId, out var archetype))
             {
@@ -87,7 +87,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     public void AddComponent(IGameObject entity, IComponent component)
     {
         var componentType = component.GetType();
-        lock (GetEntityLock(entity.Id))
+        using (GetEntityLock(entity.Id).EnterScope())
         {
             _entityToArchetype.TryGetValue(entity.Id, out var currentArchetype);
 
@@ -158,7 +158,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
     public void RemoveComponent(IGameObject entity, Type componentType)
     {
-        lock (GetEntityLock(entity.Id))
+        using (GetEntityLock(entity.Id).EnterScope())
         {
             if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) && currentArchetype != null)
             {
@@ -225,7 +225,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
         // Find or create archetype
         Archetype targetArchetype;
-        lock (_archetypeLock)
+        using (_archetypeLock.EnterScope())
         {
             if (!_signatureToArchetype.TryGetValue(signature, out targetArchetype!))
             {

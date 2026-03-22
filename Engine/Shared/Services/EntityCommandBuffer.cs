@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Shared.Interfaces;
 using Shared.Models;
@@ -163,16 +164,17 @@ namespace Shared.Services;
                         }
                         else if (cmd.Target != null)
                         {
-                            if (_targetToLastCommand.TryGetValue(cmd.Target, out int prevIdx))
+                            var target = cmd.Target;
+                            if (_targetToLastCommand.TryGetValue(target, out int prevIdx))
                             {
                                 cmd = cmd.WithPrevIndex(prevIdx);
                             }
                             else
                             {
                                 cmd = cmd.WithPrevIndex(-1);
-                                _uniqueTargets.Add(cmd.Target);
+                                _uniqueTargets.Add(target);
                             }
-                            _targetToLastCommand[cmd.Target] = globalIdx;
+                            _targetToLastCommand[target] = globalIdx;
                         }
 
                         allCommands[globalIdx] = cmd;
@@ -193,50 +195,89 @@ namespace Shared.Services;
                     System.Threading.Tasks.Parallel.ForEach(_uniqueTargets, target =>
                     {
                         int lastIdx = _targetToLastCommand[target];
-                        var indices = new List<int>(); // Local list for parallel safety
 
+                        // Use stack-allocated buffer for common short command chains
+                        Span<int> stackIndices = stackalloc int[16];
+                        int count = 0;
                         int walker = lastIdx;
-                        while (walker != -1)
+                        while (walker != -1 && count < stackIndices.Length)
                         {
-                            indices.Add(walker);
+                            stackIndices[count++] = walker;
                             walker = allCommands[walker].PrevIndex;
                         }
 
-                        for (int j = indices.Count - 1; j >= 0; j--)
+                        if (walker == -1)
                         {
-                            ExecuteCommand(target, allCommands[indices[j]]);
+                            for (int j = count - 1; j >= 0; j--)
+                            {
+                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
+                            }
+                        }
+                        else
+                        {
+                            // Fallback for very long command chains
+                            var indices = new List<int>(count * 2);
+                            for (int i = 0; i < count; i++) indices.Add(stackIndices[i]);
+                            while (walker != -1)
+                            {
+                                indices.Add(walker);
+                                walker = allCommands[walker].PrevIndex;
+                            }
+
+                            for (int j = indices.Count - 1; j >= 0; j--)
+                            {
+                                ExecuteCommand(target, in allCommands[indices[j]]);
+                            }
                         }
                     });
                 }
                 else
                 {
-                    var pooledIndices = _intListPool.Rent();
-                    try
+                    // Pre-allocate indices span to avoid CA2014 stackalloc in loop
+                    Span<int> stackIndices = stackalloc int[16];
+
+                    for (int i = 0; i < _uniqueTargets.Count; i++)
                     {
-                        for (int i = 0; i < _uniqueTargets.Count; i++)
+                        var target = _uniqueTargets[i];
+                        int lastIdx = _targetToLastCommand[target];
+
+                        int count = 0;
+                        int walker = lastIdx;
+                        while (walker != -1 && count < stackIndices.Length)
                         {
-                            var target = _uniqueTargets[i];
-                            int lastIdx = _targetToLastCommand[target];
+                            stackIndices[count++] = walker;
+                            walker = allCommands[walker].PrevIndex;
+                        }
 
-                            pooledIndices.Clear();
-                            int walker = lastIdx;
-                            while (walker != -1)
+                        if (walker == -1)
+                        {
+                            for (int j = count - 1; j >= 0; j--)
                             {
-                                pooledIndices.Add(walker);
-                                walker = allCommands[walker].PrevIndex;
-                            }
-
-                            // Execute in original order (reverse of our linked list)
-                            for (int j = pooledIndices.Count - 1; j >= 0; j--)
-                            {
-                                var cmd = allCommands[pooledIndices[j]];
-                                ExecuteCommand(target, cmd);
+                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
                             }
                         }
-                    }
-                    finally
-                    {
-                        _intListPool.Return(pooledIndices);
+                        else
+                        {
+                            var pooledIndices = _intListPool.Rent();
+                            try
+                            {
+                                for (int k = 0; k < count; k++) pooledIndices.Add(stackIndices[k]);
+                                while (walker != -1)
+                                {
+                                    pooledIndices.Add(walker);
+                                    walker = allCommands[walker].PrevIndex;
+                                }
+
+                                for (int j = pooledIndices.Count - 1; j >= 0; j--)
+                                {
+                                    ExecuteCommand(target, in allCommands[pooledIndices[j]]);
+                                }
+                            }
+                            finally
+                            {
+                                _intListPool.Return(pooledIndices);
+                            }
+                        }
                     }
                 }
             }
@@ -248,7 +289,7 @@ namespace Shared.Services;
             Clear();
         }
 
-        private void ExecuteCommand(IGameObject target, in Command cmd)
+        private void ExecuteCommand(IGameObject target, [In] in Command cmd)
         {
             switch (cmd.Type)
             {

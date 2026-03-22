@@ -11,6 +11,7 @@ public interface IVariableStore : IDisposable
 {
     void Initialize(int capacity);
     DreamValue Get(int index);
+    ref DreamValue GetRef(int index);
     void Set(int index, DreamValue value);
     void CopyFrom(DreamValue[] source);
     int Length { get; }

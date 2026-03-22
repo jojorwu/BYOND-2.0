@@ -20,7 +20,7 @@ namespace Shared.Services;
 
         public void AddTimer(DateTime executeAt, Action callback)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _timers.Enqueue(callback, executeAt);
             }
@@ -35,7 +35,7 @@ namespace Shared.Services;
         {
             var now = _timeProvider.GetUtcNow();
 
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (_timers.Count == 0) return;
 

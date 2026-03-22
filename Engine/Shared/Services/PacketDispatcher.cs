@@ -20,6 +20,7 @@ namespace Shared.Services;
         private readonly ConcurrentDictionary<byte, IPacketHandler> _handlers = new();
         private readonly List<IPacketMiddleware> _middleware = new();
         private volatile IPacketMiddleware[] _middlewareCache = Array.Empty<IPacketMiddleware>();
+        private readonly System.Threading.Lock _middlewareLock = new();
         private readonly IJobSystem _jobSystem;
 
         public PacketDispatcher(IJobSystem jobSystem)
@@ -39,7 +40,7 @@ namespace Shared.Services;
 
         public void AddMiddleware(IPacketMiddleware middleware)
         {
-            lock (_middleware)
+            using (_middlewareLock.EnterScope())
             {
                 _middleware.Add(middleware);
                 _middlewareCache = _middleware.ToArray();

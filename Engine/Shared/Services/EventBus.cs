@@ -10,7 +10,7 @@ namespace Shared.Services;
     public class EventBus : IEventBus
     {
         private readonly ConcurrentDictionary<Type, object[]> _handlers = new();
-        private readonly object _lock = new();
+        private readonly System.Threading.Lock _lock = new();
 
         public void Subscribe<T>(Action<T> handler)
         {
@@ -29,7 +29,7 @@ namespace Shared.Services;
 
         private void SubscribeInternal(Type type, object handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _handlers.AddOrUpdate(type,
                     _ => new[] { handler },
@@ -60,7 +60,7 @@ namespace Shared.Services;
 
         private void UnsubscribeInternal(Type type, object handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (_handlers.TryGetValue(type, out var existing))
                 {
@@ -166,7 +166,7 @@ namespace Shared.Services;
 
         public void Clear()
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _handlers.Clear();
             }
@@ -174,7 +174,7 @@ namespace Shared.Services;
 
         public void Clear<T>()
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _handlers.TryRemove(typeof(T), out _);
             }

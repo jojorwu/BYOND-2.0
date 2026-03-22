@@ -31,7 +31,7 @@ namespace Shared.Services;
 
             public void AddArchetype(Archetype archetype)
             {
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     if (_archetypes.Contains(archetype)) return;
                     var updated = new Archetype[_archetypes.Length + 1];
@@ -45,7 +45,7 @@ namespace Shared.Services;
 
             public void AddArchetypes(IEnumerable<Archetype> matching)
             {
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     var matchingArray = matching.Where(a => !_archetypes.Contains(a)).ToArray();
                     if (matchingArray.Length == 0) return;
@@ -67,7 +67,7 @@ namespace Shared.Services;
                 var snapshot = _cachedSnapshot;
                 if (snapshot != null) return snapshot;
 
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     if (_cachedSnapshot != null) return _cachedSnapshot;
 
@@ -133,7 +133,13 @@ namespace Shared.Services;
         private readonly IGameState? _gameState;
         private readonly ConcurrentDictionary<Type, (Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)[]> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
-        private readonly ConcurrentDictionary<int, List<QueryResult>> _queriesByComponent = new();
+        private readonly ConcurrentDictionary<int, QueryList> _queriesByComponent = new();
+
+        private class QueryList
+        {
+            public readonly System.Threading.Lock Lock = new();
+            public readonly List<QueryResult> Items = new();
+        }
 
         public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, IGameState? gameState = null)
         {
@@ -193,9 +199,11 @@ namespace Shared.Services;
                 if (setBits.MoveNext())
                 {
                     int componentId = setBits.Current;
-                    _queriesByComponent.AddOrUpdate(componentId,
-                        _ => new List<QueryResult> { queryResult },
-                        (_, list) => { lock (list) { list.Add(queryResult); } return list; });
+                    var list = _queriesByComponent.GetOrAdd(componentId, _ => new QueryList());
+                    using (list.Lock.EnterScope())
+                    {
+                        list.Items.Add(queryResult);
+                    }
                 }
                 return queryResult;
             }
@@ -206,26 +214,22 @@ namespace Shared.Services;
         private void OnArchetypeCreated(object? sender, Archetype archetype)
         {
             var archetypeMask = archetype.Signature.Mask;
-            var checkedQueries = new HashSet<QueryResult>();
-
             var bits = archetypeMask.GetSetBits();
+
+            // Iterate through all component IDs in the new archetype.
+            // Since each query is registered under exactly one component ID (the first one in its mask),
+            // this loop will find every matching query exactly once.
             while (bits.MoveNext())
             {
-                int componentId = bits.Current;
-                if (_queriesByComponent.TryGetValue(componentId, out var queries))
+                int id = bits.Current;
+                if (_queriesByComponent.TryGetValue(id, out var queryList))
                 {
-                    QueryResult[] snapshot;
-                    lock (queries)
+                    using (queryList.Lock.EnterScope())
                     {
-                        if (queries.Count == 0) continue;
-                        snapshot = queries.ToArray();
-                    }
-
-                    for (int i = 0; i < snapshot.Length; i++)
-                    {
-                        var query = snapshot[i];
-                        if (checkedQueries.Add(query))
+                        var items = queryList.Items;
+                        for (int i = 0; i < items.Count; i++)
                         {
+                            var query = items[i];
                             if (archetypeMask.ContainsAll(query.Mask))
                             {
                                 query.AddArchetype(archetype);

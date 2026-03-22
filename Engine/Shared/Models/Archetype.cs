@@ -81,7 +81,7 @@ public class Archetype
 
     public void AddEntity(IGameObject entity, IDictionary<Type, IComponent> components)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             EnsureCapacity(_count + 1);
             int index = _count++;
@@ -107,7 +107,7 @@ public class Archetype
     /// </summary>
     public void AddEntity(IGameObject entity, Archetype? sourceArchetype, int sourceIndex, (Type Type, IComponent Component)? additional = null, Type? ignoreType = null)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             EnsureCapacity(_count + 1);
             int index = _count++;
@@ -143,7 +143,7 @@ public class Archetype
 
     public void RemoveEntity(long entityId)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
@@ -200,7 +200,7 @@ public class Archetype
         long[] entityIds;
         int totalCount;
 
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             data = ((ComponentArray<T>)array).Data;
             entityIds = _entityIds;
@@ -299,7 +299,7 @@ public class Archetype
             var array = _componentArrays[id];
             if (array != null)
             {
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     var data = ((ComponentArray<T>)array).Data;
                     var entityIds = _entityIds;
@@ -330,7 +330,7 @@ public class Archetype
             var array = _componentArrays[id];
             if (array != null)
             {
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     var data = ((ComponentArray<T>)array).Data;
                     var entityIds = _entityIds;
@@ -351,7 +351,7 @@ public class Archetype
             var array = _componentArrays[id];
             if (array != null)
             {
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     array.Set(index, component);
                 }
@@ -366,7 +366,7 @@ public class Archetype
 
     public void ForEachEntity(Action<IGameObject> action)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             var entities = _entities;
             int count = _count;
@@ -381,7 +381,7 @@ public class Archetype
     {
         T[] data;
         int count;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             var originalData = GetComponentsInternal<T>();
             count = _count;
@@ -400,7 +400,7 @@ public class Archetype
             var array = _componentArrays[id];
             if (array != null)
             {
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     int count = Math.Min(_count, destination.Length);
                     for (int i = 0; i < count; i++) destination[i] = array.Get(i);
@@ -420,7 +420,7 @@ public class Archetype
             if (array != null)
             {
                 IComponent[] data;
-                lock (_lock)
+                using (_lock.EnterScope())
                 {
                     int count = _count;
                     data = new IComponent[count];
@@ -434,7 +434,7 @@ public class Archetype
 
     public bool ContainsEntity(long entityId)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             return _entityIdToIndex.ContainsKey(entityId);
         }
@@ -442,7 +442,7 @@ public class Archetype
 
     public void SetComponent(long entityId, IComponent component)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_entityIdToIndex.TryGetValue(entityId, out int index))
             {
@@ -459,7 +459,7 @@ public class Archetype
 
     public IComponent? GetComponent(long entityId, Type type)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_entityIdToIndex.TryGetValue(entityId, out int index))
             {
@@ -514,7 +514,7 @@ public class Archetype
 
     public ComponentEnumerator GetAllComponents(long entityId)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (!_entityIdToIndex.TryGetValue(entityId, out int index))
                 return default;
@@ -526,7 +526,7 @@ public class Archetype
 
     public void Compact()
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_capacity > _count * 2 && _capacity > 8)
             {
@@ -568,7 +568,7 @@ public class Archetype
 
     public long[] GetEntityIdsSnapshot()
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             int count = _count;
             long[] snapshot = new long[count];
@@ -579,7 +579,7 @@ public class Archetype
 
     public IGameObject[] GetEntitiesSnapshot()
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             int count = _count;
             IGameObject[] snapshot = new IGameObject[count];
@@ -590,7 +590,7 @@ public class Archetype
 
     public void CopyEntitiesTo(IGameObject[] destination, int offset)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             Array.Copy(_entities, 0, destination, offset, _count);
         }

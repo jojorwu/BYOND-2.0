@@ -55,7 +55,7 @@ namespace Shared;
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 return _variableStore.Get(index);
             }
@@ -75,7 +75,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 return _variableStore.Get(index);
             }
@@ -84,7 +84,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual DreamValue GetVariableDirect(int index)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 return _variableStore.Get(index);
             }
@@ -102,7 +102,7 @@ namespace Shared;
             if ((uint)index >= 1000000) return; // Basic sanity check
 
             // Note: SetVariableDirect still uses a lock for consistency when updating and notifying
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var current = _variableStore.Get(index);
                 if (!current.Equals(value))

@@ -41,7 +41,7 @@ namespace Shared;
             if (initialValues.Length > MaxListSize)
                 throw new System.InvalidOperationException("Maximum list size exceeded");
 
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _values.Clear();
                 _associativeValues?.Clear();
@@ -56,8 +56,11 @@ namespace Shared;
                 if (initialValues.Length >= DictionaryThreshold)
                 {
                     _valueCounts = counts = new Dictionary<DreamValue, int>(initialValues.Length);
-                    foreach (var val in initialValues)
+                    // Use Span-based enumeration for faster population of counts
+                    var span = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_values);
+                    for (int i = 0; i < span.Length; i++)
                     {
+                        ref var val = ref span[i];
                         if (counts.TryGetValue(val, out int c)) counts[val] = c + 1;
                         else counts[val] = 1;
                     }
@@ -68,7 +71,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetValue(DreamValue key, DreamValue value)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 AssociativeValues[key] = value;
                 if (!ContainsInternal(key))
@@ -85,7 +88,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void AddValue(DreamValue value)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (_values.Count >= MaxListSize)
                     throw new System.InvalidOperationException("Maximum list size exceeded");
@@ -98,7 +101,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void RemoveValue(DreamValue value)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (_values.Remove(value))
                 {
@@ -112,7 +115,7 @@ namespace Shared;
 
         public void RemoveAll(DreamValue value)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 int writeIndex = 0;
                 bool found = false;
@@ -142,7 +145,7 @@ namespace Shared;
 
         public DreamList Clone()
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 int count = _values.Count;
                 var clone = new DreamList(ObjectType);
@@ -168,7 +171,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetValue(int index, DreamValue value)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (index >= 0 && index < _values.Count)
                 {
@@ -188,7 +191,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Contains(DreamValue value)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 return ContainsInternal(value);
             }
@@ -214,7 +217,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetValue(DreamValue key)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (_associativeValues != null && _associativeValues.TryGetValue(key, out var value))
                 {
@@ -227,7 +230,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetValue(int index)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (index >= 0 && index < _values.Count) return _values[index];
                 return DreamValue.Null;

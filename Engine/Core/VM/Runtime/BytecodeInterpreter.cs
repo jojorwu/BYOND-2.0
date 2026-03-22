@@ -28,39 +28,49 @@ public interface IBytecodeInterpreter
 public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterpreter
 {
     private readonly IDiagnosticBus? _diagnosticBus;
-    private long _lastReportTime;
+
+    private class ThreadTelemetry
+    {
+        public long LastReportTime;
+        public long InstructionsThisTick;
+        public long TotalInstructions;
+    }
+
+    [ThreadStatic]
+    private static ThreadTelemetry? _telemetry;
 
     public BytecodeInterpreter(IDiagnosticBus? diagnosticBus = null)
     {
         _diagnosticBus = diagnosticBus;
     }
 
-    [ThreadStatic]
-    private static long _instructionsThisTick;
-    [ThreadStatic]
-    private static long _totalInstructions;
-    [ThreadStatic]
-    private static long[]? _opcodeFrequency;
-
-
     private void ReportTelemetry()
     {
         if (_diagnosticBus == null) return;
 
+        var telemetry = _telemetry ??= new ThreadTelemetry { LastReportTime = System.Diagnostics.Stopwatch.GetTimestamp() };
         var now = System.Diagnostics.Stopwatch.GetTimestamp();
-        var elapsed = (double)(now - _lastReportTime) / System.Diagnostics.Stopwatch.Frequency;
+        var elapsed = (double)(now - telemetry.LastReportTime) / System.Diagnostics.Stopwatch.Frequency;
 
-        if (elapsed >= 1.0) // Report every second
+        if (elapsed >= 1.0) // Report every second per thread
         {
-            var ips = _instructionsThisTick / elapsed;
-            _diagnosticBus.Publish("VM.Interpreter", "Performance Metrics", ips, (m, val) =>
+            var ips = telemetry.InstructionsThisTick / elapsed;
+            _diagnosticBus.Publish("VM.Interpreter", $"Performance Metrics (Thread {Environment.CurrentManagedThreadId})", ips, (m, val) =>
             {
                 m.Add("InstructionsPerSecond", val);
-                m.Add("TotalInstructions", _totalInstructions);
+                m.Add("TotalInstructions", telemetry.TotalInstructions);
             });
 
-            _instructionsThisTick = 0;
-            _lastReportTime = now;
+            telemetry.InstructionsThisTick = 0;
+            telemetry.LastReportTime = now;
         }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void RecordInstruction()
+    {
+        var telemetry = _telemetry ??= new ThreadTelemetry { LastReportTime = System.Diagnostics.Stopwatch.GetTimestamp() };
+        telemetry.InstructionsThisTick++;
+        telemetry.TotalInstructions++;
     }
 }

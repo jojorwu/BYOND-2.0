@@ -26,7 +26,7 @@ public class FastEventBus : EngineService, IEventBus
 
         public void Subscribe(Action<T> handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var updated = new Action<T>[_actions.Length + 1];
                 Array.Copy(_actions, updated, _actions.Length);
@@ -37,7 +37,7 @@ public class FastEventBus : EngineService, IEventBus
 
         public void Subscribe(Func<T, ValueTask> handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var updated = new Func<T, ValueTask>[_asyncActions.Length + 1];
                 Array.Copy(_asyncActions, updated, _asyncActions.Length);
@@ -48,7 +48,7 @@ public class FastEventBus : EngineService, IEventBus
 
         public void Subscribe(IEventHandler<T> handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var updated = new IEventHandler<T>[_interfaceHandlers.Length + 1];
                 Array.Copy(_interfaceHandlers, updated, _interfaceHandlers.Length);
@@ -59,7 +59,7 @@ public class FastEventBus : EngineService, IEventBus
 
         public void Unsubscribe(object handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (handler is Action<T> action)
                 {

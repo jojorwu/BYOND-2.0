@@ -27,10 +27,14 @@ internal struct DreamStack : IDisposable
         if ((uint)Pointer >= (uint)maxStackSize)
             throw new ScriptRuntimeException("Stack overflow", currentProc, pc, thread);
 
-        if (Pointer >= Array.Length)
+        var array = Array;
+        if ((uint)Pointer >= (uint)array.Length)
+        {
             EnsureCapacity(1, maxStackSize);
+            array = Array;
+        }
 
-        Array[Pointer++] = value;
+        System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), Pointer++) = value;
     }
 
     public DreamValue this[int index]
@@ -50,7 +54,7 @@ internal struct DreamStack : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue Pop()
     {
-        return Array[--Pointer];
+        return System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(Array), --Pointer);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

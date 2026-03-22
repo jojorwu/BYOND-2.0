@@ -39,7 +39,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
     public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null)
     {
-        if (_subscribers.Length == 0) return;
+        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) return;
 
         DiagnosticEvent? ev;
         if (!_pool.TryPop(out ev))
@@ -64,7 +64,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
     public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
     {
-        if (_subscribers.Length == 0) return;
+        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) return;
 
         DiagnosticEvent? ev;
         if (!_pool.TryPop(out ev))
@@ -92,8 +92,10 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         var reader = _eventChannel.Reader;
         try
         {
-            while (await reader.WaitToReadAsync(cancellationToken))
+            // Use WaitToReadAsync for energy-efficient non-blocking wait
+            while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
+                // Inner loop to drain available events without re-awaiting
                 while (reader.TryRead(out var ev))
                 {
                     var subscribers = _subscribers;
@@ -111,9 +113,14 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         }
         catch (OperationCanceledException) { /* Normal shutdown */ }
         catch (ChannelClosedException) { /* Normal shutdown */ }
+        catch (Exception ex)
+        {
+            // Log unexpected worker errors but don't crash
+            Console.WriteLine($"DiagnosticBus worker error: {ex}");
+        }
         finally
         {
-            // Drain remaining events if any
+            // Drain remaining events if any to ensure pool maintenance
             while (reader.TryRead(out var ev))
             {
                 ReturnToPool(ev);
@@ -141,7 +148,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
             await Task.WhenAny(_backgroundWorker, Task.Delay(1000, cancellationToken));
         }
 
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             _subscribers = Array.Empty<Action<DiagnosticEvent>>();
         }
@@ -152,7 +159,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
     public IDisposable Subscribe(Action<DiagnosticEvent> callback)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             var updated = new Action<DiagnosticEvent>[_subscribers.Length + 1];
             Array.Copy(_subscribers, updated, _subscribers.Length);
@@ -175,7 +182,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
         public void Dispose()
         {
-            lock (_bus._lock)
+            using (_bus._lock.EnterScope())
             {
                 int index = Array.IndexOf(_bus._subscribers, _callback);
                 if (index == -1) return;

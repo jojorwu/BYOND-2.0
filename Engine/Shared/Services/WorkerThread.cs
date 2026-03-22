@@ -15,7 +15,7 @@ namespace Shared.Services;
         internal static WorkerThread? Current;
 
         private readonly PriorityQueue<IJob, int> _jobQueue = new();
-        private readonly object _lock = new();
+        private readonly System.Threading.Lock _lock = new();
         private volatile int _approximateCount;
         private volatile int _totalWeight;
         public readonly ArenaAllocator Arena = new();
@@ -27,7 +27,7 @@ namespace Shared.Services;
         private readonly ILogger? _logger;
         private bool _disposed;
 
-        public int JobCount { get { lock (_lock) return _jobQueue.Count; } }
+        public int JobCount { get { using (_lock.EnterScope()) return _jobQueue.Count; } }
         public int ApproximateJobCount => _approximateCount;
         public int ApproximateTotalWeight => _totalWeight;
         public bool IsBusy { get; private set; }
@@ -56,7 +56,7 @@ namespace Shared.Services;
         public void Enqueue(IJob job)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(WorkerThread));
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _jobQueue.Enqueue(job, -(int)job.Priority);
                 _approximateCount++;
@@ -72,7 +72,7 @@ namespace Shared.Services;
 
         public bool TrySteal(out IJob? job)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (_jobQueue.TryDequeue(out job, out _))
                 {
@@ -101,7 +101,7 @@ namespace Shared.Services;
                 // Fast-path: check approximate count before locking
                 if (_approximateCount > 0)
                 {
-                    lock (_lock)
+                    using (_lock.EnterScope())
                     {
                         if (_jobQueue.TryDequeue(out job, out _))
                         {

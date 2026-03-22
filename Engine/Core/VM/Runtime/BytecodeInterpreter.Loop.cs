@@ -10,8 +10,6 @@ public unsafe partial class BytecodeInterpreter
 {
     public DreamThreadState Run(DreamThread thread, int instructionBudget)
     {
-        if (_opcodeFrequency == null) _opcodeFrequency = new long[256];
-
         if (thread.State != DreamThreadState.Running)
             return thread.State;
 
@@ -99,11 +97,9 @@ public unsafe partial class BytecodeInterpreter
                             instructionsExecutedThisTick++;
                             totalInstructionsExecuted++;
 
-                            _instructionsThisTick++;
-                            _totalInstructions++;
+                            RecordInstruction();
 
                             var opcode = (Opcode)state.BytecodePtr[state.PC++];
-                            if (_opcodeFrequency != null) _opcodeFrequency[(byte)opcode]++;
 
                             // Fast-path switch for hot opcodes to enable better JIT branch prediction
                             switch (opcode)

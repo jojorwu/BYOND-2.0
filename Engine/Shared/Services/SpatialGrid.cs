@@ -203,7 +203,7 @@ namespace Shared;
                     c1.Lock.Enter(ref lock1);
                     c2.Lock.Enter(ref lock2);
                     RemoveInternal(obj, oldLayer, oldCell);
-                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y), z));
+                    AddInternal(obj, cell, new Vector3l(GetGridCoord(x), GetGridCoord(y), z));
                 }
                 finally
                 {
@@ -218,7 +218,7 @@ namespace Shared;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y), z));
+                    AddInternal(obj, cell, new Vector3l(GetGridCoord(x), GetGridCoord(y), z));
                 }
                 finally
                 {
@@ -227,7 +227,7 @@ namespace Shared;
             }
         }
 
-        private void AddInternal(IGameObject obj, Cell cell, (long X, long Y, long Z) key)
+        private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
             // Copy-On-Write to ensure lock-free reads during iteration
             int newCount = cell.Count + 1;

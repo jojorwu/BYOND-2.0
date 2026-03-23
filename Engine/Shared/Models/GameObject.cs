@@ -8,14 +8,13 @@ using Shared.Interfaces;
 using Shared.Enums;
 using Shared.Models;
 using Shared.Serialization;
+using Robust.Shared.Maths;
 
 namespace Shared;
 
 public struct TransformState
 {
-    public long X;
-    public long Y;
-    public long Z;
+    public Vector3l Position;
     public int Dir;
 }
 
@@ -97,11 +96,14 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set => Interlocked.Exchange(ref _spatialGridIndex, value);
     }
 
-    public (long X, long Y, long Z)? CurrentGridCellKey { get; set; }
+    public Vector3l? CurrentGridCellKey { get; set; }
     public IStateMachine? StateMachine { get; set; }
 
     private long _x;
-    private long _committedX;
+    private long _y;
+    private long _z;
+    private Vector3l _committedPosition;
+
     /// <summary>
     /// Gets or sets the X-coordinate of the game object.
     /// </summary>
@@ -115,10 +117,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed X-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedX => Interlocked.Read(ref _committedX);
+    public long CommittedX => Volatile.Read(ref _committedPosition.X);
 
-    private long _y;
-    private long _committedY;
     /// <summary>
     /// Gets or sets the Y-coordinate of the game object.
     /// </summary>
@@ -132,10 +132,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Y-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedY => Interlocked.Read(ref _committedY);
+    public long CommittedY => Volatile.Read(ref _committedPosition.Y);
 
-    private long _z;
-    private long _committedZ;
     /// <summary>
     /// Gets or sets the Z-coordinate of the game object.
     /// </summary>
@@ -149,7 +147,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Z-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedZ => _committedZ;
+    public long CommittedZ => Volatile.Read(ref _committedPosition.Z);
 
     public string CommittedIcon => ObjectType is { IconIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : string.Empty;
     public string CommittedIconState => ObjectType is { IconStateIndex: var idx and not -1 } ? _committedStore.Get(idx).StringValue : string.Empty;
@@ -239,9 +237,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             if (Interlocked.Exchange(ref _isDirty, 0) == 0) return;
 
-            Interlocked.Exchange(ref _committedX, _x);
-            Interlocked.Exchange(ref _committedY, _y);
-            Interlocked.Exchange(ref _committedZ, _z);
+            _committedPosition = new Vector3l(_x, _y, _z);
 
             // Optimized commit: only update variables that have actually changed since last commit
             if (!_changeMask.IsEmpty)
@@ -515,7 +511,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     if (!posChanged) { oldX = _x; oldY = _y; oldZ = _z; }
                     Interlocked.Exchange(ref _x, vx);
-                    Transform.X = vx;
+                    Transform.Position.X = vx;
                     posChanged = true;
                 }
                 break;
@@ -525,7 +521,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     if (!posChanged) { oldX = _x; oldY = _y; oldZ = _z; }
                     Interlocked.Exchange(ref _y, vy);
-                    Transform.Y = vy;
+                    Transform.Position.Y = vy;
                     posChanged = true;
                 }
                 break;
@@ -535,7 +531,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     if (!posChanged) { oldX = _x; oldY = _y; oldZ = _z; }
                     Interlocked.Exchange(ref _z, vz);
-                    Transform.Z = vz;
+                    Transform.Position.Z = vz;
                     posChanged = true;
                 }
                 break;
@@ -712,7 +708,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             }
 
             _x = x; _y = y; _z = z;
-            Transform.X = x; Transform.Y = y; Transform.Z = z;
+            Transform.Position = new Vector3l(x, y, z);
             posChanged = true;
 
             IncrementVersion();
@@ -912,9 +908,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             Interlocked.Exchange(ref _x, 0);
             Interlocked.Exchange(ref _y, 0);
             Interlocked.Exchange(ref _z, 0);
-            Interlocked.Exchange(ref _committedX, 0);
-            Interlocked.Exchange(ref _committedY, 0);
-            Interlocked.Exchange(ref _committedZ, 0);
+            _committedPosition = Vector3l.Zero;
             _densityVal = 1;
             _isDirty = 0;
 

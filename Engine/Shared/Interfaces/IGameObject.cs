@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Robust.Shared.Maths;
 
 namespace Shared;
     /// <summary>
@@ -72,7 +73,7 @@ namespace Shared;
         /// <summary>
         /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
         /// </summary>
-        (long X, long Y, long Z)? CurrentGridCellKey { get; set; }
+        Vector3l? CurrentGridCellKey { get; set; }
 
         /// <summary>
         /// Committed coordinates for thread-safe reading.

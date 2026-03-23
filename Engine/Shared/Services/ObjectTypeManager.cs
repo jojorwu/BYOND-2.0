@@ -103,6 +103,11 @@ namespace Shared.Services;
         {
             _frozenTypes = _objectTypes.ToFrozenDictionary();
             _frozenTypesById = _objectTypesById.ToFrozenDictionary();
+
+            foreach (var type in _objectTypes.Values)
+            {
+                type.Freeze();
+            }
         }
 
         public void Clear()

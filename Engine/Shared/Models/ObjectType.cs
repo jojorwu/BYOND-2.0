@@ -1,10 +1,12 @@
 using Shared.Enums;
+using Shared.Interfaces;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace Shared;
 
-public class ObjectType
+public class ObjectType : IFreezable
 {
     public int Id { get; }
     public string Name { get; set; }
@@ -19,7 +21,9 @@ public class ObjectType
     public Dictionary<string, IDreamProc> Procs { get; } = new();
     public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
     private Dictionary<string, int>? _variableIndices;
+    private FrozenDictionary<string, int> _frozenVariableIndices = FrozenDictionary<string, int>.Empty;
     private HashSet<int>? _parentIds;
+    private FrozenSet<int> _frozenParentIds = FrozenSet<int>.Empty;
     public BuiltinVar[]? VariableToBuiltin { get; private set; }
     public int XIndex = -1, YIndex = -1, ZIndex = -1, LocIndex = -1;
     public int IconIndex = -1, IconStateIndex = -1, DirIndex = -1, AlphaIndex = -1;
@@ -50,6 +54,10 @@ public class ObjectType
 
     public int GetVariableIndex(string name)
     {
+        if (_frozenVariableIndices.Count > 0)
+        {
+            return _frozenVariableIndices.TryGetValue(name, out int index) ? index : -1;
+        }
         if (_variableIndices != null)
         {
             return _variableIndices.TryGetValue(name, out int index) ? index : -1;
@@ -116,14 +124,32 @@ public class ObjectType
         }
     }
 
+    public void Freeze()
+    {
+        if (_variableIndices != null)
+        {
+            _frozenVariableIndices = _variableIndices.ToFrozenDictionary();
+        }
+        if (_parentIds != null)
+        {
+            _frozenParentIds = _parentIds.ToFrozenSet();
+        }
+    }
+
     public void ClearCache()
     {
         _variableIndices = null;
+        _frozenVariableIndices = FrozenDictionary<string, int>.Empty;
         _parentIds = null;
+        _frozenParentIds = FrozenSet<int>.Empty;
     }
 
     public bool IsSubtypeOf(ObjectType other)
     {
+        if (_frozenParentIds.Count > 0)
+        {
+            return _frozenParentIds.Contains(other.Id);
+        }
         if (_parentIds != null)
         {
             return _parentIds.Contains(other.Id);

@@ -342,6 +342,7 @@ namespace Shared;
             private long _currentGY;
             private int _currentIndexInCell;
             private Cell? _currentCell;
+            private bool _isCellContained;
             private bool _lockTaken;
             private IGameObject? _current;
 
@@ -372,8 +373,11 @@ namespace Shared;
                         if (_currentIndexInCell < _currentCell.Count && _currentIndexInCell < objs.Length)
                         {
                             _current = objs[_currentIndexInCell];
-                            if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
-                                _current.Y >= _box.Bottom && _current.Y <= _box.Top)
+                            if (_current == null) continue;
+
+                            // Optimization: Skip bounds check if cell is fully contained
+                            if (_isCellContained || (_current.X >= _box.Left && _current.X <= _box.Right &&
+                                                     _current.Y >= _box.Bottom && _current.Y <= _box.Top))
                             {
                                 return true;
                             }
@@ -391,19 +395,24 @@ namespace Shared;
                     if (_layer == null) return false;
 
                     ulong key = GetMortonCode(_currentGX, _currentGY);
-                    _currentGY++;
 
                     if (_layer.Grid.TryGetValue(key, out _currentCell))
                     {
                         if (Volatile.Read(ref _currentCell.Count) > 0)
                         {
                             _currentIndexInCell = -1;
+                            // Check if this cell is fully contained within the query box
+                            long cellX = _currentGX * _grid._cellSize;
+                            long cellY = _currentGY * _grid._cellSize;
+                            _isCellContained = cellX >= _box.Left && cellX + _grid._cellSize - 1 <= _box.Right &&
+                                               cellY >= _box.Bottom && cellY + _grid._cellSize - 1 <= _box.Top;
                         }
                         else
                         {
                             _currentCell = null;
                         }
                     }
+                    _currentGY++;
                 }
             }
 

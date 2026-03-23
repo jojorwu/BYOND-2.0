@@ -12,6 +12,7 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
         private volatile FrozenDictionary<string, Type> _frozenComponentTypesByName = FrozenDictionary<string, Type>.Empty;
+        private readonly ConcurrentDictionary<Type, IObjectPool<IComponent>> _componentPools = new();
 
         public IArchetypeManager ArchetypeManager => _archetypeManager;
 
@@ -62,13 +63,31 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
         {
             if (_frozenComponentTypesByName.TryGetValue(componentName, out var type))
             {
-                return (IComponent?)Activator.CreateInstance(type);
+                return RentComponent(type);
             }
             if (_componentTypesByName.TryGetValue(componentName, out type))
             {
-                return (IComponent?)Activator.CreateInstance(type);
+                return RentComponent(type);
             }
             return null;
+        }
+
+        private IComponent RentComponent(Type type)
+        {
+            var pool = _componentPools.GetOrAdd(type, t =>
+            {
+                return new SharedPool<IComponent>(() => (IComponent)Activator.CreateInstance(t)!);
+            });
+            return pool.Rent();
+        }
+
+        private void ReturnComponent(IComponent component)
+        {
+            var type = component.GetType();
+            if (_componentPools.TryGetValue(type, out var pool))
+            {
+                pool.Return(component);
+            }
         }
 
         public void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent
@@ -94,6 +113,7 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             {
                 _archetypeManager.RemoveComponent(owner, componentType);
                 ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, component, componentType));
+                ReturnComponent(component);
             }
         }
 
@@ -132,5 +152,15 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             _archetypeManager.Compact();
         }
 
-        public void Shrink() => Compact();
+        public void Shrink()
+        {
+            Compact();
+            foreach (var pool in _componentPools.Values)
+            {
+                if (pool is IShrinkable shrinkable)
+                {
+                    shrinkable.Shrink();
+                }
+            }
+        }
     }

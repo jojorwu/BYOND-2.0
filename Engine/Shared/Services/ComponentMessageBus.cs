@@ -66,14 +66,23 @@ namespace Shared.Services;
                         // Rapidly skip archetypes that don't overlap with our targets
                         if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
 
-                        var enumerator = arch.GetEntities();
-                        while (enumerator.MoveNext())
-                        {
-                            var entity = enumerator.Current;
-                            if (entity == null) continue;
+                        var signatureIds = arch.Signature.ComponentIds;
+                        int entityCount = arch.EntityCount;
 
-                            // Re-dispatch via GameObject to use its optimized local component resolution
-                            entity.SendMessage(message);
+                        for (int i = 0; i < targetIds.Length; i++)
+                        {
+                            int targetId = targetIds[i];
+                            var array = arch.GetComponentsInternal(targetId);
+                            if (array == null) continue;
+
+                            for (int j = 0; j < entityCount; j++)
+                            {
+                                var component = array.Get(j);
+                                if (component != null && component.Enabled)
+                                {
+                                    component.OnMessage(message);
+                                }
+                            }
                         }
                     }
                 }

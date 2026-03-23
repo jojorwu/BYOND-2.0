@@ -9,7 +9,7 @@ namespace Shared;
         private const int MaxChunksPerZ = 10000000;
         private const int MaxZLevels = 10000;
         private readonly Dictionary<int, Dictionary<(long X, long Y), Chunk>> _chunksByZ = new();
-        private readonly object _mapLock = new();
+        private readonly System.Threading.Lock _mapLock = new();
 
         public Map()
         {
@@ -72,7 +72,7 @@ namespace Shared;
 
         private Chunk GetOrCreateChunk(int z, (long X, long Y) chunkCoords)
         {
-            lock (_mapLock)
+            using (_mapLock.EnterScope())
             {
                 if (!_chunksByZ.TryGetValue(z, out var chunks))
                 {

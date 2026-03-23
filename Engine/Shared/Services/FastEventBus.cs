@@ -7,7 +7,7 @@ using Shared.Messaging;
 
 namespace Shared.Services;
 
-public class FastEventBus : IEventBus
+public class FastEventBus : EngineService, IEventBus
 {
     private interface IHandlerList
     {
@@ -22,11 +22,11 @@ public class FastEventBus : IEventBus
         private volatile Action<T>[] _actions = Array.Empty<Action<T>>();
         private volatile Func<T, ValueTask>[] _asyncActions = Array.Empty<Func<T, ValueTask>>();
         private volatile IEventHandler<T>[] _interfaceHandlers = Array.Empty<IEventHandler<T>>();
-        private readonly object _lock = new();
+        private readonly System.Threading.Lock _lock = new();
 
         public void Subscribe(Action<T> handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var updated = new Action<T>[_actions.Length + 1];
                 Array.Copy(_actions, updated, _actions.Length);
@@ -37,7 +37,7 @@ public class FastEventBus : IEventBus
 
         public void Subscribe(Func<T, ValueTask> handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var updated = new Func<T, ValueTask>[_asyncActions.Length + 1];
                 Array.Copy(_asyncActions, updated, _asyncActions.Length);
@@ -48,7 +48,7 @@ public class FastEventBus : IEventBus
 
         public void Subscribe(IEventHandler<T> handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 var updated = new IEventHandler<T>[_interfaceHandlers.Length + 1];
                 Array.Copy(_interfaceHandlers, updated, _interfaceHandlers.Length);
@@ -59,7 +59,7 @@ public class FastEventBus : IEventBus
 
         public void Unsubscribe(object handler)
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 if (handler is Action<T> action)
                 {
@@ -231,6 +231,12 @@ public class FastEventBus : IEventBus
     }
 
     public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        Clear();
+        return base.StopAsync(cancellationToken);
+    }
 
     public void Publish<T>(in T eventData) where T : struct
     {

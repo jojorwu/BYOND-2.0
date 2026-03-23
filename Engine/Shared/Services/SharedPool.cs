@@ -8,7 +8,7 @@ namespace Shared.Services;
     /// A high-performance object pool that uses thread-local caches to minimize lock contention.
     /// </summary>
     /// <typeparam name="T">The type of objects to pool.</typeparam>
-    public class SharedPool<T> : IObjectPool<T> where T : class
+    public class SharedPool<T> : EngineService, IObjectPool<T> where T : class
     {
         private readonly Func<T> _factory;
         private readonly ConcurrentStack<T> _globalStack = new();
@@ -24,6 +24,8 @@ namespace Shared.Services;
 
         [ThreadStatic]
         private static LocalCache? _localCache;
+
+        public override string Name => $"SharedPool<{typeof(T).Name}>";
 
         public SharedPool(Func<T> factory)
         {

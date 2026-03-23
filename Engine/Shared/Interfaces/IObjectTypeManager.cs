@@ -32,6 +32,11 @@ namespace Shared;
         ObjectType GetTurfType();
 
         /// <summary>
+        /// Freezes the current registry to maximize lookup performance in .NET 10.
+        /// </summary>
+        void Freeze();
+
+        /// <summary>
         /// Clears all registered object types.
         /// </summary>
         void Clear();

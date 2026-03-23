@@ -14,7 +14,7 @@ namespace Shared.Interfaces;
     /// <summary>
     /// Defines the lifecycle and metadata for an engine-level service.
     /// </summary>
-    public interface IEngineService : IAsyncInitializable
+    public interface IEngineService : IAsyncInitializable, IHealthCheck
     {
         /// <summary>
         /// Human-readable name of the service.
@@ -51,6 +51,11 @@ namespace Shared.Interfaces;
         /// Current status of the service.
         /// </summary>
         ServiceStatus Status { get; }
+
+        /// <summary>
+        /// Explicitly sets the status of the service.
+        /// </summary>
+        void SetStatus(ServiceStatus status);
 
         /// <summary>
         /// Retrieves diagnostic information about the service for monitoring and debugging.

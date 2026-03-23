@@ -20,7 +20,7 @@ namespace tests
         public void SetUp()
         {
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance);
+            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System);
             var pool = new SharedPool<GameObject>(() => new GameObject());
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var componentManager = new ComponentManager(archetypeManager);

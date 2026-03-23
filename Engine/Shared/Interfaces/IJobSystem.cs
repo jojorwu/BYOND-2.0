@@ -58,7 +58,7 @@ namespace Shared.Interfaces;
         /// <summary>
         /// Combines multiple job handles into one.
         /// </summary>
-        JobHandle CombineDependencies(params JobHandle[] dependencies);
+        JobHandle CombineDependencies(params ReadOnlySpan<JobHandle> dependencies);
 
         /// <summary>
         /// Waits for all scheduled jobs to complete.

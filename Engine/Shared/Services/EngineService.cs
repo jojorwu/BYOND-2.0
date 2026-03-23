@@ -30,6 +30,12 @@ namespace Shared.Services;
         }
 
         /// <inheritdoc />
+        public void SetStatus(ServiceStatus status)
+        {
+            Status = status;
+        }
+
+        /// <inheritdoc />
         public long InitializationDurationMs { get; protected set; }
 
         /// <inheritdoc />
@@ -98,5 +104,18 @@ namespace Shared.Services;
                 { "InitDuration", InitializationDurationMs },
                 { "StartDuration", StartupDurationMs }
             };
+        }
+
+        /// <inheritdoc />
+        public virtual Task<HealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
+        {
+            var status = Status switch
+            {
+                ServiceStatus.Running => HealthStatus.Healthy,
+                ServiceStatus.Failed => HealthStatus.Unhealthy,
+                _ => HealthStatus.Degraded
+            };
+
+            return Task.FromResult(new HealthResult(status, $"Service is in {Status} state"));
         }
     }

@@ -6,7 +6,7 @@ using System.Reflection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-public class ComponentManager : IComponentManager, IEngineLifecycle
+public class ComponentManager : EngineService, IComponentManager, IEngineLifecycle
     {
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
@@ -42,11 +42,13 @@ public class ComponentManager : IComponentManager, IEngineLifecycle
         return Task.CompletedTask;
         }
 
+        private static readonly System.Buffers.SearchValues<string> _assemblyKeywords = System.Buffers.SearchValues.Create(["Shared", "Engine", "Game", "Client", "Server"], StringComparison.Ordinal);
+
         private static bool IsProbablyComponentAssembly(Assembly assembly)
         {
             var name = assembly.GetName().Name;
             if (name == null) return false;
-            return name.Contains("Shared") || name.Contains("Engine") || name.Contains("Game") || name.Contains("Client") || name.Contains("Server");
+            return name.AsSpan().ContainsAny(_assemblyKeywords);
         }
 
         public IComponent? CreateComponent(string componentName)
@@ -99,9 +101,9 @@ public class ComponentManager : IComponentManager, IEngineLifecycle
             return _archetypeManager.GetComponents<T>();
         }
 
-        public IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+        public IEnumerable<Models.ArchetypeChunk<T>> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent
         {
-            return _archetypeManager.GetChunks<T>();
+            return _archetypeManager.GetChunks<T>(chunkSize);
         }
 
         public IEnumerable<IComponent> GetComponents(Type componentType)

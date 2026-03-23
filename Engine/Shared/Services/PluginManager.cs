@@ -42,7 +42,7 @@ public class PluginLoadContext : AssemblyLoadContext
     }
 }
 
-public class PluginManager : IPluginManager
+public class PluginManager : EngineService, IPluginManager
 {
     private readonly List<PluginEntry> _loadedPlugins = new();
     private readonly IServiceProvider _serviceProvider;

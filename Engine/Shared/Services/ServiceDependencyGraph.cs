@@ -68,8 +68,15 @@ public class ServiceDependencyGraph
 
     public async Task ExecuteParallelAsync(Func<IEngineService, Task> action)
     {
-        var dependencyCounts = _services.ToDictionary(s => s, s => _dependencies[s].Count);
-        var dependents = _services.ToDictionary(s => s, _ => new List<IEngineService>());
+        var dependencyCounts = new Dictionary<IEngineService, int>(_services.Count);
+        var dependents = new Dictionary<IEngineService, List<IEngineService>>(_services.Count);
+
+        foreach (var s in _services)
+        {
+            dependencyCounts[s] = _dependencies[s].Count;
+            dependents[s] = new List<IEngineService>();
+        }
+
         foreach (var kvp in _dependencies)
         {
             foreach (var dep in kvp.Value)
@@ -80,7 +87,7 @@ public class ServiceDependencyGraph
 
         var ready = new ConcurrentQueue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderByDescending(s => s.Priority));
         int processedCount = 0;
-        var completionTcs = new TaskCompletionSource();
+        var completionTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int pendingCount = 0;
 
         async Task ProcessReadyAsync()
@@ -93,9 +100,12 @@ public class ServiceDependencyGraph
                     await action(service);
                     Interlocked.Increment(ref processedCount);
 
-                    foreach (var dependent in dependents[service])
+                    var depList = dependents[service];
+                    for (int i = 0; i < depList.Count; i++)
                     {
-                        if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent)) == 0)
+                        var dependent = depList[i];
+                        ref int count = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent);
+                        if (Interlocked.Decrement(ref count) == 0)
                         {
                             ready.Enqueue(dependent);
                         }
@@ -142,8 +152,14 @@ public class ServiceDependencyGraph
     public async Task ShutdownParallelAsync(Func<IEngineService, Task> shutdownAction)
     {
         // Inverse graph for shutdown
-        var dependencyCounts = _services.ToDictionary(s => s, s => 0);
-        var dependents = _services.ToDictionary(s => s, s => _dependencies[s]);
+        var dependencyCounts = new Dictionary<IEngineService, int>(_services.Count);
+        var dependents = new Dictionary<IEngineService, List<IEngineService>>(_services.Count);
+
+        foreach (var s in _services)
+        {
+            dependencyCounts[s] = 0;
+            dependents[s] = _dependencies[s];
+        }
 
         foreach (var s in _services)
         {
@@ -155,7 +171,7 @@ public class ServiceDependencyGraph
 
         var ready = new ConcurrentQueue<IEngineService>(_services.Where(s => dependencyCounts[s] == 0).OrderBy(s => s.Priority));
         int processedCount = 0;
-        var completionTcs = new TaskCompletionSource();
+        var completionTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int pendingCount = 0;
 
         async Task ProcessReadyAsync()
@@ -168,9 +184,12 @@ public class ServiceDependencyGraph
                     await shutdownAction(service);
                     Interlocked.Increment(ref processedCount);
 
-                    foreach (var dep in dependents[service])
+                    var depList = dependents[service];
+                    for (int i = 0; i < depList.Count; i++)
                     {
-                        if (Interlocked.Decrement(ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dep)) == 0)
+                        var dep = depList[i];
+                        ref int count = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dep);
+                        if (Interlocked.Decrement(ref count) == 0)
                         {
                             ready.Enqueue(dep);
                         }

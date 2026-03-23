@@ -22,10 +22,10 @@ public interface IArchetypeManager
     T? GetComponent<T>(long entityId) where T : class, IComponent;
     IComponent? GetComponent(long entityId, Type componentType);
     IEnumerable<T> GetComponents<T>() where T : class, IComponent;
-    IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent;
+    IEnumerable<ArchetypeChunk<T>> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent;
     IEnumerable<IComponent> GetComponents(Type componentType);
     IEnumerable<IComponent> GetAllComponents(long entityId);
-    IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes);
+    IEnumerable<Archetype> GetArchetypesWithComponents(params ReadOnlySpan<Type> componentTypes);
     void ForEach<T>(Action<T, long> action) where T : class, IComponent;
     void ForEachEntity(Action<IGameObject> action);
     void Compact();
@@ -36,10 +36,10 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
     private readonly Dictionary<ComponentSignature, Archetype> _signatureToArchetype = new();
-    private readonly object _archetypeLock = new();
+    private readonly System.Threading.Lock _archetypeLock = new();
     private readonly ConcurrentDictionary<Type, Archetype[]> _typeToArchetypesCache = new();
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
-    private readonly object[] _entityLocks = Enumerable.Range(0, 1024).Select(_ => new object()).ToArray();
+    private readonly System.Threading.Lock[] _entityLocks = Enumerable.Range(0, 1024).Select(_ => new System.Threading.Lock()).ToArray();
     private readonly ILogger<ArchetypeManager> _logger;
 
     public ArchetypeManager(ILogger<ArchetypeManager> logger)
@@ -47,11 +47,11 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         _logger = logger;
     }
 
-    private object GetEntityLock(long entityId) => _entityLocks[(ulong)entityId % (ulong)_entityLocks.Length];
+    private System.Threading.Lock GetEntityLock(long entityId) => _entityLocks[(ulong)entityId % (ulong)_entityLocks.Length];
 
     public void AddEntity(IGameObject entity)
     {
-        lock (GetEntityLock(entity.Id))
+        using (GetEntityLock(entity.Id).EnterScope())
         {
             MoveToArchetypeInternal(entity, null, null);
         }
@@ -59,7 +59,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
     public void RemoveEntity(long entityId)
     {
-        lock (GetEntityLock(entityId))
+        using (GetEntityLock(entityId).EnterScope())
         {
             if (_entityToArchetype.TryRemove(entityId, out var archetype))
             {
@@ -87,7 +87,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
     public void AddComponent(IGameObject entity, IComponent component)
     {
         var componentType = component.GetType();
-        lock (GetEntityLock(entity.Id))
+        using (GetEntityLock(entity.Id).EnterScope())
         {
             _entityToArchetype.TryGetValue(entity.Id, out var currentArchetype);
 
@@ -96,9 +96,10 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
             if (currentArchetype != null)
             {
-                if (currentArchetype.Signature.Mask.Get(ComponentIdRegistry.GetId(componentType)))
+                int id = ComponentIdRegistry.GetId(componentType);
+                if (currentArchetype.Signature.Mask.Get(id))
                 {
-                    currentArchetype.SetComponentInternal(entity.ArchetypeIndex, componentType, component);
+                    currentArchetype.SetComponentInternal(entity.ArchetypeIndex, id, component);
                     return;
                 }
 
@@ -157,11 +158,12 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
     public void RemoveComponent(IGameObject entity, Type componentType)
     {
-        lock (GetEntityLock(entity.Id))
+        using (GetEntityLock(entity.Id).EnterScope())
         {
             if (_entityToArchetype.TryGetValue(entity.Id, out var currentArchetype) && currentArchetype != null)
             {
-                if (currentArchetype.Signature.Mask.Get(ComponentIdRegistry.GetId(componentType)))
+                int id = ComponentIdRegistry.GetId(componentType);
+                if (currentArchetype.Signature.Mask.Get(id))
                 {
                     var component = currentArchetype.GetComponent(entity.Id, componentType);
                     if (component != null)
@@ -223,7 +225,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
 
         // Find or create archetype
         Archetype targetArchetype;
-        lock (_archetypeLock)
+        using (_archetypeLock.EnterScope())
         {
             if (!_signatureToArchetype.TryGetValue(signature, out targetArchetype!))
             {
@@ -329,13 +331,16 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         }
     }
 
-    public IEnumerable<ArchetypeChunk<T>> GetChunks<T>() where T : class, IComponent
+    public IEnumerable<ArchetypeChunk<T>> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent
     {
         if (_typeToArchetypesCache.TryGetValue(typeof(T), out var targetArchetypes))
         {
             foreach (var archetype in targetArchetypes)
             {
-                yield return archetype.GetChunk<T>();
+                foreach (var chunk in archetype.GetChunks<T>(chunkSize))
+                {
+                    yield return chunk;
+                }
             }
         }
     }
@@ -363,9 +368,32 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         return Enumerable.Empty<IComponent>();
     }
 
-    public IEnumerable<Archetype> GetArchetypesWithComponents(params Type[] componentTypes)
+    public IEnumerable<Archetype> GetArchetypesWithComponents(params ReadOnlySpan<Type> componentTypes)
     {
-        if (componentTypes.Length == 0) return Enumerable.Empty<Archetype>();
+        if (componentTypes.IsEmpty) return Enumerable.Empty<Archetype>();
+
+        // Heuristic: start with the rarest component type to minimize intersection overhead
+        Type? rarestType = null;
+        int minCount = int.MaxValue;
+
+        foreach (var type in componentTypes)
+        {
+            if (_typeToArchetypesCache.TryGetValue(type, out var archetypes))
+            {
+                if (archetypes.Length < minCount)
+                {
+                    minCount = archetypes.Length;
+                    rarestType = type;
+                }
+            }
+            else
+            {
+                // If any component type has NO archetypes, the query result is empty
+                return Enumerable.Empty<Archetype>();
+            }
+        }
+
+        if (rarestType == null) return Enumerable.Empty<Archetype>();
 
         var queryMask = new ComponentMask();
         foreach (var type in componentTypes)
@@ -373,9 +401,10 @@ public class ArchetypeManager : EngineService, IArchetypeManager
             queryMask.Set(ComponentIdRegistry.GetId(type));
         }
 
+        var candidates = _typeToArchetypesCache[rarestType];
         var results = new List<Archetype>();
-        var archetypes = _archetypes;
-        foreach (var archetype in archetypes)
+
+        foreach (var archetype in candidates)
         {
             if (archetype.Signature.Mask.ContainsAll(queryMask))
             {
@@ -392,7 +421,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         {
             foreach (var archetype in archetypes)
             {
-                archetype.ForEach(action);
+                archetype.ForEach<T>(action);
             }
         }
     }

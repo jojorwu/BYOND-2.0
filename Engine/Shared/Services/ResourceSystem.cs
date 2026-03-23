@@ -5,7 +5,7 @@ using Shared.Interfaces;
 
 namespace Shared.Services;
 
-public class ResourceSystem : IResourceSystem, IShrinkable
+public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
 {
     private readonly ConcurrentDictionary<string, Task<object?>> _cache = new();
     private readonly List<IResourceProvider> _providers = new();
@@ -37,6 +37,12 @@ public class ResourceSystem : IResourceSystem, IShrinkable
     public void RegisterProvider(IResourceProvider provider)
     {
         _providers.Add(provider);
+    }
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        ClearCache();
+        return base.StopAsync(cancellationToken);
     }
 
     public void ClearCache()

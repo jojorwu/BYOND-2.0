@@ -6,6 +6,8 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 
+using Shared.Services;
+
 namespace Shared.Config;
 
 public interface IConfigurationManager
@@ -43,7 +45,7 @@ public class CVarInfo
     public object? Validator { get; set; }
 }
 
-public class ConfigurationManager : IConfigurationManager
+public class ConfigurationManager : EngineService, IConfigurationManager
 {
     private readonly ConcurrentDictionary<string, CVarInfo> _cvars = new();
     private readonly List<IConfigProvider> _providers = new();

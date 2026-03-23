@@ -8,11 +8,12 @@ namespace Shared.Services;
         public event Action? SystemsChanged;
         private readonly ConcurrentDictionary<string, ISystem> _systems = new();
         private volatile ISystem[] _allSystems = Array.Empty<ISystem>();
+        private readonly System.Threading.Lock _lock = new();
 
         public void Register(ISystem system)
         {
             _systems[system.Name] = system;
-            lock (_systems)
+            using (_lock.EnterScope())
             {
                 _allSystems = _systems.Values.ToArray();
             }
@@ -25,7 +26,7 @@ namespace Shared.Services;
             {
                 _systems[system.Name] = system;
             }
-            lock (_systems)
+            using (_lock.EnterScope())
             {
                 _allSystems = _systems.Values.ToArray();
             }
@@ -36,7 +37,7 @@ namespace Shared.Services;
         {
             if (_systems.TryRemove(systemName, out _))
             {
-                lock (_systems)
+                using (_lock.EnterScope())
                 {
                     _allSystems = _systems.Values.ToArray();
                 }

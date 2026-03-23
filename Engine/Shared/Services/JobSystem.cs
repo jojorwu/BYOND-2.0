@@ -18,29 +18,9 @@ namespace Shared.Services;
         private readonly int _minWorkers;
         private readonly int _maxWorkers;
         private readonly Timer _maintenanceTimer;
-        private readonly object _workerLock = new();
+        private readonly System.Threading.Lock _workerLock = new();
         private readonly ILogger<JobSystem> _logger;
 
-        public JobSystem(ILogger<JobSystem> logger)
-        {
-            _logger = logger;
-            _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
-            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
-
-            int initialCount = Math.Max(1, Environment.ProcessorCount);
-            _workers = new WorkerThread[initialCount];
-            for (int i = 0; i < initialCount; i++)
-            {
-                _workers[i] = new WorkerThread($"Engine-Worker-{i}", this, TryStealJob);
-            }
-
-            foreach (var worker in _workers)
-            {
-                worker.Start();
-            }
-
-            _maintenanceTimer = new Timer(_ => UpdateDynamicSizing(), null, 1000, 1000);
-        }
 
         private IJob? TryStealJob(WorkerThread stealer)
         {
@@ -169,12 +149,36 @@ namespace Shared.Services;
             return new JobHandle(tcs.Task);
         }
 
+        private readonly TimeProvider _timeProvider;
+
+        public JobSystem(ILogger<JobSystem> logger, TimeProvider timeProvider)
+        {
+            _logger = logger;
+            _timeProvider = timeProvider;
+            _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
+            _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
+
+            int initialCount = Math.Max(1, Environment.ProcessorCount);
+            _workers = new WorkerThread[initialCount];
+            for (int i = 0; i < initialCount; i++)
+            {
+                _workers[i] = new WorkerThread($"Engine-Worker-{i}", _timeProvider, this, TryStealJob);
+            }
+
+            foreach (var worker in _workers)
+            {
+                worker.Start();
+            }
+
+            _maintenanceTimer = new Timer(_ => UpdateDynamicSizing(), null, 1000, 1000);
+        }
+
         private void UpdateDynamicSizing()
         {
             var currentWorkers = _workers;
             int busyCount = 0;
             int totalPending = 0;
-            var now = DateTime.UtcNow;
+            var now = _timeProvider.GetUtcNow();
 
             foreach (var worker in currentWorkers)
             {
@@ -211,7 +215,7 @@ namespace Shared.Services;
         {
             if (targetCount < _minWorkers || targetCount > _maxWorkers) return;
 
-            lock (_workerLock)
+            using (_workerLock.EnterScope())
             {
                 int currentCount = _workers.Length;
                 if (targetCount == currentCount) return;
@@ -223,7 +227,7 @@ namespace Shared.Services;
                     Array.Copy(_workers, newWorkers, currentCount);
                     for (int i = currentCount; i < targetCount; i++)
                     {
-                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", this, TryStealJob);
+                        newWorkers[i] = new WorkerThread($"Engine-Worker-{i}", _timeProvider, this, TryStealJob);
                         newWorkers[i].Start();
                     }
                     _workers = newWorkers;
@@ -258,9 +262,9 @@ namespace Shared.Services;
             return Schedule(new StateActionJob<TState>(action, state, priority, weight), dependency, track, priority);
         }
 
-        public JobHandle CombineDependencies(params JobHandle[] dependencies)
+        public JobHandle CombineDependencies(params ReadOnlySpan<JobHandle> dependencies)
         {
-            if (dependencies == null || dependencies.Length == 0) return default;
+            if (dependencies.IsEmpty) return default;
             if (dependencies.Length == 1) return dependencies[0];
 
             var tasks = new List<Task>();
@@ -299,6 +303,8 @@ namespace Shared.Services;
             if (count == 1) { action(list[0]); return; }
 
             int workerCount = _workers.Length;
+            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead,
+            // while still splitting work across all available workers for large collections.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             var handles = new List<Task>((count + batchSize - 1) / batchSize);
 
@@ -322,6 +328,7 @@ namespace Shared.Services;
             if (count == 1) { action(list[0], 0); return; }
 
             int workerCount = _workers.Length;
+            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             var handles = new List<Task>((count + batchSize - 1) / batchSize);
 
@@ -345,6 +352,7 @@ namespace Shared.Services;
             if (count == 1) { await action(list[0]); return; }
 
             int workerCount = _workers.Length;
+            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             var handles = new List<Task>((count + batchSize - 1) / batchSize);
 
@@ -443,10 +451,16 @@ namespace Shared.Services;
                 }
                 catch (Exception ex)
                 {
+                    // Enrich exception with job metadata for easier troubleshooting
+                    ex.Data["JobType"] = _inner.GetType().Name;
+                    ex.Data["JobPriority"] = Priority.ToString();
+                    ex.Data["JobWeight"] = Weight;
+
                     _tcs.TrySetException(ex);
                     if (!_isTracked)
                     {
-                        _logger.LogError(ex, "Untracked job failed");
+                        _logger.LogError(ex, "Untracked job failed: {JobType} (Priority: {Priority}, Weight: {Weight})",
+                            _inner.GetType().Name, Priority, Weight);
                     }
                 }
             }

@@ -30,12 +30,18 @@ namespace tests
         private ComponentQueryService _queryService;
         private IObjectFactory _objectFactory;
 
+        [TearDown]
+        public void TearDown()
+        {
+            _queryService.Dispose();
+        }
+
         [SetUp]
         public void SetUp()
         {
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             _componentManager = new ComponentManager(archetypeManager);
-            _queryService = new ComponentQueryService(_componentManager);
+            _queryService = new ComponentQueryService(_componentManager, archetypeManager);
             var pool = new SharedPool<GameObject>(() => new GameObject());
             var entityRegistry = new EntityRegistry(pool, _componentManager);
             _objectFactory = new ObjectFactory(entityRegistry);

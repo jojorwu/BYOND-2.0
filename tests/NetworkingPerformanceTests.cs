@@ -66,7 +66,7 @@ namespace tests
         [Test]
         public void TimerService_Tick_DoesNotAllocateWhenEmpty()
         {
-            var service = new TimerService();
+            var service = new TimerService(TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<TimerService>.Instance);
 
             // Warm up
             service.Tick();

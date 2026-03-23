@@ -8,6 +8,8 @@ using Shared.Interfaces;
 
 namespace Shared.Services;
 
+using System.Collections.Frozen;
+
 /// <summary>
 /// Assigns a unique, stable index to each component type for bitmask operations.
 /// </summary>
@@ -15,12 +17,14 @@ public static class ComponentIdRegistry
 {
     private static int _nextId = 0;
     private static readonly ConcurrentDictionary<Type, int> _typeToId = new();
+    private static volatile FrozenDictionary<Type, int> _frozenTypeToId = FrozenDictionary<Type, int>.Empty;
     private static readonly ConcurrentDictionary<Assembly, bool> _processedAssemblies = new();
 
     public static int GetId<T>() where T : class, IComponent => GetId(typeof(T));
 
     public static int GetId(Type type)
     {
+        if (_frozenTypeToId.TryGetValue(type, out int id)) return id;
         return _typeToId.GetOrAdd(type, _ => Interlocked.Increment(ref _nextId) - 1);
     }
 
@@ -60,4 +64,12 @@ public static class ComponentIdRegistry
     /// Gets all registered component types.
     /// </summary>
     public static IEnumerable<Type> RegisteredTypes => _typeToId.Keys;
+
+    /// <summary>
+    /// Freezes the current registry to maximize lookup performance in .NET 10.
+    /// </summary>
+    public static void Freeze()
+    {
+        _frozenTypeToId = _typeToId.ToFrozenDictionary();
+    }
 }

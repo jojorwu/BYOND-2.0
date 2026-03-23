@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using Shared.Services;
+
 namespace Shared.Config;
 
 public interface IConsoleCommandManager
@@ -13,7 +15,7 @@ public interface IConsoleCommandManager
     IEnumerable<IConsoleCommand> GetAvailableCommands();
 }
 
-public class ConsoleCommandManager : IConsoleCommandManager
+public class ConsoleCommandManager : EngineService, IConsoleCommandManager
 {
     private readonly ConcurrentDictionary<string, IConsoleCommand> _commands = new();
 

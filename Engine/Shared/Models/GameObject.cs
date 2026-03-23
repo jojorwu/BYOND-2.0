@@ -60,9 +60,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void ClearDirty()
     {
         Interlocked.Exchange(ref _isDirty, 0);
-        lock (_lock)
+        using (_lock.EnterScope())
         {
-            _changeMask = new ComponentMask();
+            _changeMask.Clear();
         }
     }
 
@@ -88,7 +88,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set
         {
             long oldX, oldY, oldZ;
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 oldX = _x;
                 if (oldX == value) return;
@@ -123,7 +123,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set
         {
             long oldX, oldY, oldZ;
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 oldY = _y;
                 if (oldY == value) return;
@@ -158,7 +158,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set
         {
             long oldX, oldY, oldZ;
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 oldZ = _z;
                 if (oldZ == value) return;
@@ -193,63 +193,63 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public string Icon
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return string.Empty; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
+        get { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return string.Empty; using (_lock.EnterScope()) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public string IconState
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return string.Empty; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
+        get { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return string.Empty; using (_lock.EnterScope()) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public int Dir
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return 2; lock (_lock) { return (int)_variableStore.Get(idx).GetValueAsDouble(); } }
+        get { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return 2; using (_lock.EnterScope()) { return (int)_variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value)); }
     }
 
     public double Alpha
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.AlphaIndex ?? -1; if (idx == -1) return 255.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
+        get { var idx = ObjectType?.AlphaIndex ?? -1; if (idx == -1) return 255.0; using (_lock.EnterScope()) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public string Color
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.ColorIndex ?? -1; if (idx == -1) return "#ffffff"; lock (_lock) { return _variableStore.Get(idx).StringValue; } }
+        get { var idx = ObjectType?.ColorIndex ?? -1; if (idx == -1) return "#ffffff"; using (_lock.EnterScope()) { return _variableStore.Get(idx).StringValue; } }
         set { var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double Layer
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.LayerIndex ?? -1; if (idx == -1) return 2.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
+        get { var idx = ObjectType?.LayerIndex ?? -1; if (idx == -1) return 2.0; using (_lock.EnterScope()) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double PixelX
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.PixelXIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
+        get { var idx = ObjectType?.PixelXIndex ?? -1; if (idx == -1) return 0.0; using (_lock.EnterScope()) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double PixelY
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.PixelYIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
+        get { var idx = ObjectType?.PixelYIndex ?? -1; if (idx == -1) return 0.0; using (_lock.EnterScope()) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
     public double Opacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return 0.0; lock (_lock) { return _variableStore.Get(idx).GetValueAsDouble(); } }
+        get { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return 0.0; using (_lock.EnterScope()) { return _variableStore.Get(idx).GetValueAsDouble(); } }
         set { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
     }
 
@@ -265,8 +265,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public void CommitState()
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
+            if (Interlocked.Exchange(ref _isDirty, 0) == 0) return;
+
             Interlocked.Exchange(ref _committedX, _x);
             Interlocked.Exchange(ref _committedY, _y);
             Interlocked.Exchange(ref _committedZ, _z);
@@ -274,13 +276,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             // Optimized commit: only update variables that have actually changed since last commit
             if (!_changeMask.IsEmpty)
             {
-                foreach (int i in _changeMask.GetSetBits())
+                var bits = _changeMask.GetSetBits();
+                while (bits.MoveNext())
                 {
+                    int i = bits.Current;
                     if (i < _variableStore.Length)
                     {
                         _committedStore.Set(i, _variableStore.Get(i));
                     }
                 }
+                _changeMask.Clear();
             }
         }
     }
@@ -289,12 +294,14 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public void VisitChangesRef<T>(ref T state, ChangeVisitorRef<T> visitor) where T : allows ref struct
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_changeMask.IsEmpty) return;
 
-            foreach (int i in _changeMask.GetSetBits())
+            var bits = _changeMask.GetSetBits();
+            while (bits.MoveNext())
             {
+                int i = bits.Current;
                 if (i < _variableStore.Length)
                 {
                     visitor(i, _variableStore.Get(i), ref state);
@@ -309,7 +316,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public IGameObject? Loc
     {
-        get { lock (_lock) return _loc; }
+        get { using (_lock.EnterScope()) return _loc; }
         set => SetLocInternal(value, true);
     }
 
@@ -322,7 +329,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         GameObject? first = null;
         GameObject? second = null;
 
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_loc == value) return;
             oldLoc = _loc as GameObject;
@@ -350,11 +357,11 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         // Apply contents changes outside of self-lock, but with ordered container locks
         if (first != null)
         {
-            lock (first._contentsLock)
+            using (first._contentsLock.EnterScope())
             {
                 if (second != null)
                 {
-                    lock (second._contentsLock)
+                    using (second._contentsLock.EnterScope())
                     {
                         if (first == oldLoc) first.RemoveContentInternal(this);
                         else second.RemoveContentInternal(this);
@@ -372,7 +379,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
     }
 
-    protected readonly object _contentsLock = new();
+    protected readonly System.Threading.Lock _contentsLock = new();
     protected volatile IGameObject[] _contents = System.Array.Empty<IGameObject>();
 
     /// <summary>
@@ -412,7 +419,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     internal void AddContentInternal(IGameObject obj)
     {
         if (obj == null) return;
-        lock (_contentsLock)
+        using (_contentsLock.EnterScope())
         {
             if (!System.Array.Exists(_contents, x => x == obj))
             {
@@ -427,7 +434,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     internal void RemoveContentInternal(IGameObject obj)
     {
         if (obj == null) return;
-        lock (_contentsLock)
+        using (_contentsLock.EnterScope())
         {
             int index = System.Array.IndexOf(_contents, obj);
             if (index != -1)
@@ -450,13 +457,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 case "x": return new DreamValue(Interlocked.Read(ref _x));
                 case "y": return new DreamValue(Interlocked.Read(ref _y));
                 case "z": return new DreamValue(Interlocked.Read(ref _z));
-                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
-                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
-                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return new DreamValue(2.0); lock (_lock) { return _variableStore.Get(idx); } }
-                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return DreamValue.False; lock (_lock) { return _variableStore.Get(idx); } }
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return DreamValue.Null; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return DreamValue.Null; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return new DreamValue(2.0); using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return DreamValue.False; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
                 case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
-                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx == -1) return new DreamValue(ObjectType?.Name ?? "object"); lock (_lock) { return _variableStore.Get(idx); } }
-                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx == -1) return DreamValue.Null; lock (_lock) { return _variableStore.Get(idx); } }
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx == -1) return new DreamValue(ObjectType?.Name ?? "object"); using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx == -1) return DreamValue.Null; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
             }
         }
 
@@ -534,7 +541,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         long oldX = -1, oldY = -1, oldZ = -1;
         bool posChanged = false;
 
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             var current = _variableStore.Get(index);
             bool valueChanged = !current.Equals(value);
@@ -618,7 +625,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         get => base.ObjectType;
         set
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 base.ObjectType = value;
             }
@@ -708,7 +715,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void SetPosition(long x, long y, long z)
     {
         long oldX, oldY, oldZ;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             oldX = _x;
             oldY = _y;
@@ -821,12 +828,14 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// </summary>
     public void VisitChanges<T>(ref T visitor) where T : struct, IChangeVisitor, allows ref struct
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_changeMask.IsEmpty) return;
 
-            foreach (int i in _changeMask.GetSetBits())
+            var bits = _changeMask.GetSetBits();
+            while (bits.MoveNext())
             {
+                int i = bits.Current;
                 if (i < _variableStore.Length)
                 {
                     visitor.Visit(i, _variableStore.Get(i));
@@ -838,7 +847,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public DeltaState GetDeltaState()
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_changeMask.IsEmpty)
             {
@@ -927,7 +936,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         StateMachine = null;
 
         SetLocInternal(null, false);
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             Interlocked.Exchange(ref _x, 0);
             Interlocked.Exchange(ref _y, 0);
@@ -948,7 +957,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         SpatialGridIndex = -1;
         CurrentGridCellKey = null;
 
-        lock (_contentsLock)
+        using (_contentsLock.EnterScope())
         {
             _contents = System.Array.Empty<IGameObject>();
         }

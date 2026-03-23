@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Frozen;
 
 namespace Shared.Enums;
 
@@ -488,21 +489,26 @@ public struct OpcodeMetadata {
 }
 
 public static class OpcodeMetadataCache {
-    private static readonly OpcodeMetadata[] MetadataCache = new OpcodeMetadata[256];
-    private static readonly bool[] CanModifyCallStackCache = new bool[256];
-    private static readonly bool[] IsBranchCache = new bool[256];
+    private static readonly FrozenDictionary<byte, OpcodeMetadata> _metadata;
+    private static readonly FrozenSet<byte> _canModifyCallStack;
+    private static readonly FrozenSet<byte> _isBranch;
 
     static OpcodeMetadataCache() {
-        for (int i = 0; i < 256; i++) MetadataCache[i] = new OpcodeMetadata();
-        foreach (Opcode opcode in Enum.GetValues(typeof(Opcode))) {
+        var metadataMap = new Dictionary<byte, OpcodeMetadata>();
+        var canModifyCallStackSet = new HashSet<byte>();
+        var isBranchSet = new HashSet<byte>();
+
+        foreach (Opcode opcode in Enum.GetValues<Opcode>()) {
             var field = typeof(Opcode).GetField(opcode.ToString());
             var attribute = Attribute.GetCustomAttribute(field!, typeof(OpcodeMetadataAttribute));
             var metadataAttribute = (OpcodeMetadataAttribute?)attribute;
             var metadata = metadataAttribute?.Metadata ?? new OpcodeMetadata();
-            MetadataCache[(byte)opcode] = metadata;
-            CanModifyCallStackCache[(byte)opcode] = metadata.CanModifyCallStack;
 
-            IsBranchCache[(byte)opcode] = opcode switch {
+            byte b = (byte)opcode;
+            metadataMap[b] = metadata;
+            if (metadata.CanModifyCallStack) canModifyCallStackSet.Add(b);
+
+            bool isBranch = opcode switch {
                 Opcode.Jump => true,
                 Opcode.JumpIfFalse => true,
                 Opcode.JumpIfNull => true,
@@ -531,18 +537,23 @@ public static class OpcodeMetadataCache {
                 Opcode.EnumerateNoAssign => true,
                 _ => false
             };
+            if (isBranch) isBranchSet.Add(b);
         }
+
+        _metadata = metadataMap.ToFrozenDictionary();
+        _canModifyCallStack = canModifyCallStackSet.ToFrozenSet();
+        _isBranch = isBranchSet.ToFrozenSet();
     }
 
     public static OpcodeMetadata GetMetadata(Opcode opcode) {
-        return MetadataCache[(byte)opcode];
+        return _metadata.GetValueOrDefault((byte)opcode);
     }
 
     public static bool CanModifyCallStack(Opcode opcode) {
-        return CanModifyCallStackCache[(byte)opcode];
+        return _canModifyCallStack.Contains((byte)opcode);
     }
 
     public static bool IsBranch(Opcode opcode) {
-        return IsBranchCache[(byte)opcode];
+        return _isBranch.Contains((byte)opcode);
     }
 }

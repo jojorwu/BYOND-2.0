@@ -172,7 +172,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             var ecb = _ecbPool.Rent();
                             try
                             {
-                                ExecuteSystem(info, ecb);
+                                await ExecuteSystemAsync(info, ecb);
                                 await _jobSystem.CompleteAllAsync();
                                 using (_profilingService.Measure("SystemManager.ECBPlayback"))
                                 {
@@ -189,12 +189,12 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Length);
                             try
                             {
-                                await _jobSystem.ForEachAsync(layer, (info, index) =>
+                                await Task.WhenAll(layer.Select(async (info, index) =>
                                 {
                                     var ecb = _ecbPool.Rent();
                                     ecbArray[index] = ecb;
-                                    ExecuteSystem(info, ecb);
-                                });
+                                    await ExecuteSystemAsync(info, ecb);
+                                }));
 
                                 await _jobSystem.CompleteAllAsync();
 
@@ -203,8 +203,8 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                                     for (int k = 0; k < layer.Length; k++)
                                     {
                                         var ecb = ecbArray[k];
-                                        ecb.Playback();
-                                        _ecbPool.Return(ecb);
+                                        ecb?.Playback();
+                                        if (ecb != null) _ecbPool.Return(ecb);
                                     }
                                 }
                             }
@@ -231,7 +231,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         }
     }
 
-    private void ExecuteSystem(SystemExecutionInfo info, IEntityCommandBuffer ecb)
+    private async Task ExecuteSystemAsync(SystemExecutionInfo info, IEntityCommandBuffer ecb)
     {
         var system = info.System;
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -253,10 +253,10 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
                     if (matchingArchetypes.Count > 0)
                     {
-                        _jobSystem.ForEachAsync(matchingArchetypes, arch =>
+                        await _jobSystem.ForEachAsync(matchingArchetypes, async arch =>
                         {
-                            system.Tick(arch, ecb);
-                        }).GetAwaiter().GetResult();
+                            await system.TickAsync(arch, ecb);
+                        });
                         batchHandled = true;
                     }
                 }
@@ -267,7 +267,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                         var query = queries[i];
                         foreach (var archetype in query.GetMatchingArchetypes())
                         {
-                            system.Tick(archetype, ecb);
+                            await system.TickAsync(archetype, ecb);
                             batchHandled = true;
                         }
                     }
@@ -276,7 +276,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             if (!batchHandled)
             {
-                system.Tick(ecb);
+                await system.TickAsync(ecb);
             }
 
             system.PostTick();

@@ -9,8 +9,8 @@
 
   <ItemGroup>
     <PackageReference Include="LiteNetLib" Version="1.2.0" />
-    <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
-    <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

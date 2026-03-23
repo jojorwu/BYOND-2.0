@@ -2,6 +2,8 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using Shared.Interfaces;
 using Shared.Models;
@@ -17,103 +19,127 @@ namespace Shared.Services;
             RemoveComponent
         }
 
-        private struct Command
+        private readonly struct Command
         {
-            public CommandType Type;
-            public IGameObject? Target;
-            public ObjectType? ObjectType;
-            public IComponent? Component;
-            public Type? ComponentType;
-            public long X, Y, Z;
-            public int PrevIndex;
+            public readonly CommandType Type;
+            public readonly IGameObject? Target;
+            public readonly ObjectType? ObjectType;
+            public readonly IComponent? Component;
+            public readonly Type? ComponentType;
+            public readonly long X, Y, Z;
+            public readonly int PrevIndex;
+
+            public Command(CommandType type, IGameObject? target, ObjectType? objectType, IComponent? component, Type? componentType, long x, long y, long z, int prevIndex = -1)
+            {
+                Type = type;
+                Target = target;
+                ObjectType = objectType;
+                Component = component;
+                ComponentType = componentType;
+                X = x;
+                Y = y;
+                Z = z;
+                PrevIndex = prevIndex;
+            }
+
+            public Command WithPrevIndex(int prevIndex) => new(Type, Target, ObjectType, Component, ComponentType, X, Y, Z, prevIndex);
         }
 
-        private class CommandList : IDisposable
+        private sealed class CommandBuffer : IDisposable
         {
-            public Command[] Commands;
-            public int Count;
+            private Command[] _buffer;
+            private int _count;
+            public ReadOnlySpan<Command> Commands => _buffer.AsSpan(0, _count);
+            public int Count => _count;
 
-            public CommandList()
+            public CommandBuffer()
             {
-                Commands = ArrayPool<Command>.Shared.Rent(256);
-                Count = 0;
+                _buffer = ArrayPool<Command>.Shared.Rent(1024);
+                _count = 0;
             }
 
-            public void Add(Command cmd)
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public void Add(in Command cmd)
             {
-                if (Count == Commands.Length)
+                if (_count == _buffer.Length)
                 {
-                    var oldArr = Commands;
-                    var newArr = ArrayPool<Command>.Shared.Rent(oldArr.Length * 2);
-                    Array.Copy(oldArr, newArr, oldArr.Length);
-                    Commands = newArr;
-                    ArrayPool<Command>.Shared.Return(oldArr);
+                    Expand();
                 }
-                Commands[Count++] = cmd;
+                _buffer[_count++] = cmd;
             }
 
-            public void Clear()
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            private void Expand()
             {
-                Count = 0;
+                var oldBuffer = _buffer;
+                _buffer = ArrayPool<Command>.Shared.Rent(oldBuffer.Length * 2);
+                oldBuffer.AsSpan(0, _count).CopyTo(_buffer);
+                ArrayPool<Command>.Shared.Return(oldBuffer);
             }
+
+            public void Clear() => _count = 0;
 
             public void Dispose()
             {
-                var arr = Commands;
-                if (arr != null)
+                var buffer = _buffer;
+                if (buffer != null)
                 {
-                    Commands = null!;
-                    ArrayPool<Command>.Shared.Return(arr);
+                    _buffer = null!;
+                    ArrayPool<Command>.Shared.Return(buffer);
                 }
             }
         }
 
         private readonly IObjectFactory _objectFactory;
-        private readonly ConcurrentBag<CommandList> _commandLists = new();
-        private readonly ThreadLocal<CommandList> _localCommands;
+        private readonly ConcurrentBag<CommandBuffer> _commandBuffers = new();
+        private readonly ThreadLocal<CommandBuffer> _localBuffer;
 
         // Reusable fields for grouping to minimize allocations during Playback
-        private readonly Dictionary<IGameObject, int> _targetToLastCommand = new();
-        private readonly List<int> _creationIndices = new();
-        private readonly List<IGameObject> _uniqueTargets = new();
+        private readonly Dictionary<IGameObject, int> _targetToLastCommand = new(128);
+        private readonly List<int> _creationIndices = new(128);
+        private readonly List<IGameObject> _uniqueTargets = new(128);
         private static readonly SharedPool<List<int>> _intListPool = new(() => new List<int>(64));
 
         public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager)
         {
             _objectFactory = objectFactory;
-            _localCommands = new ThreadLocal<CommandList>(() =>
+            _localBuffer = new ThreadLocal<CommandBuffer>(() =>
             {
-                var list = new CommandList();
-                _commandLists.Add(list);
-                return list;
+                var buffer = new CommandBuffer();
+                _commandBuffers.Add(buffer);
+                return buffer;
             });
         }
 
         public void CreateObject(ObjectType objectType, long x = 0, long y = 0, long z = 0)
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.Create, ObjectType = objectType, X = x, Y = y, Z = z });
+            var cmd = new Command(CommandType.Create, null, objectType, null, null, x, y, z);
+            _localBuffer.Value!.Add(in cmd);
         }
 
         public void DestroyObject(IGameObject obj)
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.Destroy, Target = obj });
+            var cmd = new Command(CommandType.Destroy, obj, null, null, null, 0, 0, 0);
+            _localBuffer.Value!.Add(in cmd);
         }
 
         public void AddComponent<T>(IGameObject obj, T component) where T : class, IComponent
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.AddComponent, Target = obj, Component = component });
+            var cmd = new Command(CommandType.AddComponent, obj, null, component, null, 0, 0, 0);
+            _localBuffer.Value!.Add(in cmd);
         }
 
         public void RemoveComponent<T>(IGameObject obj) where T : class, IComponent
         {
-            _localCommands.Value!.Add(new Command { Type = CommandType.RemoveComponent, Target = obj, ComponentType = typeof(T) });
+            var cmd = new Command(CommandType.RemoveComponent, obj, null, null, typeof(T), 0, 0, 0);
+            _localBuffer.Value!.Add(in cmd);
         }
 
         public void Playback()
         {
             // Structural changes are played back from a single thread during synchronization points
             int totalCount = 0;
-            foreach (var list in _commandLists) totalCount += list.Count;
+            foreach (var buffer in _commandBuffers) totalCount += buffer.Count;
             if (totalCount == 0) return;
 
             var allCommands = ArrayPool<Command>.Shared.Rent(totalCount);
@@ -124,11 +150,12 @@ namespace Shared.Services;
                 _creationIndices.Clear();
                 _uniqueTargets.Clear();
 
-                foreach (var list in _commandLists)
+                foreach (var buffer in _commandBuffers)
                 {
-                    for (int i = 0; i < list.Count; i++)
+                    var commands = buffer.Commands;
+                    for (int i = 0; i < commands.Length; i++)
                     {
-                        var cmd = list.Commands[i];
+                        var cmd = commands[i];
                         int globalIdx = currentIdx++;
 
                         if (cmd.Type == CommandType.Create)
@@ -137,16 +164,17 @@ namespace Shared.Services;
                         }
                         else if (cmd.Target != null)
                         {
-                            if (_targetToLastCommand.TryGetValue(cmd.Target, out int prevIdx))
+                            var target = cmd.Target;
+                            if (_targetToLastCommand.TryGetValue(target, out int prevIdx))
                             {
-                                cmd.PrevIndex = prevIdx;
+                                cmd = cmd.WithPrevIndex(prevIdx);
                             }
                             else
                             {
-                                cmd.PrevIndex = -1;
-                                _uniqueTargets.Add(cmd.Target);
+                                cmd = cmd.WithPrevIndex(-1);
+                                _uniqueTargets.Add(target);
                             }
-                            _targetToLastCommand[cmd.Target] = globalIdx;
+                            _targetToLastCommand[target] = globalIdx;
                         }
 
                         allCommands[globalIdx] = cmd;
@@ -167,50 +195,89 @@ namespace Shared.Services;
                     System.Threading.Tasks.Parallel.ForEach(_uniqueTargets, target =>
                     {
                         int lastIdx = _targetToLastCommand[target];
-                        var indices = new List<int>(); // Local list for parallel safety
 
+                        // Use stack-allocated buffer for common short command chains
+                        Span<int> stackIndices = stackalloc int[16];
+                        int count = 0;
                         int walker = lastIdx;
-                        while (walker != -1)
+                        while (walker != -1 && count < stackIndices.Length)
                         {
-                            indices.Add(walker);
+                            stackIndices[count++] = walker;
                             walker = allCommands[walker].PrevIndex;
                         }
 
-                        for (int j = indices.Count - 1; j >= 0; j--)
+                        if (walker == -1)
                         {
-                            ExecuteCommand(target, allCommands[indices[j]]);
+                            for (int j = count - 1; j >= 0; j--)
+                            {
+                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
+                            }
+                        }
+                        else
+                        {
+                            // Fallback for very long command chains
+                            var indices = new List<int>(count * 2);
+                            for (int i = 0; i < count; i++) indices.Add(stackIndices[i]);
+                            while (walker != -1)
+                            {
+                                indices.Add(walker);
+                                walker = allCommands[walker].PrevIndex;
+                            }
+
+                            for (int j = indices.Count - 1; j >= 0; j--)
+                            {
+                                ExecuteCommand(target, in allCommands[indices[j]]);
+                            }
                         }
                     });
                 }
                 else
                 {
-                    var pooledIndices = _intListPool.Rent();
-                    try
+                    // Pre-allocate indices span to avoid CA2014 stackalloc in loop
+                    Span<int> stackIndices = stackalloc int[16];
+
+                    for (int i = 0; i < _uniqueTargets.Count; i++)
                     {
-                        for (int i = 0; i < _uniqueTargets.Count; i++)
+                        var target = _uniqueTargets[i];
+                        int lastIdx = _targetToLastCommand[target];
+
+                        int count = 0;
+                        int walker = lastIdx;
+                        while (walker != -1 && count < stackIndices.Length)
                         {
-                            var target = _uniqueTargets[i];
-                            int lastIdx = _targetToLastCommand[target];
+                            stackIndices[count++] = walker;
+                            walker = allCommands[walker].PrevIndex;
+                        }
 
-                            pooledIndices.Clear();
-                            int walker = lastIdx;
-                            while (walker != -1)
+                        if (walker == -1)
+                        {
+                            for (int j = count - 1; j >= 0; j--)
                             {
-                                pooledIndices.Add(walker);
-                                walker = allCommands[walker].PrevIndex;
-                            }
-
-                            // Execute in original order (reverse of our linked list)
-                            for (int j = pooledIndices.Count - 1; j >= 0; j--)
-                            {
-                                var cmd = allCommands[pooledIndices[j]];
-                                ExecuteCommand(target, cmd);
+                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
                             }
                         }
-                    }
-                    finally
-                    {
-                        _intListPool.Return(pooledIndices);
+                        else
+                        {
+                            var pooledIndices = _intListPool.Rent();
+                            try
+                            {
+                                for (int k = 0; k < count; k++) pooledIndices.Add(stackIndices[k]);
+                                while (walker != -1)
+                                {
+                                    pooledIndices.Add(walker);
+                                    walker = allCommands[walker].PrevIndex;
+                                }
+
+                                for (int j = pooledIndices.Count - 1; j >= 0; j--)
+                                {
+                                    ExecuteCommand(target, in allCommands[pooledIndices[j]]);
+                                }
+                            }
+                            finally
+                            {
+                                _intListPool.Return(pooledIndices);
+                            }
+                        }
                     }
                 }
             }
@@ -222,7 +289,7 @@ namespace Shared.Services;
             Clear();
         }
 
-        private void ExecuteCommand(IGameObject target, in Command cmd)
+        private void ExecuteCommand(IGameObject target, [In] in Command cmd)
         {
             switch (cmd.Type)
             {
@@ -240,9 +307,9 @@ namespace Shared.Services;
 
         public void Clear()
         {
-            foreach (var list in _commandLists)
+            foreach (var buffer in _commandBuffers)
             {
-                list.Clear();
+                buffer.Clear();
             }
         }
 
@@ -250,10 +317,10 @@ namespace Shared.Services;
 
         public void Dispose()
         {
-            _localCommands.Dispose();
-            foreach (var list in _commandLists)
+            _localBuffer.Dispose();
+            foreach (var buffer in _commandBuffers)
             {
-                list.Dispose();
+                buffer.Dispose();
             }
         }
     }

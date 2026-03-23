@@ -2,11 +2,12 @@ using Shared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Frozen;
+using Shared.Interfaces;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class ObjectTypeManager : EngineService, IObjectTypeManager
+    public class ObjectTypeManager : EngineService, IObjectTypeManager, IFreezable
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
         private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();

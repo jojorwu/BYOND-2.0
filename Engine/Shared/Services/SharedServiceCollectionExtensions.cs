@@ -29,6 +29,10 @@ public static class SharedServiceCollectionExtensions
         {
             services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
         }
+        if (typeof(IFreezable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IFreezable>(sp => (IFreezable)sp.GetRequiredService<TImplementation>());
+        }
         foreach (var type in interfaceTypes)
         {
             services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
@@ -56,6 +60,10 @@ public static class SharedServiceCollectionExtensions
         {
             services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
         }
+        if (typeof(IFreezable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IFreezable>(sp => (IFreezable)sp.GetRequiredService<TImplementation>());
+        }
         foreach (var type in interfaceTypes)
         {
             services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
@@ -75,6 +83,7 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
+        services.AddEngineService<ComponentRegistryService>();
         services.AddEngineService<EngineManager>(typeof(IEngineManager));
         services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
         services.AddEngineService<FastEventBus>(typeof(IEventBus));
@@ -170,6 +179,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IEngineModule>(module);
         if (module is IShrinkable shrinkable) services.AddSingleton<IShrinkable>(shrinkable);
         if (module is ITickable tickable) services.AddSingleton<ITickable>(tickable);
+        if (module is IFreezable freezable) services.AddSingleton<IFreezable>(freezable);
         module.RegisterServices(services);
         return services;
     }
@@ -187,6 +197,7 @@ public static class SharedServiceCollectionExtensions
                 services.AddSingleton(typeof(IEngineModule), module);
                 if (module is IShrinkable shrinkable) services.AddSingleton<IShrinkable>(shrinkable);
                 if (module is ITickable tickable) services.AddSingleton<ITickable>(tickable);
+                if (module is IFreezable freezable) services.AddSingleton<IFreezable>(freezable);
                 module.RegisterServices(services);
             }
         }

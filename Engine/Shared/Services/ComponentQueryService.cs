@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -9,7 +10,7 @@ using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentQueryService : EngineService, IComponentQueryService, IDisposable
+    public class ComponentQueryService : EngineService, IComponentQueryService, IFreezable, IDisposable
     {
         private class QueryResult : IEntityQuery
         {
@@ -134,6 +135,8 @@ namespace Shared.Services;
         private readonly ConcurrentDictionary<Type, (Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)[]> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
         private readonly ConcurrentDictionary<int, QueryList> _queriesByComponent = new();
+        private volatile FrozenDictionary<ComponentSignature, QueryResult> _frozenQueryCache = FrozenDictionary<ComponentSignature, QueryResult>.Empty;
+        private volatile FrozenDictionary<int, QueryList> _frozenQueriesByComponent = FrozenDictionary<int, QueryList>.Empty;
 
         private class QueryList
         {
@@ -148,6 +151,12 @@ namespace Shared.Services;
             _gameState = gameState;
 
             _archetypeManager.ArchetypeCreated += OnArchetypeCreated;
+        }
+
+        public void Freeze()
+        {
+            _frozenQueryCache = _queryCache.ToFrozenDictionary();
+            _frozenQueriesByComponent = _queriesByComponent.ToFrozenDictionary();
         }
 
         public override Task StopAsync(CancellationToken cancellationToken)
@@ -181,7 +190,11 @@ namespace Shared.Services;
                 return new QueryResult(_gameState, default);
 
             var key = new ComponentSignature(componentTypes);
-            if (_queryCache.TryGetValue(key, out var cached))
+            if (_frozenQueryCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+            if (_queryCache.TryGetValue(key, out cached))
             {
                 return cached;
             }
@@ -222,7 +235,13 @@ namespace Shared.Services;
             while (bits.MoveNext())
             {
                 int id = bits.Current;
-                if (_queriesByComponent.TryGetValue(id, out var queryList))
+
+                if (!_frozenQueriesByComponent.TryGetValue(id, out var queryList))
+                {
+                    _queriesByComponent.TryGetValue(id, out queryList);
+                }
+
+                if (queryList != null)
                 {
                     using (queryList.Lock.EnterScope())
                     {

@@ -91,9 +91,9 @@ namespace Shared;
             }
         }
 
-        public void UpdateGameObject(GameObject gameObject, long oldX, long oldY)
+        public void UpdateGameObject(GameObject gameObject, long oldX, long oldY, long oldZ)
         {
-            SpatialGrid.Update(gameObject, oldX, oldY);
+            SpatialGrid.Update(gameObject, oldX, oldY, oldZ);
         }
 
         public IEnumerable<IGameObject> GetDirtyObjects() => new DirtyObjectEnumerator(_dirtyObjects);

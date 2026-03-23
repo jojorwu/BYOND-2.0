@@ -105,7 +105,9 @@ void main() {
             _instancedRenderer.Begin();
             _renderObjectBuffer.Clear();
 
-            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
+            // Client currently only renders Z=0 or needs to know active Z.
+            // For now, we query Z=0 or assume the view is 2D at Z=0.
+            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), 0, obj => _renderObjectBuffer.Add(obj));
 
             // Sort by layer for correct transparency
             _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
@@ -193,7 +195,7 @@ void main() {
             long endX = startX + RenderChunk.ChunkSize;
             long endY = startY + RenderChunk.ChunkSize;
 
-            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
+            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), 0, obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {

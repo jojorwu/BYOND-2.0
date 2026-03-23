@@ -13,8 +13,9 @@ namespace Shared.Interfaces;
         /// <param name="peer">The network peer (player).</param>
         /// <param name="x">The player's X coordinate.</param>
         /// <param name="y">The player's Y coordinate.</param>
+        /// <param name="z">The player's Z coordinate.</param>
         /// <param name="range">The visibility range (radius).</param>
-        void UpdatePlayerInterest(INetworkPeer peer, long x, long y, int range);
+        void UpdatePlayerInterest(INetworkPeer peer, long x, long y, long z, int range);
 
         /// <summary>
         /// Gets the set of game objects currently interesting to the player.

@@ -72,7 +72,7 @@ namespace Shared;
         /// <summary>
         /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
         /// </summary>
-        (long X, long Y)? CurrentGridCellKey { get; set; }
+        (long X, long Y, long Z)? CurrentGridCellKey { get; set; }
 
         /// <summary>
         /// Committed coordinates for thread-safe reading.

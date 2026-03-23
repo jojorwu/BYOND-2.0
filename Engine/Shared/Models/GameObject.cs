@@ -73,7 +73,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set => Interlocked.Exchange(ref _spatialGridIndex, value);
     }
 
-    public (long X, long Y)? CurrentGridCellKey { get; set; }
+    public (long X, long Y, long Z)? CurrentGridCellKey { get; set; }
     public IStateMachine? StateMachine { get; set; }
 
     private long _x;

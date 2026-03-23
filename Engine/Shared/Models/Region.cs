@@ -44,7 +44,7 @@ namespace Shared;
             var box = new Box2l(startX, startY, endX, endY);
 
             // Fast non-allocating query path
-            gameState.SpatialGrid.QueryBoxZ(box, Z, results);
+            gameState.SpatialGrid.GetObjectsInBox(box, Z, results);
         }
 
         public IEnumerable<IGameObject> GetGameObjects(IGameState gameState, int regionSizeInChunks = 8)

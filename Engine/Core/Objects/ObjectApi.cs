@@ -69,6 +69,7 @@ namespace Core.Api
                 {
                     var oldX = gameObject.X;
                     var oldY = gameObject.Y;
+                    var oldZ = gameObject.Z;
 
                     _gameState.Map?.RemoveObjectFromTurf(gameObject);
 
@@ -76,7 +77,7 @@ namespace Core.Api
                     gameObject.Y = y;
                     gameObject.Z = z;
 
-                    _gameState.UpdateGameObject(gameObject, oldX, oldY);
+                    _gameState.UpdateGameObject(gameObject, oldX, oldY, oldZ);
                     _gameState.Map?.AddObjectToTurf(gameObject);
                 }
             }

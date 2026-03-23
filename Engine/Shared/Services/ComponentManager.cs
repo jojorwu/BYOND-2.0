@@ -97,6 +97,8 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
 
         public void AddComponent(IGameObject owner, IComponent component)
         {
+            component.Owner = owner;
+            component.Initialize();
             _archetypeManager.AddComponent(owner, component);
             ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, component.GetType()));
         }

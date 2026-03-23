@@ -3,7 +3,7 @@ namespace Shared.Interfaces;
 /// <summary>
 /// Defines a service that can be "frozen" into a high-performance, immutable state.
 /// This is typically used for registries and managers after initial population to
-/// leverage .NET 10 FrozenDictionary and FrozenSet for optimized lookups.
+/// leverage .NET 8+ FrozenDictionary and FrozenSet for optimized lookups.
 /// </summary>
 public interface IFreezable
 {

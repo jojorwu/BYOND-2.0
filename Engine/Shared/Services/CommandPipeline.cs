@@ -9,14 +9,20 @@ namespace Shared.Services;
 /// <summary>
 /// Orchestrates command execution through a pipeline of middleware.
 /// </summary>
-public class CommandPipeline
+public class CommandPipeline : IFreezable
 {
-    private readonly ICommandMiddleware[] _middlewares;
+    private ICommandMiddleware[] _middlewares;
     private readonly SharedPool<MiddlewareRunner> _runnerPool = new(() => new MiddlewareRunner());
 
     public CommandPipeline(IEnumerable<ICommandMiddleware> middlewares)
     {
         _middlewares = middlewares.ToArray();
+    }
+
+    public void Freeze()
+    {
+        // Re-ordering or further optimization of the middleware chain could happen here
+        _middlewares = _middlewares.ToArray();
     }
 
     public async Task ExecuteAsync(CommandContext context, Func<Task> finalAction)

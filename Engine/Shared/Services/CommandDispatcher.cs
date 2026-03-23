@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
 
-public class CommandDispatcher : EngineService, ICommandDispatcher, IDisposable
+public class CommandDispatcher : EngineService, ICommandDispatcher, IFreezable, IDisposable
 {
     private readonly Channel<ICommand> _commandChannel;
     private readonly ILogger<CommandDispatcher> _logger;
@@ -30,6 +30,11 @@ public class CommandDispatcher : EngineService, ICommandDispatcher, IDisposable
         });
 
         _processorTask = Task.Run(ProcessCommandsAsync);
+    }
+
+    public void Freeze()
+    {
+        _pipeline.Freeze();
     }
 
     public async ValueTask DispatchAsync(ICommand command)

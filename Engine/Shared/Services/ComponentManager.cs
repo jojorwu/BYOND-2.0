@@ -1,15 +1,17 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Shared.Interfaces;
 
 namespace Shared.Services;
-public class ComponentManager : EngineService, IComponentManager, IEngineLifecycle
+public class ComponentManager : EngineService, IComponentManager, IEngineLifecycle, IFreezable
     {
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
+        private volatile FrozenDictionary<string, Type> _frozenComponentTypesByName = FrozenDictionary<string, Type>.Empty;
 
         public IArchetypeManager ArchetypeManager => _archetypeManager;
 
@@ -51,9 +53,18 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             return name.AsSpan().ContainsAny(_assemblyKeywords);
         }
 
+        public void Freeze()
+        {
+            _frozenComponentTypesByName = _componentTypesByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        }
+
         public IComponent? CreateComponent(string componentName)
         {
-            if (_componentTypesByName.TryGetValue(componentName, out var type))
+            if (_frozenComponentTypesByName.TryGetValue(componentName, out var type))
+            {
+                return (IComponent?)Activator.CreateInstance(type);
+            }
+            if (_componentTypesByName.TryGetValue(componentName, out type))
             {
                 return (IComponent?)Activator.CreateInstance(type);
             }

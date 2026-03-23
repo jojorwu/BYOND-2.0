@@ -1,6 +1,7 @@
 using Shared.Enums;
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Core.VM.Procs;
 using Shared;
 
@@ -99,7 +100,7 @@ public unsafe partial class BytecodeInterpreter
 
                             RecordInstruction();
 
-                            var opcode = (Opcode)state.BytecodePtr[state.PC++];
+                            var opcode = (Opcode)Unsafe.Add(ref *state.BytecodePtr, state.PC++);
 
                             // Fast-path switch for hot opcodes to enable better JIT branch prediction
                             switch (opcode)
@@ -129,17 +130,20 @@ public unsafe partial class BytecodeInterpreter
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
                                         if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
+
+                                        var val = Unsafe.Add(ref MemoryMarshal.GetReference(state.Locals), idx);
+
                                         // Manual inlining of Push for high-frequency PushLocal
-                                        if (state.StackPtr >= state.Stack.Length)
+                                        if ((uint)state.StackPtr >= (uint)state.Stack.Length)
                                         {
                                             state.Thread._stackPtr = state.StackPtr;
-                                            state.Thread.Push(state.Locals[idx]);
+                                            state.Thread.Push(val);
                                             state.RefreshSpans();
                                             state.StackPtr = state.Thread._stackPtr;
                                         }
                                         else
                                         {
-                                            state.Stack[state.StackPtr++] = state.Locals[idx];
+                                            Unsafe.Add(ref MemoryMarshal.GetReference(state.Stack), state.StackPtr++) = val;
                                         }
                                     }
                                     break;
@@ -148,7 +152,7 @@ public unsafe partial class BytecodeInterpreter
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
                                         if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
-                                        state.Locals[idx] = state.Stack[state.StackPtr - 1];
+                                        Unsafe.Add(ref MemoryMarshal.GetReference(state.Locals), idx) = Unsafe.Add(ref MemoryMarshal.GetReference(state.Stack), state.StackPtr - 1);
                                     }
                                     break;
                                 case Opcode.BooleanAnd:

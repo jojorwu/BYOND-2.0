@@ -104,10 +104,8 @@ namespace Shared.Services;
             _frozenTypes = _objectTypes.ToFrozenDictionary();
             _frozenTypesById = _objectTypesById.ToFrozenDictionary();
 
-            foreach (var type in _objectTypes.Values)
-            {
-                type.Freeze();
-            }
+            // Parallelize definition freezing to reduce startup time
+            Parallel.ForEach(_objectTypes.Values, type => type.Freeze());
         }
 
         public void Clear()

@@ -1042,7 +1042,11 @@ public unsafe partial class BytecodeInterpreter
                 }
                 break;
             case DMReference.Type.Src:
+            case DMReference.Type.Self:
                 state.Push(state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null);
+                break;
+            case DMReference.Type.Usr:
+                state.Push(state.Thread.Usr != null ? new DreamValue(state.Thread.Usr) : DreamValue.Null);
                 break;
             case DMReference.Type.World:
                 state.Push(state.Thread.Context.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
@@ -1081,7 +1085,7 @@ public unsafe partial class BytecodeInterpreter
                     state.PC--;
                     var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
-                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    var val = ReferenceResolver.GetValue(reference, state.Thread, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                     state.Push(val);
@@ -1123,7 +1127,7 @@ public unsafe partial class BytecodeInterpreter
                     var reference = state.ReadReference();
                     var val = state.Pop();
                     state.Thread._stackPtr = state.StackPtr;
-                    state.Thread.SetReferenceValue(reference, ref state.Frame, val, 0);
+                    ReferenceResolver.SetValue(reference, state.Thread, ref state.Frame, val, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                     state.Push(val);

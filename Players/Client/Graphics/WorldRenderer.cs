@@ -68,7 +68,7 @@ void main() {
             _iconCache = iconCache;
         }
 
-        public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
+        public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection, long targetZ = 0)
         {
             ProcessPendingUploads();
             UpdateVisibleChunks(cullRect);
@@ -90,24 +90,22 @@ void main() {
                     _rebuildingChunks.Add(coords);
                     // Offload to background task
                     var stateClone = currentState;
-                    Task.Run(() => RebuildChunkTask(chunk, stateClone));
+                    Task.Run(() => RebuildChunkTask(chunk, stateClone, targetZ));
                 }
 
                 chunk.Draw();
             }
 
             // Render non-turf objects using instancing
-            RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection);
+            RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection, targetZ);
         }
 
-        private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
+        private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection, long targetZ)
         {
             _instancedRenderer.Begin();
             _renderObjectBuffer.Clear();
 
-            // Client currently only renders Z=0 or needs to know active Z.
-            // For now, we query Z=0 or assume the view is 2D at Z=0.
-            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), 0, obj => _renderObjectBuffer.Add(obj));
+            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), targetZ, obj => _renderObjectBuffer.Add(obj));
 
             // Sort by layer for correct transparency
             _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
@@ -185,7 +183,7 @@ void main() {
             }
         }
 
-        private void RebuildChunkTask(RenderChunk chunk, GameState state)
+        private void RebuildChunkTask(RenderChunk chunk, GameState state, long targetZ)
         {
             var vertices = new List<Vertex>();
             var objects = new List<IGameObject>();
@@ -195,7 +193,7 @@ void main() {
             long endX = startX + RenderChunk.ChunkSize;
             long endY = startY + RenderChunk.ChunkSize;
 
-            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), 0, obj => objects.Add(obj));
+            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), targetZ, obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {

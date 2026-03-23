@@ -11,6 +11,26 @@ using Shared.Serialization;
 
 namespace Shared;
 
+public struct TransformState
+{
+    public long X;
+    public long Y;
+    public long Z;
+    public int Dir;
+}
+
+public struct VisualState
+{
+    public string Icon;
+    public string IconState;
+    public string Color;
+    public double Alpha;
+    public double Layer;
+    public double PixelX;
+    public double PixelY;
+    public double Opacity;
+}
+
 /// <summary>
 /// Represents an object in the game world.
 /// </summary>
@@ -18,6 +38,9 @@ namespace Shared;
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
     private static long nextId = 1;
+
+    public TransformState Transform;
+    public VisualState Visuals;
 
     public static void EnsureNextId(long id)
     {
@@ -140,63 +163,63 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public string Icon
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return string.Empty; var idx = type.IconIndex; return idx != -1 ? GetVariableInternal(idx).StringValue : string.Empty; }
+        get => Visuals.Icon;
         set { var type = ObjectType; if (type != null) { var idx = type.IconIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public string IconState
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return string.Empty; var idx = type.IconStateIndex; return idx != -1 ? GetVariableInternal(idx).StringValue : string.Empty; }
+        get => Visuals.IconState;
         set { var type = ObjectType; if (type != null) { var idx = type.IconStateIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public int Dir
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return 2; var idx = type.DirIndex; return idx != -1 ? (int)GetVariableInternal(idx).GetValueAsDouble() : 2; }
+        get => Transform.Dir;
         set { var type = ObjectType; if (type != null) { var idx = type.DirIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value)); } }
     }
 
     public double Alpha
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return 255.0; var idx = type.AlphaIndex; return idx != -1 ? GetVariableInternal(idx).GetValueAsDouble() : 255.0; }
+        get => Visuals.Alpha;
         set { var type = ObjectType; if (type != null) { var idx = type.AlphaIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public string Color
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return "#ffffff"; var idx = type.ColorIndex; return idx != -1 ? GetVariableInternal(idx).StringValue : "#ffffff"; }
+        get => Visuals.Color;
         set { var type = ObjectType; if (type != null) { var idx = type.ColorIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public double Layer
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return 2.0; var idx = type.LayerIndex; return idx != -1 ? GetVariableInternal(idx).GetValueAsDouble() : 2.0; }
+        get => Visuals.Layer;
         set { var type = ObjectType; if (type != null) { var idx = type.LayerIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public double PixelX
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return 0.0; var idx = type.PixelXIndex; return idx != -1 ? GetVariableInternal(idx).GetValueAsDouble() : 0.0; }
+        get => Visuals.PixelX;
         set { var type = ObjectType; if (type != null) { var idx = type.PixelXIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public double PixelY
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return 0.0; var idx = type.PixelYIndex; return idx != -1 ? GetVariableInternal(idx).GetValueAsDouble() : 0.0; }
+        get => Visuals.PixelY;
         set { var type = ObjectType; if (type != null) { var idx = type.PixelYIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
     public double Opacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get { var type = ObjectType; if (type == null) return 0.0; var idx = type.OpacityIndex; return idx != -1 ? GetVariableInternal(idx).GetValueAsDouble() : 0.0; }
+        get => Visuals.Opacity;
         set { var type = ObjectType; if (type != null) { var idx = type.OpacityIndex; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); } }
     }
 
@@ -492,6 +515,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     if (!posChanged) { oldX = _x; oldY = _y; oldZ = _z; }
                     Interlocked.Exchange(ref _x, vx);
+                    Transform.X = vx;
                     posChanged = true;
                 }
                 break;
@@ -501,6 +525,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     if (!posChanged) { oldX = _x; oldY = _y; oldZ = _z; }
                     Interlocked.Exchange(ref _y, vy);
+                    Transform.Y = vy;
                     posChanged = true;
                 }
                 break;
@@ -510,9 +535,19 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 {
                     if (!posChanged) { oldX = _x; oldY = _y; oldZ = _z; }
                     Interlocked.Exchange(ref _z, vz);
+                    Transform.Z = vz;
                     posChanged = true;
                 }
                 break;
+            case BuiltinVar.Dir: Transform.Dir = (int)value.GetValueAsDouble(); break;
+            case BuiltinVar.Icon: Visuals.Icon = value.StringValue; break;
+            case BuiltinVar.IconState: Visuals.IconState = value.StringValue; break;
+            case BuiltinVar.Color: Visuals.Color = value.StringValue; break;
+            case BuiltinVar.Alpha: Visuals.Alpha = value.GetValueAsDouble(); break;
+            case BuiltinVar.Layer: Visuals.Layer = value.GetValueAsDouble(); break;
+            case BuiltinVar.PixelX: Visuals.PixelX = value.GetValueAsDouble(); break;
+            case BuiltinVar.PixelY: Visuals.PixelY = value.GetValueAsDouble(); break;
+            case BuiltinVar.Opacity: Visuals.Opacity = value.GetValueAsDouble(); break;
             case BuiltinVar.Loc:
                 if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc)
                     SetLocInternal(loc, false);
@@ -666,6 +701,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             if (_x == x && _y == y && _z == z) return;
 
+            oldX = _x; oldY = _y; oldZ = _z;
+
             var type = ObjectType;
             if (type != null)
             {
@@ -674,9 +711,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 if (type.ZIndex != -1) { _variableStore.Set(type.ZIndex, new DreamValue(z)); _changeMask.Set(type.ZIndex); }
             }
 
-            OnVariableChanged(BuiltinVar.X, new DreamValue(x), ref oldX, ref oldY, ref oldZ, ref posChanged);
-            OnVariableChanged(BuiltinVar.Y, new DreamValue(y), ref oldX, ref oldY, ref oldZ, ref posChanged);
-            OnVariableChanged(BuiltinVar.Z, new DreamValue(z), ref oldX, ref oldY, ref oldZ, ref posChanged);
+            _x = x; _y = y; _z = z;
+            Transform.X = x; Transform.Y = y; Transform.Z = z;
+            posChanged = true;
 
             IncrementVersion();
         }

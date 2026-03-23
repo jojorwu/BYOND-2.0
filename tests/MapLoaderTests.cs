@@ -25,7 +25,7 @@ namespace tests
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var componentManager = new ComponentManager(archetypeManager);
             var entityRegistry = new EntityRegistry(pool, componentManager);
-            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
+            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry, _objectTypeManager);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
         }
 

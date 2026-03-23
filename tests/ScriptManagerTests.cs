@@ -49,9 +49,9 @@ namespace Core.Tests
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
             var componentManager = new ComponentManager(archetypeManager);
             var entityRegistry = new EntityRegistry(pool, componentManager);
-            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
-            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance), objectFactory);
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            var objectFactory = new Shared.Services.ObjectFactory(entityRegistry, _objectTypeManager);
+            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance), objectFactory);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] {

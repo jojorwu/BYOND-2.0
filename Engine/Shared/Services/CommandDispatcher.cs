@@ -81,39 +81,6 @@ public class CommandDispatcher : EngineService, ICommandDispatcher, IFreezable, 
         public void Reset() => _inner = null;
     }
 
-    private class MiddlewareRunner
-    {
-        private ICommandMiddleware[] _middlewares = null!;
-        private CommandContext _context = null!;
-        private Func<Task> _finalAction = null!;
-        private int _index;
-        private readonly Func<Task> _nextDelegate;
-
-        public MiddlewareRunner()
-        {
-            _nextDelegate = InvokeNextAsync;
-        }
-
-        public Task ExecuteAsync(ICommandMiddleware[] middlewares, CommandContext context, Func<Task> finalAction)
-        {
-            _middlewares = middlewares;
-            _context = context;
-            _finalAction = finalAction;
-            _index = 0;
-            return InvokeNextAsync();
-        }
-
-        private Task InvokeNextAsync()
-        {
-            if (_index < _middlewares.Length)
-            {
-                var middleware = _middlewares[_index++];
-                return middleware.ProcessAsync(_context, _nextDelegate);
-            }
-
-            return _finalAction();
-        }
-    }
 
     private async Task ProcessCommandsAsync()
     {

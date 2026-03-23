@@ -256,7 +256,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
 
-    public override Task StopAsync(CancellationToken cancellationToken)
+    protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
         Clear();
         return base.StopAsync(cancellationToken);

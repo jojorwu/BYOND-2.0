@@ -236,4 +236,30 @@ public unsafe partial class BytecodeInterpreter
         int address = state.ReadInt32();
         if (!op(state.GetLocal(idx1), state.GetLocal(idx2))) state.PC = address;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalJumpIfFieldFalse(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
+    {
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForError, state.Thread);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalJumpIfFieldTrue(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
+    {
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (!val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForError, state.Thread);
+    }
 }

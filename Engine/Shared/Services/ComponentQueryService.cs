@@ -159,7 +159,7 @@ namespace Shared.Services;
             _frozenQueriesByComponent = _queriesByComponent.ToFrozenDictionary();
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
             Dispose();
             return base.StopAsync(cancellationToken);

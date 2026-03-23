@@ -8,104 +8,103 @@ using System.Threading.Tasks;
 using System.Linq;
 using Shared.Services;
 
-namespace Server
+namespace Server;
+
+public class ScriptHost : EngineService, IHostedService, IDisposable, IScriptHost
 {
-    public class ScriptHost : EngineService, IHostedService, IDisposable, IScriptHost
+    public override int Priority => 50;
+
+    private readonly IScriptEnvironmentManager _envManager;
+    private readonly IScriptScheduler _scheduler;
+    private readonly IScriptCommandProcessor _commandProcessor;
+    private readonly ILogger<ScriptHost> _logger;
+    private readonly IGameState _gameState;
+    private readonly HashSet<long> _activeObjectIds = new();
+
+    public ScriptHost(
+        IScriptEnvironmentManager envManager,
+        IScriptScheduler scheduler,
+        IScriptCommandProcessor commandProcessor,
+        ILogger<ScriptHost> logger,
+        IGameState gameState)
     {
-        public override int Priority => 50;
+        _envManager = envManager;
+        _scheduler = scheduler;
+        _commandProcessor = commandProcessor;
+        _logger = logger;
+        _gameState = gameState;
+    }
 
-        private readonly IScriptEnvironmentManager _envManager;
-        private readonly IScriptScheduler _scheduler;
-        private readonly IScriptCommandProcessor _commandProcessor;
-        private readonly ILogger<ScriptHost> _logger;
-        private readonly IGameState _gameState;
-        private readonly HashSet<long> _activeObjectIds = new();
+    protected override async Task OnStartAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Starting script host coordinator...");
+        await _envManager.StartAsync(cancellationToken);
+    }
 
-        public ScriptHost(
-            IScriptEnvironmentManager envManager,
-            IScriptScheduler scheduler,
-            IScriptCommandProcessor commandProcessor,
-            ILogger<ScriptHost> logger,
-            IGameState gameState)
-        {
-            _envManager = envManager;
-            _scheduler = scheduler;
-            _commandProcessor = commandProcessor;
-            _logger = logger;
-            _gameState = gameState;
-        }
+    protected override Task OnStopAsync(CancellationToken cancellationToken)
+    {
+        _envManager.Stop();
+        return Task.CompletedTask;
+    }
 
-        public override async Task StartAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogInformation("Starting script host coordinator...");
-            await _envManager.StartAsync(cancellationToken);
-        }
+    public async Task TickAsync()
+    {
+        ProcessCommandQueue();
 
-        public override Task StopAsync(CancellationToken cancellationToken)
-        {
-            _envManager.Stop();
-            return Task.CompletedTask;
-        }
+        _activeObjectIds.Clear();
+        _gameState.ForEachGameObject(o => _activeObjectIds.Add(o.Id));
 
-        public async Task TickAsync()
-        {
+        var threads = _envManager.GetActiveThreads();
+        var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, Array.Empty<IGameObject>(), true, _activeObjectIds);
+        _envManager.UpdateActiveThreads(remainingThreads);
+    }
+
+    public async Task TickAsync(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+    {
+        if (processGlobals)
             ProcessCommandQueue();
 
-            _activeObjectIds.Clear();
-            _gameState.ForEachGameObject(o => _activeObjectIds.Add(o.Id));
+        var threads = _envManager.GetActiveThreads();
+        var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals);
+        _envManager.UpdateActiveThreads(remainingThreads);
+    }
 
-            var threads = _envManager.GetActiveThreads();
-            var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, Array.Empty<IGameObject>(), true, _activeObjectIds);
-            _envManager.UpdateActiveThreads(remainingThreads);
-        }
+    public List<IScriptThread> GetThreads()
+    {
+        return _envManager.GetActiveThreads().ToList();
+    }
 
-        public async Task TickAsync(IEnumerable<IGameObject> objectsToTick, bool processGlobals = false)
+    public void UpdateThreads(IEnumerable<IScriptThread> threads)
+    {
+        _envManager.UpdateActiveThreads(threads);
+    }
+
+    public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null, bool forceSequential = false)
+    {
+        return _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals, objectIds, forceSequential);
+    }
+
+    public void EnqueueCommand(string command, Action<string> onResult)
+    {
+        _commandProcessor.EnqueueCommand(command, onResult);
+    }
+
+    public void AddThread(IScriptThread thread)
+    {
+        _envManager.AddThread(thread);
+    }
+
+    private void ProcessCommandQueue()
+    {
+        var scriptManager = _envManager.GetCurrentScriptManager();
+        if (scriptManager != null)
         {
-            if (processGlobals)
-                ProcessCommandQueue();
-
-            var threads = _envManager.GetActiveThreads();
-            var remainingThreads = await _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals);
-            _envManager.UpdateActiveThreads(remainingThreads);
+            _commandProcessor.ProcessCommands(scriptManager);
         }
+    }
 
-        public List<IScriptThread> GetThreads()
-        {
-            return _envManager.GetActiveThreads().ToList();
-        }
-
-        public void UpdateThreads(IEnumerable<IScriptThread> threads)
-        {
-            _envManager.UpdateActiveThreads(threads);
-        }
-
-        public Task<IEnumerable<IScriptThread>> ExecuteThreadsAsync(IEnumerable<IScriptThread> threads, IEnumerable<IGameObject> objectsToTick, bool processGlobals = false, HashSet<long>? objectIds = null, bool forceSequential = false)
-        {
-            return _scheduler.ExecuteThreadsAsync(threads, objectsToTick, processGlobals, objectIds, forceSequential);
-        }
-
-        public void EnqueueCommand(string command, Action<string> onResult)
-        {
-            _commandProcessor.EnqueueCommand(command, onResult);
-        }
-
-        public void AddThread(IScriptThread thread)
-        {
-            _envManager.AddThread(thread);
-        }
-
-        private void ProcessCommandQueue()
-        {
-            var scriptManager = _envManager.GetCurrentScriptManager();
-            if (scriptManager != null)
-            {
-                _commandProcessor.ProcessCommands(scriptManager);
-            }
-        }
-
-        public void Dispose()
-        {
-            GC.SuppressFinalize(this);
-        }
+    public void Dispose()
+    {
+        GC.SuppressFinalize(this);
     }
 }

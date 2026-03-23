@@ -31,10 +31,10 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         });
     }
 
-    public override Task StartAsync(CancellationToken cancellationToken)
+    protected override Task OnStartAsync(CancellationToken cancellationToken)
     {
         _backgroundWorker = Task.Run(() => ProcessEventsAsync(_cts.Token), cancellationToken);
-        return base.StartAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null)
@@ -138,7 +138,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         }
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
+    protected override async Task OnStopAsync(CancellationToken cancellationToken)
     {
         _cts.Cancel();
         _eventChannel.Writer.Complete();
@@ -154,7 +154,6 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         }
         _pool.Clear();
         _poolCount = 0;
-        await base.StopAsync(cancellationToken);
     }
 
     public IDisposable Subscribe(Action<DiagnosticEvent> callback)

@@ -8,99 +8,98 @@ using Shared;
 using Shared.Interfaces;
 using Shared.Services;
 
-namespace Server
+namespace Server;
+
+public class GameLoop : EngineService, IHostedService, IDisposable
 {
-    public class GameLoop : EngineService, IHostedService, IDisposable
+    public override int Priority => -100; // Low priority, start last
+    private readonly IGameLoopStrategy _strategy;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ITimerService _timerService;
+    private readonly IServerContext _context;
+    private readonly ILogger<GameLoop> _logger;
+    private Task? _gameLoopTask;
+    private CancellationTokenSource? _cancellationTokenSource;
+
+    public GameLoop(IGameLoopStrategy strategy, IServiceProvider serviceProvider, ITimerService timerService, IServerContext context, ILogger<GameLoop> logger)
     {
-        public override int Priority => -100; // Low priority, start last
-        private readonly IGameLoopStrategy _strategy;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly ITimerService _timerService;
-        private readonly IServerContext _context;
-        private readonly ILogger<GameLoop> _logger;
-        private Task? _gameLoopTask;
-        private CancellationTokenSource? _cancellationTokenSource;
+        _strategy = strategy;
+        _serviceProvider = serviceProvider;
+        _timerService = timerService;
+        _context = context;
+        _logger = logger;
+    }
 
-        public GameLoop(IGameLoopStrategy strategy, IServiceProvider serviceProvider, ITimerService timerService, IServerContext context, ILogger<GameLoop> logger)
+    protected override Task OnStartAsync(CancellationToken cancellationToken)
+    {
+        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _gameLoopTask = Task.Run(() => Loop(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task Loop(CancellationToken token)
+    {
+        _logger.LogInformation("Game loop started.");
+        _context.RegionManager.Initialize();
+
+        var tickRate = _context.Settings.Performance.TickRate;
+        var targetFrameTime = TimeSpan.FromSeconds(1.0 / tickRate);
+        var stopwatch = Stopwatch.StartNew();
+        var accumulator = TimeSpan.Zero;
+
+        // Resolve IEngine lazily to break circular dependency with ServerApplication
+        var engine = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IEngine>(_serviceProvider);
+
+        while (!token.IsCancellationRequested)
         {
-            _strategy = strategy;
-            _serviceProvider = serviceProvider;
-            _timerService = timerService;
-            _context = context;
-            _logger = logger;
-        }
+            var elapsed = stopwatch.Elapsed;
+            stopwatch.Restart();
+            accumulator += elapsed;
 
-        public override Task StartAsync(CancellationToken cancellationToken)
-        {
-            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _gameLoopTask = Task.Run(() => Loop(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
-            return Task.CompletedTask;
-        }
-
-        private async Task Loop(CancellationToken token)
-        {
-            _logger.LogInformation("Game loop started.");
-            _context.RegionManager.Initialize();
-
-            var tickRate = _context.Settings.Performance.TickRate;
-            var targetFrameTime = TimeSpan.FromSeconds(1.0 / tickRate);
-            var stopwatch = Stopwatch.StartNew();
-            var accumulator = TimeSpan.Zero;
-
-            // Resolve IEngine lazily to break circular dependency with ServerApplication
-            var engine = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<IEngine>(_serviceProvider);
-
-            while (!token.IsCancellationRequested)
+            while (accumulator >= targetFrameTime)
             {
-                var elapsed = stopwatch.Elapsed;
-                stopwatch.Restart();
-                accumulator += elapsed;
+                _timerService.Tick();
+                await _strategy.TickAsync(token);
 
-                while (accumulator >= targetFrameTime)
-                {
-                    _timerService.Tick();
-                    await _strategy.TickAsync(token);
+                // Use the unified EngineApplication Tick logic which handles Systems and Maintenance
+                await engine.TickAsync();
 
-                    // Use the unified EngineApplication Tick logic which handles Systems and Maintenance
-                    await engine.TickAsync();
+                _context.PerformanceMonitor.RecordTick();
+                accumulator -= targetFrameTime;
+            }
 
-                    _context.PerformanceMonitor.RecordTick();
-                    accumulator -= targetFrameTime;
-                }
+            // If we are significantly behind, don't try to catch up too much to avoid "spiral of death"
+            if (accumulator > targetFrameTime * 5)
+            {
+                _logger.LogWarning("Server is falling behind! Skipping ticks.");
+                accumulator = TimeSpan.Zero;
+            }
 
-                // If we are significantly behind, don't try to catch up too much to avoid "spiral of death"
-                if (accumulator > targetFrameTime * 5)
-                {
-                    _logger.LogWarning("Server is falling behind! Skipping ticks.");
-                    accumulator = TimeSpan.Zero;
-                }
-
-                // Adaptive delay to avoid pegged CPU but maintain precision
-                var sleepTime = targetFrameTime - accumulator;
-                if (sleepTime.TotalMilliseconds > 1)
-                {
-                    await Task.Delay(1, token);
-                }
+            // Adaptive delay to avoid pegged CPU but maintain precision
+            var sleepTime = targetFrameTime - accumulator;
+            if (sleepTime.TotalMilliseconds > 1)
+            {
+                await Task.Delay(1, token);
             }
         }
+    }
 
-        public override async Task StopAsync(CancellationToken cancellationToken)
+    protected override async Task OnStopAsync(CancellationToken cancellationToken)
+    {
+        if (_gameLoopTask == null)
+            return;
+
+        _cancellationTokenSource?.Cancel();
+        try
         {
-            if (_gameLoopTask == null)
-                return;
-
-            _cancellationTokenSource?.Cancel();
-            try
-            {
-                await _gameLoopTask;
-            }
-            catch (TaskCanceledException) { }
-            _logger.LogInformation("Game loop stopped.");
+            await _gameLoopTask;
         }
+        catch (TaskCanceledException) { }
+        _logger.LogInformation("Game loop stopped.");
+    }
 
-        public void Dispose()
-        {
-            _cancellationTokenSource?.Dispose();
-        }
+    public void Dispose()
+    {
+        _cancellationTokenSource?.Dispose();
     }
 }

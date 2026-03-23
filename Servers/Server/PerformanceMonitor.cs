@@ -36,7 +36,7 @@ namespace Server
         public void RecordBytesReceived(long bytes) => Interlocked.Add(ref _bytesReceived, bytes);
         public void RecordError() => Interlocked.Increment(ref _errorCount);
 
-        public override Task StartAsync(CancellationToken cancellationToken)
+        protected override Task OnStartAsync(CancellationToken cancellationToken)
         {
             _stopwatch.Start();
             _timer = new Timer(LogStats, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
@@ -77,7 +77,7 @@ namespace Server
             }
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
             _timer?.Change(Timeout.Infinite, 0);
             _stopwatch.Stop();

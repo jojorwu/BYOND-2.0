@@ -223,32 +223,20 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleLocalJumpIfFieldFalse(ref InterpreterState state)
     {
+        int pcForError = state.PC - 1;
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int address = state.ReadInt32();
-        var objValue = state.Locals[idx];
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            var name = state.Strings[nameId];
-            var val = obj.GetVariable(name);
-            if (val.IsFalse()) state.PC = address;
-        }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+        PerformLocalJumpIfFieldFalse(ref state, idx, nameId, address, pcForError);
     }
 
     private static void HandleLocalJumpIfFieldTrue(ref InterpreterState state)
     {
+        int pcForError = state.PC - 1;
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int address = state.ReadInt32();
-        var objValue = state.Locals[idx];
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            var name = state.Strings[nameId];
-            var val = obj.GetVariable(name);
-            if (!val.IsFalse()) state.PC = address;
-        }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+        PerformLocalJumpIfFieldTrue(ref state, idx, nameId, address, pcForError);
     }
 
     private static void HandleUnknownOpcode(ref InterpreterState state)

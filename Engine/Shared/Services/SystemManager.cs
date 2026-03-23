@@ -59,7 +59,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         _registry.SystemsChanged += MarkDirty;
     }
 
-    public override Task InitializeAsync()
+    protected override Task OnInitializeAsync()
     {
         foreach (var system in _initialSystems)
         {

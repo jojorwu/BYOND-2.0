@@ -37,13 +37,13 @@ namespace Server
             _writerPool = writerPool;
         }
 
-        public override Task StartAsync(CancellationToken cancellationToken)
+        protected override Task OnStartAsync(CancellationToken cancellationToken)
         {
             _networkEventHandler.SubscribeToEvents();
             return Task.CompletedTask;
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
             _networkEventHandler.UnsubscribeFromEvents();
             return Task.CompletedTask;

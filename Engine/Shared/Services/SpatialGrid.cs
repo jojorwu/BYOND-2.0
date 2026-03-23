@@ -526,7 +526,7 @@ namespace Shared;
             }
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
             Dispose();
             return base.StopAsync(cancellationToken);

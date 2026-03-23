@@ -16,7 +16,7 @@ public class ComponentRegistryService : EngineService, IFreezable
     public override int Priority => 1000; // High priority, start early
     public override bool IsCritical => true;
 
-    public override Task InitializeAsync()
+    protected override Task OnInitializeAsync()
     {
         // Initial discovery could happen here, or be deferred to PostInitialize
         return base.InitializeAsync();

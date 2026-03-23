@@ -68,7 +68,7 @@ namespace Client.Assets
             }
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
             Dispose();
             return Task.CompletedTask;

@@ -14,35 +14,19 @@ using Shared.Services;
 namespace Shared;
     public class SpatialGrid : EngineService, IDisposable, IShrinkable
     {
-        private class Cell : IDisposable
+        private class Cell
         {
             public volatile IGameObject[] Objects = Array.Empty<IGameObject>();
             public int Count;
             public SpinLock Lock = new(false);
+            public long Version;
 
-            public void Clear()
+            public void Reset()
             {
-                var objs = Objects;
-                for (int i = 0; i < Count; i++)
-                {
-                    var obj = objs[i];
-                    if (obj != null)
-                    {
-                        obj.SpatialGridIndex = -1;
-                        obj.CurrentGridCellKey = null;
-                    }
-                }
-                if (objs.Length > 0)
-                {
-                    ArrayPool<IGameObject>.Shared.Return(objs, true);
-                    Objects = Array.Empty<IGameObject>();
-                }
+                // Note: We don't return to pool here anymore, parent grid handles it via _replacedArrays
+                Objects = Array.Empty<IGameObject>();
                 Count = 0;
-            }
-
-            public void Dispose()
-            {
-                Clear();
+                Version = 0;
             }
         }
 
@@ -63,6 +47,9 @@ namespace Shared;
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
+        private long _version;
+
+        public long Version => Volatile.Read(ref _version);
 
         public SpatialGrid(ILogger<SpatialGrid> logger, int cellSize = 32)
         {
@@ -215,14 +202,17 @@ namespace Shared;
         {
             // Copy-On-Write to ensure lock-free reads during iteration
             int newCount = cell.Count + 1;
-            int newSize = cell.Objects.Length;
-            if (newCount > newSize)
+            var oldArray = cell.Objects;
+
+            // If the current array has enough capacity, we can still COW by renting a new one of the SAME size
+            // This ensures active enumerators aren't affected while minimizing overhead if we're well within capacity
+            int targetSize = oldArray.Length;
+            if (newCount > targetSize)
             {
-                newSize = newSize == 0 ? 4 : newSize * 2;
+                targetSize = targetSize == 0 ? 4 : targetSize * 2;
             }
 
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(newSize);
-            var oldArray = cell.Objects;
+            var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
             if (cell.Count > 0)
             {
                 Array.Copy(oldArray, newArray, cell.Count);
@@ -238,6 +228,8 @@ namespace Shared;
             newArray[cell.Count] = obj;
             cell.Objects = newArray;
             cell.Count = newCount;
+            cell.Version++;
+            Interlocked.Increment(ref _version);
             obj.CurrentGridCellKey = key;
         }
 
@@ -267,6 +259,8 @@ namespace Shared;
 
             int lastIndex = cell.Count - 1;
             var oldArray = cell.Objects;
+
+            // We still COW even on remove to maintain thread-safety for enumerators
             var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
 
             if (lastIndex > 0)
@@ -288,6 +282,8 @@ namespace Shared;
 
             cell.Objects = newArray;
             cell.Count--;
+            cell.Version++;
+            Interlocked.Increment(ref _version);
             obj.SpatialGridIndex = -1;
             var oldKey = obj.CurrentGridCellKey;
             obj.CurrentGridCellKey = null;
@@ -322,7 +318,6 @@ namespace Shared;
             private long _currentGY;
             private int _currentIndexInCell;
             private Cell? _currentCell;
-            private bool _lockTaken;
             private IGameObject? _current;
 
             public BoxEnumerator(SpatialGrid grid, Box2l box)
@@ -335,7 +330,6 @@ namespace Shared;
                 _endGY = grid.GetGridCoord(box.Top);
                 _currentIndexInCell = -1;
                 _currentCell = null;
-                _lockTaken = false;
                 _current = null;
             }
 
@@ -348,9 +342,13 @@ namespace Shared;
                         _currentIndexInCell++;
                         // Lock-free read of COW array
                         var objs = _currentCell.Objects;
-                        if (_currentIndexInCell < _currentCell.Count && _currentIndexInCell < objs.Length)
+                        int count = _currentCell.Count;
+                        if (_currentIndexInCell < count && _currentIndexInCell < objs.Length)
                         {
                             _current = objs[_currentIndexInCell];
+                            // Re-verify bounds as object might have moved since it was added to this cell
+                            // but BEFORE COW update happens (though our COW is strict).
+                            // Actually, it's more to handle objects overlapping cell boundaries or being partially in box.
                             if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
                                 _current.Y >= _box.Bottom && _current.Y <= _box.Top)
                             {
@@ -390,14 +388,7 @@ namespace Shared;
 
             public void Reset() => throw new NotSupportedException();
 
-            public void Dispose()
-            {
-                if (_lockTaken && _currentCell != null)
-                {
-                    _currentCell.Lock.Exit(false);
-                    _lockTaken = false;
-                }
-            }
+            public void Dispose() { }
 
             public BoxEnumerator GetEnumerator() => this;
         }
@@ -452,7 +443,9 @@ namespace Shared;
                             {
                                 if (_grid.TryRemove(key, out var removed))
                                 {
-                                    removed.Clear();
+                                    var array = removed.Objects;
+                                    if (array.Length > 0) _replacedArrays.Enqueue(array);
+                                    removed.Reset();
                                     _cellPool.Push(removed);
                                 }
                             }
@@ -514,15 +507,30 @@ namespace Shared;
 
         protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
-            _grid.Clear();
-            _cellPool.Clear();
+            Dispose();
             return Task.CompletedTask;
         }
 
         public void Dispose()
         {
+            foreach (var cell in _grid.Values)
+            {
+                var array = cell.Objects;
+                if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
             _grid.Clear();
-            _cellPool.Clear();
+
+            while (_cellPool.TryPop(out var cell))
+            {
+                var array = cell.Objects;
+                if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
+
+            while (_replacedArrays.TryDequeue(out var array))
+            {
+                ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
+
             GC.SuppressFinalize(this);
         }
 

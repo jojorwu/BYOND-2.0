@@ -221,7 +221,7 @@ public unsafe partial class BytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         int address = state.ReadInt32();
-        if (!(state.Locals[idx] < val)) state.PC = address;
+        PerformLocalCompareLessThanFloatJumpIfFalse(ref state, idx, val, address);
     }
 
     private static void HandleLocalCompareGreaterThanFloatJumpIfFalse(ref InterpreterState state)
@@ -229,7 +229,7 @@ public unsafe partial class BytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         int address = state.ReadInt32();
-        if (!(state.Locals[idx] > val)) state.PC = address;
+        PerformLocalCompareGreaterThanFloatJumpIfFalse(ref state, idx, val, address);
     }
 
     private static void HandleLocalCompareLessThanOrEqualFloatJumpIfFalse(ref InterpreterState state)
@@ -237,7 +237,7 @@ public unsafe partial class BytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         int address = state.ReadInt32();
-        if (!(state.Locals[idx] <= val)) state.PC = address;
+        PerformLocalCompareLessThanOrEqualFloatJumpIfFalse(ref state, idx, val, address);
     }
 
     private static void HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref InterpreterState state)
@@ -245,37 +245,25 @@ public unsafe partial class BytecodeInterpreter
         int idx = state.ReadInt32();
         double val = state.ReadDouble();
         int address = state.ReadInt32();
-        if (!(state.Locals[idx] >= val)) state.PC = address;
+        PerformLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref state, idx, val, address);
     }
 
     private static void HandleLocalJumpIfFieldFalse(ref InterpreterState state)
     {
+        int pcForError = state.PC - 1;
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int address = state.ReadInt32();
-        var objValue = state.Locals[idx];
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            var name = state.Strings[nameId];
-            var val = obj.GetVariable(name);
-            if (val.IsFalse()) state.PC = address;
-        }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+        PerformLocalJumpIfFieldFalse(ref state, idx, nameId, address, pcForError);
     }
 
     private static void HandleLocalJumpIfFieldTrue(ref InterpreterState state)
     {
+        int pcForError = state.PC - 1;
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int address = state.ReadInt32();
-        var objValue = state.Locals[idx];
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            var name = state.Strings[nameId];
-            var val = obj.GetVariable(name);
-            if (!val.IsFalse()) state.PC = address;
-        }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
+        PerformLocalJumpIfFieldTrue(ref state, idx, nameId, address, pcForError);
     }
 
     private static void HandleUnknownOpcode(ref InterpreterState state)
@@ -592,112 +580,12 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleJumpIfTrueReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
-        switch (refType)
-        {
-            case DMReference.Type.Local:
-                {
-                    int idx = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    var val = state.Locals[idx];
-                    bool isFalse;
-                    var type = val.Type;
-                    if (type == DreamValueType.Null) isFalse = true;
-                    else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
-                    else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
-                    else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
-                    else isFalse = false;
-                    if (!isFalse) state.PC = address;
-                }
-                break;
-            case DMReference.Type.Argument:
-                {
-                    int idx = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    var val = state.Arguments[idx];
-                    bool isFalse;
-                    var type = val.Type;
-                    if (type == DreamValueType.Null) isFalse = true;
-                    else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
-                    else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
-                    else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
-                    else isFalse = false;
-                    if (!isFalse) state.PC = address;
-                }
-                break;
-            default:
-                {
-                    state.PC--;
-                    var reference = state.ReadReference();
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    state.Thread._stackPtr = state.StackPtr;
-                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-                    state.StackPtr = state.Thread._stackPtr;
-                    if (!val.IsFalse()) state.PC = address;
-                }
-                break;
-        }
+        PerformJumpIfTrueReference(ref state);
     }
 
     private static void HandleJumpIfFalseReference(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
-        switch (refType)
-        {
-            case DMReference.Type.Local:
-                {
-                    int idx = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    var val = state.Locals[idx];
-                    bool isFalse;
-                    var type = val.Type;
-                    if (type == DreamValueType.Null) isFalse = true;
-                    else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
-                    else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
-                    else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
-                    else isFalse = false;
-                    if (isFalse) state.PC = address;
-                }
-                break;
-            case DMReference.Type.Argument:
-                {
-                    int idx = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    var val = state.Arguments[idx];
-                    bool isFalse;
-                    var type = val.Type;
-                    if (type == DreamValueType.Null) isFalse = true;
-                    else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
-                    else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
-                    else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
-                    else isFalse = false;
-                    if (isFalse) state.PC = address;
-                }
-                break;
-            default:
-                {
-                    state.PC--;
-                    var reference = state.ReadReference();
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    state.Thread._stackPtr = state.StackPtr;
-                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-                    state.StackPtr = state.Thread._stackPtr;
-                    if (val.IsFalse()) state.PC = address;
-                }
-                break;
-        }
+        PerformJumpIfFalseReference(ref state);
     }
 
     private static void HandleOutput(ref InterpreterState state)
@@ -971,43 +859,7 @@ public unsafe partial class BytecodeInterpreter
         int pcForCache = state.PC - 5;
         var argType = (DMCallArgumentsType)state.ReadByte();
         int argStackDelta = state.ReadInt32();
-
-        var objValue = state.GetLocal(idx);
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            IDreamProc? targetProc;
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
-            if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
-            {
-                targetProc = cache.CachedProc;
-            }
-            else
-            {
-                var procName = state.Strings[nameId];
-                targetProc = obj.ObjectType?.GetProc(procName);
-                if (targetProc == null)
-                {
-                    var varValue = obj.GetVariable(procName);
-                    if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
-                }
-                if (targetProc != null)
-                {
-                    cache.ObjectType = obj.ObjectType;
-                    cache.CachedProc = targetProc;
-                }
-            }
-
-            if (targetProc != null)
-            {
-                state.Thread.SavePC(state.PC);
-                int argCount = argStackDelta;
-                state.Thread._stackPtr = state.StackPtr;
-                state.Thread.PerformCall(targetProc, obj, argCount, argCount);
-                return;
-            }
-        }
-        state.StackPtr -= argStackDelta;
-        state.Push(DreamValue.Null);
+        PerformLocalPushDereferenceCall(ref state, idx, nameId, pcForCache, argType, argStackDelta);
     }
 
     private static void HandleLocalPushDereferenceIndex(ref InterpreterState state)
@@ -2464,57 +2316,7 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleJumpIfReferenceFalse(ref InterpreterState state)
     {
-        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
-        switch (refType)
-        {
-            case DMReference.Type.Local:
-                {
-                    int idx = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    var val = state.Locals[idx];
-                    bool isFalse;
-                    var type = val.Type;
-                    if (type == DreamValueType.Null) isFalse = true;
-                    else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
-                    else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
-                    else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
-                    else isFalse = false;
-                    if (isFalse) state.PC = address;
-                }
-                break;
-            case DMReference.Type.Argument:
-                {
-                    int idx = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    var val = state.Arguments[idx];
-                    bool isFalse;
-                    var type = val.Type;
-                    if (type == DreamValueType.Null) isFalse = true;
-                    else if (type == DreamValueType.Float) isFalse = val.UnsafeRawDouble == 0.0;
-                    else if (type == DreamValueType.Integer) isFalse = val.UnsafeRawLong == 0;
-                    else if (type == DreamValueType.String) isFalse = ((string)val.UnsafeRawObject!).Length == 0;
-                    else isFalse = false;
-                    if (isFalse) state.PC = address;
-                }
-                break;
-            default:
-                {
-                    state.PC--;
-                    var reference = state.ReadReference();
-                    int address = *(int*)(state.BytecodePtr + state.PC);
-                    state.PC += 4;
-                    state.Thread._stackPtr = state.StackPtr;
-                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
-                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-                    state.StackPtr = state.Thread._stackPtr;
-                    if (val.IsFalse()) state.PC = address;
-                }
-                break;
-        }
+        PerformJumpIfFalseReference(ref state);
     }
 
     private static void HandleReturnFloat(ref InterpreterState state)
@@ -2897,7 +2699,7 @@ public unsafe partial class BytecodeInterpreter
         int idx1 = state.ReadInt32();
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
-        if (state.GetLocal(idx1) != state.GetLocal(idx2)) state.PC = address;
+        PerformLocalCompareEqualsJumpIfFalse(ref state, idx1, idx2, address);
     }
 
     private static void HandleLocalCompareNotEqualsJumpIfFalse(ref InterpreterState state)
@@ -2905,7 +2707,7 @@ public unsafe partial class BytecodeInterpreter
         int idx1 = state.ReadInt32();
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
-        if (state.GetLocal(idx1) == state.GetLocal(idx2)) state.PC = address;
+        PerformLocalCompareNotEqualsJumpIfFalse(ref state, idx1, idx2, address);
     }
 
     private static void HandleLocalCompareLessThanJumpIfFalse(ref InterpreterState state)
@@ -2913,7 +2715,7 @@ public unsafe partial class BytecodeInterpreter
         int idx1 = state.ReadInt32();
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
-        if (!(state.GetLocal(idx1) < state.GetLocal(idx2))) state.PC = address;
+        PerformLocalCompareLessThanJumpIfFalse(ref state, idx1, idx2, address);
     }
 
     private static void HandleLocalCompareGreaterThanJumpIfFalse(ref InterpreterState state)
@@ -2921,7 +2723,7 @@ public unsafe partial class BytecodeInterpreter
         int idx1 = state.ReadInt32();
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
-        if (!(state.GetLocal(idx1) > state.GetLocal(idx2))) state.PC = address;
+        PerformLocalCompareGreaterThanJumpIfFalse(ref state, idx1, idx2, address);
     }
 
     private static void HandleLocalCompareLessThanOrEqualJumpIfFalse(ref InterpreterState state)
@@ -2929,7 +2731,7 @@ public unsafe partial class BytecodeInterpreter
         int idx1 = state.ReadInt32();
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
-        if (!(state.GetLocal(idx1) <= state.GetLocal(idx2))) state.PC = address;
+        PerformLocalCompareLessThanOrEqualJumpIfFalse(ref state, idx1, idx2, address);
     }
 
     private static void HandleLocalCompareGreaterThanOrEqualJumpIfFalse(ref InterpreterState state)
@@ -2937,7 +2739,7 @@ public unsafe partial class BytecodeInterpreter
         int idx1 = state.ReadInt32();
         int idx2 = state.ReadInt32();
         int address = state.ReadInt32();
-        if (!(state.GetLocal(idx1) >= state.GetLocal(idx2))) state.PC = address;
+        PerformLocalCompareGreaterThanOrEqualJumpIfFalse(ref state, idx1, idx2, address);
     }
 
     private static void HandleLocalPushDereferenceField(ref InterpreterState state)
@@ -2945,29 +2747,7 @@ public unsafe partial class BytecodeInterpreter
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int pcForCache = state.PC - 5;
-        var objValue = state.GetLocal(idx);
-        DreamValue val = DreamValue.Null;
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
-            if (cache.ObjectType == obj.ObjectType)
-            {
-                val = obj.GetVariableDirect(cache.VariableIndex);
-            }
-            else
-            {
-                var name = state.Strings[nameId];
-                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
-                if (varIdx != -1)
-                {
-                    cache.ObjectType = obj.ObjectType;
-                    cache.VariableIndex = varIdx;
-                    val = obj.GetVariableDirect(varIdx);
-                }
-                else val = obj.GetVariable(name);
-            }
-        }
-        state.Push(val);
+        PerformLocalPushDereferenceField(ref state, idx, nameId, pcForCache);
     }
 
     private static void HandleLocalMulLocalAssign(ref InterpreterState state)

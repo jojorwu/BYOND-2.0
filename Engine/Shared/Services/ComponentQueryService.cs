@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,19 +10,78 @@ using Shared.Interfaces;
 using Shared.Models;
 
 namespace Shared.Services;
-    public class ComponentQueryService : EngineService, IComponentQueryService, IDisposable
+    public class ComponentQueryService : EngineService, IComponentQueryService, IDisposable, IShrinkable
     {
-        private class QueryResult : IEntityQuery
+        private readonly ConcurrentQueue<IGameObject[]> _replacedArrays = new();
+
+        public void Shrink()
+        {
+            while (_replacedArrays.TryDequeue(out var array))
+            {
+                ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
+        }
+
+        private class ReadOnlySpanWrapper<T> : IReadOnlyList<T>
+        {
+            private readonly T[] _array;
+            private readonly int _count;
+
+            public ReadOnlySpanWrapper(T[] array, int count)
+            {
+                _array = array;
+                _count = count;
+            }
+
+            public int Count => _count;
+            public T this[int index]
+            {
+                get
+                {
+                    if ((uint)index >= (uint)_count) throw new IndexOutOfRangeException();
+                    return _array[index];
+                }
+            }
+
+            public Enumerator GetEnumerator() => new Enumerator(_array, _count);
+            IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+            public struct Enumerator : IEnumerator<T>
+            {
+                private readonly T[] _array;
+                private readonly int _count;
+                private int _index;
+
+                public Enumerator(T[] array, int count)
+                {
+                    _array = array;
+                    _count = count;
+                    _index = -1;
+                }
+
+                public bool MoveNext() => ++_index < _count;
+                public T Current => _array[_index];
+                object System.Collections.IEnumerator.Current => Current!;
+                public void Reset() => _index = -1;
+                public void Dispose() { }
+            }
+        }
+
+        private class QueryResult : IEntityQuery, IDisposable
         {
             public readonly ComponentMask Mask;
+            private readonly ComponentQueryService _parent;
             private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
             private readonly System.Threading.Lock _lock = new();
             private readonly IGameState? _gameState;
             private IGameObject[]? _cachedSnapshot;
             private long _version = 0;
+            private long _snapshotVersion = -1;
 
-            public QueryResult(IGameState? gameState, ComponentMask mask)
+            public QueryResult(ComponentQueryService parent, IGameState? gameState, ComponentMask mask)
             {
+                _parent = parent;
                 _gameState = gameState;
                 Mask = mask;
             }
@@ -38,7 +98,7 @@ namespace Shared.Services;
                     Array.Copy(_archetypes, updated, _archetypes.Length);
                     updated[_archetypes.Length] = archetype;
                     _archetypes = updated;
-                    _cachedSnapshot = null;
+                    InvalidateSnapshot();
                     Interlocked.Increment(ref _version);
                 }
             }
@@ -54,35 +114,67 @@ namespace Shared.Services;
                     Array.Copy(_archetypes, updated, _archetypes.Length);
                     Array.Copy(matchingArray, 0, updated, _archetypes.Length, matchingArray.Length);
                     _archetypes = updated;
-                    _cachedSnapshot = null;
+                    InvalidateSnapshot();
                     Interlocked.Increment(ref _version);
                 }
+            }
+
+            private void InvalidateSnapshot()
+            {
+                if (_cachedSnapshot != null)
+                {
+                    _parent._replacedArrays.Enqueue(_cachedSnapshot);
+                    _cachedSnapshot = null;
+                }
+                _snapshotVersion = -1;
             }
 
             public IEnumerable<Archetype> GetMatchingArchetypes() => _archetypes;
 
             private IReadOnlyList<IGameObject> BuildSnapshot()
             {
-                var archetypes = _archetypes;
-                var snapshot = _cachedSnapshot;
-                if (snapshot != null) return snapshot;
+                long currentVersion = Version;
+                if (_cachedSnapshot != null && _snapshotVersion == currentVersion) return _cachedSnapshot;
 
                 using (_lock.EnterScope())
                 {
-                    if (_cachedSnapshot != null) return _cachedSnapshot;
+                    if (_cachedSnapshot != null && _snapshotVersion == currentVersion) return _cachedSnapshot;
 
+                    var archetypes = _archetypes;
                     int totalCount = 0;
-                    foreach (var arch in archetypes) totalCount += arch.EntityCount;
+                    for (int i = 0; i < archetypes.Length; i++) totalCount += archetypes[i].EntityCount;
 
-                    var results = new IGameObject[totalCount];
-                    int offset = 0;
-                    foreach (var arch in archetypes)
+                    if (_cachedSnapshot != null)
                     {
+                        _parent._replacedArrays.Enqueue(_cachedSnapshot);
+                    }
+
+                    var results = ArrayPool<IGameObject>.Shared.Rent(totalCount);
+                    int offset = 0;
+                    for (int i = 0; i < archetypes.Length; i++)
+                    {
+                        var arch = archetypes[i];
                         arch.CopyEntitiesTo(results, offset);
                         offset += arch.EntityCount;
                     }
+
+                    // Zero out the rest of the rented array to ensure clean snapshot
+                    if (results.Length > totalCount)
+                    {
+                        Array.Clear(results, totalCount, results.Length - totalCount);
+                    }
+
                     _cachedSnapshot = results;
-                    return results;
+                    _snapshotVersion = currentVersion;
+                    return new ReadOnlySpanWrapper<IGameObject>(results, totalCount);
+                }
+            }
+
+            public void Dispose()
+            {
+                using (_lock.EnterScope())
+                {
+                    InvalidateSnapshot();
                 }
             }
 
@@ -159,6 +251,10 @@ namespace Shared.Services;
         public void Dispose()
         {
             _archetypeManager.ArchetypeCreated -= OnArchetypeCreated;
+            foreach (var query in _queryCache.Values)
+            {
+                query.Dispose();
+            }
             _queryCache.Clear();
             _subscriptions.Clear();
             _queriesByComponent.Clear();
@@ -178,7 +274,7 @@ namespace Shared.Services;
         public IEntityQuery GetQuery(params ReadOnlySpan<Type> componentTypes)
         {
             if (componentTypes.IsEmpty)
-                return new QueryResult(_gameState, default);
+                return new QueryResult(this, _gameState, default);
 
             var key = new ComponentSignature(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
@@ -186,7 +282,7 @@ namespace Shared.Services;
                 return cached;
             }
 
-            var queryResult = new QueryResult(_gameState, key.Mask);
+            var queryResult = new QueryResult(this, _gameState, key.Mask);
 
             // Initial population
             var matchingArchetypes = _archetypeManager.GetArchetypesWithComponents(componentTypes);

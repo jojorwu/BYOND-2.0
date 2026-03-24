@@ -218,4 +218,239 @@ public unsafe partial class BytecodeInterpreter
         }
         else a = (a >= b) ? DreamValue.True : DreamValue.False;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareLessThanFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
+    {
+        if (!(state.Locals[idx] < val)) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareGreaterThanFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
+    {
+        if (!(state.Locals[idx] > val)) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareLessThanOrEqualFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
+    {
+        if (!(state.Locals[idx] <= val)) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
+    {
+        if (!(state.Locals[idx] >= val)) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalJumpIfFieldFalse(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
+    {
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForError, state.Thread);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalJumpIfFieldTrue(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
+    {
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (!val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForError, state.Thread);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformJumpIfTrueReference(ref InterpreterState state)
+    {
+        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    if (!state.Locals[idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    if (!state.Arguments[idx].IsFalse()) state.PC = address;
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.ReadReference();
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    state.Thread._stackPtr = state.StackPtr;
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    if (!val.IsFalse()) state.PC = address;
+                }
+                break;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformJumpIfFalseReference(ref InterpreterState state)
+    {
+        var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
+        switch (refType)
+        {
+            case DMReference.Type.Local:
+                {
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    if (state.Locals[idx].IsFalse()) state.PC = address;
+                }
+                break;
+            case DMReference.Type.Argument:
+                {
+                    int idx = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    if (state.Arguments[idx].IsFalse()) state.PC = address;
+                }
+                break;
+            default:
+                {
+                    state.PC--;
+                    var reference = state.ReadReference();
+                    int address = *(int*)(state.BytecodePtr + state.PC);
+                    state.PC += 4;
+                    state.Thread._stackPtr = state.StackPtr;
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
+                    state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
+                    state.StackPtr = state.Thread._stackPtr;
+                    if (val.IsFalse()) state.PC = address;
+                }
+                break;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareEqualsJumpIfFalse(ref InterpreterState state, int idx1, int idx2, int address)
+    {
+        if (state.GetLocal(idx1) != state.GetLocal(idx2)) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareNotEqualsJumpIfFalse(ref InterpreterState state, int idx1, int idx2, int address)
+    {
+        if (state.GetLocal(idx1) == state.GetLocal(idx2)) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareLessThanJumpIfFalse(ref InterpreterState state, int idx1, int idx2, int address)
+    {
+        if (!(state.GetLocal(idx1) < state.GetLocal(idx2))) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareGreaterThanJumpIfFalse(ref InterpreterState state, int idx1, int idx2, int address)
+    {
+        if (!(state.GetLocal(idx1) > state.GetLocal(idx2))) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareLessThanOrEqualJumpIfFalse(ref InterpreterState state, int idx1, int idx2, int address)
+    {
+        if (!(state.GetLocal(idx1) <= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalCompareGreaterThanOrEqualJumpIfFalse(ref InterpreterState state, int idx1, int idx2, int address)
+    {
+        if (!(state.GetLocal(idx1) >= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalPushDereferenceField(ref InterpreterState state, int idx, int nameId, int pcForCache)
+    {
+        var objValue = state.GetLocal(idx);
+        DreamValue val = DreamValue.Null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType)
+            {
+                val = obj.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    val = obj.GetVariableDirect(varIdx);
+                }
+                else val = obj.GetVariable(name);
+            }
+        }
+        state.Push(val);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalPushDereferenceCall(ref InterpreterState state, int idx, int nameId, int pcForCache, DMCallArgumentsType argType, int argStackDelta)
+    {
+        var objValue = state.GetLocal(idx);
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            IDreamProc? targetProc;
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
+            {
+                targetProc = cache.CachedProc;
+            }
+            else
+            {
+                var procName = state.Strings[nameId];
+                targetProc = obj.ObjectType?.GetProc(procName);
+                if (targetProc == null)
+                {
+                    var varValue = obj.GetVariable(procName);
+                    if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                }
+                if (targetProc != null)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.CachedProc = targetProc;
+                }
+            }
+
+            if (targetProc != null)
+            {
+                state.Thread.SavePC(state.PC);
+                int argCount = argStackDelta;
+                state.Thread._stackPtr = state.StackPtr;
+                state.Thread.PerformCall(targetProc, obj, argCount, argCount);
+                return;
+            }
+        }
+        state.StackPtr -= argStackDelta;
+        state.Push(DreamValue.Null);
+    }
 }

@@ -68,6 +68,25 @@ public struct ComponentMask : IEquatable<ComponentMask>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void UnionWith(ComponentMask other)
+    {
+        if (Vector512.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) |= Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
+        }
+        else if (Vector256.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) |= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) |= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
+        }
+        else
+        {
+            _mask0 |= other._mask0; _mask1 |= other._mask1; _mask2 |= other._mask2; _mask3 |= other._mask3;
+            _mask4 |= other._mask4; _mask5 |= other._mask5; _mask6 |= other._mask6; _mask7 |= other._mask7;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Not()
     {
         if (Vector512.IsHardwareAccelerated)

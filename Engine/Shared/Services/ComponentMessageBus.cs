@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
@@ -67,22 +68,29 @@ namespace Shared.Services;
                         if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
 
                         // Use a snapshot of entities to ensure thread-safety during broadcast
-                        var entities = arch.GetEntitiesSnapshot();
-                        for (int i = 0; i < entities.Length; i++)
+                        var entities = arch.GetEntitiesSnapshot(out int entityCount);
+                        try
                         {
-                            var entity = entities[i];
-                            // Re-verify entity still exists and is relevant (it might have moved archetypes)
-                            if (entity == null || entity.Archetype != arch) continue;
-
-                            var index = entity.ArchetypeIndex;
-                            foreach (var targetId in targetIds)
+                            for (int i = 0; i < entityCount; i++)
                             {
-                                var comp = arch.GetComponentsInternal(targetId)?.Get(index);
-                                if (comp != null && comp.Enabled)
+                                var entity = entities[i];
+                                // Re-verify entity still exists and is relevant (it might have moved archetypes)
+                                if (entity == null || entity.Archetype != arch) continue;
+
+                                var index = entity.ArchetypeIndex;
+                                foreach (var targetId in targetIds)
                                 {
-                                    comp.OnMessage(message);
+                                    var comp = arch.GetComponentsInternal(targetId)?.Get(index);
+                                    if (comp != null && comp.Enabled)
+                                    {
+                                        comp.OnMessage(message);
+                                    }
                                 }
                             }
+                        }
+                        finally
+                        {
+                            if (entities.Length > 0) ArrayPool<IGameObject>.Shared.Return(entities, true);
                         }
                     }
                 }

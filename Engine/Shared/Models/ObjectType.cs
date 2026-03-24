@@ -1,5 +1,6 @@
 using Shared.Enums;
 using System.Collections.Generic;
+using System.Collections.Frozen;
 using System.Text.Json.Serialization;
 
 namespace Shared;
@@ -19,7 +20,10 @@ public class ObjectType
     public Dictionary<string, IDreamProc> Procs { get; } = new();
     public Dictionary<string, IDreamProc> FlattenedProcs { get; } = new();
     private Dictionary<string, int>? _variableIndices;
+    private FrozenDictionary<string, int> _frozenVariableIndices = FrozenDictionary<string, int>.Empty;
     private HashSet<int>? _parentIds;
+    private FrozenSet<int> _frozenParentIds = FrozenSet<int>.Empty;
+    private FrozenDictionary<string, IDreamProc> _frozenProcs = FrozenDictionary<string, IDreamProc>.Empty;
     public BuiltinVar[]? VariableToBuiltin { get; private set; }
     public int XIndex = -1, YIndex = -1, ZIndex = -1, LocIndex = -1;
     public int IconIndex = -1, IconStateIndex = -1, DirIndex = -1, AlphaIndex = -1;
@@ -35,24 +39,18 @@ public class ObjectType
 
     public IDreamProc? GetProc(string name)
     {
-        if (Procs.TryGetValue(name, out var proc))
-        {
-            return proc;
-        }
-
-        if (FlattenedProcs.TryGetValue(name, out proc))
-        {
-            return proc;
-        }
-
+        if (_frozenProcs.TryGetValue(name, out var proc)) return proc;
+        if (Procs.TryGetValue(name, out proc)) return proc;
+        if (FlattenedProcs.TryGetValue(name, out proc)) return proc;
         return null;
     }
 
     public int GetVariableIndex(string name)
     {
+        if (_frozenVariableIndices.TryGetValue(name, out int index)) return index;
         if (_variableIndices != null)
         {
-            return _variableIndices.TryGetValue(name, out int index) ? index : -1;
+            return _variableIndices.TryGetValue(name, out index) ? index : -1;
         }
 
         return VariableNames.IndexOf(name);
@@ -116,14 +114,29 @@ public class ObjectType
         }
     }
 
+    public void Freeze()
+    {
+        if (_variableIndices != null) _frozenVariableIndices = _variableIndices.ToFrozenDictionary();
+        if (_parentIds != null) _frozenParentIds = _parentIds.ToFrozenSet();
+
+        var allProcs = new Dictionary<string, IDreamProc>(StringComparer.Ordinal);
+        foreach (var kvp in FlattenedProcs) allProcs[kvp.Key] = kvp.Value;
+        foreach (var kvp in Procs) allProcs[kvp.Key] = kvp.Value;
+        _frozenProcs = allProcs.ToFrozenDictionary();
+    }
+
     public void ClearCache()
     {
         _variableIndices = null;
         _parentIds = null;
+        _frozenVariableIndices = FrozenDictionary<string, int>.Empty;
+        _frozenParentIds = FrozenSet<int>.Empty;
+        _frozenProcs = FrozenDictionary<string, IDreamProc>.Empty;
     }
 
     public bool IsSubtypeOf(ObjectType other)
     {
+        if (_frozenParentIds.Contains(other.Id)) return true;
         if (_parentIds != null)
         {
             return _parentIds.Contains(other.Id);

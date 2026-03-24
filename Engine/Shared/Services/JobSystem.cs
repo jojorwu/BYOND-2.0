@@ -320,6 +320,32 @@ namespace Shared.Services;
             await Task.WhenAll(handles);
         }
 
+        public async Task ForEachAsync<T>(ReadOnlyMemory<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
+        {
+            int count = source.Length;
+            if (count == 0) return;
+            if (count == 1) { await action(source.Span[0]); return; }
+
+            int workerCount = _workers.Length;
+            int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
+            var handles = new List<Task>((count + batchSize - 1) / batchSize);
+
+            for (int i = 0; i < count; i += batchSize)
+            {
+                int start = i;
+                int end = Math.Min(i + batchSize, count);
+                var batch = source.Slice(start, end - start);
+                handles.Add(Schedule(async () =>
+                {
+                    for (int j = 0; j < batch.Length; j++)
+                    {
+                        await action(batch.Span[j]);
+                    }
+                }, priority: priority, track: false).Task!);
+            }
+            await Task.WhenAll(handles);
+        }
+
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
         {
             var list = source as IReadOnlyList<T> ?? source.ToList();

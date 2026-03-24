@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -585,14 +586,41 @@ public class Archetype
         public T[] Data = System.Array.Empty<T>();
 
         public void Resize(int capacity) => System.Array.Resize(ref Data, capacity);
-        public void Set(int index, IComponent component) => Data[index] = (T)component;
-        public void Copy(int from, int to) => Data[to] = Data[from];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(int index, IComponent component)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            Unsafe.Add(ref dataRef, index) = (T)component;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Copy(int from, int to)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            Unsafe.Add(ref dataRef, to) = Unsafe.Add(ref dataRef, from);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CopyTo(int sourceIndex, IComponentArray destination, int destinationIndex)
         {
-            destination.Set(destinationIndex, Data[sourceIndex]);
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            destination.Set(destinationIndex, Unsafe.Add(ref dataRef, sourceIndex));
         }
-        public void Clear(int index) => Data[index] = null!;
-        public IComponent Get(int index) => Data[index];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Clear(int index)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            Unsafe.Add(ref dataRef, index) = null!;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IComponent Get(int index)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            return Unsafe.Add(ref dataRef, index);
+        }
     }
 
     public long[] GetEntityIdsSnapshot()
@@ -606,12 +634,17 @@ public class Archetype
         }
     }
 
-    public IGameObject[] GetEntitiesSnapshot()
+    /// <summary>
+    /// Rents a snapshot of the current entities. Caller MUST return it to ArrayPool.
+    /// </summary>
+    public IGameObject[] GetEntitiesSnapshot(out int count)
     {
         using (_lock.EnterScope())
         {
-            int count = _count;
-            IGameObject[] snapshot = new IGameObject[count];
+            count = _count;
+            if (count == 0) return Array.Empty<IGameObject>();
+
+            IGameObject[] snapshot = ArrayPool<IGameObject>.Shared.Rent(count);
             Array.Copy(_entities, snapshot, count);
             return snapshot;
         }

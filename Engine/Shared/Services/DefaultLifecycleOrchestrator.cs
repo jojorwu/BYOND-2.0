@@ -14,6 +14,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
     private readonly IDiagnosticBus _diagnosticBus;
     private readonly IEnumerable<IEngineService> _services;
     private readonly IEnumerable<IEngineLifecycle> _lifecycles;
+    private readonly IEnumerable<IFreezable> _freezables;
     private readonly ServiceDependencyGraph _graph;
     private readonly Dictionary<string, ServiceStatus> _serviceHealth = new();
 
@@ -25,12 +26,14 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         ILogger<DefaultLifecycleOrchestrator> logger,
         IDiagnosticBus diagnosticBus,
         IEnumerable<IEngineService> services,
-        IEnumerable<IEngineLifecycle> lifecycles)
+        IEnumerable<IEngineLifecycle> lifecycles,
+        IEnumerable<IFreezable> freezables)
     {
         _logger = logger;
         _diagnosticBus = diagnosticBus;
         _services = services;
         _lifecycles = lifecycles;
+        _freezables = freezables;
         _graph = new ServiceDependencyGraph(_services);
 
         foreach (var service in _services)
@@ -71,7 +74,22 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         _logger.LogInformation("Executing Post-Initialization Hooks...");
         await Task.WhenAll(_lifecycles.Select(s => s.PostInitializeAsync(globalCts.Token)));
 
-        // Phase 3: StartAsync (Parallel with Dependencies)
+        // Phase 3: Optimization Phase (Freezing)
+        _logger.LogInformation("Starting Engine Optimization Phase...");
+        foreach (var freezable in _freezables)
+        {
+            try
+            {
+                _logger.LogDebug("    -> Freezing {ServiceName}...", freezable.GetType().Name);
+                freezable.Freeze();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "    [FAIL] Freezing failed for service: {ServiceName}", freezable.GetType().Name);
+            }
+        }
+
+        // Phase 4: StartAsync (Parallel with Dependencies)
         _logger.LogInformation("Starting Service Execution Phase...");
         await _graph.ExecuteParallelAsync(async service =>
         {
@@ -115,7 +133,7 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
             }
         });
 
-        // Phase 4: OnStartedAsync (Parallel for all EngineLifecycles)
+        // Phase 5: OnStartedAsync (Parallel for all EngineLifecycles)
         _logger.LogInformation("Executing OnStarted Hooks...");
         await Task.WhenAll(_lifecycles.Select(s => s.OnStartedAsync(globalCts.Token)));
     }

@@ -3,10 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Frozen;
 using Shared.Services;
+using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class ObjectTypeManager : EngineService, IObjectTypeManager
+    public class ObjectTypeManager : EngineService, IObjectTypeManager, IFreezable
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
         private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();
@@ -100,6 +101,10 @@ namespace Shared.Services;
 
         public void Freeze()
         {
+            foreach (var type in _objectTypes.Values)
+            {
+                type.Freeze();
+            }
             _frozenTypes = _objectTypes.ToFrozenDictionary();
             _frozenTypesById = _objectTypesById.ToFrozenDictionary();
         }

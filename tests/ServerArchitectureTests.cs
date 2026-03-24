@@ -109,7 +109,8 @@ namespace tests
                 new Mock<ILogger<DefaultLifecycleOrchestrator>>().Object,
                 new Mock<IDiagnosticBus>().Object,
                 services,
-                services.OfType<IEngineLifecycle>());
+                services.OfType<IEngineLifecycle>(),
+                services.OfType<IFreezable>());
 
             app = new ServerApplication(
                 loggerMock.Object,

@@ -31,7 +31,7 @@ public interface IArchetypeManager
     void Compact();
 }
 
-public class ArchetypeManager : EngineService, IArchetypeManager
+public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
 {
     public event EventHandler<Archetype>? ArchetypeCreated;
     private volatile Archetype[] _archetypes = Array.Empty<Archetype>();
@@ -396,16 +396,17 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         if (rarestType == null) return Enumerable.Empty<Archetype>();
 
         var queryMask = new ComponentMask();
-        foreach (var type in componentTypes)
+        for (int i = 0; i < componentTypes.Length; i++)
         {
-            queryMask.Set(ComponentIdRegistry.GetId(type));
+            queryMask.Set(ComponentIdRegistry.GetId(componentTypes[i]));
         }
 
         var candidates = _typeToArchetypesCache[rarestType];
         var results = new List<Archetype>();
 
-        foreach (var archetype in candidates)
+        for (int i = 0; i < candidates.Length; i++)
         {
+            var archetype = candidates[i];
             if (archetype.Signature.Mask.ContainsAll(queryMask))
             {
                 results.Add(archetype);
@@ -433,6 +434,12 @@ public class ArchetypeManager : EngineService, IArchetypeManager
         {
             archetype.Compact();
         });
+    }
+
+    public void Shrink()
+    {
+        Compact();
+        _typeToArchetypesCache.Clear();
     }
 
     public override Dictionary<string, object> GetDiagnosticInfo()

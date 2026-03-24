@@ -96,9 +96,7 @@ public static class SharedServiceCollectionExtensions
         services.AddEngineService<SystemManager>(typeof(ISystemManager));
         services.AddEngineService<ArchetypeManager>(typeof(IArchetypeManager));
         services.AddEngineService<ComponentManager>(typeof(IComponentManager));
-        services.AddEngineService<ComponentQueryService>(
-            sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IArchetypeManager>(), sp.GetService<IGameState>()),
-            typeof(IComponentQueryService));
+        services.AddEngineService<ComponentQueryService>(typeof(IComponentQueryService));
         services.AddEngineService<ComponentMessageBus>(typeof(IComponentMessageBus));
         services.AddSystem<Systems.StateCommitSystem>();
         services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();

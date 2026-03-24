@@ -12,14 +12,36 @@ using Shared.Models;
 namespace Shared.Services;
     public class ComponentQueryService : EngineService, IComponentQueryService, IDisposable, IShrinkable
     {
-        private readonly ConcurrentQueue<IGameObject[]> _replacedArrays = new();
+        private readonly ConcurrentQueue<(long ReleaseTimestamp, IGameObject[] Array)> _replacedArrays = new();
+        private readonly TimeProvider _timeProvider;
+
+        public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, TimeProvider timeProvider, IGameState? gameState = null)
+        {
+            _componentManager = componentManager;
+            _archetypeManager = archetypeManager;
+            _timeProvider = timeProvider;
+            _gameState = gameState;
+
+            _archetypeManager.ArchetypeCreated += OnArchetypeCreated;
+        }
 
         public void Shrink()
         {
-            while (_replacedArrays.TryDequeue(out var array))
+            long now = _timeProvider.GetTimestamp();
+            while (_replacedArrays.TryPeek(out var entry) && now >= entry.ReleaseTimestamp)
             {
-                ArrayPool<IGameObject>.Shared.Return(array, true);
+                if (_replacedArrays.TryDequeue(out entry))
+                {
+                    ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+                }
             }
+        }
+
+        private void EnqueueForRelease(IGameObject[] array)
+        {
+            // Grace period of 1 second to ensure all active enumerators are finished
+            long releaseAt = _timeProvider.GetTimestamp() + _timeProvider.TimestampFrequency;
+            _replacedArrays.Enqueue((releaseAt, array));
         }
 
         private class ReadOnlySpanWrapper<T> : IReadOnlyList<T>
@@ -76,6 +98,7 @@ namespace Shared.Services;
             private readonly System.Threading.Lock _lock = new();
             private readonly IGameState? _gameState;
             private IGameObject[]? _cachedSnapshot;
+            private int _cachedCount;
             private long _version = 0;
             private long _snapshotVersion = -1;
 
@@ -123,7 +146,7 @@ namespace Shared.Services;
             {
                 if (_cachedSnapshot != null)
                 {
-                    _parent._replacedArrays.Enqueue(_cachedSnapshot);
+                    _parent.EnqueueForRelease(_cachedSnapshot);
                     _cachedSnapshot = null;
                 }
                 _snapshotVersion = -1;
@@ -134,11 +157,17 @@ namespace Shared.Services;
             private IReadOnlyList<IGameObject> BuildSnapshot()
             {
                 long currentVersion = Version;
-                if (_cachedSnapshot != null && _snapshotVersion == currentVersion) return _cachedSnapshot;
+                if (_cachedSnapshot != null && _snapshotVersion == currentVersion)
+                {
+                    return new ReadOnlySpanWrapper<IGameObject>(_cachedSnapshot, _cachedCount);
+                }
 
                 using (_lock.EnterScope())
                 {
-                    if (_cachedSnapshot != null && _snapshotVersion == currentVersion) return _cachedSnapshot;
+                    if (_cachedSnapshot != null && _snapshotVersion == currentVersion)
+                    {
+                        return new ReadOnlySpanWrapper<IGameObject>(_cachedSnapshot, _cachedCount);
+                    }
 
                     var archetypes = _archetypes;
                     int totalCount = 0;
@@ -146,7 +175,7 @@ namespace Shared.Services;
 
                     if (_cachedSnapshot != null)
                     {
-                        _parent._replacedArrays.Enqueue(_cachedSnapshot);
+                        _parent.EnqueueForRelease(_cachedSnapshot);
                     }
 
                     var results = ArrayPool<IGameObject>.Shared.Rent(totalCount);
@@ -165,6 +194,7 @@ namespace Shared.Services;
                     }
 
                     _cachedSnapshot = results;
+                    _cachedCount = totalCount;
                     _snapshotVersion = currentVersion;
                     return new ReadOnlySpanWrapper<IGameObject>(results, totalCount);
                 }
@@ -233,14 +263,6 @@ namespace Shared.Services;
             public readonly List<QueryResult> Items = new();
         }
 
-        public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, IGameState? gameState = null)
-        {
-            _componentManager = componentManager;
-            _archetypeManager = archetypeManager;
-            _gameState = gameState;
-
-            _archetypeManager.ArchetypeCreated += OnArchetypeCreated;
-        }
 
         protected override Task OnStopAsync(CancellationToken cancellationToken)
         {

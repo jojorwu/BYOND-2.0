@@ -48,7 +48,7 @@ namespace tests
             var componentManager = new ComponentManager(archetypeManager);
             var entityRegistry = new EntityRegistry(pool, componentManager);
             var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
-            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance), objectFactory);
+            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System), objectFactory);
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);

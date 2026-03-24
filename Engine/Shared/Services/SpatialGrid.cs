@@ -34,26 +34,40 @@ namespace Shared;
         {
             CleanupEmptyCells();
 
-            // Return detached COW arrays to the pool
-            while (_replacedArrays.TryDequeue(out var array))
+            // Return detached COW arrays to the pool after grace period
+            long now = _timeProvider.GetTimestamp();
+            while (_replacedArrays.TryPeek(out var entry) && now >= entry.ReleaseTimestamp)
             {
-                ArrayPool<IGameObject>.Shared.Return(array, true);
+                if (_replacedArrays.TryDequeue(out entry))
+                {
+                    ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+                }
             }
+        }
+
+        private void EnqueueForRelease(IGameObject[] array)
+        {
+            if (array.Length == 0) return;
+            // Grace period of 1 second to ensure all active enumerators are finished
+            long releaseAt = _timeProvider.GetTimestamp() + _timeProvider.TimestampFrequency;
+            _replacedArrays.Enqueue((releaseAt, array));
         }
 
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
-        private readonly ConcurrentQueue<IGameObject[]> _replacedArrays = new();
+        private readonly ConcurrentQueue<(long ReleaseTimestamp, IGameObject[] Array)> _replacedArrays = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
+        private readonly TimeProvider _timeProvider;
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
         private long _version;
 
         public long Version => Volatile.Read(ref _version);
 
-        public SpatialGrid(ILogger<SpatialGrid> logger, int cellSize = 32)
+        public SpatialGrid(ILogger<SpatialGrid> logger, TimeProvider timeProvider, int cellSize = 32)
         {
             _logger = logger;
+            _timeProvider = timeProvider;
             _cellSize = cellSize;
         }
 
@@ -221,7 +235,7 @@ namespace Shared;
             if (oldArray.Length > 0)
             {
                 // Enqueue old array for deferred return to avoid race with active enumerators
-                _replacedArrays.Enqueue(oldArray);
+                EnqueueForRelease(oldArray);
             }
 
             obj.SpatialGridIndex = cell.Count;
@@ -277,7 +291,7 @@ namespace Shared;
 
             if (oldArray.Length > 0)
             {
-                _replacedArrays.Enqueue(oldArray);
+                EnqueueForRelease(oldArray);
             }
 
             cell.Objects = newArray;
@@ -444,7 +458,7 @@ namespace Shared;
                                 if (_grid.TryRemove(key, out var removed))
                                 {
                                     var array = removed.Objects;
-                                    if (array.Length > 0) _replacedArrays.Enqueue(array);
+                                    if (array.Length > 0) EnqueueForRelease(array);
                                     removed.Reset();
                                     _cellPool.Push(removed);
                                 }
@@ -526,9 +540,9 @@ namespace Shared;
                 if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
             }
 
-            while (_replacedArrays.TryDequeue(out var array))
+            while (_replacedArrays.TryDequeue(out var entry))
             {
-                ArrayPool<IGameObject>.Shared.Return(array, true);
+                ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
             }
 
             GC.SuppressFinalize(this);

@@ -26,7 +26,7 @@ namespace Shared;
             _objectFactory = objectFactory;
         }
 
-        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance)) { } // For tests
+        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System)) { } // For tests
 
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 

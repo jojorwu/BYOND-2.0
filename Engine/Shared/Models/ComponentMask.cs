@@ -51,7 +51,11 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IntersectWith(ComponentMask other)
     {
-        if (Vector256.IsHardwareAccelerated)
+        if (Vector512.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) &= Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
+        }
+        else if (Vector256.IsHardwareAccelerated)
         {
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) &= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) &= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
@@ -66,7 +70,11 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Not()
     {
-        if (Vector256.IsHardwareAccelerated)
+        if (Vector512.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) = ~Unsafe.As<ulong, Vector512<ulong>>(ref _mask0);
+        }
+        else if (Vector256.IsHardwareAccelerated)
         {
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) = ~Unsafe.As<ulong, Vector256<ulong>>(ref _mask0);
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) = ~Unsafe.As<ulong, Vector256<ulong>>(ref _mask4);
@@ -81,7 +89,11 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
-        if (Vector256.IsHardwareAccelerated)
+        if (Vector512.IsHardwareAccelerated)
+        {
+            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) = Vector512<ulong>.Zero;
+        }
+        else if (Vector256.IsHardwareAccelerated)
         {
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) = Vector256<ulong>.Zero;
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) = Vector256<ulong>.Zero;
@@ -95,7 +107,13 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsAll(ComponentMask other)
     {
-        if (Vector256.IsHardwareAccelerated)
+        if (Vector512.IsHardwareAccelerated)
+        {
+            var v = Unsafe.As<ulong, Vector512<ulong>>(ref _mask0);
+            var ov = Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            return Vector512.EqualsAll(v & ov, ov);
+        }
+        else if (Vector256.IsHardwareAccelerated)
         {
             // Fully SIMD-optimized 512-bit check
             var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0);
@@ -119,7 +137,12 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Overlaps(ComponentMask other)
     {
-        if (Vector256.IsHardwareAccelerated)
+        if (Vector512.IsHardwareAccelerated)
+        {
+            var v = Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            return v != Vector512<ulong>.Zero;
+        }
+        else if (Vector256.IsHardwareAccelerated)
         {
             var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
             var v1 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
@@ -233,7 +256,11 @@ public struct ComponentMask : IEquatable<ComponentMask>
 
     public bool Equals(ComponentMask other)
     {
-        if (Vector256.IsHardwareAccelerated)
+        if (Vector512.IsHardwareAccelerated)
+        {
+            return Vector512.EqualsAll(Unsafe.As<ulong, Vector512<ulong>>(ref _mask0), Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0)));
+        }
+        else if (Vector256.IsHardwareAccelerated)
         {
             var v0 = Vector256.EqualsAll(Unsafe.As<ulong, Vector256<ulong>>(ref _mask0), Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0)));
             var v1 = Vector256.EqualsAll(Unsafe.As<ulong, Vector256<ulong>>(ref _mask4), Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4)));

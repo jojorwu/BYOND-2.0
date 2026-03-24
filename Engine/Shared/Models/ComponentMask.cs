@@ -22,30 +22,36 @@ public struct ComponentMask : IEquatable<ComponentMask>
     private ulong _mask6;
     private ulong _mask7;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Set(int index)
     {
-        if ((uint)index >= 512) throw new ArgumentOutOfRangeException(nameof(index));
-        ref ulong maskPtr = ref Unsafe.As<ulong, ulong>(ref _mask0);
-        Unsafe.Add(ref maskPtr, index >> 6) |= (1UL << (index & 63));
+        uint idx = (uint)index;
+        if (idx < 64) _mask0 |= (1UL << (int)idx);
+        else if (idx < 128) _mask1 |= (1UL << (int)(idx - 64));
+        else if (idx < 192) _mask2 |= (1UL << (int)(idx - 128));
+        else if (idx < 256) _mask3 |= (1UL << (int)(idx - 192));
+        else if (idx < 320) _mask4 |= (1UL << (int)(idx - 256));
+        else if (idx < 384) _mask5 |= (1UL << (int)(idx - 320));
+        else if (idx < 448) _mask6 |= (1UL << (int)(idx - 384));
+        else if (idx < 512) _mask7 |= (1UL << (int)(idx - 448));
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Unset(int index)
     {
-        if ((uint)index >= 512) throw new ArgumentOutOfRangeException(nameof(index));
-        ref ulong maskPtr = ref Unsafe.As<ulong, ulong>(ref _mask0);
-        Unsafe.Add(ref maskPtr, index >> 6) &= ~(1UL << (index & 63));
+        uint idx = (uint)index;
+        if (idx < 64) _mask0 &= ~(1UL << (int)idx);
+        else if (idx < 128) _mask1 &= ~(1UL << (int)(idx - 64));
+        else if (idx < 192) _mask2 &= ~(1UL << (int)(idx - 128));
+        else if (idx < 256) _mask3 &= ~(1UL << (int)(idx - 192));
+        else if (idx < 320) _mask4 &= ~(1UL << (int)(idx - 256));
+        else if (idx < 384) _mask5 &= ~(1UL << (int)(idx - 320));
+        else if (idx < 448) _mask6 &= ~(1UL << (int)(idx - 384));
+        else if (idx < 512) _mask7 &= ~(1UL << (int)(idx - 448));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IntersectWith(ComponentMask other)
     {
-        if (Vector512.IsHardwareAccelerated)
-        {
-            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) &= Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
-        }
-        else if (Vector256.IsHardwareAccelerated)
+        if (Vector256.IsHardwareAccelerated)
         {
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) &= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) &= Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
@@ -60,11 +66,7 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Not()
     {
-        if (Vector512.IsHardwareAccelerated)
-        {
-            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) = ~Unsafe.As<ulong, Vector512<ulong>>(ref _mask0);
-        }
-        else if (Vector256.IsHardwareAccelerated)
+        if (Vector256.IsHardwareAccelerated)
         {
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) = ~Unsafe.As<ulong, Vector256<ulong>>(ref _mask0);
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) = ~Unsafe.As<ulong, Vector256<ulong>>(ref _mask4);
@@ -79,11 +81,7 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
-        if (Vector512.IsHardwareAccelerated)
-        {
-            Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) = Vector512<ulong>.Zero;
-        }
-        else if (Vector256.IsHardwareAccelerated)
+        if (Vector256.IsHardwareAccelerated)
         {
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) = Vector256<ulong>.Zero;
             Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) = Vector256<ulong>.Zero;
@@ -97,12 +95,6 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsAll(ComponentMask other)
     {
-        if (Vector512.IsHardwareAccelerated)
-        {
-            var v = Unsafe.As<ulong, Vector512<ulong>>(ref _mask0);
-            var ov = Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
-            return Vector512.EqualsAll(v & ov, ov);
-        }
         if (Vector256.IsHardwareAccelerated)
         {
             // Fully SIMD-optimized 512-bit check
@@ -127,11 +119,6 @@ public struct ComponentMask : IEquatable<ComponentMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Overlaps(ComponentMask other)
     {
-        if (Vector512.IsHardwareAccelerated)
-        {
-            var v = Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
-            return !Vector512.EqualsAll(v, Vector512<ulong>.Zero);
-        }
         if (Vector256.IsHardwareAccelerated)
         {
             var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
@@ -156,12 +143,18 @@ public struct ComponentMask : IEquatable<ComponentMask>
                         BitOperations.PopCount(_mask4) + BitOperations.PopCount(_mask5) +
                         BitOperations.PopCount(_mask6) + BitOperations.PopCount(_mask7);
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Get(int index)
     {
-        if ((uint)index >= 512) return false;
-        ref ulong maskPtr = ref Unsafe.As<ulong, ulong>(ref _mask0);
-        return (Unsafe.Add(ref maskPtr, index >> 6) & (1UL << (index & 63))) != 0;
+        uint idx = (uint)index;
+        if (idx < 64) return (_mask0 & (1UL << (int)idx)) != 0;
+        if (idx < 128) return (_mask1 & (1UL << (int)(idx - 64))) != 0;
+        if (idx < 192) return (_mask2 & (1UL << (int)(idx - 128))) != 0;
+        if (idx < 256) return (_mask3 & (1UL << (int)(idx - 192))) != 0;
+        if (idx < 320) return (_mask4 & (1UL << (int)(idx - 256))) != 0;
+        if (idx < 384) return (_mask5 & (1UL << (int)(idx - 320))) != 0;
+        if (idx < 448) return (_mask6 & (1UL << (int)(idx - 384))) != 0;
+        if (idx < 512) return (_mask7 & (1UL << (int)(idx - 448))) != 0;
+        return false;
     }
 
     /// <summary>
@@ -240,10 +233,6 @@ public struct ComponentMask : IEquatable<ComponentMask>
 
     public bool Equals(ComponentMask other)
     {
-        if (Vector512.IsHardwareAccelerated)
-        {
-            return Vector512.EqualsAll(Unsafe.As<ulong, Vector512<ulong>>(ref _mask0), Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0)));
-        }
         if (Vector256.IsHardwareAccelerated)
         {
             var v0 = Vector256.EqualsAll(Unsafe.As<ulong, Vector256<ulong>>(ref _mask0), Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0)));

@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using Shared.Interfaces;
 using Shared.Enums;
 using Shared;
@@ -54,8 +55,11 @@ public abstract class EngineService : IEngineService
     /// <inheritdoc />
     public virtual async Task InitializeAsync()
     {
+        var sw = Stopwatch.StartNew();
         SetStarting();
         await OnInitializeAsync();
+        sw.Stop();
+        InitializationDurationMs = sw.ElapsedMilliseconds;
     }
 
     /// <summary>
@@ -66,8 +70,11 @@ public abstract class EngineService : IEngineService
     /// <inheritdoc />
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
+        var sw = Stopwatch.StartNew();
         await OnStartAsync(cancellationToken);
         Status = ServiceStatus.Running;
+        sw.Stop();
+        StartupDurationMs = sw.ElapsedMilliseconds;
     }
 
     /// <summary>

@@ -14,7 +14,6 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
     private readonly IDiagnosticBus _diagnosticBus;
     private readonly IEnumerable<IEngineService> _services;
     private readonly IEnumerable<IEngineLifecycle> _lifecycles;
-    private readonly IEnumerable<IFreezable> _freezables;
     private readonly ServiceDependencyGraph _graph;
     private readonly Dictionary<string, ServiceStatus> _serviceHealth = new();
 
@@ -26,14 +25,12 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         ILogger<DefaultLifecycleOrchestrator> logger,
         IDiagnosticBus diagnosticBus,
         IEnumerable<IEngineService> services,
-        IEnumerable<IEngineLifecycle> lifecycles,
-        IEnumerable<IFreezable> freezables)
+        IEnumerable<IEngineLifecycle> lifecycles)
     {
         _logger = logger;
         _diagnosticBus = diagnosticBus;
         _services = services;
         _lifecycles = lifecycles;
-        _freezables = freezables;
         _graph = new ServiceDependencyGraph(_services);
 
         foreach (var service in _services)
@@ -73,21 +70,6 @@ public class DefaultLifecycleOrchestrator : ILifecycleOrchestrator
         // Phase 2: PostInitializeAsync (Parallel for all EngineLifecycles)
         _logger.LogInformation("Executing Post-Initialization Hooks...");
         await Task.WhenAll(_lifecycles.Select(s => s.PostInitializeAsync(globalCts.Token)));
-
-        // Phase 2.5: Freeze registries and managers
-        _logger.LogInformation("Freezing registries and managers...");
-        foreach (var freezable in _freezables)
-        {
-            try
-            {
-                _logger.LogDebug("    * Freezing {FreezableType}...", freezable.GetType().Name);
-                freezable.Freeze();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to freeze service: {FreezableType}", freezable.GetType().Name);
-            }
-        }
 
         // Phase 3: StartAsync (Parallel with Dependencies)
         _logger.LogInformation("Starting Service Execution Phase...");

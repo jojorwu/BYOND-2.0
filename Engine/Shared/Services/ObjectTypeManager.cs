@@ -2,12 +2,11 @@ using Shared;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Frozen;
-using Shared.Interfaces;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
-    public class ObjectTypeManager : EngineService, IObjectTypeManager, IFreezable
+    public class ObjectTypeManager : EngineService, IObjectTypeManager
     {
         private readonly ConcurrentDictionary<string, ObjectType> _objectTypes = new();
         private readonly ConcurrentDictionary<int, ObjectType> _objectTypesById = new();
@@ -103,9 +102,6 @@ namespace Shared.Services;
         {
             _frozenTypes = _objectTypes.ToFrozenDictionary();
             _frozenTypesById = _objectTypesById.ToFrozenDictionary();
-
-            // Parallelize definition freezing to reduce startup time
-            Parallel.ForEach(_objectTypes.Values, type => type.Freeze());
         }
 
         public void Clear()

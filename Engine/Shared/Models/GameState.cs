@@ -31,10 +31,7 @@ namespace Shared;
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 
         public void OnStateChanged(IGameObject obj) => _dirtyObjects.Enqueue(obj);
-        public void OnPositionChanged(IGameObject obj, long oldX, long oldY, long oldZ)
-        {
-            SpatialGrid.Add(obj);
-        }
+        public void OnPositionChanged(IGameObject obj, long oldX, long oldY, long oldZ) => SpatialGrid.Add(obj);
 
         public IDisposable ReadLock()
         {
@@ -94,9 +91,9 @@ namespace Shared;
             }
         }
 
-        public void UpdateGameObject(GameObject gameObject, long oldX, long oldY, long oldZ)
+        public void UpdateGameObject(GameObject gameObject, long oldX, long oldY)
         {
-            SpatialGrid.Update(gameObject, oldX, oldY, oldZ);
+            SpatialGrid.Update(gameObject, oldX, oldY);
         }
 
         public IEnumerable<IGameObject> GetDirtyObjects() => new DirtyObjectEnumerator(_dirtyObjects);

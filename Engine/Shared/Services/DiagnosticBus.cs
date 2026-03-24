@@ -138,7 +138,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         }
     }
 
-    protected override async Task OnStopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _cts.Cancel();
         _eventChannel.Writer.Complete();
@@ -154,6 +154,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         }
         _pool.Clear();
         _poolCount = 0;
+        await base.StopAsync(cancellationToken);
     }
 
     public IDisposable Subscribe(Action<DiagnosticEvent> callback)

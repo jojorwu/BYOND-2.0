@@ -10,181 +10,182 @@ using Shared;
 using Shared.Services;
 using Core;
 
-namespace Server;
-
-public class NetworkService : EngineService, INetworkService, IDisposable
+namespace Server
 {
-    public override int Priority => 45;
-    private readonly NetManager _netManager;
-    private readonly EventBasedNetListener _listener;
-    private readonly IServerContext _context;
-    private readonly ILogger<NetworkService> _logger;
-    private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();
-    private readonly NetDataWriterPool _writerPool;
-    private Task? _networkTask;
-    private CancellationTokenSource? _cancellationTokenSource;
-
-    public event Action<INetworkPeer>? PeerConnected;
-    public event Action<INetworkPeer, DisconnectInfo>? PeerDisconnected;
-    public event Action<INetworkPeer, string>? CommandReceived;
-
-    public NetworkService(IServerContext context, ILogger<NetworkService> logger, NetDataWriterPool writerPool)
+    public class NetworkService : EngineService, INetworkService, IDisposable
     {
-        _context = context;
-        _logger = logger;
-        _writerPool = writerPool;
-        _listener = new EventBasedNetListener();
-        _netManager = new NetManager(_listener)
-        {
-            DisconnectTimeout = _context.Settings.Network.DisconnectTimeout
-        };
+        public override int Priority => 45;
+        private readonly NetManager _netManager;
+        private readonly EventBasedNetListener _listener;
+        private readonly IServerContext _context;
+        private readonly ILogger<NetworkService> _logger;
+        private readonly Dictionary<NetPeer, UdpNetworkPeer> _peers = new();
+        private readonly NetDataWriterPool _writerPool;
+        private Task? _networkTask;
+        private CancellationTokenSource? _cancellationTokenSource;
 
-        _listener.ConnectionRequestEvent += OnConnectionRequest;
-        _listener.PeerConnectedEvent += OnPeerConnected;
-        _listener.NetworkReceiveEvent += OnNetworkReceive;
-        _listener.PeerDisconnectedEvent += OnPeerDisconnected;
-    }
+        public event Action<INetworkPeer>? PeerConnected;
+        public event Action<INetworkPeer, DisconnectInfo>? PeerDisconnected;
+        public event Action<INetworkPeer, string>? CommandReceived;
 
-    protected override Task OnStartAsync(CancellationToken cancellationToken)
-    {
-        _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (_netManager.Start(_context.Settings.Network.UdpPort))
+        public NetworkService(IServerContext context, ILogger<NetworkService> logger, NetDataWriterPool writerPool)
         {
-            _logger.LogInformation($"Network service started on port {_context.Settings.Network.UdpPort}");
-            _networkTask = Task.Run(() => PollEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+            _context = context;
+            _logger = logger;
+            _writerPool = writerPool;
+            _listener = new EventBasedNetListener();
+            _netManager = new NetManager(_listener)
+            {
+                DisconnectTimeout = _context.Settings.Network.DisconnectTimeout
+            };
+
+            _listener.ConnectionRequestEvent += OnConnectionRequest;
+            _listener.PeerConnectedEvent += OnPeerConnected;
+            _listener.NetworkReceiveEvent += OnNetworkReceive;
+            _listener.PeerDisconnectedEvent += OnPeerDisconnected;
         }
-        else
+
+        protected override Task OnStartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogError("Failed to start network service.");
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            if (_netManager.Start(_context.Settings.Network.UdpPort))
+            {
+                _logger.LogInformation($"Network service started on port {_context.Settings.Network.UdpPort}");
+                _networkTask = Task.Run(() => PollEvents(_cancellationTokenSource.Token), _cancellationTokenSource.Token);
+            }
+            else
+            {
+                _logger.LogError("Failed to start network service.");
+            }
+            return Task.CompletedTask;
         }
-        return Task.CompletedTask;
-    }
 
-    public void Start() => StartAsync(CancellationToken.None);
+        public void Start() => StartAsync(CancellationToken.None);
 
-    private async Task PollEvents(CancellationToken token)
-    {
-        _logger.LogInformation("Network event polling started.");
-        while (!token.IsCancellationRequested)
+        private async Task PollEvents(CancellationToken token)
         {
-            _netManager.PollEvents();
-            // Lower delay for better responsiveness, but enough to avoid CPU pinning
-            await Task.Delay(5, token);
+            _logger.LogInformation("Network event polling started.");
+            while (!token.IsCancellationRequested)
+            {
+                _netManager.PollEvents();
+                // Lower delay for better responsiveness, but enough to avoid CPU pinning
+                await Task.Delay(5, token);
+            }
         }
-    }
 
-    protected override async Task OnStopAsync(CancellationToken cancellationToken)
-    {
-        _cancellationTokenSource?.Cancel();
-        if (_networkTask != null)
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
+            _cancellationTokenSource?.Cancel();
+            if (_networkTask != null)
+            {
+                try
+                {
+                    await _networkTask;
+                }
+                catch (OperationCanceledException) { }
+            }
+            _netManager.Stop();
+
+            _listener.ConnectionRequestEvent -= OnConnectionRequest;
+            _listener.PeerConnectedEvent -= OnPeerConnected;
+            _listener.NetworkReceiveEvent -= OnNetworkReceive;
+            _listener.PeerDisconnectedEvent -= OnPeerDisconnected;
+
+            _logger.LogInformation("Network service stopped.");
+        }
+
+        public void Stop() => StopAsync(CancellationToken.None).Wait();
+
+        private readonly Dictionary<NetPeer, string> _pendingNicknames = new();
+
+        private void OnConnectionRequest(ConnectionRequest request)
+        {
+            _logger.LogInformation($"Incoming connection from {request.RemoteEndPoint}");
+            var reader = request.Data;
+            var key = reader.GetString();
+            if (key == _context.Settings.Network.ConnectionKey)
+            {
+                var nickname = reader.GetString();
+                var peer = request.Accept();
+                if (peer != null) _pendingNicknames[peer] = nickname;
+            }
+            else
+            {
+                request.Reject();
+            }
+        }
+
+        private void OnPeerConnected(NetPeer peer)
+        {
+            _logger.LogInformation($"Client connected: {peer}");
+            var networkPeer = new UdpNetworkPeer(peer, _writerPool);
+            if (_pendingNicknames.Remove(peer, out var nickname))
+            {
+                networkPeer.Nickname = nickname;
+            }
+            _peers[peer] = networkPeer;
+            PeerConnected?.Invoke(networkPeer);
+        }
+
+        private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+        {
+            _context.PerformanceMonitor.RecordBytesReceived(reader.AvailableBytes);
+            if (reader.AvailableBytes > 0)
+            {
+                // Safety limit for command length
+                const int MaxCommandLength = 4096;
+                var command = reader.GetString(MaxCommandLength);
+
+                if(_peers.TryGetValue(peer, out var networkPeer))
+                    CommandReceived?.Invoke(networkPeer, command);
+            }
+            reader.Recycle();
+        }
+
+        private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            _logger.LogInformation($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
+            if(_peers.TryGetValue(peer, out var networkPeer))
+            {
+                PeerDisconnected?.Invoke(networkPeer, disconnectInfo);
+                _peers.Remove(peer);
+            }
+        }
+
+        public void BroadcastSnapshot(string snapshot) {
+            var writer = _writerPool.Rent();
             try
             {
-                await _networkTask;
+                writer.Put((byte)SnapshotMessageType.Json);
+                writer.Put(snapshot);
+                _context.PerformanceMonitor.RecordBytesSent(writer.Length);
+                _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
             }
-            catch (OperationCanceledException) { }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
         }
-        _netManager.Stop();
 
-        _listener.ConnectionRequestEvent -= OnConnectionRequest;
-        _listener.PeerConnectedEvent -= OnPeerConnected;
-        _listener.NetworkReceiveEvent -= OnNetworkReceive;
-        _listener.PeerDisconnectedEvent -= OnPeerDisconnected;
+        public void BroadcastSnapshot(byte[] snapshot) {
+            var writer = _writerPool.Rent();
+            try
+            {
+                writer.Put((byte)SnapshotMessageType.Binary);
+                writer.Put(snapshot);
+                _context.PerformanceMonitor.RecordBytesSent(writer.Length);
+                _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
+            }
+            finally
+            {
+                _writerPool.Return(writer);
+            }
+        }
 
-        _logger.LogInformation("Network service stopped.");
-    }
-
-    public void Stop() => StopAsync(CancellationToken.None).Wait();
-
-    private readonly Dictionary<NetPeer, string> _pendingNicknames = new();
-
-    private void OnConnectionRequest(ConnectionRequest request)
-    {
-        _logger.LogInformation($"Incoming connection from {request.RemoteEndPoint}");
-        var reader = request.Data;
-        var key = reader.GetString();
-        if (key == _context.Settings.Network.ConnectionKey)
+        public void Dispose()
         {
-            var nickname = reader.GetString();
-            var peer = request.Accept();
-            if (peer != null) _pendingNicknames[peer] = nickname;
+            _cancellationTokenSource?.Dispose();
+            GC.SuppressFinalize(this);
         }
-        else
-        {
-            request.Reject();
-        }
-    }
-
-    private void OnPeerConnected(NetPeer peer)
-    {
-        _logger.LogInformation($"Client connected: {peer}");
-        var networkPeer = new UdpNetworkPeer(peer, _writerPool);
-        if (_pendingNicknames.Remove(peer, out var nickname))
-        {
-            networkPeer.Nickname = nickname;
-        }
-        _peers[peer] = networkPeer;
-        PeerConnected?.Invoke(networkPeer);
-    }
-
-    private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
-    {
-        _context.PerformanceMonitor.RecordBytesReceived(reader.AvailableBytes);
-        if (reader.AvailableBytes > 0)
-        {
-            // Safety limit for command length
-            const int MaxCommandLength = 4096;
-            var command = reader.GetString(MaxCommandLength);
-
-            if(_peers.TryGetValue(peer, out var networkPeer))
-                CommandReceived?.Invoke(networkPeer, command);
-        }
-        reader.Recycle();
-    }
-
-    private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
-    {
-        _logger.LogInformation($"Client disconnected: {peer}. Reason: {disconnectInfo.Reason}");
-        if(_peers.TryGetValue(peer, out var networkPeer))
-        {
-            PeerDisconnected?.Invoke(networkPeer, disconnectInfo);
-            _peers.Remove(peer);
-        }
-    }
-
-    public void BroadcastSnapshot(string snapshot) {
-        var writer = _writerPool.Rent();
-        try
-        {
-            writer.Put((byte)SnapshotMessageType.Json);
-            writer.Put(snapshot);
-            _context.PerformanceMonitor.RecordBytesSent(writer.Length);
-            _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
-        }
-        finally
-        {
-            _writerPool.Return(writer);
-        }
-    }
-
-    public void BroadcastSnapshot(byte[] snapshot) {
-        var writer = _writerPool.Rent();
-        try
-        {
-            writer.Put((byte)SnapshotMessageType.Binary);
-            writer.Put(snapshot);
-            _context.PerformanceMonitor.RecordBytesSent(writer.Length);
-            _netManager.SendToAll(writer, DeliveryMethod.Unreliable);
-        }
-        finally
-        {
-            _writerPool.Return(writer);
-        }
-    }
-
-    public void Dispose()
-    {
-        _cancellationTokenSource?.Dispose();
-        GC.SuppressFinalize(this);
     }
 }

@@ -216,27 +216,66 @@ public unsafe partial class BytecodeInterpreter
         PerformGlobalJumpIfFalse(ref state, globalIdx, address, pcForError);
     }
 
-    private static void HandleLocalCompareLessThanFloatJumpIfFalse(ref InterpreterState state) => HandleLocalCompareFloatJumpIfFalse(ref state, (a, b) => a < b);
-    private static void HandleLocalCompareGreaterThanFloatJumpIfFalse(ref InterpreterState state) => HandleLocalCompareFloatJumpIfFalse(ref state, (a, b) => a > b);
-    private static void HandleLocalCompareLessThanOrEqualFloatJumpIfFalse(ref InterpreterState state) => HandleLocalCompareFloatJumpIfFalse(ref state, (a, b) => a <= b);
-    private static void HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref InterpreterState state) => HandleLocalCompareFloatJumpIfFalse(ref state, (a, b) => a >= b);
+    private static void HandleLocalCompareLessThanFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] < val)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] > val)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanOrEqualFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] <= val)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        int address = state.ReadInt32();
+        if (!(state.Locals[idx] >= val)) state.PC = address;
+    }
 
     private static void HandleLocalJumpIfFieldFalse(ref InterpreterState state)
     {
-        int pcForError = state.PC - 1;
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int address = state.ReadInt32();
-        PerformLocalJumpIfFieldFalse(ref state, idx, nameId, address, pcForError);
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
     }
 
     private static void HandleLocalJumpIfFieldTrue(ref InterpreterState state)
     {
-        int pcForError = state.PC - 1;
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int address = state.ReadInt32();
-        PerformLocalJumpIfFieldTrue(ref state, idx, nameId, address, pcForError);
+        var objValue = state.Locals[idx];
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            var val = obj.GetVariable(name);
+            if (!val.IsFalse()) state.PC = address;
+        }
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC - 1, state.Thread);
     }
 
     private static void HandleUnknownOpcode(ref InterpreterState state)
@@ -1030,11 +1069,7 @@ public unsafe partial class BytecodeInterpreter
                 }
                 break;
             case DMReference.Type.Src:
-            case DMReference.Type.Self:
                 state.Push(state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null);
-                break;
-            case DMReference.Type.Usr:
-                state.Push(state.Thread.Usr != null ? new DreamValue(state.Thread.Usr) : DreamValue.Null);
                 break;
             case DMReference.Type.World:
                 state.Push(state.Thread.Context.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
@@ -1073,7 +1108,7 @@ public unsafe partial class BytecodeInterpreter
                     state.PC--;
                     var reference = state.ReadReference();
                     state.Thread._stackPtr = state.StackPtr;
-                    var val = ReferenceResolver.GetValue(reference, state.Thread, ref state.Frame, 0);
+                    var val = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                     state.Push(val);
@@ -1115,7 +1150,7 @@ public unsafe partial class BytecodeInterpreter
                     var reference = state.ReadReference();
                     var val = state.Pop();
                     state.Thread._stackPtr = state.StackPtr;
-                    ReferenceResolver.SetValue(reference, state.Thread, ref state.Frame, val, 0);
+                    state.Thread.SetReferenceValue(reference, ref state.Frame, val, 0);
                     state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
                     state.StackPtr = state.Thread._stackPtr;
                     state.Push(val);
@@ -2857,12 +2892,53 @@ public unsafe partial class BytecodeInterpreter
         if (!state.GetLocal(idx).IsNull) state.PC = address;
     }
 
-    private static void HandleLocalCompareEqualsJumpIfFalse(ref InterpreterState state) => HandleLocalCompareJumpIfFalse(ref state, (a, b) => a == b);
-    private static void HandleLocalCompareNotEqualsJumpIfFalse(ref InterpreterState state) => HandleLocalCompareJumpIfFalse(ref state, (a, b) => a != b);
-    private static void HandleLocalCompareLessThanJumpIfFalse(ref InterpreterState state) => HandleLocalCompareJumpIfFalse(ref state, (a, b) => a < b);
-    private static void HandleLocalCompareGreaterThanJumpIfFalse(ref InterpreterState state) => HandleLocalCompareJumpIfFalse(ref state, (a, b) => a > b);
-    private static void HandleLocalCompareLessThanOrEqualJumpIfFalse(ref InterpreterState state) => HandleLocalCompareJumpIfFalse(ref state, (a, b) => a <= b);
-    private static void HandleLocalCompareGreaterThanOrEqualJumpIfFalse(ref InterpreterState state) => HandleLocalCompareJumpIfFalse(ref state, (a, b) => a >= b);
+    private static void HandleLocalCompareEqualsJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (state.GetLocal(idx1) != state.GetLocal(idx2)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareNotEqualsJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (state.GetLocal(idx1) == state.GetLocal(idx2)) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) < state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) > state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareLessThanOrEqualJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) <= state.GetLocal(idx2))) state.PC = address;
+    }
+
+    private static void HandleLocalCompareGreaterThanOrEqualJumpIfFalse(ref InterpreterState state)
+    {
+        int idx1 = state.ReadInt32();
+        int idx2 = state.ReadInt32();
+        int address = state.ReadInt32();
+        if (!(state.GetLocal(idx1) >= state.GetLocal(idx2))) state.PC = address;
+    }
 
     private static void HandleLocalPushDereferenceField(ref InterpreterState state)
     {

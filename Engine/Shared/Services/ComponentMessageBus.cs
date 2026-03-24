@@ -43,6 +43,9 @@ namespace Shared.Services;
                 var targetTypes = message.TargetComponentTypes;
                 if (targetTypes != null && targetTypes.Length > 0)
                 {
+                    var archetypes = am.GetArchetypesWithComponents(targetTypes);
+
+                    var filterMask = new ComponentMask();
                     var targetIds = _targetIdsCache.GetOrAdd(message.GetType(), _ =>
                     {
                         var ids = new int[targetTypes.Length];
@@ -53,31 +56,33 @@ namespace Shared.Services;
                         return ids;
                     });
 
-                    foreach (var arch in am.GetArchetypesWithComponents(targetTypes))
+                    foreach (var id in targetIds)
                     {
-                        int entityCount = arch.EntityCount;
-                        if (entityCount == 0) continue;
+                        filterMask.Set(id);
+                    }
 
-                        foreach (var targetId in targetIds)
+                    foreach (var arch in archetypes)
+                    {
+                        // Rapidly skip archetypes that don't overlap with our targets
+                        if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
+
+                        var enumerator = arch.GetEntities();
+                        while (enumerator.MoveNext())
                         {
-                            var array = arch.GetComponentsInternal(targetId);
-                            if (array == null) continue;
+                            var entity = enumerator.Current;
+                            if (entity == null) continue;
 
-                            // Optimized: dispatch to target component arrays within chunks
-                            for (int j = 0; j < entityCount; j++)
-                            {
-                                var component = array.Get(j);
-                                if (component != null && component.Enabled)
-                                {
-                                    component.OnMessage(message);
-                                }
-                            }
+                            // Re-dispatch via GameObject to use its optimized local component resolution
+                            entity.SendMessage(message);
                         }
                     }
                 }
                 else
                 {
-                    am.ForEachEntity(entity => entity.SendMessage(message));
+                    cm.ArchetypeManager.ForEachEntity(entity =>
+                    {
+                        entity.SendMessage(message);
+                    });
                 }
             }
         }

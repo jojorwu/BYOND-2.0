@@ -9,87 +9,88 @@ using System.Linq;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
 
-namespace Core;
-
-public class ScriptManager : EngineService, IScriptManager
+namespace Core
 {
-    public override IEnumerable<System.Type> Dependencies => new[] { typeof(IDreamVM) };
-
-    private readonly IEnumerable<IScriptSystem> _systems;
-    private readonly string _scriptsRoot;
-    private readonly ILogger<ScriptManager> _logger;
-
-    public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems, ILogger<ScriptManager> logger)
+    public class ScriptManager : EngineService, IScriptManager
     {
-        _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
-        _systems = systems;
-        _logger = logger;
-    }
+        public override IEnumerable<System.Type> Dependencies => new[] { typeof(IDreamVM) };
 
-    protected override async Task OnInitializeAsync()
-    {
-        _logger.LogInformation("Initializing Script Manager...");
+        private readonly IEnumerable<IScriptSystem> _systems;
+        private readonly string _scriptsRoot;
+        private readonly ILogger<ScriptManager> _logger;
 
-        if (!Directory.Exists(_scriptsRoot))
+        public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems, ILogger<ScriptManager> logger)
         {
-            _logger.LogInformation("Scripts directory not found. Creating at '{ScriptsRoot}'", _scriptsRoot);
-            Directory.CreateDirectory(_scriptsRoot);
+            _scriptsRoot = project.GetFullPath(Constants.ScriptsRoot);
+            _systems = systems;
+            _logger = logger;
         }
 
-        foreach (var sys in _systems)
+        public override async Task InitializeAsync()
         {
-            _logger.LogInformation("Initializing script system: {SystemName}", sys.GetType().Name);
-            sys.Initialize();
-            await sys.LoadScripts(_scriptsRoot);
-        }
-    }
+            _logger.LogInformation("Initializing Script Manager...");
 
-    public async Task ReloadAll()
-    {
-        foreach (var sys in _systems)
-        {
-            sys.Reload();
-            await sys.LoadScripts(_scriptsRoot);
-        }
-    }
-
-    public void InvokeGlobalEvent(string eventName)
-    {
-        foreach (var sys in _systems)
-        {
-            sys.InvokeEvent(eventName);
-        }
-    }
-
-    public string? ExecuteCommand(string command)
-    {
-        if (command == null)
-        {
-            throw new System.ArgumentNullException(nameof(command));
-        }
-
-        foreach (var system in _systems)
-        {
-            var result = system.ExecuteString(command);
-            if (result != null)
+            if (!Directory.Exists(_scriptsRoot))
             {
-                return result;
+                _logger.LogInformation("Scripts directory not found. Creating at '{ScriptsRoot}'", _scriptsRoot);
+                Directory.CreateDirectory(_scriptsRoot);
+            }
+
+            foreach (var sys in _systems)
+            {
+                _logger.LogInformation("Initializing script system: {SystemName}", sys.GetType().Name);
+                sys.Initialize();
+                await sys.LoadScripts(_scriptsRoot);
             }
         }
-        return null;
-    }
 
-    public IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null)
-    {
-        foreach (var system in _systems.OfType<IThreadSupportingScriptSystem>())
+        public async Task ReloadAll()
         {
-            var thread = system.CreateThread(procName, associatedObject);
-            if (thread != null)
+            foreach (var sys in _systems)
             {
-                return thread;
+                sys.Reload();
+                await sys.LoadScripts(_scriptsRoot);
             }
         }
-        return null;
-    }
 
+        public void InvokeGlobalEvent(string eventName)
+        {
+            foreach (var sys in _systems)
+            {
+                sys.InvokeEvent(eventName);
+            }
+        }
+
+        public string? ExecuteCommand(string command)
+        {
+            if (command == null)
+            {
+                throw new System.ArgumentNullException(nameof(command));
+            }
+
+            foreach (var system in _systems)
+            {
+                var result = system.ExecuteString(command);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
+        }
+
+        public IScriptThread? CreateThread(string procName, IGameObject? associatedObject = null)
+        {
+            foreach (var system in _systems.OfType<IThreadSupportingScriptSystem>())
+            {
+                var thread = system.CreateThread(procName, associatedObject);
+                if (thread != null)
+                {
+                    return thread;
+                }
+            }
+            return null;
+        }
+
+    }
 }

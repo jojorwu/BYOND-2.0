@@ -16,7 +16,6 @@ namespace Shared.Services;
         {
             public long X;
             public long Y;
-            public long Z;
             public int Range;
         }
 
@@ -27,9 +26,9 @@ namespace Shared.Services;
             _spatialGrid = spatialGrid;
         }
 
-        public void UpdatePlayerInterest(INetworkPeer peer, long x, long y, long z, int range)
+        public void UpdatePlayerInterest(INetworkPeer peer, long x, long y, int range)
         {
-            _playerStates[peer] = new PlayerInterestState { X = x, Y = y, Z = z, Range = range };
+            _playerStates[peer] = new PlayerInterestState { X = x, Y = y, Range = range };
         }
 
         public InterestedObjectEnumerable GetInterestedObjects(INetworkPeer peer)
@@ -37,7 +36,7 @@ namespace Shared.Services;
             if (_playerStates.TryGetValue(peer, out var state))
             {
                 var box = new Box2l(state.X - state.Range, state.Y - state.Range, state.X + state.Range, state.Y + state.Range);
-                return new InterestedObjectEnumerable(_spatialGrid, box, state.Z);
+                return new InterestedObjectEnumerable(_spatialGrid, box);
             }
             return default;
         }
@@ -46,18 +45,16 @@ namespace Shared.Services;
         {
             private readonly SpatialGrid _grid;
             private readonly Box2l _box;
-            private readonly long _z;
 
             public bool IsDefault => _grid == null;
 
-            public InterestedObjectEnumerable(SpatialGrid grid, Box2l box, long z)
+            public InterestedObjectEnumerable(SpatialGrid grid, Box2l box)
             {
                 _grid = grid;
                 _box = box;
-                _z = z;
             }
 
-            public SpatialGrid.BoxEnumerator GetEnumerator() => _grid?.GetEnumerator(_box, _z) ?? default;
+            public SpatialGrid.BoxEnumerator GetEnumerator() => _grid?.GetEnumerator(_box) ?? default;
 
             IEnumerator<IGameObject> IEnumerable<IGameObject>.GetEnumerator() => GetEnumerator();
             System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();

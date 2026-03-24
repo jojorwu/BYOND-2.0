@@ -53,12 +53,8 @@ namespace Shared;
         {
             if (ObjectType == null) return DreamValue.Null;
             int index = ObjectType.GetVariableIndex(name);
-            return index != -1 ? GetVariableInternal(index) : DreamValue.Null;
-        }
+            if (index == -1) return DreamValue.Null;
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected DreamValue GetVariableInternal(int index)
-        {
             using (_lock.EnterScope())
             {
                 return _variableStore.Get(index);
@@ -74,12 +70,6 @@ namespace Shared;
             {
                 SetVariableDirect(index, value);
             }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SetVariable(int index, DreamValue value)
-        {
-            SetVariableDirect(index, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -101,6 +91,12 @@ namespace Shared;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetVariable(int index, DreamValue value)
+        {
+            SetVariableDirect(index, value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual void SetVariableDirect(int index, DreamValue value, bool suppressVersion = false)
         {
             if ((uint)index >= 1000000) return; // Basic sanity check
@@ -117,7 +113,11 @@ namespace Shared;
                         IncrementVersion();
                     }
 
-                    _bindingService?.NotifyPropertyChanged(this, index, value);
+                    var binding = _bindingService;
+                    if (binding != null)
+                    {
+                        binding.NotifyPropertyChanged(this, index, value);
+                    }
                 }
             }
         }

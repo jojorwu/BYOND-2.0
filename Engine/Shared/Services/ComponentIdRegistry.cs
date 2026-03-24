@@ -66,7 +66,7 @@ public static class ComponentIdRegistry
     public static IEnumerable<Type> RegisteredTypes => _typeToId.Keys;
 
     /// <summary>
-    /// Freezes the current registry to maximize lookup performance in modern .NET.
+    /// Freezes the current registry to maximize lookup performance in .NET 10.
     /// </summary>
     public static void Freeze()
     {

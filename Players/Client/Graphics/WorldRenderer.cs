@@ -68,7 +68,7 @@ void main() {
             _iconCache = iconCache;
         }
 
-        public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection, long targetZ = 0)
+        public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             ProcessPendingUploads();
             UpdateVisibleChunks(cullRect);
@@ -76,10 +76,6 @@ void main() {
             _chunkShader.Use();
             _chunkShader.SetUniform("uView", view);
             _chunkShader.SetUniform("uProjection", projection);
-
-            // Optimization: Filter chunks that are not on the target Z level
-            // Note: Currently chunks are 2D but we could make them 3D if needed.
-            // For now, we rebuild them if the Z level changes.
 
             foreach (var coords in _visibleChunks)
             {
@@ -94,24 +90,22 @@ void main() {
                     _rebuildingChunks.Add(coords);
                     // Offload to background task
                     var stateClone = currentState;
-                    Task.Run(() => RebuildChunkTask(chunk, stateClone, targetZ));
+                    Task.Run(() => RebuildChunkTask(chunk, stateClone));
                 }
 
                 chunk.Draw();
             }
 
             // Render non-turf objects using instancing
-            RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection, targetZ);
+            RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection);
         }
 
-        private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection, long targetZ)
+        private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             _instancedRenderer.Begin();
             _renderObjectBuffer.Clear();
 
-            // Optimization: Use a slightly larger box for spatial query to account for large sprites
-            var queryBox = new Box2l((long)cullRect.Left - 2, (long)cullRect.Top - 2, (long)cullRect.Right + 2, (long)cullRect.Bottom + 2);
-            currentState.SpatialGrid.QueryBox(queryBox, targetZ, obj => _renderObjectBuffer.Add(obj));
+            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
 
             // Sort by layer for correct transparency
             _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
@@ -121,6 +115,13 @@ void main() {
                 var layer = GetLayer(obj);
                 if (layer != 2.0f) // Non-turf layer
                 {
+                    // Frustum Culling
+                    if (obj.X < cullRect.Left - 1 || obj.X > cullRect.Right + 1 ||
+                        obj.Y < cullRect.Top - 1 || obj.Y > cullRect.Bottom + 1)
+                    {
+                        continue;
+                    }
+
                     var icon = GetIcon(obj);
                     if (!string.IsNullOrEmpty(icon))
                     {
@@ -146,8 +147,7 @@ void main() {
                                     pos = Vector2.Lerp(new Vector2(prevObj.X, prevObj.Y), pos, alpha);
                                 }
 
-                                var color = GetColor(obj);
-                                _instancedRenderer.Draw(dmi.TextureId, pos * 32, new Vector2(32, 32), uv, color);
+                                _instancedRenderer.Draw(dmi.TextureId, pos * 32, new Vector2(32, 32), uv, Color.White);
                             }
                         }
                     }
@@ -183,7 +183,7 @@ void main() {
             }
         }
 
-        private void RebuildChunkTask(RenderChunk chunk, GameState state, long targetZ)
+        private void RebuildChunkTask(RenderChunk chunk, GameState state)
         {
             var vertices = new List<Vertex>();
             var objects = new List<IGameObject>();
@@ -193,7 +193,7 @@ void main() {
             long endX = startX + RenderChunk.ChunkSize;
             long endY = startY + RenderChunk.ChunkSize;
 
-            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), targetZ, obj => objects.Add(obj));
+            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {
@@ -219,8 +219,7 @@ void main() {
                                     (float)(frame.Y + dmi.Description.Height) / dmi.Height
                                 );
 
-                                var color = GetColor(obj);
-                                AddQuad(vertices, new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), uv, color);
+                                AddQuad(vertices, new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), uv, Color.White);
                             }
                         }
                     }
@@ -245,7 +244,8 @@ void main() {
         {
             if (obj is GameObject gameObject)
             {
-                return (float)gameObject.Visuals.Layer;
+                var layer = gameObject.GetVariable("layer");
+                return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
             }
             return 2.0f;
         }
@@ -254,26 +254,10 @@ void main() {
         {
             if (obj is GameObject gameObject)
             {
-                return gameObject.Visuals.Icon;
+                var icon = gameObject.GetVariable("Icon");
+                return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
             }
             return null;
-        }
-
-        private Color GetColor(IGameObject obj)
-        {
-            if (obj is GameObject gameObject)
-            {
-                if (Color.TryFromName(gameObject.Visuals.Color, out var color))
-                {
-                    return color.WithAlpha((float)(gameObject.Visuals.Alpha / 255.0));
-                }
-                var hexColor = Color.TryFromHex(gameObject.Visuals.Color);
-                if (hexColor.HasValue)
-                {
-                    return hexColor.Value.WithAlpha((float)(gameObject.Visuals.Alpha / 255.0));
-                }
-            }
-            return Color.White;
         }
 
         public void MarkAreaDirty(Box2i area)

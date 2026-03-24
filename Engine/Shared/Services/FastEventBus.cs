@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Shared.Interfaces;
 using Shared.Messaging;
 
 namespace Shared.Services;
 
-public class FastEventBus : EngineService, IEventBus, IFreezable
+public class FastEventBus : EngineService, IEventBus
 {
     private interface IHandlerList
     {
@@ -198,19 +196,9 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
     }
 
     private readonly ConcurrentDictionary<Type, IHandlerList> _typeToHandlers = new();
-    private volatile FrozenDictionary<Type, IHandlerList> _frozenHandlers = FrozenDictionary<Type, IHandlerList>.Empty;
-
-    public void Freeze()
-    {
-        _frozenHandlers = _typeToHandlers.ToFrozenDictionary();
-    }
 
     private HandlerList<T> GetHandlers<T>()
     {
-        if (_frozenHandlers.TryGetValue(typeof(T), out var handlers))
-        {
-            return (HandlerList<T>)handlers;
-        }
         return (HandlerList<T>)_typeToHandlers.GetOrAdd(typeof(T), _ => new HandlerList<T>());
     }
 
@@ -220,11 +208,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public void Unsubscribe<T>(Action<T> handler)
     {
-        if (_frozenHandlers.TryGetValue(typeof(T), out var handlers))
-        {
-            handlers.Unsubscribe(handler);
-        }
-        else if (_typeToHandlers.TryGetValue(typeof(T), out handlers))
+        if (_typeToHandlers.TryGetValue(typeof(T), out var handlers))
         {
             handlers.Unsubscribe(handler);
         }
@@ -232,11 +216,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public void Unsubscribe<T>(IEventHandler<T> handler)
     {
-        if (_frozenHandlers.TryGetValue(typeof(T), out var handlers))
-        {
-            handlers.Unsubscribe(handler);
-        }
-        else if (_typeToHandlers.TryGetValue(typeof(T), out handlers))
+        if (_typeToHandlers.TryGetValue(typeof(T), out var handlers))
         {
             handlers.Unsubscribe(handler);
         }
@@ -244,11 +224,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public void UnsubscribeAsync<T>(Func<T, ValueTask> handler)
     {
-        if (_frozenHandlers.TryGetValue(typeof(T), out var handlers))
-        {
-            handlers.Unsubscribe(handler);
-        }
-        else if (_typeToHandlers.TryGetValue(typeof(T), out handlers))
+        if (_typeToHandlers.TryGetValue(typeof(T), out var handlers))
         {
             handlers.Unsubscribe(handler);
         }
@@ -259,7 +235,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
     protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
         Clear();
-        return base.StopAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public void Publish<T>(in T eventData) where T : struct
@@ -270,15 +246,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public ValueTask PublishAsync<T>(T eventData) => GetHandlers<T>().PublishAsync(eventData);
 
-    public void Clear()
-    {
-        _typeToHandlers.Clear();
-        _frozenHandlers = FrozenDictionary<Type, IHandlerList>.Empty;
-    }
+    public void Clear() => _typeToHandlers.Clear();
 
-    public void Clear<T>()
-    {
-        _typeToHandlers.TryRemove(typeof(T), out _);
-        _frozenHandlers = _typeToHandlers.ToFrozenDictionary();
-    }
+    public void Clear<T>() => _typeToHandlers.TryRemove(typeof(T), out _);
 }

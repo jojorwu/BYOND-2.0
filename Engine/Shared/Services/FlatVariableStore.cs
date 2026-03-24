@@ -3,7 +3,6 @@ using Shared.Interfaces;
 using System;
 using System.Buffers;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Shared.Services;
 
@@ -30,48 +29,37 @@ public class FlatVariableStore : IVariableStore
         _length = capacity;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue Get(int index)
     {
         if ((uint)index < (uint)_length)
-            return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_values), index);
+            return _values[index];
         return DreamValue.Null;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref DreamValue GetRef(int index)
     {
-        return ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_values), index);
+        return ref _values[index];
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Set(int index, DreamValue value)
     {
         if ((uint)index >= (uint)_values.Length)
         {
-            SetSlow(index, value);
-            return;
+            int newCapacity = _values.Length == 0 ? 8 : _values.Length * 2;
+            while (newCapacity <= index) newCapacity *= 2;
+
+            var newValues = ArrayPool<DreamValue>.Shared.Rent(newCapacity);
+            // Clear new portion of the array
+            Array.Clear(newValues, 0, newValues.Length);
+
+            if (_length > 0)
+            {
+                _values.AsSpan(0, _length).CopyTo(newValues);
+                ArrayPool<DreamValue>.Shared.Return(_values, clearArray: true);
+            }
+            _values = newValues;
         }
-
-        if (index >= _length) _length = index + 1;
-        Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_values), index) = value;
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void SetSlow(int index, DreamValue value)
-    {
-        int newCapacity = _values.Length == 0 ? 8 : _values.Length * 2;
-        while (newCapacity <= index) newCapacity *= 2;
-
-        var newValues = ArrayPool<DreamValue>.Shared.Rent(newCapacity);
-        Array.Clear(newValues, 0, newValues.Length);
-
-        if (_length > 0)
-        {
-            _values.AsSpan(0, _length).CopyTo(newValues);
-            ArrayPool<DreamValue>.Shared.Return(_values, clearArray: true);
-        }
-        _values = newValues;
 
         if (index >= _length) _length = index + 1;
         _values[index] = value;

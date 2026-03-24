@@ -5,7 +5,7 @@ using Shared.Models;
 
 namespace Shared.Services;
 
-public class EntityRegistry : EngineService, IEntityRegistry, IFreezable
+public class EntityRegistry : IEntityRegistry
 {
     public IComponentManager ComponentManager { get; }
     public IObjectPool<GameObject> EntityPool { get; }
@@ -41,10 +41,5 @@ public class EntityRegistry : EngineService, IEntityRegistry, IFreezable
         {
             ComponentManager.RemoveComponent(entity, component.GetType());
         }
-    }
-
-    public void Freeze()
-    {
-        // No-op for now, but allows participation in the freezing lifecycle
     }
 }

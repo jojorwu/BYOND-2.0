@@ -3,8 +3,6 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Shared.Interfaces;
 using Shared.Enums;
 
@@ -134,10 +132,7 @@ public class Archetype
                 else if (ignoreType != type && sourceArchetype != null)
                 {
                     var sourceArray = sourceArchetype.GetComponentsInternal(id);
-                    if (sourceArray != null)
-                    {
-                        sourceArray.CopyTo(sourceIndex, targetArrays[id]!, index);
-                    }
+                    sourceArray?.CopyTo(sourceIndex, targetArrays[id]!, index);
                 }
             }
 
@@ -164,7 +159,6 @@ public class Archetype
 
             int lastIndex = _count - 1;
             var arrays = _componentArrays;
-            var signatureIds = Signature.ComponentIds;
 
             // Optimization: If the entity is already the last one, we skip the swap and copy
             if (index != lastIndex)
@@ -176,10 +170,9 @@ public class Archetype
                 _entities[index] = lastEntity;
                 _entityIdToIndex[lastEntityId] = index;
 
-                // Optimization: only iterate over the components actually present in this archetype
-                for (int i = 0; i < signatureIds.Length; i++)
+                for (int i = 0; i < arrays.Length; i++)
                 {
-                    arrays[signatureIds[i]]!.Copy(lastIndex, index);
+                    arrays[i]?.Copy(lastIndex, index);
                 }
 
                 lastEntity.ArchetypeIndex = index;
@@ -187,9 +180,9 @@ public class Archetype
 
             _entities[lastIndex] = null!;
             _entityIdToIndex.Remove(entityId);
-            for (int i = 0; i < signatureIds.Length; i++)
+            for (int i = 0; i < arrays.Length; i++)
             {
-                arrays[signatureIds[i]]!.Clear(lastIndex);
+                arrays[i]?.Clear(lastIndex);
             }
             _count--;
         }
@@ -563,37 +556,14 @@ public class Archetype
         public T[] Data = System.Array.Empty<T>();
 
         public void Resize(int capacity) => System.Array.Resize(ref Data, capacity);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Set(int index, IComponent component)
-        {
-            Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Data), index) = (T)component;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Copy(int from, int to)
-        {
-            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
-            Unsafe.Add(ref dataRef, to) = Unsafe.Add(ref dataRef, from);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(int index, IComponent component) => Data[index] = (T)component;
+        public void Copy(int from, int to) => Data[to] = Data[from];
         public void CopyTo(int sourceIndex, IComponentArray destination, int destinationIndex)
         {
-            destination.Set(destinationIndex, Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Data), sourceIndex));
+            destination.Set(destinationIndex, Data[sourceIndex]);
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Clear(int index)
-        {
-            Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Data), index) = null!;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IComponent Get(int index)
-        {
-            return Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(Data), index);
-        }
+        public void Clear(int index) => Data[index] = null!;
+        public IComponent Get(int index) => Data[index];
     }
 
     public long[] GetEntityIdsSnapshot()

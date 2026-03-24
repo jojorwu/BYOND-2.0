@@ -218,48 +218,4 @@ public unsafe partial class BytecodeInterpreter
         }
         else a = (a >= b) ? DreamValue.True : DreamValue.False;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void HandleLocalCompareFloatJumpIfFalse(ref InterpreterState state, System.Func<double, double, bool> op)
-    {
-        int idx = state.ReadInt32();
-        double val = state.ReadDouble();
-        int address = state.ReadInt32();
-        if (!op(state.Locals[idx].GetValueAsDouble(), val)) state.PC = address;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void HandleLocalCompareJumpIfFalse(ref InterpreterState state, System.Func<DreamValue, DreamValue, bool> op)
-    {
-        int idx1 = state.ReadInt32();
-        int idx2 = state.ReadInt32();
-        int address = state.ReadInt32();
-        if (!op(state.GetLocal(idx1), state.GetLocal(idx2))) state.PC = address;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void PerformLocalJumpIfFieldFalse(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
-    {
-        var objValue = state.Locals[idx];
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            var name = state.Strings[nameId];
-            var val = obj.GetVariable(name);
-            if (val.IsFalse()) state.PC = address;
-        }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForError, state.Thread);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void PerformLocalJumpIfFieldTrue(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
-    {
-        var objValue = state.Locals[idx];
-        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
-        {
-            var name = state.Strings[nameId];
-            var val = obj.GetVariable(name);
-            if (!val.IsFalse()) state.PC = address;
-        }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForError, state.Thread);
-    }
 }

@@ -11,75 +11,76 @@ using Microsoft.Extensions.Options;
 using Shared;
 using Shared.Services;
 
-namespace Server;
-
-public class HttpServer : EngineService, IHostedService, IDisposable
+namespace Server
 {
-    public override int Priority => -50; // Moderate priority
-    private IHost? _host;
-    private readonly ILogger<HttpServer> _logger;
-
-    public HttpServer(IOptions<ServerSettings> settingsOptions, IProject project, ILogger<HttpServer> logger)
+    public class HttpServer : EngineService, IHostedService, IDisposable
     {
-        _logger = logger;
-        var settings = settingsOptions.Value;
-        if (!settings.HttpServer.Enabled)
-        {
-            return;
-        }
+        public override int Priority => -50; // Moderate priority
+        private IHost? _host;
+        private readonly ILogger<HttpServer> _logger;
 
-        var assetsPath = project.GetFullPath(settings.HttpServer.AssetsRoot);
-        if (!Directory.Exists(assetsPath))
+        public HttpServer(IOptions<ServerSettings> settingsOptions, IProject project, ILogger<HttpServer> logger)
         {
-            _logger.LogWarning($"Assets directory '{assetsPath}' not found. Creating it.");
-            Directory.CreateDirectory(assetsPath);
-        }
-
-        _host = Host.CreateDefaultBuilder()
-            .ConfigureWebHostDefaults(webBuilder =>
+            _logger = logger;
+            var settings = settingsOptions.Value;
+            if (!settings.HttpServer.Enabled)
             {
-                webBuilder.UseKestrel()
-                    .UseUrls($"http://*:{settings.HttpServer.Port}")
-                    .ConfigureServices(services =>
-                    {
-                        services.AddDirectoryBrowser();
-                    })
-                    .Configure(app =>
-                    {
-                        app.UseFileServer(new FileServerOptions
+                return;
+            }
+
+            var assetsPath = project.GetFullPath(settings.HttpServer.AssetsRoot);
+            if (!Directory.Exists(assetsPath))
+            {
+                _logger.LogWarning($"Assets directory '{assetsPath}' not found. Creating it.");
+                Directory.CreateDirectory(assetsPath);
+            }
+
+            _host = Host.CreateDefaultBuilder()
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    webBuilder.UseKestrel()
+                        .UseUrls($"http://*:{settings.HttpServer.Port}")
+                        .ConfigureServices(services =>
                         {
-                            FileProvider = new PhysicalFileProvider(assetsPath),
-                            RequestPath = "",
-                            EnableDirectoryBrowsing = true
+                            services.AddDirectoryBrowser();
+                        })
+                        .Configure(app =>
+                        {
+                            app.UseFileServer(new FileServerOptions
+                            {
+                                FileProvider = new PhysicalFileProvider(assetsPath),
+                                RequestPath = "",
+                                EnableDirectoryBrowsing = true
+                            });
                         });
-                    });
-            })
-            .Build();
-    }
-
-    protected override async Task OnStartAsync(CancellationToken cancellationToken)
-    {
-        if (_host != null)
-        {
-            _logger.LogInformation("Starting HTTP server...");
-            await _host.StartAsync(cancellationToken);
-            _logger.LogInformation("HTTP server started.");
+                })
+                .Build();
         }
-    }
 
-    protected override async Task OnStopAsync(CancellationToken cancellationToken)
-    {
-        if (_host != null)
+        public override async Task StartAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Stopping HTTP server...");
-            await _host.StopAsync(cancellationToken);
-            _logger.LogInformation("HTTP server stopped.");
+            if (_host != null)
+            {
+                _logger.LogInformation("Starting HTTP server...");
+                await _host.StartAsync(cancellationToken);
+                _logger.LogInformation("HTTP server started.");
+            }
         }
-    }
 
-    public void Dispose()
-    {
-        _host?.Dispose();
-        _host = null;
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            if (_host != null)
+            {
+                _logger.LogInformation("Stopping HTTP server...");
+                await _host.StopAsync(cancellationToken);
+                _logger.LogInformation("HTTP server stopped.");
+            }
+        }
+
+        public void Dispose()
+        {
+            _host?.Dispose();
+            _host = null;
+        }
     }
 }

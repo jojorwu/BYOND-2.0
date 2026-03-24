@@ -101,8 +101,8 @@ namespace Core.Api
 
             using (_gameState.ReadLock())
             {
-                return _gameState.SpatialGrid.GetObjectsInBox(box, z)
-                    .Where(obj => obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
+                return _gameState.SpatialGrid.GetObjectsInBox(box)
+                    .Where(obj => obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
                     .ToList(); // ToList to execute the query inside the lock
             }
         }
@@ -127,8 +127,8 @@ namespace Core.Api
 
             using (_gameState.ReadLock())
             {
-                return _gameState.SpatialGrid.GetObjectsInBox(box, z)
-                    .Where(obj => obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
+                return _gameState.SpatialGrid.GetObjectsInBox(box)
+                    .Where(obj => obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
                     .ToList(); // ToList to execute the query inside the lock
             }
         }

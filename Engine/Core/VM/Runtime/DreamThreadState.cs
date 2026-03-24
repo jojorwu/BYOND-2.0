@@ -1,9 +1,10 @@
-namespace Core.VM.Runtime;
-
-public enum DreamThreadState
+namespace Core.VM.Runtime
 {
-    Running,
-    Sleeping,
-    Finished,
-    Error
+    public enum DreamThreadState
+    {
+        Running,
+        Sleeping,
+        Finished,
+        Error
+    }
 }

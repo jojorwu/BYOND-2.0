@@ -7,13 +7,12 @@ using System.Threading;
 using Robust.Shared.Maths;
 using System.Collections.Concurrent;
 using System.Buffers;
-using System.Collections.Frozen;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
 
 namespace Shared;
-    public class SpatialGrid : EngineService, IDisposable, IShrinkable, IFreezable
+    public class SpatialGrid : EngineService, IDisposable, IShrinkable
     {
         private class Cell : IDisposable
         {
@@ -58,26 +57,8 @@ namespace Shared;
             }
         }
 
-        private class Layer
-        {
-            public readonly ConcurrentDictionary<ulong, Cell> Grid = new();
-            public readonly ConcurrentQueue<ulong> EmptyCellKeys = new();
-        }
-
-        private readonly ConcurrentDictionary<long, Layer> _layers = new();
-        private volatile FrozenDictionary<long, Layer> _frozenLayers = FrozenDictionary<long, Layer>.Empty;
-
-        public void Freeze()
-        {
-            _frozenLayers = _layers.ToFrozenDictionary();
-        }
-
-        private Layer GetLayer(long z)
-        {
-            if (_frozenLayers.TryGetValue(z, out var layer)) return layer;
-            return _layers.GetOrAdd(z, _ => new Layer());
-        }
-
+        private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
+        private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
         private readonly ConcurrentQueue<IGameObject[]> _replacedArrays = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly int _cellSize;
@@ -158,67 +139,70 @@ namespace Shared;
             return GetMortonCode(GetGridCoord(x), GetGridCoord(y));
         }
 
-        private Cell GetOrCreateCell(Layer layer, ulong key)
+        private Cell GetOrCreateCell(ulong key)
         {
-            if (layer.Grid.TryGetValue(key, out var cell)) return cell;
-
-            var newCell = _cellPool.TryPop(out var pooled) ? pooled : new Cell();
-            if (layer.Grid.TryAdd(key, newCell))
-            {
-                return newCell;
-            }
-
-            // Return to pool if we lost the race to create the cell
-            _cellPool.Push(newCell);
-            return layer.Grid[key];
+            return _grid.GetOrAdd(key, _ => {
+                if (!_cellPool.TryPop(out var pooled)) pooled = new Cell();
+                return pooled;
+            });
         }
 
         public void Add(IGameObject obj)
         {
             var x = obj.X;
             var y = obj.Y;
-            var z = obj.Z;
             var key = GetCellKey(x, y);
-            var layer = GetLayer(z);
 
             if (obj.CurrentGridCellKey != null)
             {
-                var old = obj.CurrentGridCellKey.Value;
-                ulong oldKey = GetMortonCode(old.X, old.Y);
-                if (oldKey == key && old.Z == z) return;
+                ulong oldKey = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+                if (oldKey == key) return;
 
-                var oldLayer = GetLayer(old.Z);
-                var oldCell = GetOrCreateCell(oldLayer, oldKey);
-                var cell = GetOrCreateCell(layer, key);
+                var oldCell = GetOrCreateCell(oldKey);
+                var cell = GetOrCreateCell(key);
 
-                // Consistent lock ordering to avoid deadlocks (Morton codes are stable unique ulongs within a layer)
-                // We order first by layer then by Morton code within layer
-                bool swap = old.Z > z || (old.Z == z && oldKey > key);
-                var c1 = swap ? cell : oldCell;
-                var c2 = swap ? oldCell : cell;
-
-                bool lock1 = false, lock2 = false;
-                try
+                // Consistent lock ordering to avoid deadlocks (Morton codes are stable unique ulongs)
+                if (oldKey < key)
                 {
-                    c1.Lock.Enter(ref lock1);
-                    c2.Lock.Enter(ref lock2);
-                    RemoveInternal(obj, oldLayer, oldCell);
-                    AddInternal(obj, cell, new Vector3l(GetGridCoord(x), GetGridCoord(y), z));
+                    bool lock1 = false, lock2 = false;
+                    try
+                    {
+                        oldCell.Lock.Enter(ref lock1);
+                        cell.Lock.Enter(ref lock2);
+                        RemoveInternal(obj, oldCell);
+                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                    }
+                    finally
+                    {
+                        if (lock2) cell.Lock.Exit(false);
+                        if (lock1) oldCell.Lock.Exit(false);
+                    }
                 }
-                finally
+                else
                 {
-                    if (lock2) c2.Lock.Exit(false);
-                    if (lock1) c1.Lock.Exit(false);
+                    bool lock1 = false, lock2 = false;
+                    try
+                    {
+                        cell.Lock.Enter(ref lock1);
+                        oldCell.Lock.Enter(ref lock2);
+                        RemoveInternal(obj, oldCell);
+                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                    }
+                    finally
+                    {
+                        if (lock2) oldCell.Lock.Exit(false);
+                        if (lock1) cell.Lock.Exit(false);
+                    }
                 }
             }
             else
             {
-                var cell = GetOrCreateCell(layer, key);
+                var cell = GetOrCreateCell(key);
                 bool lockTaken = false;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, new Vector3l(GetGridCoord(x), GetGridCoord(y), z));
+                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
                 }
                 finally
                 {
@@ -227,7 +211,7 @@ namespace Shared;
             }
         }
 
-        private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
+        private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
         {
             // Copy-On-Write to ensure lock-free reads during iteration
             int newCount = cell.Count + 1;
@@ -260,17 +244,14 @@ namespace Shared;
         public void Remove(IGameObject obj)
         {
             if (obj.CurrentGridCellKey == null) return;
-            var old = obj.CurrentGridCellKey.Value;
-            ulong key = GetMortonCode(old.X, old.Y);
-            var layer = GetLayer(old.Z);
-
-            if (layer.Grid.TryGetValue(key, out var cell))
+            ulong key = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+            if (_grid.TryGetValue(key, out var cell))
             {
                 bool lockTaken = false;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    RemoveInternal(obj, layer, cell);
+                    RemoveInternal(obj, cell);
                 }
                 finally
                 {
@@ -279,7 +260,7 @@ namespace Shared;
             }
         }
 
-        private void RemoveInternal(IGameObject obj, Layer layer, Cell cell)
+        private void RemoveInternal(IGameObject obj, Cell cell)
         {
             int index = obj.SpatialGridIndex;
             if (index == -1) return;
@@ -313,19 +294,19 @@ namespace Shared;
 
             if (cell.Count == 0 && oldKey != null)
             {
-                layer.EmptyCellKeys.Enqueue(GetMortonCode(oldKey.Value.X, oldKey.Value.Y));
+                _emptyCellKeys.Enqueue(GetMortonCode(oldKey.Value.X, oldKey.Value.Y));
             }
         }
 
-        public void Update(IGameObject obj, long oldX, long oldY, long oldZ)
+        public void Update(IGameObject obj, long oldX, long oldY)
         {
             Add(obj);
         }
 
-        public List<IGameObject> GetObjectsInBox(Box2l box, long z)
+        public List<IGameObject> GetObjectsInBox(Box2l box)
         {
             var results = new List<IGameObject>();
-            GetObjectsInBox(box, z, results);
+            GetObjectsInBox(box, results);
             return results;
         }
 
@@ -334,7 +315,6 @@ namespace Shared;
         public struct BoxEnumerator : IEnumerator<IGameObject>
         {
             private readonly SpatialGrid _grid;
-            private readonly Layer? _layer;
             private readonly Box2l _box;
             private readonly long _endGX;
             private readonly long _endGY;
@@ -342,14 +322,12 @@ namespace Shared;
             private long _currentGY;
             private int _currentIndexInCell;
             private Cell? _currentCell;
-            private bool _isCellContained;
             private bool _lockTaken;
             private IGameObject? _current;
 
-            public BoxEnumerator(SpatialGrid grid, Box2l box, long z)
+            public BoxEnumerator(SpatialGrid grid, Box2l box)
             {
                 _grid = grid;
-                _layer = grid._frozenLayers.TryGetValue(z, out var l) ? l : grid._layers.GetValueOrDefault(z);
                 _box = box;
                 _currentGX = grid.GetGridCoord(box.Left);
                 _currentGY = grid.GetGridCoord(box.Bottom);
@@ -373,11 +351,8 @@ namespace Shared;
                         if (_currentIndexInCell < _currentCell.Count && _currentIndexInCell < objs.Length)
                         {
                             _current = objs[_currentIndexInCell];
-                            if (_current == null) continue;
-
-                            // Optimization: Skip bounds check if cell is fully contained
-                            if (_isCellContained || (_current.X >= _box.Left && _current.X <= _box.Right &&
-                                                     _current.Y >= _box.Bottom && _current.Y <= _box.Top))
+                            if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
+                                _current.Y >= _box.Bottom && _current.Y <= _box.Top)
                             {
                                 return true;
                             }
@@ -392,27 +367,21 @@ namespace Shared;
                     }
 
                     if (_currentGX > _endGX) return false;
-                    if (_layer == null) return false;
 
                     ulong key = GetMortonCode(_currentGX, _currentGY);
+                    _currentGY++;
 
-                    if (_layer.Grid.TryGetValue(key, out _currentCell))
+                    if (_grid._grid.TryGetValue(key, out _currentCell))
                     {
                         if (Volatile.Read(ref _currentCell.Count) > 0)
                         {
                             _currentIndexInCell = -1;
-                            // Check if this cell is fully contained within the query box
-                            long cellX = _currentGX * _grid._cellSize;
-                            long cellY = _currentGY * _grid._cellSize;
-                            _isCellContained = cellX >= _box.Left && cellX + _grid._cellSize - 1 <= _box.Right &&
-                                               cellY >= _box.Bottom && cellY + _grid._cellSize - 1 <= _box.Top;
                         }
                         else
                         {
                             _currentCell = null;
                         }
                     }
-                    _currentGY++;
                 }
             }
 
@@ -433,11 +402,11 @@ namespace Shared;
             public BoxEnumerator GetEnumerator() => this;
         }
 
-        public BoxEnumerator GetEnumerator(Box2l box, long z) => new BoxEnumerator(this, box, z);
+        public BoxEnumerator GetEnumerator(Box2l box) => new BoxEnumerator(this, box);
 
-        public void QueryBox(Box2l box, long z, Action<IGameObject> callback)
+        public void QueryBox(Box2l box, Action<IGameObject> callback)
         {
-            var enumerator = new BoxEnumerator(this, box, z);
+            var enumerator = new BoxEnumerator(this, box);
             try
             {
                 while (enumerator.MoveNext())
@@ -451,9 +420,9 @@ namespace Shared;
             }
         }
 
-        public void QueryBox<TState>(Box2l box, long z, ref TState state, QueryCallback<TState> callback)
+        public void QueryBox<TState>(Box2l box, ref TState state, QueryCallback<TState> callback)
         {
-            var enumerator = new BoxEnumerator(this, box, z);
+            var enumerator = new BoxEnumerator(this, box);
             try
             {
                 while (enumerator.MoveNext())
@@ -469,50 +438,67 @@ namespace Shared;
 
         public void CleanupEmptyCells()
         {
-            foreach (var layer in _layers.Values)
+            while (_emptyCellKeys.TryDequeue(out var key))
             {
-                while (layer.EmptyCellKeys.TryDequeue(out var key))
+                if (_grid.TryGetValue(key, out var cell))
                 {
-                    if (layer.Grid.TryGetValue(key, out var cell))
+                    if (cell.Count == 0)
                     {
-                        if (cell.Count == 0)
+                        bool lockTaken = false;
+                        try
                         {
-                            bool lockTaken = false;
-                            try
+                            cell.Lock.Enter(ref lockTaken);
+                            if (cell.Count == 0)
                             {
-                                cell.Lock.Enter(ref lockTaken);
-                                if (cell.Count == 0)
+                                if (_grid.TryRemove(key, out var removed))
                                 {
-                                    if (layer.Grid.TryRemove(key, out var removed))
-                                    {
-                                        removed.Clear();
-                                        _cellPool.Push(removed);
-                                    }
+                                    removed.Clear();
+                                    _cellPool.Push(removed);
                                 }
                             }
-                            finally
-                            {
-                                if (lockTaken) cell.Lock.Exit(false);
-                            }
+                        }
+                        finally
+                        {
+                            if (lockTaken) cell.Lock.Exit(false);
                         }
                     }
                 }
             }
         }
 
-        public void GetObjectsInBox(Box2l box, long z, List<IGameObject> results)
+        public void QueryBoxZ(Box2l box, long z, List<IGameObject> results)
+        {
+            var enumerator = new BoxEnumerator(this, box);
+            try
+            {
+                while (enumerator.MoveNext())
+                {
+                    var current = enumerator.Current;
+                    if (current.Z == z)
+                    {
+                        results.Add(current);
+                    }
+                }
+            }
+            finally
+            {
+                enumerator.Dispose();
+            }
+        }
+
+        public void GetObjectsInBox(Box2l box, List<IGameObject> results)
         {
             results.Clear();
-            GetObjectsInBox(box, z, (IList<IGameObject>)results);
+            GetObjectsInBox(box, (IList<IGameObject>)results);
         }
 
         /// <summary>
-        /// Retrieves all objects in the given box and map level and adds them to the results list.
+        /// Retrieves all objects in the given box and adds them to the results list.
         /// This overload allows the caller to provide a pre-allocated list to avoid heap churn.
         /// </summary>
-        public void GetObjectsInBox(Box2l box, long z, IList<IGameObject> results)
+        public void GetObjectsInBox(Box2l box, IList<IGameObject> results)
         {
-            var enumerator = new BoxEnumerator(this, box, z);
+            var enumerator = new BoxEnumerator(this, box);
             try
             {
                 while (enumerator.MoveNext())
@@ -528,19 +514,14 @@ namespace Shared;
 
         protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
-            Dispose();
-            return base.StopAsync(cancellationToken);
+            _grid.Clear();
+            _cellPool.Clear();
+            return Task.CompletedTask;
         }
 
         public void Dispose()
         {
-            foreach (var layer in _layers.Values)
-            {
-                foreach (var cell in layer.Grid.Values) cell.Dispose();
-                layer.Grid.Clear();
-            }
-            _layers.Clear();
-            _frozenLayers = FrozenDictionary<long, Layer>.Empty;
+            _grid.Clear();
             _cellPool.Clear();
             GC.SuppressFinalize(this);
         }

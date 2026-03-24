@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
@@ -105,7 +104,7 @@ public class ServiceDependencyGraph
                     for (int i = 0; i < depList.Count; i++)
                     {
                         var dependent = depList[i];
-                        ref int count = ref CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent);
+                        ref int count = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrNullRef(dependencyCounts, dependent);
                         if (Interlocked.Decrement(ref count) == 0)
                         {
                             ready.Enqueue(dependent);

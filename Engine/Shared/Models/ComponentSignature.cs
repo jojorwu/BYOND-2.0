@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace Shared.Models;
 
@@ -12,7 +11,7 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
     public readonly ComponentMask Mask;
     private readonly int _hashCode;
 
-    public ComponentSignature(IEnumerable<Type> types) : this(types is Type[] array ? array.AsSpan() : (types is List<Type> list ? CollectionsMarshal.AsSpan(list) : types.ToArray().AsSpan()))
+    public ComponentSignature(IEnumerable<Type> types) : this(types is Type[] array ? array.AsSpan() : types.ToArray().AsSpan())
     {
     }
 

@@ -42,7 +42,7 @@ public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
     protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
         ClearCache();
-        return base.StopAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public void ClearCache()

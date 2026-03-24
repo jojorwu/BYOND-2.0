@@ -52,12 +52,11 @@ out vec2 TexCoords;
 out vec4 vColor;
 uniform mat4 uProjection;
 uniform mat4 uView;
-uniform float uZOffset;
 void main() {
     vec2 worldPos = iRect.xy + aPos * iRect.zw;
     TexCoords = iUv.xy + aPos * (iUv.zw - iUv.xy);
     vColor = iColor;
-    gl_Position = uProjection * uView * vec4(worldPos, uZOffset, 1.0);
+    gl_Position = uProjection * uView * vec4(worldPos, 0.0, 1.0);
 }";
             string frag = @"#version 330 core
 layout (location = 0) out vec4 gAlbedo;
@@ -146,9 +145,6 @@ void main() {
         {
             if (textureId == 0) return;
 
-            // Optimization: Skip objects with zero alpha
-            if (color.A <= 0.001f) return;
-
             if (_batches.Count == 0 || textureId != _currentTextureId || normalMapId != _currentNormalMapId)
             {
                 _batches.Add(new Batch {
@@ -174,7 +170,7 @@ void main() {
             _batches[_batches.Count - 1] = lastBatch;
         }
 
-        public unsafe void Flush(Matrix4x4 view, Matrix4x4 projection, float zOffset = 0.0f)
+        public unsafe void Flush(Matrix4x4 view, Matrix4x4 projection)
         {
             if (_instanceCount == 0) return;
 
@@ -189,7 +185,6 @@ void main() {
             _shader.Use();
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
-            _shader.SetUniform("uZOffset", zOffset);
             _shader.SetUniform("uMetallic", 0.0f); // Default for sprites
             _shader.SetUniform("uRoughness", 1.0f);
 

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
 
-public class CommandDispatcher : EngineService, ICommandDispatcher, IFreezable, IDisposable
+public class CommandDispatcher : EngineService, ICommandDispatcher, IDisposable
 {
     private readonly Channel<ICommand> _commandChannel;
     private readonly ILogger<CommandDispatcher> _logger;
@@ -30,11 +30,6 @@ public class CommandDispatcher : EngineService, ICommandDispatcher, IFreezable, 
         });
 
         _processorTask = Task.Run(ProcessCommandsAsync);
-    }
-
-    public void Freeze()
-    {
-        _pipeline.Freeze();
     }
 
     public async ValueTask DispatchAsync(ICommand command)
@@ -81,6 +76,39 @@ public class CommandDispatcher : EngineService, ICommandDispatcher, IFreezable, 
         public void Reset() => _inner = null;
     }
 
+    private class MiddlewareRunner
+    {
+        private ICommandMiddleware[] _middlewares = null!;
+        private CommandContext _context = null!;
+        private Func<Task> _finalAction = null!;
+        private int _index;
+        private readonly Func<Task> _nextDelegate;
+
+        public MiddlewareRunner()
+        {
+            _nextDelegate = InvokeNextAsync;
+        }
+
+        public Task ExecuteAsync(ICommandMiddleware[] middlewares, CommandContext context, Func<Task> finalAction)
+        {
+            _middlewares = middlewares;
+            _context = context;
+            _finalAction = finalAction;
+            _index = 0;
+            return InvokeNextAsync();
+        }
+
+        private Task InvokeNextAsync()
+        {
+            if (_index < _middlewares.Length)
+            {
+                var middleware = _middlewares[_index++];
+                return middleware.ProcessAsync(_context, _nextDelegate);
+            }
+
+            return _finalAction();
+        }
+    }
 
     private async Task ProcessCommandsAsync()
     {

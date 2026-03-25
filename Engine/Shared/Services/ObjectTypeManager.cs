@@ -60,18 +60,25 @@ namespace Shared.Services;
 
         private void ValidateCircularDependencies(ObjectType objectType)
         {
-            var slow = objectType;
-            var fast = objectType;
+            var current = objectType.Parent;
+            int depth = 0;
+            const int MaxInheritanceDepth = 1000;
 
-            while (fast?.Parent != null && fast.Parent.Parent != null)
+            while (current != null)
             {
-                slow = slow.Parent!;
-                fast = fast.Parent.Parent!;
-
-                if (slow == fast)
+                if (current == objectType)
                 {
+                    _logger.LogCritical("Circular dependency detected for type '{TypeName}' (ID: {TypeId}).", objectType.Name, objectType.Id);
                     throw new System.InvalidOperationException($"Circular dependency detected in object type '{objectType.Name}'.");
                 }
+
+                if (++depth > MaxInheritanceDepth)
+                {
+                    _logger.LogCritical("Max inheritance depth ({MaxDepth}) exceeded for type '{TypeName}'. Possible circular dependency.", MaxInheritanceDepth, objectType.Name);
+                    throw new System.InvalidOperationException($"Inheritance depth too deep for type '{objectType.Name}'.");
+                }
+
+                current = current.Parent;
             }
         }
 

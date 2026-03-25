@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Shared.Interfaces;
 
 namespace Shared.Services;
@@ -32,14 +34,16 @@ namespace Shared.Services;
             _factory = factory;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T Rent()
         {
             var cache = _localCache;
             if (cache != null && cache.Count > 0)
             {
                 int index = --cache.Count;
-                T item = cache.Items[index];
-                cache.Items[index] = null!;
+                ref var itemsRef = ref MemoryMarshal.GetArrayDataReference(cache.Items);
+                T item = Unsafe.Add(ref itemsRef, index);
+                Unsafe.Add(ref itemsRef, index) = null!;
                 return item;
             }
 
@@ -52,6 +56,7 @@ namespace Shared.Services;
             return _factory();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Return(T obj)
         {
             if (obj is IPoolable poolable)
@@ -63,7 +68,8 @@ namespace Shared.Services;
 
             if (cache.Count < LocalCapacity)
             {
-                cache.Items[cache.Count++] = obj;
+                ref var itemsRef = ref MemoryMarshal.GetArrayDataReference(cache.Items);
+                Unsafe.Add(ref itemsRef, cache.Count++) = obj;
             }
             else if (_globalCount < MaxGlobalCapacity)
             {
@@ -75,10 +81,14 @@ namespace Shared.Services;
         public void Shrink()
         {
             // Prune global stack if it's large
-            if (_globalCount > LocalCapacity * 2)
+            if (_globalCount > LocalCapacity)
             {
-                _globalStack.Clear();
-                _globalCount = 0;
+                // We keep some items to avoid immediate thrashing after shrink
+                int targetCount = LocalCapacity / 2;
+                while (_globalCount > targetCount && _globalStack.TryPop(out _))
+                {
+                    Interlocked.Decrement(ref _globalCount);
+                }
             }
         }
     }

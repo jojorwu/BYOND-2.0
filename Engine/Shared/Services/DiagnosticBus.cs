@@ -90,24 +90,47 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
     private async Task ProcessEventsAsync(CancellationToken cancellationToken)
     {
         var reader = _eventChannel.Reader;
+        const int BatchSize = 32;
+        var batch = new DiagnosticEvent[BatchSize];
+
         try
         {
             // Use WaitToReadAsync for energy-efficient non-blocking wait
             while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                // Inner loop to drain available events without re-awaiting
-                while (reader.TryRead(out var ev))
+                // Optimized Batched Dispatch:
+                // Draining multiple events into a local buffer before notifying subscribers
+                // reduces the frequency of volatile reads of the subscribers list and overhead.
+                int count = 0;
+                while (count < BatchSize && reader.TryRead(out var ev))
+                {
+                    batch[count++] = ev;
+                }
+
+                if (count > 0)
                 {
                     var subscribers = _subscribers;
-                    for (int i = 0; i < subscribers.Length; i++)
+                    if (subscribers.Length > 0)
                     {
-                        try
+                        for (int j = 0; j < count; j++)
                         {
-                            subscribers[i](ev);
+                            var ev = batch[j];
+                            for (int i = 0; i < subscribers.Length; i++)
+                            {
+                                try
+                                {
+                                    subscribers[i](ev);
+                                }
+                                catch { /* Diagnostics should never throw */ }
+                            }
                         }
-                        catch { /* Diagnostics should never throw */ }
                     }
-                    ReturnToPool(ev);
+
+                    for (int j = 0; j < count; j++)
+                    {
+                        ReturnToPool(batch[j]);
+                        batch[j] = null!;
+                    }
                 }
             }
         }

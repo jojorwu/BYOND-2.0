@@ -55,6 +55,7 @@ namespace tests
             _cancellationTokenSource.CancelAfter(200);
 
             // Act
+            await _gameLoop.InitializeAsync();
             await _gameLoop.StartAsync(_cancellationTokenSource.Token);
             await Task.Delay(100, _cancellationTokenSource.Token); // Give it a moment to tick
 

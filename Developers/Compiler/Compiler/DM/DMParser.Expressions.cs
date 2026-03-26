@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using DMCompiler.Compiler.DM.AST;
 using DMCompiler.DM;
 
@@ -761,7 +763,7 @@ public partial class DMParser
                         }
 
                         default:
-                            throw new InvalidOperationException("unhandled dereference token");
+                            throw new System.InvalidOperationException("unhandled dereference token");
                     }
 
                     // Attempt to upgrade this operation to a call
@@ -789,7 +791,7 @@ public partial class DMParser
                                     return new DMASTConstantNull(token.Location);
 
                                 default:
-                                    throw new InvalidOperationException("unhandled dereference operation kind");
+                                    throw new System.InvalidOperationException("unhandled dereference operation kind");
                             }
                         }
                     }

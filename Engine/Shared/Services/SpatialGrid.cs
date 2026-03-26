@@ -78,66 +78,42 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Computes a 64-bit Morton code for a 2D coordinate.
-        /// This improves cache locality by mapping 2D proximity to 1D address proximity.
+        /// Computes a 64-bit Morton code for a 3D coordinate (21 bits per axis).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong GetMortonCode(long x, long y)
+        private static ulong GetMortonCode3D(long x, long y, long z)
         {
-            // Map to positive range for bit interleaving
-            uint ux = (uint)(x + 0x80000000);
-            uint uy = (uint)(y + 0x80000000);
-
-            return Interleave(ux, uy);
+            return Interleave3((uint)(x + 0x100000), (uint)(y + 0x100000), (uint)(z + 0x100000));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong Interleave(uint x, uint y)
+        private static ulong Interleave3(uint x, uint y, uint z)
         {
-            return InterleaveBits(x) | (InterleaveBits(y) << 1);
+            return SpreadBits3(x) | (SpreadBits3(y) << 1) | (SpreadBits3(z) << 2);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong InterleaveBits(uint x)
+        private static ulong SpreadBits3(uint x)
         {
-            if (Bmi2.X64.IsSupported)
-            {
-                return Bmi2.X64.ParallelBitDeposit(x, 0x5555555555555555);
-            }
-
-            if (AdvSimd.Arm64.IsSupported)
-            {
-                // ARM64 bit interleaving optimization
-                return InterleaveBitsArm64(x);
-            }
-
-            ulong val = x;
-            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
-            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
-            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
-            val = (val | (val << 2)) & 0x3333333333333333;
-            val = (val | (val << 1)) & 0x5555555555555555;
+            ulong val = x & 0x1FFFFF;
+            val = (val | (val << 32)) & 0x1F00000000FFFFUL;
+            val = (val | (val << 16)) & 0x1F0000FF0000FFUL;
+            val = (val | (val << 8)) & 0x100F00F00F00F00FUL;
+            val = (val | (val << 4)) & 0x10C30C30C30C30C3UL;
+            val = (val | (val << 2)) & 0x1249249249249249UL;
             return val;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong InterleaveBitsArm64(uint x)
+        private ulong GetCellKey(long x, long y, long z)
         {
-            // ARM64 doesn't have PDEP, but we can use AdvSimd for vector bit manipulation
-            // if we were interleaving multiple values. For a single uint, we use a specialized sequence.
-            ulong val = x;
-            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
-            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
-            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
-            val = (val | (val << 2)) & 0x3333333333333333;
-            val = (val | (val << 1)) & 0x5555555555555555;
-            return val;
+            return GetMortonCode3D(GetGridCoord(x), GetGridCoord(y), GetGridCoord(z));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ulong GetCellKey(long x, long y)
+        private static ulong GetCellKeyFromVector(Vector3l vec, SpatialGrid grid)
         {
-            return GetMortonCode(GetGridCoord(x), GetGridCoord(y));
+            return grid.GetCellKey(vec.X, vec.Y, vec.Z);
         }
 
         private Cell GetOrCreateCell(ulong key)
@@ -150,13 +126,12 @@ namespace Shared;
 
         public void Add(IGameObject obj)
         {
-            var x = obj.X;
-            var y = obj.Y;
-            var key = GetCellKey(x, y);
+            var pos = obj.Position;
+            var key = GetCellKey(pos.X, pos.Y, pos.Z);
 
             if (obj.CurrentGridCellKey != null)
             {
-                ulong oldKey = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+                ulong oldKey = GetMortonCode3D(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y, obj.CurrentGridCellKey.Value.Z);
                 if (oldKey == key) return;
 
                 var oldCell = GetOrCreateCell(oldKey);
@@ -171,7 +146,7 @@ namespace Shared;
                         oldCell.Lock.Enter(ref lock1);
                         cell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                        AddInternal(obj, cell, new Vector3l(GetGridCoord(pos.X), GetGridCoord(pos.Y), GetGridCoord(pos.Z)));
                     }
                     finally
                     {
@@ -187,11 +162,11 @@ namespace Shared;
                         cell.Lock.Enter(ref lock1);
                         oldCell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                        AddInternal(obj, cell, new Vector3l(GetGridCoord(pos.X), GetGridCoord(pos.Y), GetGridCoord(pos.Z)));
                     }
                     finally
                     {
-                        if (lock2) oldCell.Lock.Exit(false);
+                        if (lock2) cell.Lock.Exit(false);
                         if (lock1) cell.Lock.Exit(false);
                     }
                 }
@@ -203,7 +178,7 @@ namespace Shared;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                    AddInternal(obj, cell, new Vector3l(GetGridCoord(pos.X), GetGridCoord(pos.Y), GetGridCoord(pos.Z)));
                 }
                 finally
                 {
@@ -212,7 +187,7 @@ namespace Shared;
             }
         }
 
-        private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
+        private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
             // Copy-On-Write to ensure lock-free reads during iteration
             int newCount = cell.Count + 1;
@@ -250,7 +225,8 @@ namespace Shared;
         public void Remove(IGameObject obj)
         {
             if (obj.CurrentGridCellKey == null) return;
-            ulong key = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+            var pos = obj.CurrentGridCellKey.Value;
+            ulong key = GetMortonCode3D(pos.X, pos.Y, pos.Z);
             if (_grid.TryGetValue(key, out var cell))
             {
                 bool lockTaken = false;
@@ -304,7 +280,7 @@ namespace Shared;
 
             if (cell.Count == 0 && oldKey != null)
             {
-                _emptyCellKeys.Enqueue(GetMortonCode(oldKey.Value.X, oldKey.Value.Y));
+                _emptyCellKeys.Enqueue(GetMortonCode3D(oldKey.Value.X, oldKey.Value.Y, oldKey.Value.Z));
             }
         }
 
@@ -313,7 +289,7 @@ namespace Shared;
             Add(obj);
         }
 
-        public List<IGameObject> GetObjectsInBox(Box2l box)
+        public List<IGameObject> GetObjectsInBox(Box3l box)
         {
             var results = new List<IGameObject>();
             GetObjectsInBox(box, results);
@@ -325,23 +301,27 @@ namespace Shared;
         public struct BoxEnumerator : IEnumerator<IGameObject>
         {
             private readonly SpatialGrid _grid;
-            private readonly Box2l _box;
+            private readonly Box3l _box;
             private readonly long _endGX;
             private readonly long _endGY;
+            private readonly long _endGZ;
             private long _currentGX;
             private long _currentGY;
+            private long _currentGZ;
             private int _currentIndexInCell;
             private Cell? _currentCell;
             private IGameObject? _current;
 
-            public BoxEnumerator(SpatialGrid grid, Box2l box)
+            public BoxEnumerator(SpatialGrid grid, Box3l box)
             {
                 _grid = grid;
                 _box = box;
                 _currentGX = grid.GetGridCoord(box.Left);
                 _currentGY = grid.GetGridCoord(box.Bottom);
+                _currentGZ = grid.GetGridCoord(box.Back);
                 _endGX = grid.GetGridCoord(box.Right);
                 _endGY = grid.GetGridCoord(box.Top);
+                _endGZ = grid.GetGridCoord(box.Front);
                 _currentIndexInCell = -1;
                 _currentCell = null;
                 _current = null;
@@ -360,16 +340,20 @@ namespace Shared;
                         if (_currentIndexInCell < count && _currentIndexInCell < objs.Length)
                         {
                             _current = objs[_currentIndexInCell];
-                            // Re-verify bounds as object might have moved since it was added to this cell
-                            // but BEFORE COW update happens (though our COW is strict).
-                            // Actually, it's more to handle objects overlapping cell boundaries or being partially in box.
                             if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
-                                _current.Y >= _box.Bottom && _current.Y <= _box.Top)
+                                _current.Y >= _box.Bottom && _current.Y <= _box.Top &&
+                                _current.Z >= _box.Back && _current.Z <= _box.Front)
                             {
                                 return true;
                             }
                             continue;
                         }
+                    }
+
+                    if (_currentGZ > _endGZ)
+                    {
+                        _currentGZ = _grid.GetGridCoord(_box.Back);
+                        _currentGY++;
                     }
 
                     if (_currentGY > _endGY)
@@ -380,8 +364,8 @@ namespace Shared;
 
                     if (_currentGX > _endGX) return false;
 
-                    ulong key = GetMortonCode(_currentGX, _currentGY);
-                    _currentGY++;
+                    ulong key = GetMortonCode3D(_currentGX, _currentGY, _currentGZ);
+                    _currentGZ++;
 
                     if (_grid._grid.TryGetValue(key, out _currentCell))
                     {
@@ -407,9 +391,9 @@ namespace Shared;
             public BoxEnumerator GetEnumerator() => this;
         }
 
-        public BoxEnumerator GetEnumerator(Box2l box) => new BoxEnumerator(this, box);
+        public BoxEnumerator GetEnumerator(Box3l box) => new BoxEnumerator(this, box);
 
-        public void QueryBox(Box2l box, Action<IGameObject> callback)
+        public void QueryBox(Box3l box, Action<IGameObject> callback)
         {
             var enumerator = new BoxEnumerator(this, box);
             try
@@ -425,7 +409,7 @@ namespace Shared;
             }
         }
 
-        public void QueryBox<TState>(Box2l box, ref TState state, QueryCallback<TState> callback)
+        public void QueryBox<TState>(Box3l box, ref TState state, QueryCallback<TState> callback)
         {
             var enumerator = new BoxEnumerator(this, box);
             try
@@ -473,27 +457,7 @@ namespace Shared;
             }
         }
 
-        public void QueryBoxZ(Box2l box, long z, List<IGameObject> results)
-        {
-            var enumerator = new BoxEnumerator(this, box);
-            try
-            {
-                while (enumerator.MoveNext())
-                {
-                    var current = enumerator.Current;
-                    if (current.Z == z)
-                    {
-                        results.Add(current);
-                    }
-                }
-            }
-            finally
-            {
-                enumerator.Dispose();
-            }
-        }
-
-        public void GetObjectsInBox(Box2l box, List<IGameObject> results)
+        public void GetObjectsInBox(Box3l box, List<IGameObject> results)
         {
             results.Clear();
             GetObjectsInBox(box, (IList<IGameObject>)results);
@@ -503,7 +467,7 @@ namespace Shared;
         /// Retrieves all objects in the given box and adds them to the results list.
         /// This overload allows the caller to provide a pre-allocated list to avoid heap churn.
         /// </summary>
-        public void GetObjectsInBox(Box2l box, IList<IGameObject> results)
+        public void GetObjectsInBox(Box3l box, IList<IGameObject> results)
         {
             var enumerator = new BoxEnumerator(this, box);
             try

@@ -77,10 +77,10 @@ namespace Core.Api
 
             using (_gameState.ReadLock())
             {
-                var box = new Box2l(centerX - distance, centerY - distance, centerX + distance, centerY + distance);
+                var box = new Box3l(centerX - distance, centerY - distance, centerZ, centerX + distance, centerY + distance, centerZ);
                 _gameState.SpatialGrid.QueryBox(box, ref state, static (IGameObject obj, ref RangeState s) =>
                 {
-                    if (obj.Z == s.CenterZ && obj is GameObject gameObj)
+                    if (obj is GameObject gameObj)
                     {
                         // BYOND range() uses Chebyshev distance: max(|x1-x2|, |y1-y2|)
                         if (Math.Max(Math.Abs(gameObj.X - s.CenterX), Math.Abs(gameObj.Y - s.CenterY)) <= s.Distance)
@@ -108,10 +108,10 @@ namespace Core.Api
 
             using (_gameState.ReadLock())
             {
-                var box = new Box2l(viewer.X - distance, viewer.Y - distance, viewer.X + distance, viewer.Y + distance);
+                var box = new Box3l(viewer.X - distance, viewer.Y - distance, viewer.Z, viewer.X + distance, viewer.Y + distance, viewer.Z);
                 _gameState.SpatialGrid.QueryBox(box, ref state, static (IGameObject obj, ref ViewState s) =>
                 {
-                    if (obj is GameObject gameObj && gameObj.Z == s.Viewer.Z)
+                    if (obj is GameObject gameObj)
                     {
                         if (Math.Max(Math.Abs(gameObj.X - s.Viewer.X), Math.Abs(gameObj.Y - s.Viewer.Y)) <= s.Distance)
                         {

@@ -93,16 +93,24 @@ namespace Core.Api
 
         public IEnumerable<IGameObject> GetObjectsInRange(long x, long y, long z, int range, string typePath)
         {
+            return GetObjectsInArea(new Box3l(x - range, y - range, z, x + range, y + range, z), typePath);
+        }
+
+        public IEnumerable<IGameObject> GetObjectsInArea(Box3l box)
+        {
+            return GetObjectsInArea(box, "/obj");
+        }
+
+        public IEnumerable<IGameObject> GetObjectsInArea(Box3l box, string typePath)
+        {
             var targetType = _objectTypeManager.GetObjectType(typePath);
             if (targetType == null)
                 return Enumerable.Empty<IGameObject>();
 
-            var box = new Box2l(x - range, y - range, x + range, y + range);
-
             using (_gameState.ReadLock())
             {
                 return _gameState.SpatialGrid.GetObjectsInBox(box)
-                    .Where(obj => obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
+                    .Where(obj => obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
                     .ToList(); // ToList to execute the query inside the lock
             }
         }
@@ -114,23 +122,16 @@ namespace Core.Api
 
         public IEnumerable<IGameObject> GetObjectsInArea(long x1, long y1, long x2, long y2, long z, string typePath)
         {
-            var targetType = _objectTypeManager.GetObjectType(typePath);
-            if (targetType == null)
-                return Enumerable.Empty<IGameObject>();
-
-            var box = new Box2l(
+            var box = new Box3l(
                 System.Math.Min(x1, x2),
                 System.Math.Min(y1, y2),
+                z,
                 System.Math.Max(x1, x2),
-                System.Math.Max(y1, y2)
+                System.Math.Max(y1, y2),
+                z
             );
 
-            using (_gameState.ReadLock())
-            {
-                return _gameState.SpatialGrid.GetObjectsInBox(box)
-                    .Where(obj => obj.Z == z && obj.ObjectType != null && obj.ObjectType.IsSubtypeOf(targetType))
-                    .ToList(); // ToList to execute the query inside the lock
-            }
+            return GetObjectsInArea(box, typePath);
         }
 
         public bool CanMove(GameObject obj, long x, long y, long z)

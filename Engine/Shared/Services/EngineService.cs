@@ -36,7 +36,7 @@ public abstract class EngineService : IEngineService
     /// <inheritdoc />
     public void SetStatus(ServiceStatus status)
     {
-        Status = status;
+        _status = status;
     }
 
     /// <inheritdoc />
@@ -55,11 +55,25 @@ public abstract class EngineService : IEngineService
     /// <inheritdoc />
     public virtual async Task InitializeAsync()
     {
+        if (Status != ServiceStatus.Stopped) return;
+
         var sw = Stopwatch.StartNew();
-        SetStarting();
-        await OnInitializeAsync();
-        sw.Stop();
-        InitializationDurationMs = sw.ElapsedMilliseconds;
+        Status = ServiceStatus.Initializing;
+        try
+        {
+            await OnInitializeAsync();
+            Status = ServiceStatus.Initialized;
+        }
+        catch
+        {
+            Status = ServiceStatus.Failed;
+            throw;
+        }
+        finally
+        {
+            sw.Stop();
+            InitializationDurationMs = sw.ElapsedMilliseconds;
+        }
     }
 
     /// <summary>
@@ -70,11 +84,25 @@ public abstract class EngineService : IEngineService
     /// <inheritdoc />
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (Status != ServiceStatus.Initialized) return;
+
         var sw = Stopwatch.StartNew();
-        await OnStartAsync(cancellationToken);
-        Status = ServiceStatus.Running;
-        sw.Stop();
-        StartupDurationMs = sw.ElapsedMilliseconds;
+        Status = ServiceStatus.Starting;
+        try
+        {
+            await OnStartAsync(cancellationToken);
+            Status = ServiceStatus.Running;
+        }
+        catch
+        {
+            Status = ServiceStatus.Failed;
+            throw;
+        }
+        finally
+        {
+            sw.Stop();
+            StartupDurationMs = sw.ElapsedMilliseconds;
+        }
     }
 
     /// <summary>
@@ -85,9 +113,19 @@ public abstract class EngineService : IEngineService
     /// <inheritdoc />
     public virtual async Task StopAsync(CancellationToken cancellationToken)
     {
-        SetStopping();
-        await OnStopAsync(cancellationToken);
-        Status = ServiceStatus.Stopped;
+        if (Status == ServiceStatus.Stopped || Status == ServiceStatus.Stopping) return;
+
+        Status = ServiceStatus.Stopping;
+        try
+        {
+            await OnStopAsync(cancellationToken);
+            Status = ServiceStatus.Stopped;
+        }
+        catch
+        {
+            Status = ServiceStatus.Failed;
+            throw;
+        }
     }
 
     /// <summary>

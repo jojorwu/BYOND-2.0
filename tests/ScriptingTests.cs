@@ -57,7 +57,7 @@ namespace tests
                 new MathNativeProcProvider(),
                 new SpatialNativeProcProvider(),
                 new SystemNativeProcProvider()
-            }, objectFactory);
+            }, diagnosticBus, objectFactory);
             var mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             var objectApi = new ObjectApi(_gameState, _objectTypeManager, mapApi, pool, componentManager);
             var spatialQueryApi = new SpatialQueryApi(_gameState, _objectTypeManager, mapApi);

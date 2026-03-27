@@ -37,7 +37,7 @@ public class ComplexOpsBenchmark
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IComputeService, ComputeService>();
-        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(Microsoft.Extensions.Logging.Abstractions.NullLogger<SpatialGrid>.Instance, TimeProvider.System));
+        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(Microsoft.Extensions.Logging.Abstractions.NullLogger<SpatialGrid>.Instance, TimeProvider.System, MockDiagnosticBus.Instance));
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IMap, Map>();
         services.AddSingleton<IRegionManager, Core.Regions.RegionManager>();
@@ -211,7 +211,7 @@ public class ComplexOpsBenchmark
                                  new MathNativeProcProvider(),
                                  new SpatialNativeProcProvider(),
                                  new SystemNativeProcProvider()
-                             });
+                             }, MockDiagnosticBus.Instance);
 
         var proc = new DreamProc("recurse", bc.ToArray(), new[] { "n" }, 0);
         vm.Context.AllProcs.Add(proc);

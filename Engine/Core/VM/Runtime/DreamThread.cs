@@ -127,6 +127,7 @@ public partial class DreamThread : IScriptThread, IDisposable
     public DreamVMContext Context { get; }
     internal readonly int _maxInstructions;
     internal long _totalInstructionsExecuted;
+    private int _maxCallStackReached;
     private readonly IBytecodeInterpreter _interpreter;
 
     public DreamThread(DreamProc proc, DreamVMContext context, int maxInstructions, IGameObject? associatedObject = null, IBytecodeInterpreter? interpreter = null)
@@ -233,6 +234,7 @@ public partial class DreamThread : IScriptThread, IDisposable
 
         System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(stack), depth) = frame;
         _callStackPtr = depth + 1;
+        if (_callStackPtr > _maxCallStackReached) _maxCallStackReached = _callStackPtr;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -255,7 +257,7 @@ public partial class DreamThread : IScriptThread, IDisposable
 
         ref var frameRef = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(_callStack), --depth);
         var frame = frameRef;
-        frameRef = default; // Clear reference
+        frameRef = default; // Clear slot to prevent stale references for GC
         _callStackPtr = depth;
         return frame;
     }

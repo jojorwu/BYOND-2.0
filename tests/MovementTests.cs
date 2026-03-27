@@ -28,7 +28,7 @@ namespace tests
                 new MathNativeProcProvider(),
                 new SpatialNativeProcProvider(),
                 new SystemNativeProcProvider()
-            });
+            }, MockDiagnosticBus.Instance);
             _vm.GameState = _gameState;
             _vm.ObjectTypeManager = _typeManager;
 

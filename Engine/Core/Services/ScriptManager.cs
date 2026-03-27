@@ -18,6 +18,8 @@ namespace Core
         private readonly IEnumerable<IScriptSystem> _systems;
         private readonly string _scriptsRoot;
         private readonly ILogger<ScriptManager> _logger;
+        private readonly Dictionary<string, long> _systemLoadTimes = new();
+        private long _lastReloadDurationMs;
 
         public ScriptManager(IProject project, IEnumerable<IScriptSystem> systems, ILogger<ScriptManager> logger)
         {
@@ -26,7 +28,7 @@ namespace Core
             _logger = logger;
         }
 
-        public override async Task InitializeAsync()
+        protected override async Task OnInitializeAsync()
         {
             _logger.LogInformation("Initializing Script Manager...");
 
@@ -38,19 +40,28 @@ namespace Core
 
             foreach (var sys in _systems)
             {
-                _logger.LogInformation("Initializing script system: {SystemName}", sys.GetType().Name);
+                var systemName = sys.GetType().Name;
+                _logger.LogInformation("Initializing script system: {SystemName}", systemName);
+
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 sys.Initialize();
                 await sys.LoadScripts(_scriptsRoot);
+                sw.Stop();
+
+                _systemLoadTimes[systemName] = sw.ElapsedMilliseconds;
             }
         }
 
         public async Task ReloadAll()
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             foreach (var sys in _systems)
             {
                 sys.Reload();
                 await sys.LoadScripts(_scriptsRoot);
             }
+            sw.Stop();
+            _lastReloadDurationMs = sw.ElapsedMilliseconds;
         }
 
         public void InvokeGlobalEvent(string eventName)
@@ -92,5 +103,13 @@ namespace Core
             return null;
         }
 
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            info["SystemsCount"] = _systems.Count();
+            info["SystemLoadTimes"] = _systemLoadTimes;
+            info["LastReloadDurationMs"] = _lastReloadDurationMs;
+            return info;
+        }
     }
 }

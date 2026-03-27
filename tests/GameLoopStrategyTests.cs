@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.Extensions.Options;
+using Shared.Services;
 
 namespace tests
 {
@@ -29,7 +30,7 @@ namespace tests
         {
             _scriptHostMock = new Mock<IScriptHost>();
             _gameStateMock = new Mock<IGameState>();
-            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object, TimeProvider.System, new MockDiagnosticBus()));
+            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object, TimeProvider.System, MockDiagnosticBus.Instance));
             _udpServerMock = new Mock<IUdpServer>();
             _regionManagerMock = new Mock<IRegionManager>();
             _regionActivationStrategyMock = new Mock<IRegionActivationStrategy>();

@@ -13,6 +13,8 @@ public unsafe partial class BytecodeInterpreter
         if (thread.State != DreamThreadState.Running)
             return thread.State;
 
+        _vm?.OnThreadStarted();
+
         ref var currentFrame = ref thread._callStack[thread._callStackPtr - 1];
         var state = new InterpreterState
         {
@@ -2160,6 +2162,7 @@ public unsafe partial class BytecodeInterpreter
             }
             catch (Exception e)
             {
+                _vm?.OnExceptionThrown();
                 thread._stackPtr = state.StackPtr;
                 var runtimeException = e as ScriptRuntimeException ?? new ScriptRuntimeException("Unexpected internal error", state.Proc, state.PC, thread, e);
 
@@ -2188,6 +2191,7 @@ public unsafe partial class BytecodeInterpreter
         }
 
         thread._stack.Pointer = state.StackPtr;
+        _vm?.OnThreadFinished();
         return thread.State;
     }
 }

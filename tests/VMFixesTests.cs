@@ -27,7 +27,7 @@ namespace tests
                 new MathNativeProcProvider(),
                 new SpatialNativeProcProvider(),
                 new SystemNativeProcProvider()
-            });
+            }, MockDiagnosticBus.Instance);
         }
 
         [TearDown]

@@ -9,7 +9,7 @@ namespace Core.VM.Runtime
     public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 100000000;
-        private readonly ReaderWriterLockSlim _contextLock = new(LockRecursionPolicy.SupportsRecursion);
+        private readonly System.Threading.Lock _contextLock = new();
         public List<string> Strings { get; } = new();
         public Dictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
@@ -19,7 +19,7 @@ namespace Core.VM.Runtime
 
         public void InitializeGlobals(int count)
         {
-            lock (_contextLock)
+            using (_contextLock.EnterScope())
             {
                 if (count > MaxGlobals) throw new ArgumentOutOfRangeException(nameof(count));
                 var newGlobals = new DreamValue[count];
@@ -48,7 +48,7 @@ namespace Core.VM.Runtime
             var globals = _globals;
             if ((uint)index >= (uint)globals.Length)
             {
-                lock (_contextLock)
+                using (_contextLock.EnterScope())
                 {
                     if (index >= _globals.Length)
                     {
@@ -68,7 +68,7 @@ namespace Core.VM.Runtime
 
         public void Reset()
         {
-            lock (_contextLock)
+            using (_contextLock.EnterScope())
             {
                 Strings.Clear();
                 Procs.Clear();
@@ -82,7 +82,6 @@ namespace Core.VM.Runtime
 
         public void Dispose()
         {
-            _contextLock.Dispose();
             GC.SuppressFinalize(this);
         }
     }

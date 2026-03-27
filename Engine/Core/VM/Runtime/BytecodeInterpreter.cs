@@ -27,6 +27,7 @@ public interface IBytecodeInterpreter
 
 public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterpreter
 {
+    private readonly DreamVM? _vm;
     private readonly IDiagnosticBus? _diagnosticBus;
 
     private class ThreadTelemetry
@@ -39,9 +40,10 @@ public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterp
     [ThreadStatic]
     private static ThreadTelemetry? _telemetry;
 
-    public BytecodeInterpreter(IDiagnosticBus? diagnosticBus = null)
+    public BytecodeInterpreter(IDiagnosticBus? diagnosticBus = null, DreamVM? vm = null)
     {
         _diagnosticBus = diagnosticBus;
+        _vm = vm;
     }
 
     private void ReportTelemetry()

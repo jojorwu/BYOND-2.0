@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Shared.Services;
 
 namespace tests
 {
@@ -26,7 +27,7 @@ namespace tests
                 new MathNativeProcProvider(),
                 new SpatialNativeProcProvider(),
                 new SystemNativeProcProvider()
-            });
+            }, MockDiagnosticBus.Instance);
         }
 
         [TearDown]

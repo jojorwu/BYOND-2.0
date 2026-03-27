@@ -43,8 +43,8 @@ public class ChunkLoadingBenchmark
         var services = new ServiceCollection();
         services.AddSingleton(Options.Create(settings));
         services.AddSingleton<IComputeService, ComputeService>();
-        services.AddSingleton<IJobSystem, JobSystem>(sp => new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System));
-        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System));
+        services.AddSingleton<IJobSystem, JobSystem>(sp => new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System, MockDiagnosticBus.Instance));
+        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, MockDiagnosticBus.Instance));
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IMap, Map>();
         services.AddSingleton<IRegionManager, RegionManager>();

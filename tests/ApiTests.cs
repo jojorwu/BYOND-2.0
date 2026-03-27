@@ -7,7 +7,7 @@ using Core.Maps;
 using Core.Api;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Core.Tests
+namespace tests
 {
     [TestFixture]
     public class ApiTests
@@ -30,14 +30,15 @@ namespace Core.Tests
             _project = new Project(_projectPath);
 
             var pool = new Shared.Services.SharedPool<GameObject>(() => new GameObject());
-            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var entityRegistry = new EntityRegistry(pool, componentManager);
             var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
 
-            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System), objectFactory);
+            _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, diagnosticBus), objectFactory);
             _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System);
+            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System, diagnosticBus);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _mapApi = new MapApi(_gameState, _mapLoader, _project, _objectTypeManager);
             _objectApi = new ObjectApi(_gameState, _objectTypeManager, _mapApi, pool, componentManager);

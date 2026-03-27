@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Messaging;
@@ -12,12 +13,22 @@ namespace Shared.Services;
 
 public class FastEventBus : EngineService, IEventBus, IFreezable
 {
+    private readonly IDiagnosticBus _diagnosticBus;
+    private long _totalPublished;
+    private long _totalAsyncPublished;
+
+    public FastEventBus(IDiagnosticBus diagnosticBus)
+    {
+        _diagnosticBus = diagnosticBus;
+    }
+
     private interface IHandlerList
     {
         void Publish(object eventData);
         void PublishRef<TEvent>(in TEvent eventData) where TEvent : struct;
         ValueTask PublishAsync(object eventData);
         void Unsubscribe(object handler);
+        int Count { get; }
     }
 
     private class HandlerList<T> : IHandlerList
@@ -26,6 +37,8 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
         private volatile Func<T, ValueTask>[] _asyncActions = Array.Empty<Func<T, ValueTask>>();
         private volatile IEventHandler<T>[] _interfaceHandlers = Array.Empty<IEventHandler<T>>();
         private readonly System.Threading.Lock _lock = new();
+
+        public int Count => _actions.Length + _asyncActions.Length + _interfaceHandlers.Length;
 
         public void Subscribe(Action<T> handler)
         {
@@ -217,6 +230,9 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
     public void Freeze()
     {
         _frozenHandlers = _typeToHandlers.ToFrozenDictionary();
+        _diagnosticBus.Publish("FastEventBus", "Event bus frozen", DiagnosticSeverity.Info, m => {
+            m.Add("RegisteredTypes", _frozenHandlers.Count);
+        });
     }
 
     public void Subscribe<T>(Action<T> handler) => GetHandlers<T>().Subscribe(handler);
@@ -247,7 +263,10 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
         }
     }
 
-    public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
+    public void Publish<T>(T eventData) {
+        Interlocked.Increment(ref _totalPublished);
+        GetHandlers<T>().Publish(eventData);
+    }
 
     protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
@@ -257,13 +276,33 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public void Publish<T>(in T eventData) where T : struct
     {
+        Interlocked.Increment(ref _totalPublished);
         var handlers = GetHandlers<T>();
         handlers.PublishRef(in eventData);
     }
 
-    public ValueTask PublishAsync<T>(T eventData) => GetHandlers<T>().PublishAsync(eventData);
+    public ValueTask PublishAsync<T>(T eventData) {
+        Interlocked.Increment(ref _totalAsyncPublished);
+        return GetHandlers<T>().PublishAsync(eventData);
+    }
 
     public void Clear() => _typeToHandlers.Clear();
 
     public void Clear<T>() => _typeToHandlers.TryRemove(typeof(T), out _);
+
+    public override Dictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = base.GetDiagnosticInfo();
+        info["TotalPublished"] = Interlocked.Read(ref _totalPublished);
+        info["TotalAsyncPublished"] = Interlocked.Read(ref _totalAsyncPublished);
+        info["RegisteredEventTypes"] = _typeToHandlers.Count;
+
+        int totalHandlers = 0;
+        foreach (var handlerList in _typeToHandlers.Values) {
+            totalHandlers += handlerList.Count;
+        }
+        info["TotalHandlers"] = totalHandlers;
+
+        return info;
+    }
 }

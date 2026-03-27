@@ -83,6 +83,8 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
+        services.AddEngineService<DiagnosticBus>(typeof(IDiagnosticBus));
+        services.AddEngineService<LauncherPathProvider>(typeof(ILauncherPathProvider));
         services.AddEngineService<EngineManager>(typeof(IEngineManager));
         services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
         services.AddEngineService<FastEventBus>(typeof(IEventBus));
@@ -113,7 +115,6 @@ public static class SharedServiceCollectionExtensions
     }
     public static IServiceCollection AddNetworkingServices(this IServiceCollection services)
     {
-        services.AddEngineService<DiagnosticBus>(typeof(IDiagnosticBus));
         services.AddEngineService<PluginManager>(typeof(IPluginManager));
         services.AddSingleton<ICommandHistoryService, CommandHistoryService>();
         services.AddSingleton<ICommandMiddleware, LoggingCommandMiddleware>();
@@ -139,7 +140,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<SoundResourceProvider>();
         services.AddEngineService<ResourceSystem>(sp =>
         {
-            var system = new ResourceSystem();
+            var system = new ResourceSystem(sp.GetRequiredService<IDiagnosticBus>());
             system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
             return system;
         }, typeof(IResourceSystem));

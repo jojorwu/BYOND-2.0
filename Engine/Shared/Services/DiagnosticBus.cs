@@ -22,6 +22,11 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
     private volatile int _poolCount;
     private const int MaxPoolSize = 1024;
 
+    private long _totalPublished;
+    private long _eventsDropped;
+    private long _totalDispatched;
+    private long _lastProcessDurationMs;
+
     public DiagnosticBus()
     {
         _eventChannel = Channel.CreateUnbounded<DiagnosticEvent>(new UnboundedChannelOptions
@@ -39,7 +44,11 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
     public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null)
     {
-        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) return;
+        Interlocked.Increment(ref _totalPublished);
+        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
+            Interlocked.Increment(ref _eventsDropped);
+            return;
+        }
 
         DiagnosticEvent? ev;
         if (!_pool.TryPop(out ev))
@@ -58,13 +67,18 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
         if (!_eventChannel.Writer.TryWrite(ev))
         {
+            Interlocked.Increment(ref _eventsDropped);
             ReturnToPool(ev);
         }
     }
 
     public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
     {
-        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) return;
+        Interlocked.Increment(ref _totalPublished);
+        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
+            Interlocked.Increment(ref _eventsDropped);
+            return;
+        }
 
         DiagnosticEvent? ev;
         if (!_pool.TryPop(out ev))
@@ -83,6 +97,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
         if (!_eventChannel.Writer.TryWrite(ev))
         {
+            Interlocked.Increment(ref _eventsDropped);
             ReturnToPool(ev);
         }
     }
@@ -92,12 +107,14 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         var reader = _eventChannel.Reader;
         const int BatchSize = 32;
         var batch = new DiagnosticEvent[BatchSize];
+        var sw = new System.Diagnostics.Stopwatch();
 
         try
         {
             // Use WaitToReadAsync for energy-efficient non-blocking wait
             while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
+                sw.Restart();
                 // Optimized Batched Dispatch:
                 // Draining multiple events into a local buffer before notifying subscribers
                 // reduces the frequency of volatile reads of the subscribers list and overhead.
@@ -123,6 +140,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                                 }
                                 catch { /* Diagnostics should never throw */ }
                             }
+                            Interlocked.Increment(ref _totalDispatched);
                         }
                     }
 
@@ -132,6 +150,8 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                         batch[j] = null!;
                     }
                 }
+                sw.Stop();
+                Volatile.Write(ref _lastProcessDurationMs, sw.ElapsedMilliseconds);
             }
         }
         catch (OperationCanceledException) { /* Normal shutdown */ }
@@ -190,6 +210,18 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
             _subscribers = updated;
         }
         return new Unsubscriber(this, callback);
+    }
+
+    public override Dictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = base.GetDiagnosticInfo();
+        info["TotalPublished"] = Interlocked.Read(ref _totalPublished);
+        info["EventsDropped"] = Interlocked.Read(ref _eventsDropped);
+        info["TotalDispatched"] = Interlocked.Read(ref _totalDispatched);
+        info["PoolCount"] = _poolCount;
+        info["LastProcessDurationMs"] = Volatile.Read(ref _lastProcessDurationMs);
+        info["SubscriberCount"] = _subscribers.Length;
+        return info;
     }
 
     private class Unsubscriber : IDisposable

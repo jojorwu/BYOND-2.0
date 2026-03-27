@@ -45,6 +45,11 @@ This document provides a high-level overview of the project's architecture and g
    - All engine logic should remain platform-agnostic.
    - Platform-specific code should be abstracted behind interfaces.
 
+6. **Observability & Diagnostics**:
+   - Core services should implement `GetDiagnosticInfo()` to expose internal state and performance metrics.
+   - High-frequency events and critical system state changes should be published to the `IDiagnosticBus` for real-time monitoring.
+   - Avoid `Console.WriteLine` for telemetry; use the structured diagnostic system instead.
+
 ## Maintenance Guidelines
 
 - **Namespaces**: Keep namespaces aligned with the folder structure (e.g., `Shared.Models`).

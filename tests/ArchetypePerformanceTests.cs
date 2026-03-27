@@ -16,7 +16,7 @@ namespace tests
         [Test]
         public void ArchetypeManager_Lookup_IsFastAndCorrect()
         {
-            var manager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var manager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, new MockDiagnosticBus());
             var objects = new List<GameObject>();
 
             // Create objects with different component combinations

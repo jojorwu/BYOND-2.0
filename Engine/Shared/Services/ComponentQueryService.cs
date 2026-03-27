@@ -14,12 +14,20 @@ namespace Shared.Services;
     {
         private readonly ConcurrentQueue<(long ReleaseTimestamp, IGameObject[] Array)> _replacedArrays = new();
         private readonly TimeProvider _timeProvider;
+        private readonly IComponentManager _componentManager;
+        private readonly IArchetypeManager _archetypeManager;
+        private readonly IGameState? _gameState;
+        private readonly IDiagnosticBus _diagnosticBus;
+        private long _totalQueries;
+        private long _cacheHits;
+        private long _cacheMisses;
 
-        public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, TimeProvider timeProvider, IGameState? gameState = null)
+        public ComponentQueryService(IComponentManager componentManager, IArchetypeManager archetypeManager, TimeProvider timeProvider, IDiagnosticBus diagnosticBus, IGameState? gameState = null)
         {
             _componentManager = componentManager;
             _archetypeManager = archetypeManager;
             _timeProvider = timeProvider;
+            _diagnosticBus = diagnosticBus;
             _gameState = gameState;
 
             _archetypeManager.ArchetypeCreated += OnArchetypeCreated;
@@ -35,6 +43,13 @@ namespace Shared.Services;
                     ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
                 }
             }
+
+            _diagnosticBus.Publish("ComponentQueryService", "Query cache status", DiagnosticSeverity.Info, m => {
+                m.Add("CacheSize", _queryCache.Count);
+                m.Add("TotalQueries", Interlocked.Read(ref _totalQueries));
+                m.Add("CacheHits", Interlocked.Read(ref _cacheHits));
+                m.Add("CacheMisses", Interlocked.Read(ref _cacheMisses));
+            });
         }
 
         private void EnqueueForRelease(IGameObject[] array)
@@ -250,9 +265,6 @@ namespace Shared.Services;
             }
         }
 
-        private readonly IComponentManager _componentManager;
-        private readonly IArchetypeManager _archetypeManager;
-        private readonly IGameState? _gameState;
         private readonly ConcurrentDictionary<Type, (Action<ComponentEventArgs> Added, Action<ComponentEventArgs> Removed)[]> _subscriptions = new();
         private readonly ConcurrentDictionary<ComponentSignature, QueryResult> _queryCache = new();
         private readonly ConcurrentDictionary<int, QueryList> _queriesByComponent = new();
@@ -295,15 +307,18 @@ namespace Shared.Services;
 
         public IEntityQuery GetQuery(params ReadOnlySpan<Type> componentTypes)
         {
+            Interlocked.Increment(ref _totalQueries);
             if (componentTypes.IsEmpty)
                 return new QueryResult(this, _gameState, default);
 
             var key = new ComponentSignature(componentTypes);
             if (_queryCache.TryGetValue(key, out var cached))
             {
+                Interlocked.Increment(ref _cacheHits);
                 return cached;
             }
 
+            Interlocked.Increment(ref _cacheMisses);
             var queryResult = new QueryResult(this, _gameState, key.Mask);
 
             // Initial population
@@ -430,6 +445,9 @@ namespace Shared.Services;
             var info = base.GetDiagnosticInfo();
             info["QueryCacheSize"] = _queryCache.Count;
             info["SubscriptionCount"] = _subscriptions.Count;
+            info["TotalQueries"] = Interlocked.Read(ref _totalQueries);
+            info["CacheHits"] = Interlocked.Read(ref _cacheHits);
+            info["CacheMisses"] = Interlocked.Read(ref _cacheMisses);
             return info;
         }
     }

@@ -658,6 +658,25 @@ public class Archetype
         }
     }
 
+    public long EstimateMemoryUsage()
+    {
+        using (_lock.EnterScope())
+        {
+            long usage = _entityIds.Length * sizeof(long);
+            usage += _entities.Length * Unsafe.SizeOf<IntPtr>(); // Approximate object references
+
+            var arrays = _componentArrays;
+            for (int i = 0; i < arrays.Length; i++)
+            {
+                var array = arrays[i];
+                if (array != null) {
+                    usage += _capacity * Unsafe.SizeOf<IntPtr>(); // Approximate component references
+                }
+            }
+            return usage;
+        }
+    }
+
     /// <summary>
     /// Allocation-free entity enumerator for internal use under lock or snapshot.
     /// </summary>

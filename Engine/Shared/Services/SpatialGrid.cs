@@ -43,6 +43,14 @@ namespace Shared;
                     ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
                 }
             }
+
+            _diagnosticBus.Publish("SpatialGrid", "Grid status update", DiagnosticSeverity.Info, m =>
+            {
+                m.Add("CellCount", _grid.Count);
+                m.Add("ReplacedArraysCount", _replacedArrays.Count);
+                m.Add("TotalQueries", Interlocked.Read(ref _totalQueries));
+                m.Add("ObjectsMoved", Interlocked.Read(ref _objectsMoved));
+            });
         }
 
         private void EnqueueForRelease(IGameObject[] array)
@@ -60,14 +68,18 @@ namespace Shared;
         private readonly TimeProvider _timeProvider;
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
+        private readonly IDiagnosticBus _diagnosticBus;
         private long _version;
+        private long _totalQueries;
+        private long _objectsMoved;
 
         public long Version => Volatile.Read(ref _version);
 
-        public SpatialGrid(ILogger<SpatialGrid> logger, TimeProvider timeProvider, int cellSize = 32)
+        public SpatialGrid(ILogger<SpatialGrid> logger, TimeProvider timeProvider, IDiagnosticBus diagnosticBus, int cellSize = 32)
         {
             _logger = logger;
             _timeProvider = timeProvider;
+            _diagnosticBus = diagnosticBus;
             _cellSize = cellSize;
         }
 
@@ -133,6 +145,8 @@ namespace Shared;
             {
                 ulong oldKey = GetMortonCode3D(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y, obj.CurrentGridCellKey.Value.Z);
                 if (oldKey == key) return;
+
+                Interlocked.Increment(ref _objectsMoved);
 
                 var oldCell = GetOrCreateCell(oldKey);
                 var cell = GetOrCreateCell(key);
@@ -315,6 +329,7 @@ namespace Shared;
             public BoxEnumerator(SpatialGrid grid, Box3l box)
             {
                 _grid = grid;
+                Interlocked.Increment(ref _grid._totalQueries);
                 _box = box;
                 _currentGX = grid.GetGridCoord(box.Left);
                 _currentGY = grid.GetGridCoord(box.Bottom);
@@ -487,6 +502,17 @@ namespace Shared;
         {
             Dispose();
             return Task.CompletedTask;
+        }
+
+        public override Dictionary<string, object> GetDiagnosticInfo()
+        {
+            var info = base.GetDiagnosticInfo();
+            info["CellCount"] = _grid.Count;
+            info["PooledCells"] = _cellPool.Count;
+            info["PendingArrays"] = _replacedArrays.Count;
+            info["TotalQueries"] = Interlocked.Read(ref _totalQueries);
+            info["ObjectsMoved"] = Interlocked.Read(ref _objectsMoved);
+            return info;
         }
 
         public void Dispose()

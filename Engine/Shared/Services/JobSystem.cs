@@ -20,6 +20,7 @@ namespace Shared.Services;
         private readonly Timer _maintenanceTimer;
         private readonly System.Threading.Lock _workerLock = new();
         private readonly ILogger<JobSystem> _logger;
+        private readonly IDiagnosticBus _diagnosticBus;
 
 
         private IJob? TryStealJob(WorkerThread stealer)
@@ -151,10 +152,11 @@ namespace Shared.Services;
 
         private readonly TimeProvider _timeProvider;
 
-        public JobSystem(ILogger<JobSystem> logger, TimeProvider timeProvider)
+        public JobSystem(ILogger<JobSystem> logger, TimeProvider timeProvider, IDiagnosticBus diagnosticBus)
         {
             _logger = logger;
             _timeProvider = timeProvider;
+            _diagnosticBus = diagnosticBus;
             _minWorkers = Math.Max(1, Environment.ProcessorCount / 2);
             _maxWorkers = Math.Max(_minWorkers, Environment.ProcessorCount * 16);
 
@@ -209,6 +211,14 @@ namespace Shared.Services;
                     AdjustWorkerCount(currentWorkers.Length - 1);
                 }
             }
+
+            _diagnosticBus.Publish("JobSystem", "JobSystem status update", DiagnosticSeverity.Info, m =>
+            {
+                m.Add("WorkerCount", currentWorkers.Length);
+                m.Add("BusyWorkers", busyCount);
+                m.Add("PendingJobs", totalPending);
+                m.Add("CriticalQueueSize", _criticalQueue.Count);
+            });
         }
 
         private void AdjustWorkerCount(int targetCount)

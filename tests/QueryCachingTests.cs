@@ -39,9 +39,10 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             _componentManager = new ComponentManager(archetypeManager);
-            _queryService = new ComponentQueryService(_componentManager, archetypeManager, TimeProvider.System);
+            _queryService = new ComponentQueryService(_componentManager, archetypeManager, TimeProvider.System, diagnosticBus);
             var pool = new SharedPool<GameObject>(() => new GameObject());
             var entityRegistry = new EntityRegistry(pool, _componentManager);
             _objectFactory = new ObjectFactory(entityRegistry);

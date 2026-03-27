@@ -40,6 +40,7 @@ This document provides a high-level overview of the project's architecture and g
    - Critical data paths (like `DreamValue` arithmetic or `DreamObject` access) use `AggressiveInlining` and optimized logic (switch expressions).
    - Minimize allocations in the main game loop (e.g., use `Array.Empty` instead of new lists).
    - Use `IComputeService` for hardware-accelerated tasks (CUDA, ROCm, or SIMD).
+   - Utilize object pooling for high-frequency components and entities to reduce GC pressure.
 
 5. **Cross-Platform Readiness**:
    - All engine logic should remain platform-agnostic.

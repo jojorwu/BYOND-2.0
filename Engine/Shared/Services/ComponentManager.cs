@@ -10,6 +10,7 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
     {
         private readonly IArchetypeManager _archetypeManager;
         private readonly Dictionary<string, Type> _componentTypesByName = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<Type, IObjectPool<IComponent>> _componentPools = new();
 
         public IArchetypeManager ArchetypeManager => _archetypeManager;
 
@@ -55,9 +56,16 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
         {
             if (_componentTypesByName.TryGetValue(componentName, out var type))
             {
-                return (IComponent?)Activator.CreateInstance(type);
+                var pool = _componentPools.GetOrAdd(type, t => (IObjectPool<IComponent>)Activator.CreateInstance(typeof(ObjectPool<>).MakeGenericType(t), (Func<IComponent>)(() => (IComponent)Activator.CreateInstance(t)!))!);
+                return pool.Rent();
             }
             return null;
+        }
+
+        public T CreateComponent<T>() where T : class, IComponent, new()
+        {
+            var pool = _componentPools.GetOrAdd(typeof(T), t => (IObjectPool<IComponent>)new ObjectPool<T>(() => new T()));
+            return (T)pool.Rent();
         }
 
         public void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent
@@ -83,6 +91,11 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             {
                 _archetypeManager.RemoveComponent(owner, componentType);
                 ComponentRemoved?.Invoke(this, new ComponentEventArgs(owner, component, componentType));
+
+                if (_componentPools.TryGetValue(componentType, out var pool))
+                {
+                    pool.Return(component);
+                }
             }
         }
 
@@ -121,5 +134,12 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             _archetypeManager.Compact();
         }
 
-        public void Shrink() => Compact();
+        public void Shrink()
+        {
+            Compact();
+            foreach (var pool in _componentPools.Values)
+            {
+                pool.Shrink();
+            }
+        }
     }

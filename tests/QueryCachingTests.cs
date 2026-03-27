@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
+using Shared.Models;
 using Shared.Services;
 using System;
 using System.Collections.Generic;
@@ -12,18 +13,12 @@ namespace tests
     [TestFixture]
     public class QueryCachingTests
     {
-        private class TestComponent1 : IComponent
+        private class TestComponent1 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void SendMessage(IComponentMessage message) { }
         }
 
-        private class TestComponent2 : IComponent
+        private class TestComponent2 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void SendMessage(IComponentMessage message) { }
         }
 
         private IComponentManager _componentManager;

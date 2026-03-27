@@ -54,24 +54,12 @@ namespace tests
             Assert.That(overlapCount, Is.EqualTo(17));
         }
 
-        private class TestComponent1 : IComponent
+        private class TestComponent1 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void Initialize() { }
-            public void Shutdown() { }
-            public void OnMessage(IComponentMessage message) { }
-            public void SendMessage(IComponentMessage message) { }
         }
 
-        private class TestComponent2 : IComponent
+        private class TestComponent2 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void Initialize() { }
-            public void Shutdown() { }
-            public void OnMessage(IComponentMessage message) { }
-            public void SendMessage(IComponentMessage message) { }
         }
     }
 }

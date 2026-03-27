@@ -189,12 +189,13 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Length);
                             try
                             {
-                                await Task.WhenAll(layer.Select(async (info, index) =>
+                                // Parallel execution using engine JobSystem
+                                await _jobSystem.ForEachAsync(layer, async (info, index) =>
                                 {
                                     var ecb = _ecbPool.Rent();
                                     ecbArray[index] = ecb;
                                     await ExecuteSystemAsync(info, ecb);
-                                }));
+                                });
 
                                 await _jobSystem.CompleteAllAsync();
 
@@ -203,8 +204,12 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                                     for (int k = 0; k < layer.Length; k++)
                                     {
                                         var ecb = ecbArray[k];
-                                        ecb?.Playback();
-                                        if (ecb != null) _ecbPool.Return(ecb);
+                                        if (ecb != null)
+                                        {
+                                            ecb.Playback();
+                                            _ecbPool.Return(ecb);
+                                            ecbArray[k] = null!;
+                                        }
                                     }
                                 }
                             }

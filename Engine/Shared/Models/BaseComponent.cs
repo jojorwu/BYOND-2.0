@@ -16,4 +16,10 @@ public abstract class BaseComponent : IComponent
     {
         Owner?.SendMessage(message);
     }
+
+    public virtual void Reset()
+    {
+        Owner = null;
+        Enabled = true;
+    }
 }

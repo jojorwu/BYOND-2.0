@@ -14,9 +14,9 @@ namespace Shared.Messaging;
     /// </summary>
     public interface IEventBus
     {
-        void Subscribe<T>(Action<T> handler);
-        void SubscribeAsync<T>(Func<T, ValueTask> handler);
-        void Subscribe<T>(IEventHandler<T> handler);
+        void Subscribe<T>(Action<T> handler, int priority = 0);
+        void SubscribeAsync<T>(Func<T, ValueTask> handler, int priority = 0);
+        void Subscribe<T>(IEventHandler<T> handler, int priority = 0);
         void Unsubscribe<T>(Action<T> handler);
         void UnsubscribeAsync<T>(Func<T, ValueTask> handler);
         void Unsubscribe<T>(IEventHandler<T> handler);

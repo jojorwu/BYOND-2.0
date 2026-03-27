@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
+using Shared.Models;
 using Shared.Messaging;
 using Shared.Services;
 using Moq;
@@ -18,31 +19,37 @@ namespace tests
             public int Value { get; set; }
         }
 
-        private class TestComponent1 : IComponent
+        private class TestComponent1 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
             public int ReceivedMessages { get; private set; }
 
-            public void SendMessage(IComponentMessage message) { }
-            public void OnMessage(IComponentMessage message)
+            public override void OnMessage(IComponentMessage message)
             {
                 if (message is TestMessage)
                     ReceivedMessages++;
             }
+
+            public override void Reset()
+            {
+                base.Reset();
+                ReceivedMessages = 0;
+            }
         }
 
-        private class TestComponent2 : IComponent
+        private class TestComponent2 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
             public int ReceivedMessages { get; private set; }
 
-            public void SendMessage(IComponentMessage message) { }
-            public void OnMessage(IComponentMessage message)
+            public override void OnMessage(IComponentMessage message)
             {
                 if (message is TestMessage)
                     ReceivedMessages++;
+            }
+
+            public override void Reset()
+            {
+                base.Reset();
+                ReceivedMessages = 0;
             }
         }
 

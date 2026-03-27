@@ -1,5 +1,6 @@
 using Robust.Shared.Maths;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -9,7 +10,8 @@ using System.Globalization;
 
 namespace Core.Dmi;
 
-public static class DmiParser {
+public static class DmiParser
+{
     public static readonly AtomDirection[] DMIFrameDirections = {
         AtomDirection.South,
         AtomDirection.North,
@@ -526,25 +528,30 @@ public static class DmiParser {
     }
 
     private static bool VerifyPng(Stream stream) {
+        Span<byte> header = stackalloc byte[8];
         stream.Seek(0, SeekOrigin.Begin);
-        foreach (var t in PngHeader) {
-            if (stream.ReadByte() != t) return false;
+        try {
+            stream.ReadExactly(header);
+            return header.SequenceEqual(PngHeader);
+        } catch (EndOfStreamException) {
+            return false;
         }
-
-        return true;
     }
 
     private static bool VerifyBmp(Stream stream) {
+        Span<byte> header = stackalloc byte[2];
         stream.Seek(0, SeekOrigin.Begin);
-        if (stream.ReadByte() == 0x42 && stream.ReadByte() == 0x4D)
-            return true;
-
-        return false;
+        try {
+            stream.ReadExactly(header);
+            return header[0] == 0x42 && header[1] == 0x4D;
+        } catch (EndOfStreamException) {
+            return false;
+        }
     }
 
     private static uint ReadBigEndianUint32(BinaryReader reader) {
-        byte[] bytes = reader.ReadBytes(4);
-        Array.Reverse(bytes); //Little to Big-Endian
-        return BitConverter.ToUInt32(bytes);
+        Span<byte> bytes = stackalloc byte[4];
+        reader.BaseStream.ReadExactly(bytes);
+        return BinaryPrimitives.ReadUInt32BigEndian(bytes);
     }
 }

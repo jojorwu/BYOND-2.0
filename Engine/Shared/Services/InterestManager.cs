@@ -14,8 +14,7 @@ namespace Shared.Services;
 
         private struct PlayerInterestState
         {
-            public long X;
-            public long Y;
+            public Vector3l Position;
             public int Range;
         }
 
@@ -28,14 +27,14 @@ namespace Shared.Services;
 
         public void UpdatePlayerInterest(INetworkPeer peer, long x, long y, int range)
         {
-            _playerStates[peer] = new PlayerInterestState { X = x, Y = y, Range = range };
+            _playerStates[peer] = new PlayerInterestState { Position = new Vector3l(x, y, 0), Range = range };
         }
 
         public InterestedObjectEnumerable GetInterestedObjects(INetworkPeer peer)
         {
             if (_playerStates.TryGetValue(peer, out var state))
             {
-                var box = new Box2l(state.X - state.Range, state.Y - state.Range, state.X + state.Range, state.Y + state.Range);
+                var box = new Box3l(state.Position.X - state.Range, state.Position.Y - state.Range, -100, state.Position.X + state.Range, state.Position.Y + state.Range, 100);
                 return new InterestedObjectEnumerable(_spatialGrid, box);
             }
             return default;
@@ -44,11 +43,11 @@ namespace Shared.Services;
         public struct InterestedObjectEnumerable : IEnumerable<IGameObject>
         {
             private readonly SpatialGrid _grid;
-            private readonly Box2l _box;
+            private readonly Box3l _box;
 
             public bool IsDefault => _grid == null;
 
-            public InterestedObjectEnumerable(SpatialGrid grid, Box2l box)
+            public InterestedObjectEnumerable(SpatialGrid grid, Box3l box)
             {
                 _grid = grid;
                 _box = box;

@@ -1,13 +1,16 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Shared.Interfaces;
 using Shared.Messaging;
 
 namespace Shared.Services;
 
-public class FastEventBus : EngineService, IEventBus
+public class FastEventBus : EngineService, IEventBus, IFreezable
 {
     private interface IHandlerList
     {
@@ -166,17 +169,24 @@ public class FastEventBus : EngineService, IEventBus
             }
 
             // Start all async tasks concurrently
-            var tasks = new ValueTask[asyncCount];
-            for (int i = 0; i < asyncCount; i++)
+            var tasks = ArrayPool<ValueTask>.Shared.Rent(asyncCount);
+            try
             {
-                tasks[i] = asyncActions[i](eventData);
-            }
+                for (int i = 0; i < asyncCount; i++)
+                {
+                    tasks[i] = asyncActions[i](eventData);
+                }
 
-            for (int i = 0; i < asyncCount; i++)
+                for (int i = 0; i < asyncCount; i++)
+                {
+                    var task = tasks[i];
+                    if (!task.IsCompleted) await task;
+                    else task.GetAwaiter().GetResult();
+                }
+            }
+            finally
             {
-                var task = tasks[i];
-                if (!task.IsCompleted) await task;
-                else task.GetAwaiter().GetResult();
+                ArrayPool<ValueTask>.Shared.Return(tasks, clearArray: true);
             }
         }
 
@@ -196,10 +206,17 @@ public class FastEventBus : EngineService, IEventBus
     }
 
     private readonly ConcurrentDictionary<Type, IHandlerList> _typeToHandlers = new();
+    private volatile FrozenDictionary<Type, IHandlerList> _frozenHandlers = FrozenDictionary<Type, IHandlerList>.Empty;
 
     private HandlerList<T> GetHandlers<T>()
     {
+        if (_frozenHandlers.TryGetValue(typeof(T), out var handlers)) return (HandlerList<T>)handlers;
         return (HandlerList<T>)_typeToHandlers.GetOrAdd(typeof(T), _ => new HandlerList<T>());
+    }
+
+    public void Freeze()
+    {
+        _frozenHandlers = _typeToHandlers.ToFrozenDictionary();
     }
 
     public void Subscribe<T>(Action<T> handler) => GetHandlers<T>().Subscribe(handler);
@@ -232,10 +249,10 @@ public class FastEventBus : EngineService, IEventBus
 
     public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
 
-    public override Task StopAsync(CancellationToken cancellationToken)
+    protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
         Clear();
-        return base.StopAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public void Publish<T>(in T eventData) where T : struct

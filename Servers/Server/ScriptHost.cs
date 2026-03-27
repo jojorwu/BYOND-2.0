@@ -41,7 +41,7 @@ namespace Server
             await _envManager.StartAsync(cancellationToken);
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
             _envManager.Stop();
             return Task.CompletedTask;

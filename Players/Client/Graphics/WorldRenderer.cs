@@ -105,7 +105,7 @@ void main() {
             _instancedRenderer.Begin();
             _renderObjectBuffer.Clear();
 
-            currentState.SpatialGrid.QueryBox(new Box2l((long)cullRect.Left, (long)cullRect.Top, (long)cullRect.Right, (long)cullRect.Bottom), obj => _renderObjectBuffer.Add(obj));
+            currentState.SpatialGrid.QueryBox(new Box3l((long)cullRect.Left, (long)cullRect.Top, -100, (long)cullRect.Right, (long)cullRect.Bottom, 100), obj => _renderObjectBuffer.Add(obj));
 
             // Sort by layer for correct transparency
             _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
@@ -193,7 +193,7 @@ void main() {
             long endX = startX + RenderChunk.ChunkSize;
             long endY = startY + RenderChunk.ChunkSize;
 
-            state.SpatialGrid.QueryBox(new Box2l(startX, startY, endX - 1, endY - 1), obj => objects.Add(obj));
+            state.SpatialGrid.QueryBox(new Box3l(startX, startY, -100, endX - 1, endY - 1, 100), obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {

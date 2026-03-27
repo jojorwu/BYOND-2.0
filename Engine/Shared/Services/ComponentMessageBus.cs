@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
@@ -66,14 +67,30 @@ namespace Shared.Services;
                         // Rapidly skip archetypes that don't overlap with our targets
                         if (!arch.Signature.Mask.Overlaps(filterMask)) continue;
 
-                        var enumerator = arch.GetEntities();
-                        while (enumerator.MoveNext())
+                        // Use a snapshot of entities to ensure thread-safety during broadcast
+                        var entities = arch.GetEntitiesSnapshot(out int entityCount);
+                        try
                         {
-                            var entity = enumerator.Current;
-                            if (entity == null) continue;
+                            for (int i = 0; i < entityCount; i++)
+                            {
+                                var entity = entities[i];
+                                // Re-verify entity still exists and is relevant (it might have moved archetypes)
+                                if (entity == null || entity.Archetype != arch) continue;
 
-                            // Re-dispatch via GameObject to use its optimized local component resolution
-                            entity.SendMessage(message);
+                                var index = entity.ArchetypeIndex;
+                                foreach (var targetId in targetIds)
+                                {
+                                    var comp = arch.GetComponentsInternal(targetId)?.Get(index);
+                                    if (comp != null && comp.Enabled)
+                                    {
+                                        comp.OnMessage(message);
+                                    }
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            if (entities.Length > 0) ArrayPool<IGameObject>.Shared.Return(entities, true);
                         }
                     }
                 }

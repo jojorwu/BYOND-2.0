@@ -34,7 +34,7 @@ namespace tests
             _regionActivationStrategyMock = new Mock<IRegionActivationStrategy>();
             _udpServerMock = new Mock<IUdpServer>();
             _gameStateMock = new Mock<IGameState>();
-            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object));
+            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object, TimeProvider.System));
             _gameStateSnapshotterMock = new Mock<IGameStateSnapshotter>();
             _jobSystemMock = new Mock<IJobSystem>();
             _serverSettings = new ServerSettings();

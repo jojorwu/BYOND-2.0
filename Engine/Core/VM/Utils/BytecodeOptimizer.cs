@@ -7,6 +7,14 @@ namespace Core.VM.Utils
 {
     public static class BytecodeOptimizer
     {
+        private const int PushLocalSize = 6;
+        private const int JumpSize = 5;
+        private const int FloatSize = 9;
+        private const int IntSize = 5;
+        private const int OpcodeSize = 1;
+        private const int LabelSize = 4;
+        private const int DoubleSize = 8;
+
         [ThreadStatic]
         private static List<byte>? _optimizationBuffer;
         [ThreadStatic]
@@ -49,11 +57,11 @@ namespace Core.VM.Utils
                 int currentOriginalPc = pc;
 
                 // Pattern: Consecutive Pops
-                if (bytecode[pc] == (byte)Opcode.Pop && !IsJumpTarget(pc, 1))
+                if (bytecode[pc] == (byte)Opcode.Pop && !IsJumpTarget(pc, OpcodeSize))
                 {
                     int popCount = 1;
-                    int scanPc = pc + 1;
-                    while (scanPc < bytecode.Length && bytecode[scanPc] == (byte)Opcode.Pop && !IsJumpTarget(scanPc, 1))
+                    int scanPc = pc + OpcodeSize;
+                    while (scanPc < bytecode.Length && bytecode[scanPc] == (byte)Opcode.Pop && !IsJumpTarget(scanPc, OpcodeSize))
                     {
                         popCount++;
                         scanPc++;
@@ -71,29 +79,29 @@ namespace Core.VM.Utils
                 if (TryOptimizePushLocalPattern(bytecode, ref pc, optimized, strings, labels)) continue;
 
                 // Pattern: Increment(Local, idx), Pop -> LocalIncrement(idx)
-                if (pc + 6 < bytecode.Length && bytecode[pc] == (byte)Opcode.Increment && bytecode[pc + 1] == (byte)DMReference.Type.Local && !IsJumpTarget(pc, 6))
+                if (pc + PushLocalSize < bytecode.Length && bytecode[pc] == (byte)Opcode.Increment && bytecode[pc + 1] == (byte)DMReference.Type.Local && !IsJumpTarget(pc, PushLocalSize))
                 {
                     int idxInc = BitConverter.ToInt32(bytecode, pc + 2);
-                    if (pc + 6 < bytecode.Length && bytecode[pc + 6] == (byte)Opcode.Pop && !IsJumpTarget(pc + 6, 1))
+                    if (pc + PushLocalSize < bytecode.Length && bytecode[pc + PushLocalSize] == (byte)Opcode.Pop && !IsJumpTarget(pc + PushLocalSize, OpcodeSize))
                     {
-                        MarkPcMap(pc, pc + 7, optimized.Count);
+                        MarkPcMap(pc, pc + PushLocalSize + OpcodeSize, optimized.Count);
                         optimized.Add((byte)Opcode.LocalIncrement);
                         optimized.AddRange(BitConverter.GetBytes(idxInc));
-                        pc += 7;
+                        pc += PushLocalSize + OpcodeSize;
                         continue;
                     }
                 }
 
                 // Pattern: Decrement(Local, idx), Pop -> LocalDecrement(idx)
-                if (pc + 6 < bytecode.Length && bytecode[pc] == (byte)Opcode.Decrement && bytecode[pc + 1] == (byte)DMReference.Type.Local && !IsJumpTarget(pc, 6))
+                if (pc + PushLocalSize < bytecode.Length && bytecode[pc] == (byte)Opcode.Decrement && bytecode[pc + 1] == (byte)DMReference.Type.Local && !IsJumpTarget(pc, PushLocalSize))
                 {
                     int idxDec = BitConverter.ToInt32(bytecode, pc + 2);
-                    if (pc + 6 < bytecode.Length && bytecode[pc + 6] == (byte)Opcode.Pop && !IsJumpTarget(pc + 6, 1))
+                    if (pc + PushLocalSize < bytecode.Length && bytecode[pc + PushLocalSize] == (byte)Opcode.Pop && !IsJumpTarget(pc + PushLocalSize, OpcodeSize))
                     {
-                        MarkPcMap(pc, pc + 7, optimized.Count);
+                        MarkPcMap(pc, pc + PushLocalSize + OpcodeSize, optimized.Count);
                         optimized.Add((byte)Opcode.LocalDecrement);
                         optimized.AddRange(BitConverter.GetBytes(idxDec));
-                        pc += 7;
+                        pc += PushLocalSize + OpcodeSize;
                         continue;
                     }
                 }
@@ -103,20 +111,20 @@ namespace Core.VM.Utils
                 // Pattern: PushReferenceValue(Argument, idx)
                 if (IsPushArgument(bytecode, pc, out int argIdx))
                 {
-                    MarkPcMap(pc, pc + 6, optimized.Count);
+                    MarkPcMap(pc, pc + PushLocalSize, optimized.Count);
                     optimized.Add((byte)Opcode.PushArgument);
                     optimized.AddRange(BitConverter.GetBytes(argIdx));
-                    pc += 6;
+                    pc += PushLocalSize;
                     continue;
                 }
 
                 // Pattern: Assign(Local, idx)
                 if (IsAssignLocal(bytecode, pc, out int assignIdx))
                 {
-                    MarkPcMap(pc, pc + 6, optimized.Count);
+                    MarkPcMap(pc, pc + PushLocalSize, optimized.Count);
                     optimized.Add((byte)Opcode.AssignLocal);
                     optimized.AddRange(BitConverter.GetBytes(assignIdx));
-                    pc += 6;
+                    pc += PushLocalSize;
                     continue;
                 }
 
@@ -157,30 +165,30 @@ namespace Core.VM.Utils
                 }
 
                 // Pattern: PushReferenceValue(ref), JumpIfFalse(label) -> JumpIfReferenceFalse(ref, label)
-                if (pc + 1 < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue && !IsJumpTarget(pc, 1 + GetReferenceSize(bytecode, pc + 1)))
+                if (pc + OpcodeSize < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue && !IsJumpTarget(pc, OpcodeSize + GetReferenceSize(bytecode, pc + OpcodeSize)))
                 {
-                    int refSize = GetReferenceSize(bytecode, pc + 1);
-                    int jumpPc = pc + 1 + refSize;
-                    if (jumpPc + 4 < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(jumpPc, 5))
+                    int refSize = GetReferenceSize(bytecode, pc + OpcodeSize);
+                    int jumpPc = pc + OpcodeSize + refSize;
+                    if (jumpPc + LabelSize < bytecode.Length && bytecode[jumpPc] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(jumpPc, JumpSize))
                     {
                         // Fusion: PushReferenceValue(Global, idx), JumpIfFalse(label) -> GlobalJumpIfFalse(idx, label)
-                        if (bytecode[pc + 1] == (byte)DMReference.Type.Global)
+                        if (bytecode[pc + OpcodeSize] == (byte)DMReference.Type.Global)
                         {
-                            MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                            MarkPcMap(pc, jumpPc + JumpSize, optimized.Count);
                             optimized.Add((byte)Opcode.GlobalJumpIfFalse);
-                            optimized.AddRange(bytecode.AsSpan(pc + 2, 4)); // Global index
+                            optimized.AddRange(bytecode.AsSpan(pc + 2, LabelSize)); // Global index
                             labels.Add(optimized.Count);
-                            optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
-                            pc = jumpPc + 5;
+                            optimized.AddRange(bytecode.AsSpan(jumpPc + OpcodeSize, LabelSize));
+                            pc = jumpPc + JumpSize;
                             continue;
                         }
 
-                        MarkPcMap(pc, jumpPc + 5, optimized.Count);
+                        MarkPcMap(pc, jumpPc + JumpSize, optimized.Count);
                         optimized.Add((byte)Opcode.JumpIfReferenceFalse);
-                        optimized.AddRange(bytecode.AsSpan(pc + 1, refSize));
+                        optimized.AddRange(bytecode.AsSpan(pc + OpcodeSize, refSize));
                         labels.Add(optimized.Count);
-                        optimized.AddRange(bytecode.AsSpan(jumpPc + 1, 4));
-                        pc = jumpPc + 5;
+                        optimized.AddRange(bytecode.AsSpan(jumpPc + OpcodeSize, LabelSize));
+                        pc = jumpPc + JumpSize;
                         continue;
                     }
                 }

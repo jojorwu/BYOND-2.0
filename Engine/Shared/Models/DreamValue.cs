@@ -745,17 +745,18 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsFalse()
         {
-            // Absolute fast path: for numeric types and null, checking if the data slots are zero is sufficient.
-            // Since _floatValue and _longValue are in a union at offset 8, and _objectValue is at offset 16,
-            // the combined check covers Null, 0.0, and 0 in a single operation.
-            if ((_longValue | Unsafe.As<object?, long>(ref Unsafe.AsRef(in _objectValue))) == 0)
-                return true;
+            // Optimized truthiness check: identify Null or 0 states in a single operation
+            // by checking if both the data slot and object reference are zero.
+            // These states (Null, Float 0.0, Integer 0) all have a zero bit pattern in these slots.
+            if ((_longValue | (long)Unsafe.As<object?, IntPtr>(ref Unsafe.AsRef(in _objectValue))) == 0)
+            {
+                // We check the type tag to distinguish from DreamObject with ID 0 (which is True).
+                // Null (3), Float (0), and Integer (1) are all <= DreamValueType.Null (3).
+                return Type <= DreamValueType.Null;
+            }
 
-            // Handle string and other complex 'falsy' states.
-            if (Type == DreamValueType.String)
-                return Unsafe.As<object?, string>(ref Unsafe.AsRef(in _objectValue)).Length == 0;
-
-            return false;
+            // The only other False value in DM is the empty string.
+            return Type == DreamValueType.String && Unsafe.As<object?, string>(ref Unsafe.AsRef(in _objectValue)).Length == 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

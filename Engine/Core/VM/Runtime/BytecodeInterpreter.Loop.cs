@@ -2095,16 +2095,7 @@ public unsafe partial class BytecodeInterpreter
                                                 if (varIdx != -1) { cache.ObjectType = obj.ObjectType; cache.VariableIndex = varIdx; val = obj.GetVariableDirect(varIdx); }
                                                 else val = obj.GetVariable(name);
                                             }
-                                            bool isFalse;
-                                            switch (val.Type)
-                                            {
-                                                case DreamValueType.Null: isFalse = true; break;
-                                                case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
-                                                case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
-                                                case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
-                                                default: isFalse = false; break;
-                                            }
-                                            if (isFalse) state.PC = address;
+                                            if (val.IsFalse()) state.PC = address;
                                         }
                                         else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, thread);
                                     }
@@ -2131,16 +2122,7 @@ public unsafe partial class BytecodeInterpreter
                                                 if (varIdx != -1) { cache.ObjectType = obj.ObjectType; cache.VariableIndex = varIdx; val = obj.GetVariableDirect(varIdx); }
                                                 else val = obj.GetVariable(name);
                                             }
-                                            bool isFalse;
-                                            switch (val.Type)
-                                            {
-                                                case DreamValueType.Null: isFalse = true; break;
-                                                case DreamValueType.Float: isFalse = val.UnsafeRawDouble == 0.0; break;
-                                                case DreamValueType.Integer: isFalse = val.UnsafeRawLong == 0; break;
-                                                case DreamValueType.String: isFalse = ((string)val.UnsafeRawObject!).Length == 0; break;
-                                                default: isFalse = false; break;
-                                            }
-                                            if (!isFalse) state.PC = address;
+                                            if (!val.IsFalse()) state.PC = address;
                                         }
                                         else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, thread);
                                     }

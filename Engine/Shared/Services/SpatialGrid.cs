@@ -14,35 +14,19 @@ using Shared.Services;
 namespace Shared;
     public class SpatialGrid : EngineService, IDisposable, IShrinkable
     {
-        private class Cell : IDisposable
+        private class Cell
         {
             public volatile IGameObject[] Objects = Array.Empty<IGameObject>();
             public int Count;
             public SpinLock Lock = new(false);
+            public long Version;
 
-            public void Clear()
+            public void Reset()
             {
-                var objs = Objects;
-                for (int i = 0; i < Count; i++)
-                {
-                    var obj = objs[i];
-                    if (obj != null)
-                    {
-                        obj.SpatialGridIndex = -1;
-                        obj.CurrentGridCellKey = null;
-                    }
-                }
-                if (objs.Length > 0)
-                {
-                    ArrayPool<IGameObject>.Shared.Return(objs, true);
-                    Objects = Array.Empty<IGameObject>();
-                }
+                // Note: We don't return to pool here anymore, parent grid handles it via _replacedArrays
+                Objects = Array.Empty<IGameObject>();
                 Count = 0;
-            }
-
-            public void Dispose()
-            {
-                Clear();
+                Version = 0;
             }
         }
 
@@ -50,23 +34,40 @@ namespace Shared;
         {
             CleanupEmptyCells();
 
-            // Return detached COW arrays to the pool
-            while (_replacedArrays.TryDequeue(out var array))
+            // Return detached COW arrays to the pool after grace period
+            long now = _timeProvider.GetTimestamp();
+            while (_replacedArrays.TryPeek(out var entry) && now >= entry.ReleaseTimestamp)
             {
-                ArrayPool<IGameObject>.Shared.Return(array, true);
+                if (_replacedArrays.TryDequeue(out entry))
+                {
+                    ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+                }
             }
+        }
+
+        private void EnqueueForRelease(IGameObject[] array)
+        {
+            if (array.Length == 0) return;
+            // Grace period of 1 second to ensure all active enumerators are finished
+            long releaseAt = _timeProvider.GetTimestamp() + _timeProvider.TimestampFrequency;
+            _replacedArrays.Enqueue((releaseAt, array));
         }
 
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
-        private readonly ConcurrentQueue<IGameObject[]> _replacedArrays = new();
+        private readonly ConcurrentQueue<(long ReleaseTimestamp, IGameObject[] Array)> _replacedArrays = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
+        private readonly TimeProvider _timeProvider;
         private readonly int _cellSize;
         private readonly ILogger<SpatialGrid> _logger;
+        private long _version;
 
-        public SpatialGrid(ILogger<SpatialGrid> logger, int cellSize = 32)
+        public long Version => Volatile.Read(ref _version);
+
+        public SpatialGrid(ILogger<SpatialGrid> logger, TimeProvider timeProvider, int cellSize = 32)
         {
             _logger = logger;
+            _timeProvider = timeProvider;
             _cellSize = cellSize;
         }
 
@@ -77,66 +78,42 @@ namespace Shared;
         }
 
         /// <summary>
-        /// Computes a 64-bit Morton code for a 2D coordinate.
-        /// This improves cache locality by mapping 2D proximity to 1D address proximity.
+        /// Computes a 64-bit Morton code for a 3D coordinate (21 bits per axis).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong GetMortonCode(long x, long y)
+        private static ulong GetMortonCode3D(long x, long y, long z)
         {
-            // Map to positive range for bit interleaving
-            uint ux = (uint)(x + 0x80000000);
-            uint uy = (uint)(y + 0x80000000);
-
-            return Interleave(ux, uy);
+            return Interleave3((uint)(x + 0x100000), (uint)(y + 0x100000), (uint)(z + 0x100000));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong Interleave(uint x, uint y)
+        private static ulong Interleave3(uint x, uint y, uint z)
         {
-            return InterleaveBits(x) | (InterleaveBits(y) << 1);
+            return SpreadBits3(x) | (SpreadBits3(y) << 1) | (SpreadBits3(z) << 2);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong InterleaveBits(uint x)
+        private static ulong SpreadBits3(uint x)
         {
-            if (Bmi2.X64.IsSupported)
-            {
-                return Bmi2.X64.ParallelBitDeposit(x, 0x5555555555555555);
-            }
-
-            if (AdvSimd.Arm64.IsSupported)
-            {
-                // ARM64 bit interleaving optimization
-                return InterleaveBitsArm64(x);
-            }
-
-            ulong val = x;
-            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
-            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
-            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
-            val = (val | (val << 2)) & 0x3333333333333333;
-            val = (val | (val << 1)) & 0x5555555555555555;
+            ulong val = x & 0x1FFFFF;
+            val = (val | (val << 32)) & 0x1F00000000FFFFUL;
+            val = (val | (val << 16)) & 0x1F0000FF0000FFUL;
+            val = (val | (val << 8)) & 0x100F00F00F00F00FUL;
+            val = (val | (val << 4)) & 0x10C30C30C30C30C3UL;
+            val = (val | (val << 2)) & 0x1249249249249249UL;
             return val;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ulong InterleaveBitsArm64(uint x)
+        private ulong GetCellKey(long x, long y, long z)
         {
-            // ARM64 doesn't have PDEP, but we can use AdvSimd for vector bit manipulation
-            // if we were interleaving multiple values. For a single uint, we use a specialized sequence.
-            ulong val = x;
-            val = (val | (val << 16)) & 0x0000FFFF0000FFFF;
-            val = (val | (val << 8)) & 0x00FF00FF00FF00FF;
-            val = (val | (val << 4)) & 0x0F0F0F0F0F0F0F0F;
-            val = (val | (val << 2)) & 0x3333333333333333;
-            val = (val | (val << 1)) & 0x5555555555555555;
-            return val;
+            return GetMortonCode3D(GetGridCoord(x), GetGridCoord(y), GetGridCoord(z));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ulong GetCellKey(long x, long y)
+        private static ulong GetCellKeyFromVector(Vector3l vec, SpatialGrid grid)
         {
-            return GetMortonCode(GetGridCoord(x), GetGridCoord(y));
+            return grid.GetCellKey(vec.X, vec.Y, vec.Z);
         }
 
         private Cell GetOrCreateCell(ulong key)
@@ -149,13 +126,12 @@ namespace Shared;
 
         public void Add(IGameObject obj)
         {
-            var x = obj.X;
-            var y = obj.Y;
-            var key = GetCellKey(x, y);
+            var pos = obj.Position;
+            var key = GetCellKey(pos.X, pos.Y, pos.Z);
 
             if (obj.CurrentGridCellKey != null)
             {
-                ulong oldKey = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+                ulong oldKey = GetMortonCode3D(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y, obj.CurrentGridCellKey.Value.Z);
                 if (oldKey == key) return;
 
                 var oldCell = GetOrCreateCell(oldKey);
@@ -170,7 +146,7 @@ namespace Shared;
                         oldCell.Lock.Enter(ref lock1);
                         cell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                        AddInternal(obj, cell, new Vector3l(GetGridCoord(pos.X), GetGridCoord(pos.Y), GetGridCoord(pos.Z)));
                     }
                     finally
                     {
@@ -186,11 +162,11 @@ namespace Shared;
                         cell.Lock.Enter(ref lock1);
                         oldCell.Lock.Enter(ref lock2);
                         RemoveInternal(obj, oldCell);
-                        AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                        AddInternal(obj, cell, new Vector3l(GetGridCoord(pos.X), GetGridCoord(pos.Y), GetGridCoord(pos.Z)));
                     }
                     finally
                     {
-                        if (lock2) oldCell.Lock.Exit(false);
+                        if (lock2) cell.Lock.Exit(false);
                         if (lock1) cell.Lock.Exit(false);
                     }
                 }
@@ -202,7 +178,7 @@ namespace Shared;
                 try
                 {
                     cell.Lock.Enter(ref lockTaken);
-                    AddInternal(obj, cell, (GetGridCoord(x), GetGridCoord(y)));
+                    AddInternal(obj, cell, new Vector3l(GetGridCoord(pos.X), GetGridCoord(pos.Y), GetGridCoord(pos.Z)));
                 }
                 finally
                 {
@@ -211,18 +187,21 @@ namespace Shared;
             }
         }
 
-        private void AddInternal(IGameObject obj, Cell cell, (long X, long Y) key)
+        private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
             // Copy-On-Write to ensure lock-free reads during iteration
             int newCount = cell.Count + 1;
-            int newSize = cell.Objects.Length;
-            if (newCount > newSize)
+            var oldArray = cell.Objects;
+
+            // If the current array has enough capacity, we can still COW by renting a new one of the SAME size
+            // This ensures active enumerators aren't affected while minimizing overhead if we're well within capacity
+            int targetSize = oldArray.Length;
+            if (newCount > targetSize)
             {
-                newSize = newSize == 0 ? 4 : newSize * 2;
+                targetSize = targetSize == 0 ? 4 : targetSize * 2;
             }
 
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(newSize);
-            var oldArray = cell.Objects;
+            var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
             if (cell.Count > 0)
             {
                 Array.Copy(oldArray, newArray, cell.Count);
@@ -231,20 +210,23 @@ namespace Shared;
             if (oldArray.Length > 0)
             {
                 // Enqueue old array for deferred return to avoid race with active enumerators
-                _replacedArrays.Enqueue(oldArray);
+                EnqueueForRelease(oldArray);
             }
 
             obj.SpatialGridIndex = cell.Count;
             newArray[cell.Count] = obj;
             cell.Objects = newArray;
             cell.Count = newCount;
+            cell.Version++;
+            Interlocked.Increment(ref _version);
             obj.CurrentGridCellKey = key;
         }
 
         public void Remove(IGameObject obj)
         {
             if (obj.CurrentGridCellKey == null) return;
-            ulong key = GetMortonCode(obj.CurrentGridCellKey.Value.X, obj.CurrentGridCellKey.Value.Y);
+            var pos = obj.CurrentGridCellKey.Value;
+            ulong key = GetMortonCode3D(pos.X, pos.Y, pos.Z);
             if (_grid.TryGetValue(key, out var cell))
             {
                 bool lockTaken = false;
@@ -267,6 +249,8 @@ namespace Shared;
 
             int lastIndex = cell.Count - 1;
             var oldArray = cell.Objects;
+
+            // We still COW even on remove to maintain thread-safety for enumerators
             var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
 
             if (lastIndex > 0)
@@ -283,18 +267,20 @@ namespace Shared;
 
             if (oldArray.Length > 0)
             {
-                _replacedArrays.Enqueue(oldArray);
+                EnqueueForRelease(oldArray);
             }
 
             cell.Objects = newArray;
             cell.Count--;
+            cell.Version++;
+            Interlocked.Increment(ref _version);
             obj.SpatialGridIndex = -1;
             var oldKey = obj.CurrentGridCellKey;
             obj.CurrentGridCellKey = null;
 
             if (cell.Count == 0 && oldKey != null)
             {
-                _emptyCellKeys.Enqueue(GetMortonCode(oldKey.Value.X, oldKey.Value.Y));
+                _emptyCellKeys.Enqueue(GetMortonCode3D(oldKey.Value.X, oldKey.Value.Y, oldKey.Value.Z));
             }
         }
 
@@ -303,7 +289,7 @@ namespace Shared;
             Add(obj);
         }
 
-        public List<IGameObject> GetObjectsInBox(Box2l box)
+        public List<IGameObject> GetObjectsInBox(Box3l box)
         {
             var results = new List<IGameObject>();
             GetObjectsInBox(box, results);
@@ -315,27 +301,29 @@ namespace Shared;
         public struct BoxEnumerator : IEnumerator<IGameObject>
         {
             private readonly SpatialGrid _grid;
-            private readonly Box2l _box;
+            private readonly Box3l _box;
             private readonly long _endGX;
             private readonly long _endGY;
+            private readonly long _endGZ;
             private long _currentGX;
             private long _currentGY;
+            private long _currentGZ;
             private int _currentIndexInCell;
             private Cell? _currentCell;
-            private bool _lockTaken;
             private IGameObject? _current;
 
-            public BoxEnumerator(SpatialGrid grid, Box2l box)
+            public BoxEnumerator(SpatialGrid grid, Box3l box)
             {
                 _grid = grid;
                 _box = box;
                 _currentGX = grid.GetGridCoord(box.Left);
                 _currentGY = grid.GetGridCoord(box.Bottom);
+                _currentGZ = grid.GetGridCoord(box.Back);
                 _endGX = grid.GetGridCoord(box.Right);
                 _endGY = grid.GetGridCoord(box.Top);
+                _endGZ = grid.GetGridCoord(box.Front);
                 _currentIndexInCell = -1;
                 _currentCell = null;
-                _lockTaken = false;
                 _current = null;
             }
 
@@ -348,16 +336,24 @@ namespace Shared;
                         _currentIndexInCell++;
                         // Lock-free read of COW array
                         var objs = _currentCell.Objects;
-                        if (_currentIndexInCell < _currentCell.Count && _currentIndexInCell < objs.Length)
+                        int count = _currentCell.Count;
+                        if (_currentIndexInCell < count && _currentIndexInCell < objs.Length)
                         {
                             _current = objs[_currentIndexInCell];
                             if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
-                                _current.Y >= _box.Bottom && _current.Y <= _box.Top)
+                                _current.Y >= _box.Bottom && _current.Y <= _box.Top &&
+                                _current.Z >= _box.Back && _current.Z <= _box.Front)
                             {
                                 return true;
                             }
                             continue;
                         }
+                    }
+
+                    if (_currentGZ > _endGZ)
+                    {
+                        _currentGZ = _grid.GetGridCoord(_box.Back);
+                        _currentGY++;
                     }
 
                     if (_currentGY > _endGY)
@@ -368,8 +364,8 @@ namespace Shared;
 
                     if (_currentGX > _endGX) return false;
 
-                    ulong key = GetMortonCode(_currentGX, _currentGY);
-                    _currentGY++;
+                    ulong key = GetMortonCode3D(_currentGX, _currentGY, _currentGZ);
+                    _currentGZ++;
 
                     if (_grid._grid.TryGetValue(key, out _currentCell))
                     {
@@ -390,21 +386,14 @@ namespace Shared;
 
             public void Reset() => throw new NotSupportedException();
 
-            public void Dispose()
-            {
-                if (_lockTaken && _currentCell != null)
-                {
-                    _currentCell.Lock.Exit(false);
-                    _lockTaken = false;
-                }
-            }
+            public void Dispose() { }
 
             public BoxEnumerator GetEnumerator() => this;
         }
 
-        public BoxEnumerator GetEnumerator(Box2l box) => new BoxEnumerator(this, box);
+        public BoxEnumerator GetEnumerator(Box3l box) => new BoxEnumerator(this, box);
 
-        public void QueryBox(Box2l box, Action<IGameObject> callback)
+        public void QueryBox(Box3l box, Action<IGameObject> callback)
         {
             var enumerator = new BoxEnumerator(this, box);
             try
@@ -420,7 +409,7 @@ namespace Shared;
             }
         }
 
-        public void QueryBox<TState>(Box2l box, ref TState state, QueryCallback<TState> callback)
+        public void QueryBox<TState>(Box3l box, ref TState state, QueryCallback<TState> callback)
         {
             var enumerator = new BoxEnumerator(this, box);
             try
@@ -452,7 +441,9 @@ namespace Shared;
                             {
                                 if (_grid.TryRemove(key, out var removed))
                                 {
-                                    removed.Clear();
+                                    var array = removed.Objects;
+                                    if (array.Length > 0) EnqueueForRelease(array);
+                                    removed.Reset();
                                     _cellPool.Push(removed);
                                 }
                             }
@@ -466,27 +457,7 @@ namespace Shared;
             }
         }
 
-        public void QueryBoxZ(Box2l box, long z, List<IGameObject> results)
-        {
-            var enumerator = new BoxEnumerator(this, box);
-            try
-            {
-                while (enumerator.MoveNext())
-                {
-                    var current = enumerator.Current;
-                    if (current.Z == z)
-                    {
-                        results.Add(current);
-                    }
-                }
-            }
-            finally
-            {
-                enumerator.Dispose();
-            }
-        }
-
-        public void GetObjectsInBox(Box2l box, List<IGameObject> results)
+        public void GetObjectsInBox(Box3l box, List<IGameObject> results)
         {
             results.Clear();
             GetObjectsInBox(box, (IList<IGameObject>)results);
@@ -496,7 +467,7 @@ namespace Shared;
         /// Retrieves all objects in the given box and adds them to the results list.
         /// This overload allows the caller to provide a pre-allocated list to avoid heap churn.
         /// </summary>
-        public void GetObjectsInBox(Box2l box, IList<IGameObject> results)
+        public void GetObjectsInBox(Box3l box, IList<IGameObject> results)
         {
             var enumerator = new BoxEnumerator(this, box);
             try
@@ -512,17 +483,32 @@ namespace Shared;
             }
         }
 
-        public override Task StopAsync(CancellationToken cancellationToken)
+        protected override Task OnStopAsync(CancellationToken cancellationToken)
         {
-            _grid.Clear();
-            _cellPool.Clear();
-            return base.StopAsync(cancellationToken);
+            Dispose();
+            return Task.CompletedTask;
         }
 
         public void Dispose()
         {
+            foreach (var cell in _grid.Values)
+            {
+                var array = cell.Objects;
+                if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
             _grid.Clear();
-            _cellPool.Clear();
+
+            while (_cellPool.TryPop(out var cell))
+            {
+                var array = cell.Objects;
+                if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
+            }
+
+            while (_replacedArrays.TryDequeue(out var entry))
+            {
+                ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+            }
+
             GC.SuppressFinalize(this);
         }
 

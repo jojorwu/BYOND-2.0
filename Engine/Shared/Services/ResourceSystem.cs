@@ -39,10 +39,10 @@ public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
         _providers.Add(provider);
     }
 
-    public override Task StopAsync(CancellationToken cancellationToken)
+    protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
         ClearCache();
-        return base.StopAsync(cancellationToken);
+        return Task.CompletedTask;
     }
 
     public void ClearCache()

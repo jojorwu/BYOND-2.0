@@ -119,7 +119,7 @@ namespace Shared.Services;
             _logger?.LogInformation("Requesting installation of component: {Component}", component);
         }
 
-        public override Task InitializeAsync()
+        protected override Task OnInitializeAsync()
         {
             return Task.CompletedTask;
         }

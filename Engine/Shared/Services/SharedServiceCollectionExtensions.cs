@@ -29,6 +29,10 @@ public static class SharedServiceCollectionExtensions
         {
             services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
         }
+        if (typeof(IFreezable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IFreezable>(sp => (IFreezable)sp.GetRequiredService<TImplementation>());
+        }
         foreach (var type in interfaceTypes)
         {
             services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
@@ -55,6 +59,10 @@ public static class SharedServiceCollectionExtensions
         if (typeof(IShrinkable).IsAssignableFrom(typeof(TImplementation)))
         {
             services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
+        }
+        if (typeof(IFreezable).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.AddSingleton<IFreezable>(sp => (IFreezable)sp.GetRequiredService<TImplementation>());
         }
         foreach (var type in interfaceTypes)
         {
@@ -89,6 +97,7 @@ public static class SharedServiceCollectionExtensions
     }
     public static IServiceCollection AddEcsServices(this IServiceCollection services)
     {
+        services.AddEngineService<ComponentRegistryService>();
         services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), typeof(IObjectPool<GameObject>));
         services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())), typeof(IObjectPool<EntityCommandBuffer>));
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
@@ -96,9 +105,7 @@ public static class SharedServiceCollectionExtensions
         services.AddEngineService<SystemManager>(typeof(ISystemManager));
         services.AddEngineService<ArchetypeManager>(typeof(IArchetypeManager));
         services.AddEngineService<ComponentManager>(typeof(IComponentManager));
-        services.AddEngineService<ComponentQueryService>(
-            sp => new ComponentQueryService(sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IArchetypeManager>(), sp.GetService<IGameState>()),
-            typeof(IComponentQueryService));
+        services.AddEngineService<ComponentQueryService>(typeof(IComponentQueryService));
         services.AddEngineService<ComponentMessageBus>(typeof(IComponentMessageBus));
         services.AddSystem<Systems.StateCommitSystem>();
         services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();

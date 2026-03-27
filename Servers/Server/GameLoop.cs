@@ -30,7 +30,7 @@ namespace Server
             _logger = logger;
         }
 
-        public override Task StartAsync(CancellationToken cancellationToken)
+        protected override Task OnStartAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _gameLoopTask = Task.Run(() => Loop(_cancellationTokenSource.Token), _cancellationTokenSource.Token);

@@ -45,7 +45,7 @@ namespace Server
             _listener.PeerDisconnectedEvent += OnPeerDisconnected;
         }
 
-        public override Task StartAsync(CancellationToken cancellationToken)
+        protected override Task OnStartAsync(CancellationToken cancellationToken)
         {
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             if (_netManager.Start(_context.Settings.Network.UdpPort))

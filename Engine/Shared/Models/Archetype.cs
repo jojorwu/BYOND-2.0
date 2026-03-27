@@ -1,8 +1,11 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Shared.Interfaces;
 using Shared.Enums;
 
@@ -12,13 +15,15 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
 {
     public readonly T[] Components;
     public readonly long[] EntityIds;
+    public readonly IGameObject[] Entities;
     public readonly int Offset;
     public readonly int Count;
 
-    public ArchetypeChunk(T[] components, long[] entityIds, int offset, int count)
+    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities, int offset, int count)
     {
         Components = components;
         EntityIds = entityIds;
+        Entities = entities;
         Offset = offset;
         Count = count;
     }
@@ -26,6 +31,7 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     public ReadOnlySpan<T> ComponentsSpan => Components.AsSpan(Offset, Count);
     public Span<T> ComponentsMutableSpan => Components.AsSpan(Offset, Count);
     public ReadOnlySpan<long> EntityIdsSpan => EntityIds.AsSpan(Offset, Count);
+    public ReadOnlySpan<IGameObject> EntitiesSpan => Entities.AsSpan(Offset, Count);
 }
 
 /// <summary>
@@ -86,8 +92,12 @@ public class Archetype
             EnsureCapacity(_count + 1);
             int index = _count++;
 
-            _entityIds[index] = entity.Id;
-            _entities[index] = entity;
+            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
+            Unsafe.Add(ref entityId, index) = entity.Id;
+
+            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
+            Unsafe.Add(ref entitiesRef, index) = entity;
+
             _entityIdToIndex[entity.Id] = index;
 
             var signatureTypes = Signature.Types;
@@ -112,8 +122,12 @@ public class Archetype
             EnsureCapacity(_count + 1);
             int index = _count++;
 
-            _entityIds[index] = entity.Id;
-            _entities[index] = entity;
+            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
+            Unsafe.Add(ref entityId, index) = entity.Id;
+
+            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
+            Unsafe.Add(ref entitiesRef, index) = entity;
+
             _entityIdToIndex[entity.Id] = index;
 
             var targetArrays = _componentArrays;
@@ -147,7 +161,8 @@ public class Archetype
         {
             if (!_entityIdToIndex.TryGetValue(entityId, out int index)) return;
 
-            IGameObject entity = _entities[index];
+            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
+            IGameObject entity = Unsafe.Add(ref entitiesRef, index);
 
             // Only clear properties if the entity currently belongs to this archetype instance.
             // This prevents race conditions where a fast transition has already assigned a new archetype.
@@ -163,11 +178,12 @@ public class Archetype
             // Optimization: If the entity is already the last one, we skip the swap and copy
             if (index != lastIndex)
             {
-                long lastEntityId = _entityIds[lastIndex];
-                IGameObject lastEntity = _entities[lastIndex];
+                ref long entityIdsRef = ref MemoryMarshal.GetArrayDataReference(_entityIds);
+                long lastEntityId = Unsafe.Add(ref entityIdsRef, lastIndex);
+                IGameObject lastEntity = Unsafe.Add(ref entitiesRef, lastIndex);
 
-                _entityIds[index] = lastEntityId;
-                _entities[index] = lastEntity;
+                Unsafe.Add(ref entityIdsRef, index) = lastEntityId;
+                Unsafe.Add(ref entitiesRef, index) = lastEntity;
                 _entityIdToIndex[lastEntityId] = index;
 
                 for (int i = 0; i < arrays.Length; i++)
@@ -178,7 +194,7 @@ public class Archetype
                 lastEntity.ArchetypeIndex = index;
             }
 
-            _entities[lastIndex] = null!;
+            Unsafe.Add(ref entitiesRef, lastIndex) = null!;
             _entityIdToIndex.Remove(entityId);
             for (int i = 0; i < arrays.Length; i++)
             {
@@ -198,34 +214,38 @@ public class Archetype
 
         T[] data;
         long[] entityIds;
+        IGameObject[] entities;
         int totalCount;
 
         using (_lock.EnterScope())
         {
             data = ((ComponentArray<T>)array).Data;
             entityIds = _entityIds;
+            entities = _entities;
             totalCount = _count;
         }
 
-        return new ArchetypeChunkEnumerable<T>(data, entityIds, totalCount, chunkSize);
+        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, totalCount, chunkSize);
     }
 
     public readonly struct ArchetypeChunkEnumerable<T> : IEnumerable<ArchetypeChunk<T>> where T : class, IComponent
     {
         private readonly T[] _data;
         private readonly long[] _entityIds;
+        private readonly IGameObject[] _entities;
         private readonly int _totalCount;
         private readonly int _chunkSize;
 
-        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities, int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
+            _entities = entities;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
         }
 
-        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _totalCount, _chunkSize);
+        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities, _totalCount, _chunkSize);
         IEnumerator<ArchetypeChunk<T>> IEnumerable<ArchetypeChunk<T>>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
@@ -234,15 +254,17 @@ public class Archetype
     {
         private readonly T[] _data;
         private readonly long[] _entityIds;
+        private readonly IGameObject[] _entities;
         private readonly int _totalCount;
         private readonly int _chunkSize;
         private int _currentOffset;
         private ArchetypeChunk<T> _current;
 
-        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities, int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
+            _entities = entities;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
             _currentOffset = -chunkSize;
@@ -255,7 +277,7 @@ public class Archetype
             if (_currentOffset >= _totalCount) return false;
 
             int count = Math.Min(_chunkSize, _totalCount - _currentOffset);
-            _current = new ArchetypeChunk<T>(_data, _entityIds, _currentOffset, count);
+            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities, _currentOffset, count);
             return true;
         }
 
@@ -304,9 +326,13 @@ public class Archetype
                     var data = ((ComponentArray<T>)array).Data;
                     var entityIds = _entityIds;
                     int count = _count;
+
+                    ref T dataRef = ref MemoryMarshal.GetArrayDataReference(data);
+                    ref long idRef = ref MemoryMarshal.GetArrayDataReference(entityIds);
+
                     for (int i = 0; i < count; i++)
                     {
-                        action(data[i], entityIds[i]);
+                        action(Unsafe.Add(ref dataRef, i), Unsafe.Add(ref idRef, i));
                     }
                 }
             }
@@ -335,9 +361,13 @@ public class Archetype
                     var data = ((ComponentArray<T>)array).Data;
                     var entityIds = _entityIds;
                     int count = _count;
+
+                    ref T dataRef = ref MemoryMarshal.GetArrayDataReference(data);
+                    ref long idRef = ref MemoryMarshal.GetArrayDataReference(entityIds);
+
                     for (int i = 0; i < count; i++)
                     {
-                        visitor.Visit(data[i], entityIds[i]);
+                        visitor.Visit(Unsafe.Add(ref dataRef, i), Unsafe.Add(ref idRef, i));
                     }
                 }
             }
@@ -556,14 +586,41 @@ public class Archetype
         public T[] Data = System.Array.Empty<T>();
 
         public void Resize(int capacity) => System.Array.Resize(ref Data, capacity);
-        public void Set(int index, IComponent component) => Data[index] = (T)component;
-        public void Copy(int from, int to) => Data[to] = Data[from];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(int index, IComponent component)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            Unsafe.Add(ref dataRef, index) = (T)component;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Copy(int from, int to)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            Unsafe.Add(ref dataRef, to) = Unsafe.Add(ref dataRef, from);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void CopyTo(int sourceIndex, IComponentArray destination, int destinationIndex)
         {
-            destination.Set(destinationIndex, Data[sourceIndex]);
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            destination.Set(destinationIndex, Unsafe.Add(ref dataRef, sourceIndex));
         }
-        public void Clear(int index) => Data[index] = null!;
-        public IComponent Get(int index) => Data[index];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Clear(int index)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            Unsafe.Add(ref dataRef, index) = null!;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public IComponent Get(int index)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
+            return Unsafe.Add(ref dataRef, index);
+        }
     }
 
     public long[] GetEntityIdsSnapshot()
@@ -577,12 +634,17 @@ public class Archetype
         }
     }
 
-    public IGameObject[] GetEntitiesSnapshot()
+    /// <summary>
+    /// Rents a snapshot of the current entities. Caller MUST return it to ArrayPool.
+    /// </summary>
+    public IGameObject[] GetEntitiesSnapshot(out int count)
     {
         using (_lock.EnterScope())
         {
-            int count = _count;
-            IGameObject[] snapshot = new IGameObject[count];
+            count = _count;
+            if (count == 0) return Array.Empty<IGameObject>();
+
+            IGameObject[] snapshot = ArrayPool<IGameObject>.Shared.Rent(count);
             Array.Copy(_entities, snapshot, count);
             return snapshot;
         }

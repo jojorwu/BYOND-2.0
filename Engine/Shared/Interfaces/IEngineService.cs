@@ -5,6 +5,8 @@ namespace Shared.Interfaces;
     public enum ServiceStatus
     {
         Stopped,
+        Initializing,
+        Initialized,
         Starting,
         Running,
         Stopping,

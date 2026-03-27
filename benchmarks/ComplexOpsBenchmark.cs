@@ -37,7 +37,7 @@ public class ComplexOpsBenchmark
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IComputeService, ComputeService>();
-        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(Microsoft.Extensions.Logging.Abstractions.NullLogger<SpatialGrid>.Instance));
+        services.AddSingleton<SpatialGrid>(sp => new SpatialGrid(Microsoft.Extensions.Logging.Abstractions.NullLogger<SpatialGrid>.Instance, TimeProvider.System));
         services.AddSingleton<IGameState, GameState>();
         services.AddSingleton<IMap, Map>();
         services.AddSingleton<IRegionManager, Core.Regions.RegionManager>();

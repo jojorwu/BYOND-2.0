@@ -15,6 +15,11 @@ namespace Shared;
         long Id { get; }
 
         /// <summary>
+        /// The 3D position of the object in the world.
+        /// </summary>
+        Robust.Shared.Maths.Vector3l Position { get; set; }
+
+        /// <summary>
         /// X-coordinate in the spatial grid.
         /// </summary>
         long X { get; set; }
@@ -72,7 +77,7 @@ namespace Shared;
         /// <summary>
         /// Internal SpatialGrid metadata: the key of the cell this object is currently in.
         /// </summary>
-        (long X, long Y)? CurrentGridCellKey { get; set; }
+        Robust.Shared.Maths.Vector3l? CurrentGridCellKey { get; set; }
 
         /// <summary>
         /// Committed coordinates for thread-safe reading.

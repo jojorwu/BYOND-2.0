@@ -59,7 +59,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         _registry.SystemsChanged += MarkDirty;
     }
 
-    public override Task InitializeAsync()
+    protected override Task OnInitializeAsync()
     {
         foreach (var system in _initialSystems)
         {
@@ -245,19 +245,39 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
             {
                 if (system.ParallelArchetypes)
                 {
-                    var matchingArchetypes = new List<Archetype>();
+                    int totalArchetypes = 0;
                     for (int i = 0; i < queries.Length; i++)
                     {
-                        matchingArchetypes.AddRange(queries[i].GetMatchingArchetypes());
+                        var matching = queries[i].GetMatchingArchetypes();
+                        if (matching is IReadOnlyList<Archetype> list) totalArchetypes += list.Count;
+                        else totalArchetypes += matching.Count();
                     }
 
-                    if (matchingArchetypes.Count > 0)
+                    if (totalArchetypes > 0)
                     {
-                        await _jobSystem.ForEachAsync(matchingArchetypes, async arch =>
+                        var matchingArchetypes = System.Buffers.ArrayPool<Archetype>.Shared.Rent(totalArchetypes);
+                        try
                         {
-                            await system.TickAsync(arch, ecb);
-                        });
-                        batchHandled = true;
+                            int offset = 0;
+                            for (int i = 0; i < queries.Length; i++)
+                            {
+                                foreach (var arch in queries[i].GetMatchingArchetypes())
+                                {
+                                    matchingArchetypes[offset++] = arch;
+                                }
+                            }
+
+                            var memory = matchingArchetypes.AsMemory(0, totalArchetypes);
+                            await _jobSystem.ForEachAsync<Archetype>(memory, async arch =>
+                            {
+                                await system.TickAsync(arch, ecb);
+                            });
+                            batchHandled = true;
+                        }
+                        finally
+                        {
+                            System.Buffers.ArrayPool<Archetype>.Shared.Return(matchingArchetypes, clearArray: true);
+                        }
                     }
                 }
                 else

@@ -70,9 +70,9 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         return Task.CompletedTask;
     }
 
-    Task ITickable.TickAsync()
+    ValueTask ITickable.TickAsync()
     {
-        return TickAsync();
+        return new ValueTask(TickAsync());
     }
 
     private SystemExecutionInfo InitializeSystem(ISystem system)
@@ -238,7 +238,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         }
     }
 
-    private async Task ExecuteSystemAsync(SystemExecutionInfo info, IEntityCommandBuffer ecb)
+    private async ValueTask ExecuteSystemAsync(SystemExecutionInfo info, IEntityCommandBuffer ecb)
     {
         var system = info.System;
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -276,7 +276,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             }
 
                             var memory = matchingArchetypes.AsMemory(0, totalArchetypes);
-                            await _jobSystem.ForEachAsync<Archetype>(memory, arch => system.TickAsync(arch, ecb));
+                            await _jobSystem.ForEachAsync<Archetype>(memory, arch => system.TickAsync(arch, ecb).AsTask());
                             batchHandled = true;
                         }
                         finally

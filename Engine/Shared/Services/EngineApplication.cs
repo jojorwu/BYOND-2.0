@@ -143,7 +143,7 @@ public abstract class EngineApplication : IHostedService, IEngine
     /// <summary>
     /// Executes a standard engine tick.
     /// </summary>
-    public virtual async Task TickAsync()
+    public virtual async ValueTask TickAsync()
     {
         PreTick();
 
@@ -158,12 +158,14 @@ public abstract class EngineApplication : IHostedService, IEngine
             else if (_jobSystem != null)
             {
                 // Utilize the engine's JobSystem for parallel ticking of services in the same priority group.
-                await _jobSystem.ForEachAsync(group, t => t.TickAsync());
+                await _jobSystem.ForEachAsync(group, t => t.TickAsync().AsTask());
             }
             else
             {
                 // Fallback if JobSystem is not yet available.
-                await Task.WhenAll(group.Select(t => t.TickAsync()));
+                var tasks = new Task[group.Length];
+                for (int j = 0; j < group.Length; j++) tasks[j] = group[j].TickAsync().AsTask();
+                await Task.WhenAll(tasks);
             }
         }
 

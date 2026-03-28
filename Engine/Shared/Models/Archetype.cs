@@ -399,6 +399,11 @@ public class Archetype
         SetComponentInternal(index, Services.ComponentIdRegistry.GetId(type), component);
     }
 
+    public interface IEntityVisitor
+    {
+        void Visit(IGameObject entity);
+    }
+
     public void ForEachEntity(Action<IGameObject> action)
     {
         using (_lock.EnterScope())
@@ -408,6 +413,23 @@ public class Archetype
             for (int i = 0; i < count; i++)
             {
                 action(entities[i]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Executes a visitor on each entity in the archetype.
+    /// Eliminates delegate and closure allocations.
+    /// </summary>
+    public void ForEachEntity<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IEntityVisitor, allows ref struct
+    {
+        using (_lock.EnterScope())
+        {
+            var entities = _entities;
+            int count = _count;
+            for (int i = 0; i < count; i++)
+            {
+                visitor.Visit(entities[i]);
             }
         }
     }

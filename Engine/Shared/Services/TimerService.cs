@@ -62,9 +62,9 @@ namespace Shared.Services;
             }
         }
 
-        public Task TickAsync()
+        public ValueTask TickAsync()
         {
             Tick();
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
     }

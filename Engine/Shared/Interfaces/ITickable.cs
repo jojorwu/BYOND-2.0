@@ -8,5 +8,5 @@ public interface ITickable
     /// <summary>
     /// Executes the tick logic asynchronously.
     /// </summary>
-    Task TickAsync();
+    ValueTask TickAsync();
 }

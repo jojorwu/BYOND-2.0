@@ -38,10 +38,10 @@ namespace Shared.Interfaces;
         /// Executes the system's logic for one tick.
         /// </summary>
         /// <param name="ecb">The command buffer to record structural changes.</param>
-        Task TickAsync(IEntityCommandBuffer ecb)
+        ValueTask TickAsync(IEntityCommandBuffer ecb)
         {
             Tick(ecb);
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>
@@ -52,10 +52,10 @@ namespace Shared.Interfaces;
         /// <summary>
         /// Optional batch processing for archetypes that match this system's requirements.
         /// </summary>
-        Task TickAsync(Archetype archetype, IEntityCommandBuffer ecb)
+        ValueTask TickAsync(Archetype archetype, IEntityCommandBuffer ecb)
         {
             Tick(archetype, ecb);
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
 
         /// <summary>

@@ -10,7 +10,7 @@ public interface IEngine
     /// <summary>
     /// Executes a standard engine tick, including all registered ITickable services and modules.
     /// </summary>
-    Task TickAsync();
+    ValueTask TickAsync();
 
     /// <summary>
     /// Performs periodic maintenance on all registered IShrinkable services.

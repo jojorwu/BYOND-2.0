@@ -63,6 +63,7 @@ public unsafe partial class BytecodeInterpreter
                         }
 
                         int chunk = Math.Min(remainingBudget, 16);
+                        int actualExecutedInChunk = 0;
                         for (int i = 0; i < chunk; i++)
                         {
                             if (thread.State != DreamThreadState.Running) break;
@@ -98,9 +99,9 @@ public unsafe partial class BytecodeInterpreter
 
                             instructionsExecutedThisTick++;
                             totalInstructionsExecuted++;
+                            actualExecutedInChunk++;
 
                             byte rawOpcode = state.BytecodePtr[state.PC++];
-                            RecordInstruction(rawOpcode);
                             var opcode = (Opcode)rawOpcode;
 
                             // Fast-path switch for hot opcodes to enable better JIT branch prediction
@@ -867,7 +868,11 @@ public unsafe partial class BytecodeInterpreter
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
-                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
+                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode))
+                                    {
+                                        RecordInstructions(actualExecutedInChunk);
+                                        goto FrameChanged;
+                                    }
                                     break;
                                 case Opcode.GetBuiltinVar:
                                     {
@@ -918,7 +923,11 @@ public unsafe partial class BytecodeInterpreter
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
-                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
+                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode))
+                                    {
+                                        RecordInstructions(actualExecutedInChunk);
+                                        goto FrameChanged;
+                                    }
                                     break;
                                 case Opcode.JumpIfNull:
                                     {
@@ -1293,7 +1302,11 @@ public unsafe partial class BytecodeInterpreter
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
-                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
+                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode))
+                                    {
+                                        RecordInstructions(actualExecutedInChunk);
+                                        goto FrameChanged;
+                                    }
                                     break;
                                 case Opcode.GetVariable:
                                     {
@@ -2163,7 +2176,11 @@ public unsafe partial class BytecodeInterpreter
                                     break;
                                 default:
                                     _dispatchTable[(byte)opcode](ref state);
-                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode)) goto FrameChanged;
+                                    if (OpcodeMetadataCache.CanModifyCallStack(opcode))
+                                    {
+                                        RecordInstructions(actualExecutedInChunk);
+                                        goto FrameChanged;
+                                    }
                                     break;
                             }
 
@@ -2188,6 +2205,7 @@ public unsafe partial class BytecodeInterpreter
                             if (thread.State != DreamThreadState.Running) break;
                             break; // Break for loop to re-check budget after call/return
                         }
+                        RecordInstructions(actualExecutedInChunk);
                     }
                 RePin:;
                 }

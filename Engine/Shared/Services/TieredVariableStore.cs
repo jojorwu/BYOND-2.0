@@ -20,6 +20,48 @@ public class TieredVariableStore : IVariableStore
 
     public int Length => _length;
 
+    public void VisitModified(IVariableStore.Visitor visitor)
+    {
+        for (int i = 0; i < _modifiedMask.Length; i++)
+        {
+            ulong mask = _modifiedMask[i];
+            if (mask == 0) continue;
+
+            int baseIdx = i << 6;
+            while (mask != 0)
+            {
+                int bit = System.Numerics.BitOperations.TrailingZeroCount(mask);
+                int index = baseIdx + bit;
+                if (index < _length)
+                {
+                    visitor(index, _overrides[index]);
+                }
+                mask &= mask - 1;
+            }
+        }
+    }
+
+    public void VisitModified<T>(ref T visitor) where T : struct, IVariableVisitor, allows ref struct
+    {
+        for (int i = 0; i < _modifiedMask.Length; i++)
+        {
+            ulong mask = _modifiedMask[i];
+            if (mask == 0) continue;
+
+            int baseIdx = i << 6;
+            while (mask != 0)
+            {
+                int bit = System.Numerics.BitOperations.TrailingZeroCount(mask);
+                int index = baseIdx + bit;
+                if (index < _length)
+                {
+                    visitor.Visit(index, _overrides[index]);
+                }
+                mask &= mask - 1;
+            }
+        }
+    }
+
     public void Initialize(int capacity)
     {
         _length = capacity;

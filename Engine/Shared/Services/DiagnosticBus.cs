@@ -12,6 +12,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
     private readonly System.Threading.Lock _lock = new();
+    private readonly ConcurrentDictionary<string, (double Warning, double Critical)> _thresholds = new();
 
     private readonly Channel<DiagnosticEvent> _eventChannel;
     private readonly CancellationTokenSource _cts = new();
@@ -134,6 +135,22 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                         for (int j = 0; j < count; j++)
                         {
                             var ev = batch[j];
+                            // Check thresholds before dispatch
+                            foreach (var metric in ev.Metrics)
+                            {
+                                if (_thresholds.TryGetValue(metric.Key, out var thresholds))
+                                {
+                                    double val = 0;
+                                    if (metric.Value is double d) val = d;
+                                    else if (metric.Value is float f) val = f;
+                                    else if (metric.Value is long l) val = l;
+                                    else if (metric.Value is int i) val = i;
+
+                                    if (val >= thresholds.Critical) ev.Severity = DiagnosticSeverity.Critical;
+                                    else if (val >= thresholds.Warning && ev.Severity < DiagnosticSeverity.Warning) ev.Severity = DiagnosticSeverity.Warning;
+                                }
+                            }
+
                             for (int i = 0; i < subscribers.Length; i++)
                             {
                                 try
@@ -200,6 +217,11 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         _pool.Clear();
         _poolCount = 0;
         await base.StopAsync(cancellationToken);
+    }
+
+    public void SetThreshold(string metricName, double warningValue, double criticalValue)
+    {
+        _thresholds[metricName] = (warningValue, criticalValue);
     }
 
     public IDisposable Subscribe(Action<DiagnosticEvent> callback)

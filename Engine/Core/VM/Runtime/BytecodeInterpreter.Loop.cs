@@ -99,13 +99,45 @@ public unsafe partial class BytecodeInterpreter
                             instructionsExecutedThisTick++;
                             totalInstructionsExecuted++;
 
-                            RecordInstruction();
-
-                            var opcode = (Opcode)state.BytecodePtr[state.PC++];
+                            byte rawOpcode = state.BytecodePtr[state.PC++];
+                            RecordInstruction(rawOpcode);
+                            var opcode = (Opcode)rawOpcode;
 
                             // Fast-path switch for hot opcodes to enable better JIT branch prediction
                             switch (opcode)
                             {
+                                case Opcode.PushLocal0: state.Push(state.Locals[0]); break;
+                                case Opcode.PushLocal1: state.Push(state.Locals[1]); break;
+                                case Opcode.PushLocal2: state.Push(state.Locals[2]); break;
+                                case Opcode.PushLocal3: state.Push(state.Locals[3]); break;
+                                case Opcode.PushLocal4: state.Push(state.Locals[4]); break;
+                                case Opcode.PushLocal5: state.Push(state.Locals[5]); break;
+                                case Opcode.PushLocal6: state.Push(state.Locals[6]); break;
+                                case Opcode.PushLocal7: state.Push(state.Locals[7]); break;
+                                case Opcode.PushLocal8: state.Push(state.Locals[8]); break;
+                                case Opcode.PushLocal9: state.Push(state.Locals[9]); break;
+                                case Opcode.PushLocal10: state.Push(state.Locals[10]); break;
+                                case Opcode.PushLocal11: state.Push(state.Locals[11]); break;
+                                case Opcode.PushLocal12: state.Push(state.Locals[12]); break;
+                                case Opcode.PushLocal13: state.Push(state.Locals[13]); break;
+                                case Opcode.PushLocal14: state.Push(state.Locals[14]); break;
+                                case Opcode.PushLocal15: state.Push(state.Locals[15]); break;
+                                case Opcode.AssignLocal0: state.Locals[0] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal1: state.Locals[1] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal2: state.Locals[2] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal3: state.Locals[3] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal4: state.Locals[4] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal5: state.Locals[5] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal6: state.Locals[6] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal7: state.Locals[7] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal8: state.Locals[8] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal9: state.Locals[9] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal10: state.Locals[10] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal11: state.Locals[11] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal12: state.Locals[12] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal13: state.Locals[13] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal14: state.Locals[14] = state.Stack[state.StackPtr - 1]; break;
+                                case Opcode.AssignLocal15: state.Locals[15] = state.Stack[state.StackPtr - 1]; break;
                                 case Opcode.LocalFieldTransfer:
                                     {
                                         int pcForCache = state.PC;

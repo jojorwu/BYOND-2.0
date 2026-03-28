@@ -792,9 +792,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
     }
 
-    public interface IChangeVisitor
+    public interface IChangeVisitor : IVariableVisitor
     {
-        void Visit(int index, in DreamValue value);
     }
 
     /// <summary>
@@ -805,17 +804,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         using (_lock.EnterScope())
         {
-            if (_changeMask.IsEmpty) return;
-
-            var bits = _changeMask.GetSetBits();
-            while (bits.MoveNext())
-            {
-                int i = bits.Current;
-                if (i < _variableStore.Length)
-                {
-                    visitor.Visit(i, _variableStore.Get(i));
-                }
-            }
+            _variableStore.VisitModified(ref visitor);
         }
     }
 

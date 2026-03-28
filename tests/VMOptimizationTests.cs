@@ -19,11 +19,11 @@ namespace tests
             // 12: Jump(17) (5 bytes)
             // 17: Add (1 byte) -> Target
 
-            // Optimized:
-            // 0: PushLocal(0) (5 bytes) -> -1 byte
-            // 5: PushLocal(1) (5 bytes) -> -1 byte
-            // 10: Jump(15) (5 bytes)
-            // 15: Add (1 byte) -> Target
+            // Optimized with Specialized Opcodes:
+            // 0: PushLocal0 (1 byte)
+            // 1: PushLocal1 (1 byte)
+            // 2: Jump(7) (5 bytes)
+            // 7: Add (1 byte) -> Target
 
             byte[] bytecode = new byte[18];
             bytecode[0] = (byte)Opcode.PushReferenceValue;
@@ -41,37 +41,37 @@ namespace tests
 
             byte[] optimized = BytecodeOptimizer.Optimize(bytecode);
 
-            // Verify size reduction: 6+6+5+1 = 18 -> 5+5+5+1 = 16
-            Assert.That(optimized.Length, Is.EqualTo(16));
-            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.PushLocal));
-            Assert.That(optimized[5], Is.EqualTo((byte)Opcode.PushLocal));
-            Assert.That(optimized[10], Is.EqualTo((byte)Opcode.Jump));
+            // Verify size reduction: 18 -> 8
+            Assert.That(optimized.Length, Is.EqualTo(8));
+            Assert.That(optimized[0], Is.EqualTo((byte)Opcode.PushLocal0));
+            Assert.That(optimized[1], Is.EqualTo((byte)Opcode.PushLocal1));
+            Assert.That(optimized[2], Is.EqualTo((byte)Opcode.Jump));
 
-            int target = BitConverter.ToInt32(optimized, 11);
-            Assert.That(target, Is.EqualTo(15)); // Target should be updated from 17 to 15
+            int target = BitConverter.ToInt32(optimized, 3);
+            Assert.That(target, Is.EqualTo(7)); // Target should be updated from 17 to 7
         }
 
         [Test]
         public void BytecodeOptimizer_HandlesSuperInstructionsWithJumps()
         {
             // Pattern:
-            // 0: PushReferenceValue(Local, 0) (6 bytes)
-            // 6: PushReferenceValue(Local, 1) (6 bytes)
+            // 0: PushReferenceValue(Local, 20) (6 bytes)
+            // 6: PushReferenceValue(Local, 21) (6 bytes)
             // 12: Add (1 byte)
             // 13: Jump(0) (5 bytes)
 
-            // Optimized:
-            // 0: LocalPushLocalPushAdd(0, 1) (9 bytes) -> -4 bytes
+            // Optimized with Super Instruction:
+            // 0: LocalPushLocalPushAdd(20, 21) (9 bytes) -> -4 bytes
             // 9: Jump(0) (5 bytes)
 
             byte[] bytecode = new byte[18];
             bytecode[0] = (byte)Opcode.PushReferenceValue;
             bytecode[1] = (byte)DMReference.Type.Local;
-            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 0);
+            BitConverter.TryWriteBytes(bytecode.AsSpan(2), 20);
 
             bytecode[6] = (byte)Opcode.PushReferenceValue;
             bytecode[7] = (byte)DMReference.Type.Local;
-            BitConverter.TryWriteBytes(bytecode.AsSpan(8), 1);
+            BitConverter.TryWriteBytes(bytecode.AsSpan(8), 21);
 
             bytecode[12] = (byte)Opcode.Add;
             bytecode[13] = (byte)Opcode.Jump;

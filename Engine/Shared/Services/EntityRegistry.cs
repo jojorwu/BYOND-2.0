@@ -32,14 +32,7 @@ public class EntityRegistry : IEntityRegistry
 
     public void ResetEntity(GameObject entity)
     {
-        // Internal Reset logic moved here to centralize authority
+        // Internal Reset logic handles component cleanup and state reset efficiently
         entity.Reset();
-
-        // Ensure components are cleaned up via ComponentManager
-        var components = ComponentManager.GetAllComponents(entity).ToList();
-        foreach (var component in components)
-        {
-            ComponentManager.RemoveComponent(entity, component.GetType());
-        }
     }
 }

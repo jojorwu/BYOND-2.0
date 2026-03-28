@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
+using Shared.Models;
 using Shared.Services;
 using System;
 using System.Collections.Generic;
@@ -12,18 +13,12 @@ namespace tests
     [TestFixture]
     public class QueryCachingTests
     {
-        private class TestComponent1 : IComponent
+        private class TestComponent1 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void SendMessage(IComponentMessage message) { }
         }
 
-        private class TestComponent2 : IComponent
+        private class TestComponent2 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void SendMessage(IComponentMessage message) { }
         }
 
         private IComponentManager _componentManager;
@@ -39,9 +34,10 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             _componentManager = new ComponentManager(archetypeManager);
-            _queryService = new ComponentQueryService(_componentManager, archetypeManager, TimeProvider.System);
+            _queryService = new ComponentQueryService(_componentManager, archetypeManager, TimeProvider.System, diagnosticBus);
             var pool = new SharedPool<GameObject>(() => new GameObject());
             var entityRegistry = new EntityRegistry(pool, _componentManager);
             _objectFactory = new ObjectFactory(entityRegistry);

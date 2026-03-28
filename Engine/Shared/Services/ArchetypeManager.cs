@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
@@ -41,10 +42,12 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
     private readonly ConcurrentDictionary<long, Archetype> _entityToArchetype = new();
     private readonly System.Threading.Lock[] _entityLocks = Enumerable.Range(0, 1024).Select(_ => new System.Threading.Lock()).ToArray();
     private readonly ILogger<ArchetypeManager> _logger;
+    private readonly IDiagnosticBus _diagnosticBus;
 
-    public ArchetypeManager(ILogger<ArchetypeManager> logger)
+    public ArchetypeManager(ILogger<ArchetypeManager> logger, IDiagnosticBus diagnosticBus)
     {
         _logger = logger;
+        _diagnosticBus = diagnosticBus;
     }
 
     private System.Threading.Lock GetEntityLock(long entityId) => _entityLocks[(ulong)entityId % (ulong)_entityLocks.Length];
@@ -237,6 +240,11 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
                 _archetypes = updatedArchetypes;
 
                 _signatureToArchetype[signature] = targetArchetype;
+
+                _diagnosticBus.Publish("ArchetypeManager", "New archetype created", DiagnosticSeverity.Info, m => {
+                    m.Add("Signature", signature.ToString() ?? string.Empty);
+                    m.Add("ArchetypeCount", _archetypes.Length);
+                });
 
                 ArchetypeCreated?.Invoke(this, targetArchetype);
 
@@ -434,6 +442,10 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         {
             archetype.Compact();
         });
+
+        _diagnosticBus.Publish("ArchetypeManager", "Archetypes compacted", DiagnosticSeverity.Info, m => {
+            m.Add("ArchetypeCount", archetypes.Length);
+        });
     }
 
     public void Shrink()
@@ -448,6 +460,17 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         var archetypes = _archetypes;
         info["ArchetypeCount"] = archetypes.Length;
         info["EntityCount"] = _entityToArchetype.Count;
+
+        long totalMemory = 0;
+        int maxEntities = 0;
+        foreach (var arch in archetypes) {
+            totalMemory += arch.EstimateMemoryUsage();
+            maxEntities = Math.Max(maxEntities, arch.EntityCount);
+        }
+
+        info["EstimatedMemoryUsage"] = totalMemory;
+        info["MaxEntitiesInArchetype"] = maxEntities;
+
         return info;
     }
 }

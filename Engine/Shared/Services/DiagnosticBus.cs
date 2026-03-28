@@ -12,6 +12,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
     private readonly System.Threading.Lock _lock = new();
+    private readonly ConcurrentDictionary<string, (double Warning, double Critical)> _thresholds = new();
 
     private readonly Channel<DiagnosticEvent> _eventChannel;
     private readonly CancellationTokenSource _cts = new();
@@ -21,6 +22,11 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
     private readonly ConcurrentStack<DiagnosticEvent> _pool = new();
     private volatile int _poolCount;
     private const int MaxPoolSize = 1024;
+
+    private long _totalPublished;
+    private long _eventsDropped;
+    private long _totalDispatched;
+    private long _lastProcessDurationMs;
 
     public DiagnosticBus()
     {
@@ -37,9 +43,13 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         return Task.CompletedTask;
     }
 
-    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null)
+    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null, string[]? tags = null)
     {
-        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) return;
+        Interlocked.Increment(ref _totalPublished);
+        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
+            Interlocked.Increment(ref _eventsDropped);
+            return;
+        }
 
         DiagnosticEvent? ev;
         if (!_pool.TryPop(out ev))
@@ -54,17 +64,23 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         ev.Source = source;
         ev.Message = message;
         ev.Severity = severity;
+        ev.Tags = tags;
         metricsAction?.Invoke(ev);
 
         if (!_eventChannel.Writer.TryWrite(ev))
         {
+            Interlocked.Increment(ref _eventsDropped);
             ReturnToPool(ev);
         }
     }
 
-    public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
+    public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info, string[]? tags = null)
     {
-        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) return;
+        Interlocked.Increment(ref _totalPublished);
+        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
+            Interlocked.Increment(ref _eventsDropped);
+            return;
+        }
 
         DiagnosticEvent? ev;
         if (!_pool.TryPop(out ev))
@@ -79,10 +95,12 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         ev.Source = source;
         ev.Message = message;
         ev.Severity = severity;
+        ev.Tags = tags;
         metricsAction(ev, state);
 
         if (!_eventChannel.Writer.TryWrite(ev))
         {
+            Interlocked.Increment(ref _eventsDropped);
             ReturnToPool(ev);
         }
     }
@@ -92,12 +110,14 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         var reader = _eventChannel.Reader;
         const int BatchSize = 32;
         var batch = new DiagnosticEvent[BatchSize];
+        var sw = new System.Diagnostics.Stopwatch();
 
         try
         {
             // Use WaitToReadAsync for energy-efficient non-blocking wait
             while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
+                sw.Restart();
                 // Optimized Batched Dispatch:
                 // Draining multiple events into a local buffer before notifying subscribers
                 // reduces the frequency of volatile reads of the subscribers list and overhead.
@@ -110,11 +130,31 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                 if (count > 0)
                 {
                     var subscribers = _subscribers;
+                    bool hasThresholds = !_thresholds.IsEmpty;
                     if (subscribers.Length > 0)
                     {
                         for (int j = 0; j < count; j++)
                         {
                             var ev = batch[j];
+                            // Check thresholds before dispatch
+                            if (hasThresholds && ev.Metrics.Count > 0)
+                            {
+                                foreach (var metric in ev.Metrics)
+                                {
+                                    if (_thresholds.TryGetValue(metric.Key, out var thresholds))
+                                    {
+                                        double val = 0;
+                                        if (metric.Value is double d) val = d;
+                                        else if (metric.Value is float f) val = f;
+                                        else if (metric.Value is long l) val = l;
+                                        else if (metric.Value is int i) val = i;
+
+                                        if (val >= thresholds.Critical) ev.Severity = DiagnosticSeverity.Critical;
+                                        else if (val >= thresholds.Warning && ev.Severity < DiagnosticSeverity.Warning) ev.Severity = DiagnosticSeverity.Warning;
+                                    }
+                                }
+                            }
+
                             for (int i = 0; i < subscribers.Length; i++)
                             {
                                 try
@@ -123,6 +163,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                                 }
                                 catch { /* Diagnostics should never throw */ }
                             }
+                            Interlocked.Increment(ref _totalDispatched);
                         }
                     }
 
@@ -132,6 +173,8 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                         batch[j] = null!;
                     }
                 }
+                sw.Stop();
+                Volatile.Write(ref _lastProcessDurationMs, sw.ElapsedMilliseconds);
             }
         }
         catch (OperationCanceledException) { /* Normal shutdown */ }
@@ -180,6 +223,11 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         await base.StopAsync(cancellationToken);
     }
 
+    public void SetThreshold(string metricName, double warningValue, double criticalValue)
+    {
+        _thresholds[metricName] = (warningValue, criticalValue);
+    }
+
     public IDisposable Subscribe(Action<DiagnosticEvent> callback)
     {
         using (_lock.EnterScope())
@@ -190,6 +238,26 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
             _subscribers = updated;
         }
         return new Unsubscriber(this, callback);
+    }
+
+    public override Dictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = base.GetDiagnosticInfo();
+        info["TotalPublished"] = Interlocked.Read(ref _totalPublished);
+        info["EventsDropped"] = Interlocked.Read(ref _eventsDropped);
+        info["TotalDispatched"] = Interlocked.Read(ref _totalDispatched);
+        info["PoolCount"] = _poolCount;
+        info["LastProcessDurationMs"] = Volatile.Read(ref _lastProcessDurationMs);
+        info["SubscriberCount"] = _subscribers.Length;
+
+        // Report channel pressure
+        if (_eventChannel != null)
+        {
+            // Note: Channel.Reader.CanCount is usually true for unbounded channels
+            info["PendingEvents"] = _eventChannel.Reader.Count;
+        }
+
+        return info;
     }
 
     private class Unsubscriber : IDisposable

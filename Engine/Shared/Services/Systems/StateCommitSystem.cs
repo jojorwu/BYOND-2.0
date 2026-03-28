@@ -27,5 +27,7 @@ public class StateCommitSystem : BaseSystem
             obj.CommitState();
             obj.ClearDirty();
         }
+
+        _gameState.ClearDirtyObjects();
     }
 }

@@ -16,11 +16,6 @@ namespace Shared.Services;
         private readonly ConcurrentDictionary<string, List<ObjectType>> _unlinkedChildren = new();
         private readonly ILogger<ObjectTypeManager> _logger;
 
-        public ObjectTypeManager(ILogger<ObjectTypeManager> logger)
-        {
-            _logger = logger;
-        }
-
         public void RegisterObjectType(ObjectType objectType)
         {
             if (!_objectTypes.TryAdd(objectType.Name, objectType) || !_objectTypesById.TryAdd(objectType.Id, objectType))
@@ -106,14 +101,36 @@ namespace Shared.Services;
             return GetObjectType("/turf") ?? throw new System.InvalidOperationException("Base turf type '/turf' is not registered.");
         }
 
+        private readonly IDiagnosticBus _diagnosticBus;
+
+        public ObjectTypeManager(ILogger<ObjectTypeManager> logger, IDiagnosticBus diagnosticBus)
+        {
+            _logger = logger;
+            _diagnosticBus = diagnosticBus;
+        }
+
         public void Freeze()
         {
+            int totalProcs = 0;
+            int totalVars = 0;
+
             foreach (var type in _objectTypes.Values)
             {
-                type.Freeze();
+                type.Freeze(_diagnosticBus);
+                totalVars += type.VariableNames.Count;
+                totalProcs += type.FlattenedProcs.Count;
+                // Note: type.Freeze ensures _parentIds is populated
             }
+
             _frozenTypes = _objectTypes.ToFrozenDictionary();
             _frozenTypesById = _objectTypesById.ToFrozenDictionary();
+
+            _diagnosticBus.Publish("ObjectTypeManager", "Type system frozen", DiagnosticSeverity.Info, m =>
+            {
+                m.Add("TypeCount", _frozenTypes.Count);
+                m.Add("TotalVariableSlots", totalVars);
+                m.Add("TotalProcDefinitions", totalProcs);
+            });
         }
 
         public void Clear()

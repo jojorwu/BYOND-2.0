@@ -20,7 +20,7 @@ namespace tests
         [Test]
         public void ArchetypeManager_ReconstructsComponentsCorrectly()
         {
-            var am = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var am = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, new MockDiagnosticBus());
             var obj = new GameObject { Id = 1 };
 
             var c1 = new Comp1();
@@ -43,7 +43,7 @@ namespace tests
         [Test]
         public void ArchetypeManager_HandlesLargeEntityCount()
         {
-            var am = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var am = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, new MockDiagnosticBus());
             int count = 10000;
             var objects = new List<GameObject>();
 

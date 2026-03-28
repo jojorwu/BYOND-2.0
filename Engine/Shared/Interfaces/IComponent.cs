@@ -1,5 +1,5 @@
 namespace Shared.Interfaces;
-    public interface IComponent
+    public interface IComponent : IPoolable
     {
         IGameObject? Owner { get; set; }
         bool Enabled { get; set; }

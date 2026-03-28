@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
+using Shared.Models;
 using Shared.Messaging;
 using Shared.Services;
 using Moq;
@@ -18,38 +19,45 @@ namespace tests
             public int Value { get; set; }
         }
 
-        private class TestComponent1 : IComponent
+        private class TestComponent1 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
             public int ReceivedMessages { get; private set; }
 
-            public void SendMessage(IComponentMessage message) { }
-            public void OnMessage(IComponentMessage message)
+            public override void OnMessage(IComponentMessage message)
             {
                 if (message is TestMessage)
                     ReceivedMessages++;
             }
+
+            public override void Reset()
+            {
+                base.Reset();
+                ReceivedMessages = 0;
+            }
         }
 
-        private class TestComponent2 : IComponent
+        private class TestComponent2 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
             public int ReceivedMessages { get; private set; }
 
-            public void SendMessage(IComponentMessage message) { }
-            public void OnMessage(IComponentMessage message)
+            public override void OnMessage(IComponentMessage message)
             {
                 if (message is TestMessage)
                     ReceivedMessages++;
+            }
+
+            public override void Reset()
+            {
+                base.Reset();
+                ReceivedMessages = 0;
             }
         }
 
         [Test]
         public void GameObject_SendMessage_DispatchesToAllComponents()
         {
-            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
@@ -70,7 +78,8 @@ namespace tests
         [Test]
         public void GameObject_SendMessage_RespectsEnabledFlag()
         {
-            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
@@ -86,7 +95,8 @@ namespace tests
         [Test]
         public void GameObject_RemoveComponent_UpdatesCache()
         {
-            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
@@ -105,7 +115,8 @@ namespace tests
         [Test]
         public void GameObject_Reset_ClearsCache()
         {
-            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);
@@ -121,7 +132,8 @@ namespace tests
         [Test]
         public void GameObject_AddComponent_ReplacesExistingOfType()
         {
-            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance);
+            var diagnosticBus = new MockDiagnosticBus();
+            var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"));
             obj.SetComponentManager(componentManager);

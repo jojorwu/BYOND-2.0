@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using Shared.Services;
+using Shared.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -12,10 +13,12 @@ namespace tests
     [TestFixture]
     public class JobSystemTests
     {
+        private IDiagnosticBus _diagnosticBus = new MockDiagnosticBus();
+
         [Test]
         public async Task ForEachAsync_CorrectlyProcessesAllItems()
         {
-            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System);
+            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System, _diagnosticBus);
             const int count = 1000;
             int processedCount = 0;
             var items = Enumerable.Range(0, count).ToList();
@@ -31,7 +34,7 @@ namespace tests
         [Test]
         public async Task ForEachAsync_HandlesSmallCollections()
         {
-            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System);
+            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System, _diagnosticBus);
             const int count = 5;
             int processedCount = 0;
             var items = Enumerable.Range(0, count).ToList();
@@ -47,7 +50,7 @@ namespace tests
         [Test]
         public async Task LoadBalancing_DistributesWork()
         {
-            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System);
+            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System, _diagnosticBus);
             const int jobCount = 200;
             var countdown = new CountdownEvent(jobCount);
 
@@ -67,7 +70,7 @@ namespace tests
         [Test]
         public async Task Dependencies_AreRespected()
         {
-            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System);
+            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System, _diagnosticBus);
             int step = 0;
 
             var handle1 = jobSystem.Schedule(() =>
@@ -89,7 +92,7 @@ namespace tests
         [Test]
         public async Task WeightedLoadBalancing_AvoidsCongestedWorkers()
         {
-            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System);
+            using var jobSystem = new JobSystem(NullLogger<JobSystem>.Instance, TimeProvider.System, _diagnosticBus);
 
             // 1. Schedule a very heavy job with high weight
             var heavyHandle = jobSystem.Schedule(() =>

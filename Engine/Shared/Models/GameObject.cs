@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -79,7 +80,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     private struct TransformState
     {
         public Robust.Shared.Maths.Vector3l Position;
-        public Robust.Shared.Maths.Vector3l CommittedPosition;
+        public long CommittedX;
+        public long CommittedY;
+        public long CommittedZ;
     }
 
     private struct VisualState
@@ -117,7 +120,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed X-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedX { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { using (_lock.EnterScope()) return _transform.CommittedPosition.X; } }
+    public long CommittedX { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => Volatile.Read(ref _transform.CommittedX); }
 
     /// <summary>
     /// Gets or sets the Y-coordinate of the game object.
@@ -132,7 +135,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Y-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedY { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { using (_lock.EnterScope()) return _transform.CommittedPosition.Y; } }
+    public long CommittedY { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => Volatile.Read(ref _transform.CommittedY); }
 
     /// <summary>
     /// Gets or sets the Z-coordinate of the game object.
@@ -147,7 +150,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Z-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedZ { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { using (_lock.EnterScope()) return _transform.CommittedPosition.Z; } }
+    public long CommittedZ { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => Volatile.Read(ref _transform.CommittedZ); }
 
     public string CommittedIcon => _committedVisuals.Icon ?? string.Empty;
     public string CommittedIconState => _committedVisuals.IconState ?? string.Empty;
@@ -237,7 +240,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             if (Interlocked.Exchange(ref _isDirty, 0) == 0) return;
 
-            _transform.CommittedPosition = _transform.Position;
+            Volatile.Write(ref _transform.CommittedX, _transform.Position.X);
+            Volatile.Write(ref _transform.CommittedY, _transform.Position.Y);
+            Volatile.Write(ref _transform.CommittedZ, _transform.Position.Z);
 
             var type = ObjectType;
             if (type != null)
@@ -791,9 +796,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
     }
 
-    public interface IChangeVisitor
+    public interface IChangeVisitor : IVariableVisitor
     {
-        void Visit(int index, in DreamValue value);
     }
 
     /// <summary>
@@ -804,17 +808,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         using (_lock.EnterScope())
         {
-            if (_changeMask.IsEmpty) return;
-
-            var bits = _changeMask.GetSetBits();
-            while (bits.MoveNext())
-            {
-                int i = bits.Current;
-                if (i < _variableStore.Length)
-                {
-                    visitor.Visit(i, _variableStore.Get(i));
-                }
-            }
+            _variableStore.VisitModified(ref visitor);
         }
     }
 
@@ -828,18 +822,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 return new DeltaState(Id, null, 0);
             }
 
+            // Delta tracking optimization: only capture variables modified since last clear/commit
             int count = _changeMask.Count;
-            var changes = new VariableChange[count];
+            var changes = ArrayPool<VariableChange>.Shared.Rent(count);
             int idx = 0;
-            foreach (int i in _changeMask.GetSetBits())
+            var bits = _changeMask.GetSetBits();
+            while (bits.MoveNext())
             {
+                int i = bits.Current;
                 if (i < _variableStore.Length)
                 {
                     changes[idx++] = new VariableChange { Index = i, Value = _variableStore.Get(i) };
                 }
             }
 
-            return new DeltaState(Id, changes, idx);
+            return new DeltaState(Id, changes, idx, true);
         }
     }
 
@@ -900,8 +897,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (_componentManager != null)
         {
-            var toRemove = GetComponents().ToList();
-            foreach (var component in toRemove)
+            // Use the most direct way to notify component manager of removal
+            // while iterating over components safely.
+            foreach (var component in GetComponents().ToList())
             {
                 _componentManager.RemoveComponent(this, component.GetType());
             }
@@ -916,6 +914,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedVisuals = default;
             _densityVal = 1;
             _isDirty = 0;
+            _changeMask.Clear();
 
             _variableStore.Dispose();
             _committedStore.Dispose();
@@ -967,9 +966,9 @@ public class GameObjectConverter : JsonConverter<GameObject>
         writer.WriteString("TypeName", value.TypeName);
 
         writer.WriteStartObject("Transform");
-        writer.WriteNumber("X", value.X);
-        writer.WriteNumber("Y", value.Y);
-        writer.WriteNumber("Z", value.Z);
+        writer.WriteNumber("X", value.CommittedX);
+        writer.WriteNumber("Y", value.CommittedY);
+        writer.WriteNumber("Z", value.CommittedZ);
         writer.WriteNumber("Dir", value.Dir);
         writer.WriteEndObject();
 

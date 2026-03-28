@@ -121,6 +121,14 @@ namespace Core.VM.Utils
                 // Pattern: Assign(Local, idx)
                 if (IsAssignLocal(bytecode, pc, out int assignIdx))
                 {
+                    if (assignIdx >= 0 && assignIdx < 16)
+                    {
+                        MarkPcMap(pc, pc + PushLocalSize, optimized.Count);
+                        optimized.Add((byte)((int)Opcode.AssignLocal0 + assignIdx));
+                        pc += PushLocalSize;
+                        continue;
+                    }
+
                     MarkPcMap(pc, pc + PushLocalSize, optimized.Count);
                     optimized.Add((byte)Opcode.AssignLocal);
                     optimized.AddRange(BitConverter.GetBytes(assignIdx));
@@ -371,28 +379,39 @@ namespace Core.VM.Utils
 
                         if (bytecode[nextNextPc] == (byte)Opcode.Add)
                         {
-                            if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalAddLocalAssign, Opcode.LocalPushLocalPushAdd, optimized, out int newPc))
+                            // Optimization: if both locals are in specialized range, PushLocalN + PushLocalN + Add is 3 bytes,
+                            // while LocalPushLocalPushAdd is 9 bytes.
+                            if (idx >= 16 || idx2 >= 16)
                             {
-                                pc = newPc;
-                                return true;
+                                if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalAddLocalAssign, Opcode.LocalPushLocalPushAdd, optimized, out int newPc))
+                                {
+                                    pc = newPc;
+                                    return true;
+                                }
                             }
                         }
 
                         if (bytecode[nextNextPc] == (byte)Opcode.Subtract)
                         {
-                            if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalSubLocalAssign, Opcode.LocalPushLocalPushSub, optimized, out int newPc))
+                            if (idx >= 16 || idx2 >= 16)
                             {
-                                pc = newPc;
-                                return true;
+                                if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalSubLocalAssign, Opcode.LocalPushLocalPushSub, optimized, out int newPc))
+                                {
+                                    pc = newPc;
+                                    return true;
+                                }
                             }
                         }
 
                         if (bytecode[nextNextPc] == (byte)Opcode.Multiply)
                         {
-                            if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalMulLocalAssign, Opcode.LocalPushLocalPushMul, optimized, out int newPc))
+                            if (idx >= 16 || idx2 >= 16)
                             {
-                                pc = newPc;
-                                return true;
+                                if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalMulLocalAssign, Opcode.LocalPushLocalPushMul, optimized, out int newPc))
+                                {
+                                    pc = newPc;
+                                    return true;
+                                }
                             }
 
                             int thirdPc = nextNextPc + 1;
@@ -414,10 +433,13 @@ namespace Core.VM.Utils
 
                         if (bytecode[nextNextPc] == (byte)Opcode.Divide)
                         {
-                            if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalDivLocalAssign, Opcode.LocalPushLocalPushDiv, optimized, out int newPc))
+                            if (idx >= 16 || idx2 >= 16)
                             {
-                                pc = newPc;
-                                return true;
+                                if (TryOptimizeArithmeticPattern(bytecode, pc, nextNextPc, idx, idx2, Opcode.LocalDivLocalAssign, Opcode.LocalPushLocalPushDiv, optimized, out int newPc))
+                                {
+                                    pc = newPc;
+                                    return true;
+                                }
                             }
                         }
 
@@ -718,6 +740,14 @@ namespace Core.VM.Utils
                 }
 
                 // Otherwise just optimize to PushLocal
+                if (idx >= 0 && idx < 16)
+                {
+                    MarkPcMap(pc, pc + 6, optimized.Count);
+                    optimized.Add((byte)((int)Opcode.PushLocal0 + idx));
+                    pc += 6;
+                    return true;
+                }
+
                 MarkPcMap(pc, pc + 6, optimized.Count);
                 optimized.Add((byte)Opcode.PushLocal);
                 optimized.AddRange(BitConverter.GetBytes(idx));

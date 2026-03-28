@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Messaging;
@@ -12,50 +13,67 @@ namespace Shared.Services;
 
 public class FastEventBus : EngineService, IEventBus, IFreezable
 {
+    private readonly IDiagnosticBus _diagnosticBus;
+    private long _totalPublished;
+    private long _totalAsyncPublished;
+
+    public FastEventBus(IDiagnosticBus diagnosticBus)
+    {
+        _diagnosticBus = diagnosticBus;
+    }
+
     private interface IHandlerList
     {
         void Publish(object eventData);
         void PublishRef<TEvent>(in TEvent eventData) where TEvent : struct;
         ValueTask PublishAsync(object eventData);
         void Unsubscribe(object handler);
+        int Count { get; }
     }
+
+    private record struct HandlerEntry<TDelegate>(TDelegate Delegate, int Priority);
 
     private class HandlerList<T> : IHandlerList
     {
-        private volatile Action<T>[] _actions = Array.Empty<Action<T>>();
-        private volatile Func<T, ValueTask>[] _asyncActions = Array.Empty<Func<T, ValueTask>>();
-        private volatile IEventHandler<T>[] _interfaceHandlers = Array.Empty<IEventHandler<T>>();
+        private volatile HandlerEntry<Action<T>>[] _actions = Array.Empty<HandlerEntry<Action<T>>>();
+        private volatile HandlerEntry<Func<T, ValueTask>>[] _asyncActions = Array.Empty<HandlerEntry<Func<T, ValueTask>>>();
+        private volatile HandlerEntry<IEventHandler<T>>[] _interfaceHandlers = Array.Empty<HandlerEntry<IEventHandler<T>>>();
         private readonly System.Threading.Lock _lock = new();
 
-        public void Subscribe(Action<T> handler)
+        public int Count => _actions.Length + _asyncActions.Length + _interfaceHandlers.Length;
+
+        public void Subscribe(Action<T> handler, int priority)
         {
             using (_lock.EnterScope())
             {
-                var updated = new Action<T>[_actions.Length + 1];
+                var updated = new HandlerEntry<Action<T>>[_actions.Length + 1];
                 Array.Copy(_actions, updated, _actions.Length);
-                updated[_actions.Length] = handler;
+                updated[_actions.Length] = new HandlerEntry<Action<T>>(handler, priority);
+                Array.Sort(updated, (a, b) => b.Priority.CompareTo(a.Priority)); // Higher priority first
                 _actions = updated;
             }
         }
 
-        public void Subscribe(Func<T, ValueTask> handler)
+        public void Subscribe(Func<T, ValueTask> handler, int priority)
         {
             using (_lock.EnterScope())
             {
-                var updated = new Func<T, ValueTask>[_asyncActions.Length + 1];
+                var updated = new HandlerEntry<Func<T, ValueTask>>[_asyncActions.Length + 1];
                 Array.Copy(_asyncActions, updated, _asyncActions.Length);
-                updated[_asyncActions.Length] = handler;
+                updated[_asyncActions.Length] = new HandlerEntry<Func<T, ValueTask>>(handler, priority);
+                Array.Sort(updated, (a, b) => b.Priority.CompareTo(a.Priority)); // Higher priority first
                 _asyncActions = updated;
             }
         }
 
-        public void Subscribe(IEventHandler<T> handler)
+        public void Subscribe(IEventHandler<T> handler, int priority)
         {
             using (_lock.EnterScope())
             {
-                var updated = new IEventHandler<T>[_interfaceHandlers.Length + 1];
+                var updated = new HandlerEntry<IEventHandler<T>>[_interfaceHandlers.Length + 1];
                 Array.Copy(_interfaceHandlers, updated, _interfaceHandlers.Length);
-                updated[_interfaceHandlers.Length] = handler;
+                updated[_interfaceHandlers.Length] = new HandlerEntry<IEventHandler<T>>(handler, priority);
+                Array.Sort(updated, (a, b) => b.Priority.CompareTo(a.Priority)); // Higher priority first
                 _interfaceHandlers = updated;
             }
         }
@@ -66,10 +84,11 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             {
                 if (handler is Action<T> action)
                 {
-                    var index = Array.IndexOf(_actions, action);
+                    int index = -1;
+                    for (int i = 0; i < _actions.Length; i++) if (ReferenceEquals(_actions[i].Delegate, action)) { index = i; break; }
                     if (index != -1)
                     {
-                        var updated = new Action<T>[_actions.Length - 1];
+                        var updated = new HandlerEntry<Action<T>>[_actions.Length - 1];
                         if (index > 0) Array.Copy(_actions, 0, updated, 0, index);
                         if (index < _actions.Length - 1) Array.Copy(_actions, index + 1, updated, index, _actions.Length - index - 1);
                         _actions = updated;
@@ -77,10 +96,11 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
                 }
                 else if (handler is Func<T, ValueTask> asyncAction)
                 {
-                    var index = Array.IndexOf(_asyncActions, asyncAction);
+                    int index = -1;
+                    for (int i = 0; i < _asyncActions.Length; i++) if (ReferenceEquals(_asyncActions[i].Delegate, asyncAction)) { index = i; break; }
                     if (index != -1)
                     {
-                        var updated = new Func<T, ValueTask>[_asyncActions.Length - 1];
+                        var updated = new HandlerEntry<Func<T, ValueTask>>[_asyncActions.Length - 1];
                         if (index > 0) Array.Copy(_asyncActions, 0, updated, 0, index);
                         if (index < _asyncActions.Length - 1) Array.Copy(_asyncActions, index + 1, updated, index, _asyncActions.Length - index - 1);
                         _asyncActions = updated;
@@ -88,10 +108,11 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
                 }
                 else if (handler is IEventHandler<T> interfaceHandler)
                 {
-                    var index = Array.IndexOf(_interfaceHandlers, interfaceHandler);
+                    int index = -1;
+                    for (int i = 0; i < _interfaceHandlers.Length; i++) if (ReferenceEquals(_interfaceHandlers[i].Delegate, interfaceHandler)) { index = i; break; }
                     if (index != -1)
                     {
-                        var updated = new IEventHandler<T>[_interfaceHandlers.Length - 1];
+                        var updated = new HandlerEntry<IEventHandler<T>>[_interfaceHandlers.Length - 1];
                         if (index > 0) Array.Copy(_interfaceHandlers, 0, updated, 0, index);
                         if (index < _interfaceHandlers.Length - 1) Array.Copy(_interfaceHandlers, index + 1, updated, index, _interfaceHandlers.Length - index - 1);
                         _interfaceHandlers = updated;
@@ -105,19 +126,19 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             var interfaces = _interfaceHandlers;
             for (int i = 0; i < interfaces.Length; i++)
             {
-                interfaces[i].HandleEvent(eventData);
+                interfaces[i].Delegate.HandleEvent(eventData);
             }
 
             var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
-                actions[i](eventData);
+                actions[i].Delegate(eventData);
             }
 
             var asyncActions = _asyncActions;
             for (int i = 0; i < asyncActions.Length; i++)
             {
-                _ = asyncActions[i](eventData);
+                _ = asyncActions[i].Delegate(eventData);
             }
         }
 
@@ -126,19 +147,19 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             var interfaces = _interfaceHandlers;
             for (int i = 0; i < interfaces.Length; i++)
             {
-                interfaces[i].HandleEvent(eventData);
+                interfaces[i].Delegate.HandleEvent(eventData);
             }
 
             var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
-                actions[i](eventData);
+                actions[i].Delegate(eventData);
             }
 
             var asyncActions = _asyncActions;
             for (int i = 0; i < asyncActions.Length; i++)
             {
-                _ = asyncActions[i](eventData);
+                _ = asyncActions[i].Delegate(eventData);
             }
         }
 
@@ -147,13 +168,13 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             var interfaces = _interfaceHandlers;
             for (int i = 0; i < interfaces.Length; i++)
             {
-                interfaces[i].HandleEvent(eventData);
+                interfaces[i].Delegate.HandleEvent(eventData);
             }
 
             var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
-                actions[i](eventData);
+                actions[i].Delegate(eventData);
             }
 
             var asyncActions = _asyncActions;
@@ -162,7 +183,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
             if (asyncCount == 1)
             {
-                var task = asyncActions[0](eventData);
+                var task = asyncActions[0].Delegate(eventData);
                 if (!task.IsCompleted) await task;
                 else task.GetAwaiter().GetResult();
                 return;
@@ -174,7 +195,7 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             {
                 for (int i = 0; i < asyncCount; i++)
                 {
-                    tasks[i] = asyncActions[i](eventData);
+                    tasks[i] = asyncActions[i].Delegate(eventData);
                 }
 
                 for (int i = 0; i < asyncCount; i++)
@@ -217,11 +238,14 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
     public void Freeze()
     {
         _frozenHandlers = _typeToHandlers.ToFrozenDictionary();
+        _diagnosticBus.Publish("FastEventBus", "Event bus frozen", DiagnosticSeverity.Info, m => {
+            m.Add("RegisteredTypes", _frozenHandlers.Count);
+        });
     }
 
-    public void Subscribe<T>(Action<T> handler) => GetHandlers<T>().Subscribe(handler);
-    public void SubscribeAsync<T>(Func<T, ValueTask> handler) => GetHandlers<T>().Subscribe(handler);
-    public void Subscribe<T>(IEventHandler<T> handler) => GetHandlers<T>().Subscribe(handler);
+    public void Subscribe<T>(Action<T> handler, int priority = 0) => GetHandlers<T>().Subscribe(handler, priority);
+    public void SubscribeAsync<T>(Func<T, ValueTask> handler, int priority = 0) => GetHandlers<T>().Subscribe(handler, priority);
+    public void Subscribe<T>(IEventHandler<T> handler, int priority = 0) => GetHandlers<T>().Subscribe(handler, priority);
 
     public void Unsubscribe<T>(Action<T> handler)
     {
@@ -247,7 +271,10 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
         }
     }
 
-    public void Publish<T>(T eventData) => GetHandlers<T>().Publish(eventData);
+    public void Publish<T>(T eventData) {
+        Interlocked.Increment(ref _totalPublished);
+        GetHandlers<T>().Publish(eventData);
+    }
 
     protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
@@ -257,13 +284,33 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     public void Publish<T>(in T eventData) where T : struct
     {
+        Interlocked.Increment(ref _totalPublished);
         var handlers = GetHandlers<T>();
         handlers.PublishRef(in eventData);
     }
 
-    public ValueTask PublishAsync<T>(T eventData) => GetHandlers<T>().PublishAsync(eventData);
+    public ValueTask PublishAsync<T>(T eventData) {
+        Interlocked.Increment(ref _totalAsyncPublished);
+        return GetHandlers<T>().PublishAsync(eventData);
+    }
 
     public void Clear() => _typeToHandlers.Clear();
 
     public void Clear<T>() => _typeToHandlers.TryRemove(typeof(T), out _);
+
+    public override Dictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = base.GetDiagnosticInfo();
+        info["TotalPublished"] = Interlocked.Read(ref _totalPublished);
+        info["TotalAsyncPublished"] = Interlocked.Read(ref _totalAsyncPublished);
+        info["RegisteredEventTypes"] = _typeToHandlers.Count;
+
+        int totalHandlers = 0;
+        foreach (var handlerList in _typeToHandlers.Values) {
+            totalHandlers += handlerList.Count;
+        }
+        info["TotalHandlers"] = totalHandlers;
+
+        return info;
+    }
 }

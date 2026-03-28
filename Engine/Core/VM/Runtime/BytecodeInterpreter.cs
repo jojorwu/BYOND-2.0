@@ -27,6 +27,7 @@ public interface IBytecodeInterpreter
 
 public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterpreter
 {
+    private readonly DreamVM? _vm;
     private readonly IDiagnosticBus? _diagnosticBus;
 
     private class ThreadTelemetry
@@ -34,14 +35,16 @@ public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterp
         public long LastReportTime;
         public long InstructionsThisTick;
         public long TotalInstructions;
+        public readonly long[] OpcodeCounts = new long[256];
     }
 
     [ThreadStatic]
     private static ThreadTelemetry? _telemetry;
 
-    public BytecodeInterpreter(IDiagnosticBus? diagnosticBus = null)
+    public BytecodeInterpreter(IDiagnosticBus? diagnosticBus = null, DreamVM? vm = null)
     {
         _diagnosticBus = diagnosticBus;
+        _vm = vm;
     }
 
     private void ReportTelemetry()
@@ -61,16 +64,43 @@ public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterp
                 m.Add("TotalInstructions", telemetry.TotalInstructions);
             });
 
+            ReportHotPaths(telemetry);
+
             telemetry.InstructionsThisTick = 0;
             telemetry.LastReportTime = now;
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RecordInstruction()
+    private void RecordInstruction(byte opcode)
     {
         var telemetry = _telemetry ??= new ThreadTelemetry { LastReportTime = System.Diagnostics.Stopwatch.GetTimestamp() };
         telemetry.InstructionsThisTick++;
         telemetry.TotalInstructions++;
+        telemetry.OpcodeCounts[opcode]++;
+    }
+
+    private void ReportHotPaths(ThreadTelemetry telemetry)
+    {
+        if (_diagnosticBus == null) return;
+
+        // Find top 5 opcodes
+        var topOpcodes = Enumerable.Range(0, 256)
+            .Select(i => (Opcode: (Opcode)i, Count: telemetry.OpcodeCounts[i]))
+            .Where(x => x.Count > 0)
+            .OrderByDescending(x => x.Count)
+            .Take(5)
+            .ToList();
+
+        _diagnosticBus.Publish("VM.HotPaths", $"Top Opcodes (Thread {Environment.CurrentManagedThreadId})", topOpcodes, (m, paths) =>
+        {
+            foreach (var path in paths)
+            {
+                m.Add(path.Opcode.ToString(), path.Count);
+            }
+        }, tags: new[] { "performance", "vm" });
+
+        // Reset counts for next interval
+        Array.Clear(telemetry.OpcodeCounts, 0, 256);
     }
 }

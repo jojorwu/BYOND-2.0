@@ -127,6 +127,7 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleDereferenceCall(ref InterpreterState state)
     {
+        int pcForCache = state.PC - 1;
         int nameId = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
         var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
@@ -139,12 +140,27 @@ public unsafe partial class BytecodeInterpreter
         var objValue = state.Stack[state.StackPtr - argStackDelta];
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
-            var procName = state.Strings[nameId];
-            var targetProc = obj.ObjectType?.GetProc(procName);
-            if (targetProc == null)
+            IDreamProc? targetProc;
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
             {
-                var varValue = obj.GetVariable(procName);
-                if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                targetProc = cache.CachedProc;
+            }
+            else
+            {
+                var procName = state.Strings[nameId];
+                targetProc = obj.ObjectType?.GetProc(procName);
+                if (targetProc == null)
+                {
+                    var varValue = obj.GetVariable(procName);
+                    if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+                }
+
+                if (targetProc != null)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.CachedProc = targetProc;
+                }
             }
 
             if (targetProc != null)

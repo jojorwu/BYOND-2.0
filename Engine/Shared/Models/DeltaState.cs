@@ -21,13 +21,25 @@ public struct DeltaState
     public long ObjectId { get; }
     public VariableChange[]? Changes;
     public int Count;
+    private bool _pooled;
 
-    public DeltaState(long objectId, VariableChange[]? changes, int count)
+    public DeltaState(long objectId, VariableChange[]? changes, int count, bool pooled = false)
     {
         ObjectId = objectId;
         Changes = changes;
         Count = count;
+        _pooled = pooled;
     }
 
     public bool HasChanges => Count > 0;
+
+    public void ReturnToPool()
+    {
+        if (_pooled && Changes != null)
+        {
+            System.Buffers.ArrayPool<VariableChange>.Shared.Return(Changes);
+            Changes = null;
+            _pooled = false;
+        }
+    }
 }

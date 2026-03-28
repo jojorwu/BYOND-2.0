@@ -12,17 +12,17 @@ namespace Shared.Services;
         private readonly ConcurrentDictionary<Type, object[]> _handlers = new();
         private readonly System.Threading.Lock _lock = new();
 
-        public void Subscribe<T>(Action<T> handler)
+        public void Subscribe<T>(Action<T> handler, int priority = 0)
         {
             SubscribeInternal(typeof(T), handler);
         }
 
-        public void SubscribeAsync<T>(Func<T, ValueTask> handler)
+        public void SubscribeAsync<T>(Func<T, ValueTask> handler, int priority = 0)
         {
             SubscribeInternal(typeof(T), handler);
         }
 
-        public void Subscribe<T>(IEventHandler<T> handler)
+        public void Subscribe<T>(IEventHandler<T> handler, int priority = 0)
         {
             SubscribeInternal(typeof(T), handler);
         }

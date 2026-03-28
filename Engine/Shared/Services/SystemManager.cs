@@ -189,12 +189,13 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Length);
                             try
                             {
-                                await Task.WhenAll(layer.Select(async (info, index) =>
+                                // Parallel execution using engine JobSystem
+                                await _jobSystem.ForEachAsync(layer, async (info, index) =>
                                 {
                                     var ecb = _ecbPool.Rent();
                                     ecbArray[index] = ecb;
                                     await ExecuteSystemAsync(info, ecb);
-                                }));
+                                });
 
                                 await _jobSystem.CompleteAllAsync();
 
@@ -203,8 +204,12 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                                     for (int k = 0; k < layer.Length; k++)
                                     {
                                         var ecb = ecbArray[k];
-                                        ecb?.Playback();
-                                        if (ecb != null) _ecbPool.Return(ecb);
+                                        if (ecb != null)
+                                        {
+                                            ecb.Playback();
+                                            _ecbPool.Return(ecb);
+                                            ecbArray[k] = null!;
+                                        }
                                     }
                                 }
                             }
@@ -216,10 +221,10 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                     }
                 }
 
-                _diagnosticBus.Publish("SystemManager", $"Phase {phase} execution completed", DiagnosticSeverity.Info, m =>
+                _diagnosticBus.Publish("SystemManager", "Phase execution completed", (Phase: phase, Duration: phaseSw.Elapsed.TotalMilliseconds), (m, state) =>
                 {
-                    m.Add("Phase", phase.ToString());
-                    m.Add("DurationMs", phaseSw.Elapsed.TotalMilliseconds);
+                    m.Add("Phase", state.Phase.ToString());
+                    m.Add("DurationMs", state.Duration);
                 });
             }
 
@@ -301,10 +306,10 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             system.PostTick();
 
-            _diagnosticBus.Publish("SystemManager", $"System {system.Name} execution completed", DiagnosticSeverity.Info, m =>
+            _diagnosticBus.Publish("SystemManager", "System execution completed", (System: system.Name, Duration: sw.Elapsed.TotalMilliseconds), (m, state) =>
             {
-                m.Add("System", system.Name);
-                m.Add("DurationMs", sw.Elapsed.TotalMilliseconds);
+                m.Add("System", state.System);
+                m.Add("DurationMs", state.Duration);
             });
 
             var jobs = system.CreateJobs();

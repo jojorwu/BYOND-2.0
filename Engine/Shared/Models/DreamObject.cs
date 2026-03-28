@@ -27,8 +27,8 @@ namespace Shared;
 
         public DreamObject(ObjectType? objectType)
         {
-            _variableStore = new FlatVariableStore();
-            _committedStore = new FlatVariableStore();
+            _variableStore = new TieredVariableStore();
+            _committedStore = new TieredVariableStore();
 
             if (objectType != null && objectType.DefaultValuesArray == null) objectType.FinalizeVariables();
             Initialize(objectType);
@@ -42,8 +42,11 @@ namespace Shared;
                 var defaults = objectType.DefaultValuesArray;
                 if (defaults != null)
                 {
-                    _variableStore.CopyFrom(defaults);
-                    _committedStore.CopyFrom(defaults);
+                    if (_variableStore is TieredVariableStore tiered) tiered.SetDefaults(defaults);
+                    else _variableStore.CopyFrom(defaults);
+
+                    if (_committedStore is TieredVariableStore tieredCommitted) tieredCommitted.SetDefaults(defaults);
+                    else _committedStore.CopyFrom(defaults);
                 }
             }
         }

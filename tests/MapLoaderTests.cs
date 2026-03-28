@@ -19,10 +19,11 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
-            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System);
+            var diagnosticBus = new MockDiagnosticBus();
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
+            var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System, diagnosticBus);
             var pool = new SharedPool<GameObject>(() => new GameObject());
-            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance);
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, diagnosticBus);
             var componentManager = new ComponentManager(archetypeManager);
             var entityRegistry = new EntityRegistry(pool, componentManager);
             var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);

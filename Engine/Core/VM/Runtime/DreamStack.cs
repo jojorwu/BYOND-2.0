@@ -54,7 +54,10 @@ internal struct DreamStack : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue Pop()
     {
-        return System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(Array), --Pointer);
+        ref var valRef = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(Array), --Pointer);
+        var val = valRef;
+        valRef = default; // Clear slot to prevent stale references for GC
+        return val;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

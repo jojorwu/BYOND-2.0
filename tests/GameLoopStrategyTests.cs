@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.Extensions.Options;
+using Shared.Services;
 
 namespace tests
 {
@@ -29,7 +30,7 @@ namespace tests
         {
             _scriptHostMock = new Mock<IScriptHost>();
             _gameStateMock = new Mock<IGameState>();
-            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object, TimeProvider.System));
+            _gameStateMock.Setup(gs => gs.SpatialGrid).Returns(new SpatialGrid(new Mock<Microsoft.Extensions.Logging.ILogger<SpatialGrid>>().Object, TimeProvider.System, MockDiagnosticBus.Instance));
             _udpServerMock = new Mock<IUdpServer>();
             _regionManagerMock = new Mock<IRegionManager>();
             _regionActivationStrategyMock = new Mock<IRegionActivationStrategy>();
@@ -51,14 +52,14 @@ namespace tests
             // Arrange
             var strategy = new GlobalGameLoopStrategy(_scriptHostMock.Object, _gameStateMock.Object, _gameStateSnapshotterMock.Object, _udpServerMock.Object);
             var snapshot = new byte[] { 1, 2, 3 };
-            _gameStateSnapshotterMock.Setup(gs => gs.GetBinarySnapshot(_gameStateMock.Object)).Returns(snapshot);
+            _gameStateSnapshotterMock.Setup(gs => gs.GetSparseBinarySnapshot(_gameStateMock.Object)).Returns(snapshot);
 
             // Act
             await strategy.TickAsync(_cancellationTokenSource.Token);
 
             // Assert
             _scriptHostMock.Verify(s => s.TickAsync(), Times.Once);
-            _gameStateSnapshotterMock.Verify(gs => gs.GetBinarySnapshot(_gameStateMock.Object), Times.Once);
+            _gameStateSnapshotterMock.Verify(gs => gs.GetSparseBinarySnapshot(_gameStateMock.Object), Times.Once);
             _udpServerMock.Verify(u => u.BroadcastSnapshot(snapshot), Times.Once);
         }
 

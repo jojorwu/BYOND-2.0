@@ -78,6 +78,10 @@ public class Archetype
 
         System.Array.Resize(ref _entityIds, _capacity);
         System.Array.Resize(ref _entities, _capacity);
+
+        // Pre-size dictionary to avoid rehashing during bursts of additions
+        _entityIdToIndex.EnsureCapacity(_capacity);
+
         var arrays = _componentArrays;
         for (int i = 0; i < arrays.Length; i++)
         {
@@ -195,6 +199,7 @@ public class Archetype
             }
 
             Unsafe.Add(ref entitiesRef, lastIndex) = null!;
+            _entities[lastIndex] = null!; // Double-ensure for safety
             _entityIdToIndex.Remove(entityId);
             for (int i = 0; i < arrays.Length; i++)
             {
@@ -655,6 +660,28 @@ public class Archetype
         using (_lock.EnterScope())
         {
             Array.Copy(_entities, 0, destination, offset, _count);
+        }
+    }
+
+    public long EstimateMemoryUsage()
+    {
+        using (_lock.EnterScope())
+        {
+            long usage = _entityIds.Length * sizeof(long);
+            usage += _entities.Length * Unsafe.SizeOf<IntPtr>(); // Approximate object references
+
+            // Dictionary overhead (approximate: entries * (size of long + int + next pointer + padding))
+            usage += _entityIdToIndex.Count * (sizeof(long) + sizeof(int) + sizeof(int) + 8);
+
+            var arrays = _componentArrays;
+            for (int i = 0; i < arrays.Length; i++)
+            {
+                var array = arrays[i];
+                if (array != null) {
+                    usage += _capacity * Unsafe.SizeOf<IntPtr>(); // Approximate component references
+                }
+            }
+            return usage;
         }
     }
 

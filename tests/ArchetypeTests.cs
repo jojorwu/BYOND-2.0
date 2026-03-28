@@ -12,18 +12,12 @@ namespace tests
     [TestFixture]
     public class ArchetypeTests
     {
-        private class TestComponent1 : IComponent
+        private class TestComponent1 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void SendMessage(IComponentMessage message) { }
         }
 
-        private class TestComponent2 : IComponent
+        private class TestComponent2 : BaseComponent
         {
-            public IGameObject? Owner { get; set; }
-            public bool Enabled { get; set; } = true;
-            public void SendMessage(IComponentMessage message) { }
         }
 
         private Mock<IGameObject> CreateMockEntity(int id)

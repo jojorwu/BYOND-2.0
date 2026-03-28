@@ -13,7 +13,7 @@ namespace Shared;
         public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory) };
 
         private IMap? _map;
-        private readonly ReaderWriterLockSlim _worldLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
+        private readonly System.Threading.Lock _worldLock = new();
         public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
@@ -26,7 +26,7 @@ namespace Shared;
             _objectFactory = objectFactory;
         }
 
-        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System)) { } // For tests
+        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, new Shared.Services.MockDiagnosticBus())) { }
 
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 
@@ -35,20 +35,26 @@ namespace Shared;
 
         public IDisposable ReadLock()
         {
-            _worldLock.EnterReadLock();
-            return new DisposableAction(() => _worldLock.ExitReadLock());
+            _worldLock.Enter();
+            return new DisposableAction(() => _worldLock.Exit());
         }
 
         public IDisposable WriteLock()
         {
-            _worldLock.EnterWriteLock();
-            return new DisposableAction(() => _worldLock.ExitWriteLock());
+            _worldLock.Enter();
+            return new DisposableAction(() => _worldLock.Exit());
         }
 
         public void Dispose()
         {
             SpatialGrid.Dispose();
-            _worldLock.Dispose();
+        }
+
+        private sealed class DisposableAction : IDisposable
+        {
+            private readonly Action _action;
+            public DisposableAction(Action action) => _action = action;
+            public void Dispose() => _action();
         }
 
         public IEnumerable<IGameObject> GetAllGameObjects()
@@ -96,38 +102,8 @@ namespace Shared;
             SpatialGrid.Update(gameObject, oldX, oldY);
         }
 
-        public IEnumerable<IGameObject> GetDirtyObjects() => new DirtyObjectEnumerator(_dirtyObjects);
+        public IEnumerable<IGameObject> GetDirtyObjects() => _dirtyObjects;
 
-        private struct DirtyObjectEnumerator : IEnumerable<IGameObject>, IEnumerator<IGameObject>
-        {
-            private readonly ConcurrentQueue<IGameObject> _queue;
-            private IGameObject? _current;
+        public void ClearDirtyObjects() => _dirtyObjects.Clear();
 
-            public DirtyObjectEnumerator(ConcurrentQueue<IGameObject> queue) => _queue = queue;
-
-            public IGameObject Current => _current!;
-            object System.Collections.IEnumerator.Current => _current!;
-
-            public bool MoveNext() => _queue.TryDequeue(out _current);
-            public void Reset() => throw new NotSupportedException();
-            public void Dispose() { }
-
-            public IEnumerator<IGameObject> GetEnumerator() => this;
-            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => this;
-        }
-
-        private sealed class DisposableAction : IDisposable
-        {
-            private readonly Action _action;
-
-            public DisposableAction(Action action)
-            {
-                _action = action;
-            }
-
-            public void Dispose()
-            {
-                _action();
-            }
-        }
     }

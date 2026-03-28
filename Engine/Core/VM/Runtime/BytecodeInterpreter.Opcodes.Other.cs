@@ -196,6 +196,40 @@ public unsafe partial class BytecodeInterpreter
         table[(byte)Opcode.LocalFieldTransfer] = &HandleLocalFieldTransfer;
         table[(byte)Opcode.GlobalJumpIfFalse] = &HandleGlobalJumpIfFalse;
 
+        table[(byte)Opcode.PushLocal0] = &HandlePushLocal0;
+        table[(byte)Opcode.PushLocal1] = &HandlePushLocal1;
+        table[(byte)Opcode.PushLocal2] = &HandlePushLocal2;
+        table[(byte)Opcode.PushLocal3] = &HandlePushLocal3;
+        table[(byte)Opcode.PushLocal4] = &HandlePushLocal4;
+        table[(byte)Opcode.PushLocal5] = &HandlePushLocal5;
+        table[(byte)Opcode.PushLocal6] = &HandlePushLocal6;
+        table[(byte)Opcode.PushLocal7] = &HandlePushLocal7;
+        table[(byte)Opcode.PushLocal8] = &HandlePushLocal8;
+        table[(byte)Opcode.PushLocal9] = &HandlePushLocal9;
+        table[(byte)Opcode.PushLocal10] = &HandlePushLocal10;
+        table[(byte)Opcode.PushLocal11] = &HandlePushLocal11;
+        table[(byte)Opcode.PushLocal12] = &HandlePushLocal12;
+        table[(byte)Opcode.PushLocal13] = &HandlePushLocal13;
+        table[(byte)Opcode.PushLocal14] = &HandlePushLocal14;
+        table[(byte)Opcode.PushLocal15] = &HandlePushLocal15;
+
+        table[(byte)Opcode.AssignLocal0] = &HandleAssignLocal0;
+        table[(byte)Opcode.AssignLocal1] = &HandleAssignLocal1;
+        table[(byte)Opcode.AssignLocal2] = &HandleAssignLocal2;
+        table[(byte)Opcode.AssignLocal3] = &HandleAssignLocal3;
+        table[(byte)Opcode.AssignLocal4] = &HandleAssignLocal4;
+        table[(byte)Opcode.AssignLocal5] = &HandleAssignLocal5;
+        table[(byte)Opcode.AssignLocal6] = &HandleAssignLocal6;
+        table[(byte)Opcode.AssignLocal7] = &HandleAssignLocal7;
+        table[(byte)Opcode.AssignLocal8] = &HandleAssignLocal8;
+        table[(byte)Opcode.AssignLocal9] = &HandleAssignLocal9;
+        table[(byte)Opcode.AssignLocal10] = &HandleAssignLocal10;
+        table[(byte)Opcode.AssignLocal11] = &HandleAssignLocal11;
+        table[(byte)Opcode.AssignLocal12] = &HandleAssignLocal12;
+        table[(byte)Opcode.AssignLocal13] = &HandleAssignLocal13;
+        table[(byte)Opcode.AssignLocal14] = &HandleAssignLocal14;
+        table[(byte)Opcode.AssignLocal15] = &HandleAssignLocal15;
+
         return table;
     }
 
@@ -351,6 +385,40 @@ public unsafe partial class BytecodeInterpreter
         if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
         state.Push(state.Stack[state.LocalBase + idx]);
     }
+
+    private static void HandlePushLocal0(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 0]);
+    private static void HandlePushLocal1(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 1]);
+    private static void HandlePushLocal2(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 2]);
+    private static void HandlePushLocal3(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 3]);
+    private static void HandlePushLocal4(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 4]);
+    private static void HandlePushLocal5(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 5]);
+    private static void HandlePushLocal6(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 6]);
+    private static void HandlePushLocal7(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 7]);
+    private static void HandlePushLocal8(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 8]);
+    private static void HandlePushLocal9(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 9]);
+    private static void HandlePushLocal10(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 10]);
+    private static void HandlePushLocal11(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 11]);
+    private static void HandlePushLocal12(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 12]);
+    private static void HandlePushLocal13(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 13]);
+    private static void HandlePushLocal14(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 14]);
+    private static void HandlePushLocal15(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 15]);
+
+    private static void HandleAssignLocal0(ref InterpreterState state) => state.Stack[state.LocalBase + 0] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal1(ref InterpreterState state) => state.Stack[state.LocalBase + 1] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal2(ref InterpreterState state) => state.Stack[state.LocalBase + 2] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal3(ref InterpreterState state) => state.Stack[state.LocalBase + 3] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal4(ref InterpreterState state) => state.Stack[state.LocalBase + 4] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal5(ref InterpreterState state) => state.Stack[state.LocalBase + 5] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal6(ref InterpreterState state) => state.Stack[state.LocalBase + 6] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal7(ref InterpreterState state) => state.Stack[state.LocalBase + 7] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal8(ref InterpreterState state) => state.Stack[state.LocalBase + 8] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal9(ref InterpreterState state) => state.Stack[state.LocalBase + 9] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal10(ref InterpreterState state) => state.Stack[state.LocalBase + 10] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal11(ref InterpreterState state) => state.Stack[state.LocalBase + 11] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal12(ref InterpreterState state) => state.Stack[state.LocalBase + 12] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal13(ref InterpreterState state) => state.Stack[state.LocalBase + 13] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal14(ref InterpreterState state) => state.Stack[state.LocalBase + 14] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal15(ref InterpreterState state) => state.Stack[state.LocalBase + 15] = state.Stack[state.StackPtr - 1];
 
     private static void HandlePushArgument(ref InterpreterState state)
     {

@@ -130,10 +130,19 @@ public abstract class EngineApplication : IHostedService, IEngine
     public virtual async Task TickAsync()
     {
         PreTick();
-        foreach (var tickable in _tickables)
+
+        // Optimized Parallel Ticking:
+        // Group tickables by priority and execute groups in parallel.
+        // Higher priority groups run first.
+        var priorityGroups = _tickables
+            .GroupBy(t => t is IEngineService service ? service.Priority : 0)
+            .OrderByDescending(g => g.Key);
+
+        foreach (var group in priorityGroups)
         {
-            await tickable.TickAsync();
+            await Task.WhenAll(group.Select(t => t.TickAsync()));
         }
+
         PostTick();
 
         if (Interlocked.Increment(ref _tickCount) % 100 == 0)

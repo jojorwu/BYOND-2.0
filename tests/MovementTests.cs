@@ -21,14 +21,14 @@ namespace tests
         public void SetUp()
         {
             _gameState = new GameState();
-            _typeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _typeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
 
             var settings = Options.Create(new DreamVmConfiguration());
             _vm = new DreamVM(settings, NullLogger<DreamVM>.Instance, new INativeProcProvider[] {
                 new MathNativeProcProvider(),
                 new SpatialNativeProcProvider(),
                 new SystemNativeProcProvider()
-            });
+            }, MockDiagnosticBus.Instance);
             _vm.GameState = _gameState;
             _vm.ObjectTypeManager = _typeManager;
 

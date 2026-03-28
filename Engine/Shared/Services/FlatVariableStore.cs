@@ -13,6 +13,22 @@ public class FlatVariableStore : IVariableStore
 
     public int Length => _length;
 
+    public void VisitModified(IVariableStore.Visitor visitor)
+    {
+        for (int i = 0; i < _length; i++)
+        {
+            visitor(i, _values[i]);
+        }
+    }
+
+    public void VisitModified<T>(ref T visitor) where T : struct, IVariableVisitor, allows ref struct
+    {
+        for (int i = 0; i < _length; i++)
+        {
+            visitor.Visit(i, _values[i]);
+        }
+    }
+
     public void Initialize(int capacity)
     {
         if (_values.Length < capacity)

@@ -164,17 +164,21 @@ public unsafe partial class BytecodeInterpreter
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
                                         if ((uint)idx >= (uint)state.Locals.Length) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC - 5, state.Thread);
-                                        // Manual inlining of Push for high-frequency PushLocal
-                                        if (state.StackPtr >= state.Stack.Length)
+
+                                        var val = state.Locals[idx];
+                                        var ptr = state.StackPtr;
+                                        var stack = state.Stack;
+                                        if ((uint)ptr < (uint)stack.Length)
                                         {
-                                            state.Thread._stackPtr = state.StackPtr;
-                                            state.Thread.Push(state.Locals[idx]);
-                                            state.RefreshSpans();
-                                            state.StackPtr = state.Thread._stackPtr;
+                                            stack[ptr] = val;
+                                            state.StackPtr = ptr + 1;
                                         }
                                         else
                                         {
-                                            state.Stack[state.StackPtr++] = state.Locals[idx];
+                                            state.Thread._stackPtr = ptr;
+                                            state.Thread.Push(val);
+                                            state.RefreshSpans();
+                                            state.StackPtr = state.Thread._stackPtr;
                                         }
                                     }
                                     break;
@@ -633,7 +637,22 @@ public unsafe partial class BytecodeInterpreter
                                         int idx = *(int*)(state.BytecodePtr + state.PC);
                                         state.PC += 4;
                                         if ((uint)idx >= (uint)state.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC - 5, state.Thread);
-                                        state.Push(state.Arguments[idx]);
+
+                                        var val = state.Arguments[idx];
+                                        var ptr = state.StackPtr;
+                                        var stack = state.Stack;
+                                        if ((uint)ptr < (uint)stack.Length)
+                                        {
+                                            stack[ptr] = val;
+                                            state.StackPtr = ptr + 1;
+                                        }
+                                        else
+                                        {
+                                            state.Thread._stackPtr = ptr;
+                                            state.Thread.Push(val);
+                                            state.RefreshSpans();
+                                            state.StackPtr = state.Thread._stackPtr;
+                                        }
                                     }
                                     break;
                                 case Opcode.PushFloat:

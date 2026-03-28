@@ -276,7 +276,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             }
 
                             var memory = matchingArchetypes.AsMemory(0, totalArchetypes);
-                            await _jobSystem.ForEachAsync<Archetype>(memory, arch => system.TickAsync(arch, ecb).AsTask());
+                            await _jobSystem.ForEachAsync<Archetype>(memory, arch => system.TickAsync(arch, ecb));
                             batchHandled = true;
                         }
                         finally

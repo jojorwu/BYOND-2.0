@@ -402,8 +402,9 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         Type? rarestType = null;
         int minCount = int.MaxValue;
 
-        foreach (var type in componentTypes)
+        for (int i = 0; i < componentTypes.Length; i++)
         {
+            var type = componentTypes[i];
             if (_typeToArchetypesCache.TryGetValue(type, out var archetypes))
             {
                 if (archetypes.Length < minCount)
@@ -428,7 +429,8 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         }
 
         var candidates = _typeToArchetypesCache[rarestType];
-        var results = new List<Archetype>();
+        // Pre-size the results list based on the number of candidates to avoid reallocations.
+        var results = new List<Archetype>(candidates.Length);
 
         for (int i = 0; i < candidates.Length; i++)
         {

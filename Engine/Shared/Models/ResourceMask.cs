@@ -134,7 +134,7 @@ public struct ResourceMask : IEquatable<ResourceMask>
             var v = Unsafe.As<ulong, Vector512<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
             return v != Vector512<ulong>.Zero;
         }
-        else if (Vector256.IsHardwareAccelerated)
+        if (Vector256.IsHardwareAccelerated)
         {
             var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
             var v1 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask4) & Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
@@ -145,6 +145,35 @@ public struct ResourceMask : IEquatable<ResourceMask>
                (_mask2 & other._mask2) != 0 || (_mask3 & other._mask3) != 0 ||
                (_mask4 & other._mask4) != 0 || (_mask5 & other._mask5) != 0 ||
                (_mask6 & other._mask6) != 0 || (_mask7 & other._mask7) != 0;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool ContainsAll(ResourceMask other)
+    {
+        if (Vector512.IsHardwareAccelerated)
+        {
+            var v = Unsafe.As<ulong, Vector512<ulong>>(ref _mask0);
+            var ov = Unsafe.As<ulong, Vector512<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            return Vector512.EqualsAll(v & ov, ov);
+        }
+        if (Vector256.IsHardwareAccelerated)
+        {
+            var v0 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask0);
+            var ov0 = Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask0));
+            var v1 = Unsafe.As<ulong, Vector256<ulong>>(ref _mask4);
+            var ov1 = Unsafe.As<ulong, Vector256<ulong>>(ref Unsafe.AsRef(in other._mask4));
+
+            return Vector256.EqualsAll(v0 & ov0, ov0) && Vector256.EqualsAll(v1 & ov1, ov1);
+        }
+
+        return (_mask0 & other._mask0) == other._mask0 &&
+               (_mask1 & other._mask1) == other._mask1 &&
+               (_mask2 & other._mask2) == other._mask2 &&
+               (_mask3 & other._mask3) == other._mask3 &&
+               (_mask4 & other._mask4) == other._mask4 &&
+               (_mask5 & other._mask5) == other._mask5 &&
+               (_mask6 & other._mask6) == other._mask6 &&
+               (_mask7 & other._mask7) == other._mask7;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

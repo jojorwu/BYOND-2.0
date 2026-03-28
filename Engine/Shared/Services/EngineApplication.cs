@@ -158,7 +158,7 @@ public abstract class EngineApplication : IHostedService, IEngine
             else if (_jobSystem != null)
             {
                 // Utilize the engine's JobSystem for parallel ticking of services in the same priority group.
-                await _jobSystem.ForEachAsync(group, t => t.TickAsync().AsTask());
+                await _jobSystem.ForEachAsync(group, t => t.TickAsync());
             }
             else
             {

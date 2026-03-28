@@ -153,7 +153,7 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 
     public bool Equals(ComponentSignature other)
     {
-        return Mask.Equals(other.Mask);
+        return _hashCode == other._hashCode && Mask.Equals(other.Mask);
     }
 
     public override bool Equals(object? obj) => obj is ComponentSignature other && Equals(other);

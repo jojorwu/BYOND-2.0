@@ -24,7 +24,10 @@ public static class ComponentIdRegistry
 
     public static int GetId(Type type)
     {
+        // High-performance hot-path for .NET 10 FrozenDictionary
         if (_frozenTypeToId.TryGetValue(type, out int id)) return id;
+
+        // Fallback for types registered during/after initial freeze
         return _typeToId.GetOrAdd(type, _ => Interlocked.Increment(ref _nextId) - 1);
     }
 

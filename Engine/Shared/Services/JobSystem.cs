@@ -212,12 +212,12 @@ namespace Shared.Services;
                 }
             }
 
-            _diagnosticBus.Publish("JobSystem", "JobSystem status update", DiagnosticSeverity.Info, m =>
+            _diagnosticBus.Publish("JobSystem", "JobSystem status update", (currentWorkers.Length, busyCount, totalPending, _criticalQueue.Count), (m, state) =>
             {
-                m.Add("WorkerCount", currentWorkers.Length);
-                m.Add("BusyWorkers", busyCount);
-                m.Add("PendingJobs", totalPending);
-                m.Add("CriticalQueueSize", _criticalQueue.Count);
+                m.Add("WorkerCount", state.Length);
+                m.Add("BusyWorkers", state.busyCount);
+                m.Add("PendingJobs", state.totalPending);
+                m.Add("CriticalQueueSize", state.Count);
             });
         }
 

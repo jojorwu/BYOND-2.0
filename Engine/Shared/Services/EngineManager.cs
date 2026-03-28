@@ -14,11 +14,13 @@ namespace Shared.Services;
         private string _basePath;
         private const string SettingsFileName = "launcher_settings.json";
         private readonly ILogger<EngineManager>? _logger;
+        private readonly ILauncherPathProvider _pathProvider;
         private readonly IEnumerable<IAsyncInitializable> _initializableServices;
 
-        public EngineManager(IEnumerable<IAsyncInitializable> initializableServices, ILogger<EngineManager>? logger = null, string? basePath = null)
+        public EngineManager(IEnumerable<IAsyncInitializable> initializableServices, ILauncherPathProvider pathProvider, ILogger<EngineManager>? logger = null, string? basePath = null)
         {
             _initializableServices = initializableServices;
+            _pathProvider = pathProvider;
             _logger = logger;
             _basePath = basePath ?? AppDomain.CurrentDomain.BaseDirectory;
             LoadSettings();
@@ -72,43 +74,14 @@ namespace Shared.Services;
             public string? EnginePath { get; set; }
         }
 
-        private static readonly Dictionary<EngineComponent, string> ComponentNames = new()
-        {
-            { EngineComponent.Client, "Client" },
-            { EngineComponent.Server, "Server" },
-            { EngineComponent.Compiler, "Compiler" },
-            { EngineComponent.Editor, "Editor" }
-        };
-
         public string GetExecutablePath(EngineComponent component)
         {
-            if (!ComponentNames.TryGetValue(component, out var baseName))
-                throw new ArgumentOutOfRangeException(nameof(component));
-
-            var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            var exeName = isWindows ? $"{baseName}.exe" : baseName;
-            var dllName = $"{baseName}.dll";
-
-            var searchPaths = new[]
-            {
-                Path.Combine(_basePath, exeName),
-                Path.Combine(_basePath, dllName),
-                Path.Combine(_basePath, "bin", exeName),
-                Path.Combine(_basePath, "bin", dllName)
-            };
-
-            foreach (var path in searchPaths)
-            {
-                if (File.Exists(path)) return path;
-            }
-
-            return exeName;
+            return _pathProvider.GetExecutablePath(component, _basePath);
         }
 
         public bool IsComponentInstalled(EngineComponent component)
         {
-            var path = GetExecutablePath(component);
-            return File.Exists(path) || !path.Contains(Path.DirectorySeparatorChar);
+            return _pathProvider.IsComponentInstalled(component, _basePath);
         }
 
         public void InstallComponent(EngineComponent component)

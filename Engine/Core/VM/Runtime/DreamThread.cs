@@ -257,7 +257,9 @@ public partial class DreamThread : IScriptThread, IDisposable
 
         ref var frameRef = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(_callStack), --depth);
         var frame = frameRef;
-        frameRef = default; // Clear slot to prevent stale references for GC
+
+        // Ensure we clear any lists or objects in the frame to avoid pinning
+        frameRef = default;
         _callStackPtr = depth;
         return frame;
     }
@@ -305,14 +307,14 @@ public partial class DreamThread : IScriptThread, IDisposable
     {
         if (_callStack != null)
         {
-            Array.Clear(_callStack, 0, _callStackPtr);
+            Array.Clear(_callStack, 0, _callStack.Length);
             ArrayPool<CallFrame>.Shared.Return(_callStack);
             _callStack = null!;
         }
 
         if (_tryStack != null)
         {
-            Array.Clear(_tryStack, 0, _tryStackPtr);
+            Array.Clear(_tryStack, 0, _tryStack.Length);
             ArrayPool<TryBlock>.Shared.Return(_tryStack);
             _tryStack = null!;
         }
@@ -323,6 +325,7 @@ public partial class DreamThread : IScriptThread, IDisposable
             {
                 _enumerators[i].Enumerator?.Dispose();
             }
+            Array.Clear(_enumerators, 0, _enumerators.Length);
             ArrayPool<EnumeratorEntry>.Shared.Return(_enumerators, true);
             _enumerators = null!;
         }

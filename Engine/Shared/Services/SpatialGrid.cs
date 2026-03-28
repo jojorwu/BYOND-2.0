@@ -44,12 +44,12 @@ namespace Shared;
                 }
             }
 
-            _diagnosticBus.Publish("SpatialGrid", "Grid status update", DiagnosticSeverity.Info, m =>
+            _diagnosticBus.Publish("SpatialGrid", "Grid status update", (CellCount: _grid.Count, ReplacedCount: _replacedArrays.Count, Queries: Interlocked.Read(ref _totalQueries), Moved: Interlocked.Read(ref _objectsMoved)), (m, state) =>
             {
-                m.Add("CellCount", _grid.Count);
-                m.Add("ReplacedArraysCount", _replacedArrays.Count);
-                m.Add("TotalQueries", Interlocked.Read(ref _totalQueries));
-                m.Add("ObjectsMoved", Interlocked.Read(ref _objectsMoved));
+                m.Add("CellCount", state.CellCount);
+                m.Add("ReplacedArraysCount", state.ReplacedCount);
+                m.Add("TotalQueries", state.Queries);
+                m.Add("ObjectsMoved", state.Moved);
             });
         }
 
@@ -266,6 +266,8 @@ namespace Shared;
 
             // We still COW even on remove to maintain thread-safety for enumerators
             var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
+            // Ensure the rented array is clean of stale references before use
+            Array.Clear(newArray, 0, newArray.Length);
 
             if (lastIndex > 0)
             {
@@ -442,11 +444,14 @@ namespace Shared;
 
         public void CleanupEmptyCells()
         {
-            while (_emptyCellKeys.TryDequeue(out var key))
+            // Optimization: Process empty cells in batches to reduce lock contention
+            int processed = 0;
+            while (processed < 1024 && _emptyCellKeys.TryDequeue(out var key))
             {
+                processed++;
                 if (_grid.TryGetValue(key, out var cell))
                 {
-                    if (cell.Count == 0)
+                    if (Volatile.Read(ref cell.Count) == 0)
                     {
                         bool lockTaken = false;
                         try

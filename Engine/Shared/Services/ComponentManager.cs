@@ -40,6 +40,9 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
                 _componentTypesByName[type.Name] = type;
             }
 
+            // Lock the registry to optimize lookup performance
+            ComponentIdRegistry.Freeze();
+
         return Task.CompletedTask;
         }
 

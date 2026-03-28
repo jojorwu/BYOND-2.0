@@ -221,10 +221,10 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                     }
                 }
 
-                _diagnosticBus.Publish("SystemManager", $"Phase {phase} execution completed", DiagnosticSeverity.Info, m =>
+                _diagnosticBus.Publish("SystemManager", "Phase execution completed", (Phase: phase, Duration: phaseSw.Elapsed.TotalMilliseconds), (m, state) =>
                 {
-                    m.Add("Phase", phase.ToString());
-                    m.Add("DurationMs", phaseSw.Elapsed.TotalMilliseconds);
+                    m.Add("Phase", state.Phase.ToString());
+                    m.Add("DurationMs", state.Duration);
                 });
             }
 
@@ -306,10 +306,10 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             system.PostTick();
 
-            _diagnosticBus.Publish("SystemManager", $"System {system.Name} execution completed", DiagnosticSeverity.Info, m =>
+            _diagnosticBus.Publish("SystemManager", "System execution completed", (System: system.Name, Duration: sw.Elapsed.TotalMilliseconds), (m, state) =>
             {
-                m.Add("System", system.Name);
-                m.Add("DurationMs", sw.Elapsed.TotalMilliseconds);
+                m.Add("System", state.System);
+                m.Add("DurationMs", state.Duration);
             });
 
             var jobs = system.CreateJobs();

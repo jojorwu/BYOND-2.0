@@ -36,11 +36,13 @@ namespace Shared.Services;
         public void Shrink()
         {
             long now = _timeProvider.GetTimestamp();
+            int reclaimedArrays = 0;
             while (_replacedArrays.TryPeek(out var entry) && now >= entry.ReleaseTimestamp)
             {
                 if (_replacedArrays.TryDequeue(out entry))
                 {
                     ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+                    reclaimedArrays++;
                 }
             }
 
@@ -49,7 +51,22 @@ namespace Shared.Services;
                 m.Add("TotalQueries", Interlocked.Read(ref _totalQueries));
                 m.Add("CacheHits", Interlocked.Read(ref _cacheHits));
                 m.Add("CacheMisses", Interlocked.Read(ref _cacheMisses));
+                m.Add("ReclaimedArrays", reclaimedArrays);
             });
+        }
+
+        public void Clear()
+        {
+            _diagnosticBus.Publish("ComponentQueryService", "Clearing all query caches", DiagnosticSeverity.Info, m => {
+                m.Add("OldCacheSize", _queryCache.Count);
+            });
+
+            foreach (var query in _queryCache.Values)
+            {
+                query.Dispose();
+            }
+            _queryCache.Clear();
+            _queriesByComponent.Clear();
         }
 
         private void EnqueueForRelease(IGameObject[] array)

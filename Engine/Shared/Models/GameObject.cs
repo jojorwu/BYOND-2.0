@@ -897,8 +897,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         if (_componentManager != null)
         {
-            var toRemove = GetComponents().ToList();
-            foreach (var component in toRemove)
+            // Use the most direct way to notify component manager of removal
+            // while iterating over components safely.
+            foreach (var component in GetComponents().ToList())
             {
                 _componentManager.RemoveComponent(this, component.GetType());
             }
@@ -965,9 +966,9 @@ public class GameObjectConverter : JsonConverter<GameObject>
         writer.WriteString("TypeName", value.TypeName);
 
         writer.WriteStartObject("Transform");
-        writer.WriteNumber("X", value.X);
-        writer.WriteNumber("Y", value.Y);
-        writer.WriteNumber("Z", value.Z);
+        writer.WriteNumber("X", value.CommittedX);
+        writer.WriteNumber("Y", value.CommittedY);
+        writer.WriteNumber("Z", value.CommittedZ);
         writer.WriteNumber("Dir", value.Dir);
         writer.WriteEndObject();
 

@@ -199,6 +199,7 @@ public class Archetype
             }
 
             Unsafe.Add(ref entitiesRef, lastIndex) = null!;
+            _entities[lastIndex] = null!; // Double-ensure for safety
             _entityIdToIndex.Remove(entityId);
             for (int i = 0; i < arrays.Length; i++)
             {

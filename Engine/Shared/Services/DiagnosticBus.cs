@@ -130,24 +130,28 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                 if (count > 0)
                 {
                     var subscribers = _subscribers;
+                    bool hasThresholds = !_thresholds.IsEmpty;
                     if (subscribers.Length > 0)
                     {
                         for (int j = 0; j < count; j++)
                         {
                             var ev = batch[j];
                             // Check thresholds before dispatch
-                            foreach (var metric in ev.Metrics)
+                            if (hasThresholds && ev.Metrics.Count > 0)
                             {
-                                if (_thresholds.TryGetValue(metric.Key, out var thresholds))
+                                foreach (var metric in ev.Metrics)
                                 {
-                                    double val = 0;
-                                    if (metric.Value is double d) val = d;
-                                    else if (metric.Value is float f) val = f;
-                                    else if (metric.Value is long l) val = l;
-                                    else if (metric.Value is int i) val = i;
+                                    if (_thresholds.TryGetValue(metric.Key, out var thresholds))
+                                    {
+                                        double val = 0;
+                                        if (metric.Value is double d) val = d;
+                                        else if (metric.Value is float f) val = f;
+                                        else if (metric.Value is long l) val = l;
+                                        else if (metric.Value is int i) val = i;
 
-                                    if (val >= thresholds.Critical) ev.Severity = DiagnosticSeverity.Critical;
-                                    else if (val >= thresholds.Warning && ev.Severity < DiagnosticSeverity.Warning) ev.Severity = DiagnosticSeverity.Warning;
+                                        if (val >= thresholds.Critical) ev.Severity = DiagnosticSeverity.Critical;
+                                        else if (val >= thresholds.Warning && ev.Severity < DiagnosticSeverity.Warning) ev.Severity = DiagnosticSeverity.Warning;
+                                    }
                                 }
                             }
 
@@ -245,6 +249,14 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         info["PoolCount"] = _poolCount;
         info["LastProcessDurationMs"] = Volatile.Read(ref _lastProcessDurationMs);
         info["SubscriberCount"] = _subscribers.Length;
+
+        // Report channel pressure
+        if (_eventChannel != null)
+        {
+            // Note: Channel.Reader.CanCount is usually true for unbounded channels
+            info["PendingEvents"] = _eventChannel.Reader.Count;
+        }
+
         return info;
     }
 

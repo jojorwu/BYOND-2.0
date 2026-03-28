@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -828,18 +829,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                 return new DeltaState(Id, null, 0);
             }
 
+            // Delta tracking optimization: only capture variables modified since last clear/commit
             int count = _changeMask.Count;
-            var changes = new VariableChange[count];
+            var changes = ArrayPool<VariableChange>.Shared.Rent(count);
             int idx = 0;
-            foreach (int i in _changeMask.GetSetBits())
+            var bits = _changeMask.GetSetBits();
+            while (bits.MoveNext())
             {
+                int i = bits.Current;
                 if (i < _variableStore.Length)
                 {
                     changes[idx++] = new VariableChange { Index = i, Value = _variableStore.Get(i) };
                 }
             }
 
-            return new DeltaState(Id, changes, idx);
+            return new DeltaState(Id, changes, idx, true);
         }
     }
 

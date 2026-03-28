@@ -42,7 +42,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         return Task.CompletedTask;
     }
 
-    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null)
+    public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null, string[]? tags = null)
     {
         Interlocked.Increment(ref _totalPublished);
         if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
@@ -63,6 +63,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         ev.Source = source;
         ev.Message = message;
         ev.Severity = severity;
+        ev.Tags = tags;
         metricsAction?.Invoke(ev);
 
         if (!_eventChannel.Writer.TryWrite(ev))
@@ -72,7 +73,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         }
     }
 
-    public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info)
+    public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info, string[]? tags = null)
     {
         Interlocked.Increment(ref _totalPublished);
         if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
@@ -93,6 +94,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         ev.Source = source;
         ev.Message = message;
         ev.Severity = severity;
+        ev.Tags = tags;
         metricsAction(ev, state);
 
         if (!_eventChannel.Writer.TryWrite(ev))

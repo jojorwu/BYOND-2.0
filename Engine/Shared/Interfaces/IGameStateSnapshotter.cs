@@ -6,4 +6,5 @@ namespace Shared;
         string GetSnapshot(IGameState gameState, MergedRegion mergedRegion);
         byte[] GetBinarySnapshot(IGameState gameState);
         byte[] GetBinarySnapshot(IGameState gameState, MergedRegion mergedRegion);
+        byte[] GetSparseBinarySnapshot(IGameState gameState);
     }

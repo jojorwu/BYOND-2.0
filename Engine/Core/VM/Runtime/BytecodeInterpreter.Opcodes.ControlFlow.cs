@@ -17,6 +17,7 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleCall(ref InterpreterState state)
     {
+        int pcForCache = state.PC - 1;
         var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
         IDreamProc? targetProc = null;
         DreamObject? instance = null;
@@ -27,8 +28,20 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int procId = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if (procId >= 0 && procId < state.Thread.Context.AllProcs.Count)
-                        targetProc = state.Thread.Context.AllProcs[procId];
+
+                    ref var cache = ref state.Proc._inlineCache[pcForCache];
+                    if (cache.CachedProc != null)
+                    {
+                        targetProc = cache.CachedProc;
+                    }
+                    else
+                    {
+                        if (procId >= 0 && procId < state.Thread.Context.AllProcs.Count)
+                        {
+                            targetProc = state.Thread.Context.AllProcs[procId];
+                            cache.CachedProc = targetProc;
+                        }
+                    }
                 }
                 break;
             case DMReference.Type.SrcProc:
@@ -38,9 +51,23 @@ public unsafe partial class BytecodeInterpreter
                     instance = state.Frame.Instance;
                     if (instance != null)
                     {
-                        var name = state.Thread.Context.Strings[nameId];
-                        targetProc = instance.ObjectType?.GetProc(name);
-                        if (targetProc == null) state.Thread.Context.Procs.TryGetValue(name, out targetProc);
+                        ref var cache = ref state.Proc._inlineCache[pcForCache];
+                        if (cache.ObjectType == instance.ObjectType && cache.CachedProc != null)
+                        {
+                            targetProc = cache.CachedProc;
+                        }
+                        else
+                        {
+                            var name = state.Thread.Context.Strings[nameId];
+                            targetProc = instance.ObjectType?.GetProc(name);
+                            if (targetProc == null) state.Thread.Context.Procs.TryGetValue(name, out targetProc);
+
+                            if (targetProc != null)
+                            {
+                                cache.ObjectType = instance.ObjectType;
+                                cache.CachedProc = targetProc;
+                            }
+                        }
                     }
                 }
                 break;
@@ -120,6 +147,7 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleCallStatement(ref InterpreterState state)
     {
+        int pcForCache = state.PC - 1;
         var argType = (DMCallArgumentsType)state.BytecodePtr[state.PC++];
         int argStackDelta = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
@@ -132,21 +160,32 @@ public unsafe partial class BytecodeInterpreter
 
         if (instance != null && instance.ObjectType != null)
         {
-            ObjectType? definingType = null;
-            ObjectType? current = instance.ObjectType;
-            while (current != null)
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == instance.ObjectType)
             {
-                if (current.Procs.ContainsValue(state.Proc))
-                {
-                    definingType = current;
-                    break;
-                }
-                current = current.Parent;
+                parentProc = cache.CachedProc;
             }
-
-            if (definingType != null)
+            else
             {
-                parentProc = definingType.Parent?.GetProc(state.Proc.Name);
+                ObjectType? definingType = null;
+                ObjectType? current = instance.ObjectType;
+                while (current != null)
+                {
+                    if (current.Procs.ContainsValue(state.Proc))
+                    {
+                        definingType = current;
+                        break;
+                    }
+                    current = current.Parent;
+                }
+
+                if (definingType != null)
+                {
+                    parentProc = definingType.Parent?.GetProc(state.Proc.Name);
+                }
+
+                cache.ObjectType = instance.ObjectType;
+                cache.CachedProc = parentProc;
             }
         }
 

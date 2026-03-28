@@ -1,4 +1,5 @@
 using Shared.Enums;
+using Shared.Interfaces;
 using System.Collections.Generic;
 using System.Collections.Frozen;
 using System.Text.Json.Serialization;
@@ -114,7 +115,9 @@ public class ObjectType
         }
     }
 
-    public void Freeze()
+    public void Freeze() => Freeze(null);
+
+    public void Freeze(IDiagnosticBus? diagnosticBus)
     {
         if (_variableIndices != null) _frozenVariableIndices = _variableIndices.ToFrozenDictionary();
         if (_parentIds != null) _frozenParentIds = _parentIds.ToFrozenSet();
@@ -123,6 +126,14 @@ public class ObjectType
         foreach (var kvp in FlattenedProcs) allProcs[kvp.Key] = kvp.Value;
         foreach (var kvp in Procs) allProcs[kvp.Key] = kvp.Value;
         _frozenProcs = allProcs.ToFrozenDictionary();
+
+        diagnosticBus?.Publish("ObjectType", "Type frozen", DiagnosticSeverity.Info, m =>
+        {
+            m.Add("TypeName", Name);
+            m.Add("VariableCount", VariableNames.Count);
+            m.Add("ProcCount", _frozenProcs.Count);
+            m.Add("InheritanceDepth", _parentIds?.Count ?? 0);
+        });
     }
 
     public void ClearCache()

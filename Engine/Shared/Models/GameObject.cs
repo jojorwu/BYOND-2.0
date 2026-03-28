@@ -80,7 +80,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     private struct TransformState
     {
         public Robust.Shared.Maths.Vector3l Position;
-        public Robust.Shared.Maths.Vector3l CommittedPosition;
+        public long CommittedX;
+        public long CommittedY;
+        public long CommittedZ;
     }
 
     private struct VisualState
@@ -118,7 +120,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed X-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedX { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { using (_lock.EnterScope()) return _transform.CommittedPosition.X; } }
+    public long CommittedX { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => Volatile.Read(ref _transform.CommittedX); }
 
     /// <summary>
     /// Gets or sets the Y-coordinate of the game object.
@@ -133,7 +135,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Y-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedY { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { using (_lock.EnterScope()) return _transform.CommittedPosition.Y; } }
+    public long CommittedY { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => Volatile.Read(ref _transform.CommittedY); }
 
     /// <summary>
     /// Gets or sets the Z-coordinate of the game object.
@@ -148,7 +150,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <summary>
     /// Gets the committed Z-coordinate, used for consistent reads across threads.
     /// </summary>
-    public long CommittedZ { [MethodImpl(MethodImplOptions.AggressiveInlining)] get { using (_lock.EnterScope()) return _transform.CommittedPosition.Z; } }
+    public long CommittedZ { [MethodImpl(MethodImplOptions.AggressiveInlining)] get => Volatile.Read(ref _transform.CommittedZ); }
 
     public string CommittedIcon => _committedVisuals.Icon ?? string.Empty;
     public string CommittedIconState => _committedVisuals.IconState ?? string.Empty;
@@ -238,7 +240,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             if (Interlocked.Exchange(ref _isDirty, 0) == 0) return;
 
-            _transform.CommittedPosition = _transform.Position;
+            Volatile.Write(ref _transform.CommittedX, _transform.Position.X);
+            Volatile.Write(ref _transform.CommittedY, _transform.Position.Y);
+            Volatile.Write(ref _transform.CommittedZ, _transform.Position.Z);
 
             var type = ObjectType;
             if (type != null)
@@ -909,6 +913,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedVisuals = default;
             _densityVal = 1;
             _isDirty = 0;
+            _changeMask.Clear();
 
             _variableStore.Dispose();
             _committedStore.Dispose();

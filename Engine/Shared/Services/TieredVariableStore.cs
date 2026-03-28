@@ -71,14 +71,14 @@ public class TieredVariableStore : IVariableStore
              if (_modifiedMask.Length > 0) ArrayPool<ulong>.Shared.Return(_modifiedMask);
              _modifiedMask = ArrayPool<ulong>.Shared.Rent(maskSize);
         }
-        Array.Clear(_modifiedMask, 0, maskSize);
+        Array.Clear(_modifiedMask, 0, _modifiedMask.Length);
 
         if (_overrides.Length < capacity)
         {
             if (_overrides.Length > 0) ArrayPool<DreamValue>.Shared.Return(_overrides, true);
             _overrides = ArrayPool<DreamValue>.Shared.Rent(capacity);
         }
-        Array.Clear(_overrides, 0, capacity);
+        Array.Clear(_overrides, 0, _overrides.Length);
     }
 
     public void SetDefaults(DreamValue[] defaults)

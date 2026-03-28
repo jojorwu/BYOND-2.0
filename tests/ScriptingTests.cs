@@ -50,7 +50,7 @@ namespace tests
             var entityRegistry = new EntityRegistry(pool, componentManager);
             var objectFactory = new Shared.Services.ObjectFactory(entityRegistry);
             _gameState = new GameState(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, diagnosticBus), objectFactory);
-            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System, diagnosticBus);
             _mapLoader = new MapLoader(_objectTypeManager, objectFactory, jobSystem, NullLogger<MapLoader>.Instance);
             _dreamVM = new DreamVM(Options.Create(new DreamVmConfiguration()), NullLogger<DreamVM>.Instance, new INativeProcProvider[] {

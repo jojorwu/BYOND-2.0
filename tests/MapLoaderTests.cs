@@ -20,7 +20,7 @@ namespace tests
         public void SetUp()
         {
             var diagnosticBus = new MockDiagnosticBus();
-            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _objectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
             var jobSystem = new Shared.Services.JobSystem(NullLogger<Shared.Services.JobSystem>.Instance, TimeProvider.System, diagnosticBus);
             var pool = new SharedPool<GameObject>(() => new GameObject());
             var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, diagnosticBus);

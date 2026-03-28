@@ -56,7 +56,7 @@ namespace tests
         [Test]
         public void CreateObject_PersistenceTest()
         {
-            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
             _vm.Context.ObjectTypeManager = manager;
             _vm.Context.ListType = new ObjectType(0, "/list");
 
@@ -92,7 +92,7 @@ namespace tests
         [Test]
         public void CallStatement_DelegationTest()
         {
-            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            var manager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
             _vm.Context.ObjectTypeManager = manager;
 
             var parentType = new ObjectType(1, "/parent");
@@ -303,7 +303,7 @@ namespace tests
         {
             var type = new ObjectType(1, "/test");
             type.VariableNames.Add("my_proc");
-            _vm.Context.ObjectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _vm.Context.ObjectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
             _vm.Context.ObjectTypeManager.RegisterObjectType(type);
             _vm.Context.Strings.Clear();
             _vm.Context.Strings.Add("my_proc");
@@ -479,7 +479,7 @@ namespace tests
         public void DereferenceCall_WithArguments_Mapping_Test()
         {
             var type = new ObjectType(1, "/test");
-            _vm.Context.ObjectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance);
+            _vm.Context.ObjectTypeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
             _vm.Context.ObjectTypeManager.RegisterObjectType(type);
             _vm.Context.Strings.Clear();
             _vm.Context.Strings.Add("my_proc");

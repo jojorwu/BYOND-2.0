@@ -107,6 +107,13 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ulong SpreadBits3(uint x)
         {
+            if (Bmi2.X64.IsSupported)
+            {
+                // Optimization: Use hardware-accelerated Parallel Bit Deposit if supported (x64)
+                // This spreads the 21 bits of 'x' across the 64-bit result, with 2 zero bits between each set bit.
+                return Bmi2.X64.ParallelBitDeposit(x, 0x9249249249249249UL);
+            }
+
             ulong val = x & 0x1FFFFF;
             val = (val | (val << 32)) & 0x1F00000000FFFFUL;
             val = (val | (val << 16)) & 0x1F0000FF0000FFUL;

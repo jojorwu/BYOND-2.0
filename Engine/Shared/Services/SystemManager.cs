@@ -186,14 +186,16 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                         }
                         else
                         {
+                            // Optimized Parallel execution using engine JobSystem without redundant Task allocations
                             var ecbArray = System.Buffers.ArrayPool<EntityCommandBuffer>.Shared.Rent(layer.Length);
                             try
                             {
-                                // Parallel execution using engine JobSystem
+                                // Batch rent ECBs before starting the parallel loop to minimize pool contention inside the loop
+                                for (int k = 0; k < layer.Length; k++) ecbArray[k] = _ecbPool.Rent();
+
                                 await _jobSystem.ForEachAsync(layer, async (info, index) =>
                                 {
-                                    var ecb = _ecbPool.Rent();
-                                    ecbArray[index] = ecb;
+                                    var ecb = ecbArray[index];
                                     await ExecuteSystemAsync(info, ecb);
                                 });
 
@@ -246,6 +248,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             bool batchHandled = false;
             var queries = info.Queries;
+
             if (queries.Length > 0)
             {
                 if (system.ParallelArchetypes)
@@ -273,10 +276,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                             }
 
                             var memory = matchingArchetypes.AsMemory(0, totalArchetypes);
-                            await _jobSystem.ForEachAsync<Archetype>(memory, async arch =>
-                            {
-                                await system.TickAsync(arch, ecb);
-                            });
+                            await _jobSystem.ForEachAsync<Archetype>(memory, arch => system.TickAsync(arch, ecb));
                             batchHandled = true;
                         }
                         finally
@@ -287,6 +287,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                 }
                 else
                 {
+                    // Sequential processing of archetypes
                     for (int i = 0; i < queries.Length; i++)
                     {
                         var query = queries[i];

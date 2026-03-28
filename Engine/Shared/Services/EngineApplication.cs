@@ -21,7 +21,7 @@ public abstract class EngineApplication : IHostedService, IEngine
     protected readonly List<ITickable> _tickables = new();
     protected readonly List<IShrinkable> _shrinkables = new();
     protected readonly List<IEngineLifecycle> _lifecycles;
-    protected readonly ITickable[][] _tickableGroups;
+    protected ITickable[][] _tickableGroups = Array.Empty<ITickable[]>();
     private ILifecycleOrchestrator? _orchestrator;
     private IJobSystem? _jobSystem;
 
@@ -47,13 +47,6 @@ public abstract class EngineApplication : IHostedService, IEngine
         _lifecycles = lifecycles.ToList();
         _diagnosticBus = diagnosticBus;
 
-        // Pre-calculate tickable groups by priority to avoid allocations in the hot path.
-        _tickableGroups = _tickables
-            .GroupBy(t => t is IEngineService service ? service.Priority : 0)
-            .OrderByDescending(g => g.Key)
-            .Select(g => g.ToArray())
-            .ToArray();
-
         _jobSystem = _services.OfType<IJobSystem>().FirstOrDefault();
 
         _logger.LogInformation("{AppName} initialized with {ServiceCount} services, {ModuleCount} modules, {TickableCount} tickables, and {ShrinkableCount} shrinkables.",
@@ -62,12 +55,25 @@ public abstract class EngineApplication : IHostedService, IEngine
 
     protected void SetOrchestrator(ILifecycleOrchestrator orchestrator) => _orchestrator = orchestrator;
 
+    private void InitializeTickGroups()
+    {
+        // Pre-calculate tickable groups by priority to avoid allocations in the hot path.
+        // This must be called after all services and tickables are registered (usually in StartAsync).
+        _tickableGroups = _tickables
+            .GroupBy(t => t is IEngineService service ? service.Priority : 0)
+            .OrderByDescending(g => g.Key)
+            .Select(g => g.ToArray())
+            .ToArray();
+    }
+
     /// <summary>
     /// Starts all registered services in order of their dependency graph.
     /// </summary>
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
         if (_orchestrator == null) throw new InvalidOperationException("Lifecycle orchestrator not set.");
+
+        InitializeTickGroups();
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _logger.LogInformation("Starting {AppName} Lifecycle...", GetType().Name);

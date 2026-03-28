@@ -437,19 +437,20 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public override DreamValue GetVariable(string name)
     {
-        // Fast-path for high-frequency built-in variables to avoid lock and dictionary lookup
-        if (name.Length <= 10) // Optimization: only check short names
+        // Optimized Fast-path for high-frequency built-in variables to avoid lock and dictionary lookup.
+        // Uses a highly efficient switch on the string hash to minimize comparison overhead.
+        if (name.Length >= 1 && name.Length <= 10)
         {
             switch (name)
             {
                 case "x": return new DreamValue(X);
                 case "y": return new DreamValue(Y);
                 case "z": return new DreamValue(Z);
+                case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return new DreamValue(2.0); using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
                 case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx == -1) return DreamValue.Null; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
                 case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx == -1) return DreamValue.Null; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
-                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx == -1) return new DreamValue(2.0); using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
                 case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx == -1) return DreamValue.False; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
-                case "loc": return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null;
                 case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx == -1) return new DreamValue(ObjectType?.Name ?? "object"); using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
                 case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx == -1) return DreamValue.Null; using (_lock.EnterScope()) { return _variableStore.Get(idx); } }
             }
@@ -466,24 +467,24 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public override void SetVariable(string name, DreamValue value)
     {
-        // Fast-path for high-frequency built-in variables to avoid dictionary lookups
-        if (name.Length <= 10)
+        // Optimized Fast-path for high-frequency built-in variables to avoid dictionary lookups.
+        if (name.Length >= 1 && name.Length <= 10)
         {
             switch (name)
             {
                 case "x": SetPosition(value.RawLong, Y, Z); return;
                 case "y": SetPosition(X, value.RawLong, Z); return;
                 case "z": SetPosition(X, Y, value.RawLong); return;
-                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
-                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
-                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
-                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
-                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
-                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
                 case "loc":
                     if (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) Loc = loc;
                     else Loc = null;
                     return;
+                case "dir": { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "icon": { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "icon_state": { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "opacity": { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "name": { var idx = ObjectType?.NameIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
+                case "desc": { var idx = ObjectType?.DescIndex ?? -1; if (idx != -1) SetVariableDirect(idx, value); return; }
             }
         }
 

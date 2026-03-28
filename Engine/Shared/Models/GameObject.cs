@@ -896,13 +896,26 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public virtual void Reset()
     {
-        if (_componentManager != null)
+        var manager = _componentManager;
+        if (manager != null)
         {
-            // Use the most direct way to notify component manager of removal
-            // while iterating over components safely.
-            foreach (var component in GetComponents().ToList())
+            if (Archetype is Archetype arch)
             {
-                _componentManager.RemoveComponent(this, component.GetType());
+                // Optimization: Use struct-based component enumerator to bypass list allocations.
+                var enumerator = arch.GetAllComponents(Id);
+                while (enumerator.MoveNext())
+                {
+                    var comp = enumerator.Current;
+                    manager.RemoveComponent(this, comp.GetType());
+                }
+            }
+            else
+            {
+                // Fallback for non-archetype entities
+                foreach (var component in manager.GetAllComponents(this).ToList())
+                {
+                    manager.RemoveComponent(this, component.GetType());
+                }
             }
         }
 

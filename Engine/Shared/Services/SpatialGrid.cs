@@ -210,12 +210,11 @@ namespace Shared;
 
         private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
-            // Copy-On-Write to ensure lock-free reads during iteration
+            // Copy-On-Write optimization: only COW if we actually need to expand or if we want to ensure isolation.
+            // For now, we maintain strict COW for thread-safety during parallel queries.
             int newCount = cell.Count + 1;
             var oldArray = cell.Objects;
 
-            // If the current array has enough capacity, we can still COW by renting a new one of the SAME size
-            // This ensures active enumerators aren't affected while minimizing overhead if we're well within capacity
             int targetSize = oldArray.Length;
             if (newCount > targetSize)
             {
@@ -230,7 +229,6 @@ namespace Shared;
 
             if (oldArray.Length > 0)
             {
-                // Enqueue old array for deferred return to avoid race with active enumerators
                 EnqueueForRelease(oldArray);
             }
 

@@ -257,9 +257,15 @@ namespace Shared.Services;
             }
         }
 
+        private static readonly SharedPool<ActionJob> _actionJobPool = new(() => new ActionJob());
+
         public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new ActionJob(action, priority, weight), dependency, track, priority);
+            var job = _actionJobPool.Rent();
+            job.Initialize(action, priority, weight);
+            var handle = Schedule(job, dependency, track, priority);
+            handle.Task!.ContinueWith(_ => _actionJobPool.Return(job));
+            return handle;
         }
 
         public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
@@ -612,13 +618,13 @@ namespace Shared.Services;
             }
         }
 
-        private class ActionJob : IJob
+        private class ActionJob : IJob, IPoolable
         {
-            private readonly Action _action;
-            public JobPriority Priority { get; }
-            public int Weight { get; }
+            private Action? _action;
+            public JobPriority Priority { get; private set; }
+            public int Weight { get; private set; }
 
-            public ActionJob(Action action, JobPriority priority = JobPriority.Normal, int weight = 1)
+            public void Initialize(Action action, JobPriority priority, int weight)
             {
                 _action = action;
                 Priority = priority;
@@ -627,8 +633,15 @@ namespace Shared.Services;
 
             public Task ExecuteAsync()
             {
-                _action();
+                _action?.Invoke();
                 return Task.CompletedTask;
+            }
+
+            public void Reset()
+            {
+                _action = null;
+                Priority = JobPriority.Normal;
+                Weight = 1;
             }
         }
 

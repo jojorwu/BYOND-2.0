@@ -553,15 +553,11 @@ public class Archetype
 
         public bool MoveNext()
         {
-            var arrays = _archetype._componentArrays;
+            var arrays = _archetype._activeArrays;
             while (++_arrayIndex < arrays.Length)
             {
-                var array = arrays[_arrayIndex];
-                if (array != null)
-                {
-                    _current = array.Get(_entityIndex);
-                    if (_current != null) return true;
-                }
+                _current = arrays[_arrayIndex].Get(_entityIndex);
+                if (_current != null) return true;
             }
             return false;
         }

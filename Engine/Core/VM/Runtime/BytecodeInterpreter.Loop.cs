@@ -400,6 +400,7 @@ public unsafe partial class BytecodeInterpreter
                                             thread.SavePC(state.PC);
                                             thread._stackPtr = state.StackPtr;
                                             thread.PerformCall(targetProc, instance, argStackDelta, argStackDelta);
+                                            RecordInstructions(actualExecutedInChunk);
                                             goto FrameChanged;
                                         }
                                     }
@@ -793,6 +794,7 @@ public unsafe partial class BytecodeInterpreter
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
+                                    RecordInstructions(actualExecutedInChunk);
                                     goto FrameChanged;
                                 case Opcode.CallStatement:
                                     {
@@ -823,6 +825,7 @@ public unsafe partial class BytecodeInterpreter
                                             thread.SavePC(state.PC);
                                             thread._stackPtr = state.StackPtr;
                                             thread.PerformCall(parentProc, instance, argStackDelta, argStackDelta);
+                                            RecordInstructions(actualExecutedInChunk);
                                             goto FrameChanged;
                                         }
                                         else
@@ -874,6 +877,7 @@ public unsafe partial class BytecodeInterpreter
                                                 state.StackPtr--;
                                                 thread._stackPtr = state.StackPtr;
                                                 thread.PerformCall(targetProc, obj, argCount, argCount);
+                                                RecordInstructions(actualExecutedInChunk);
                                                 goto FrameChanged;
                                             }
                                         }
@@ -1579,6 +1583,7 @@ public unsafe partial class BytecodeInterpreter
                                         thread.Opcode_Return(ref state.Proc, ref state.PC);
                                         state.RefreshSpans();
                                         state.StackPtr = thread._stackPtr;
+                                        RecordInstructions(actualExecutedInChunk);
                                         goto FrameChanged;
                                     }
                                 case Opcode.ReturnFloat:
@@ -1588,6 +1593,7 @@ public unsafe partial class BytecodeInterpreter
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.RefreshSpans();
                                     state.StackPtr = thread._stackPtr;
+                                    RecordInstructions(actualExecutedInChunk);
                                     goto FrameChanged;
                                 case Opcode.Increment:
                                     {
@@ -1801,6 +1807,7 @@ public unsafe partial class BytecodeInterpreter
                                                 state.Thread.SavePC(state.PC);
                                                 state.Thread._stackPtr = state.StackPtr;
                                                 state.Thread.PerformCall(targetProc, obj, callArgStackDelta, callArgStackDelta);
+                                                RecordInstructions(actualExecutedInChunk);
                                                 goto FrameChanged;
                                             }
                                         }

@@ -17,22 +17,28 @@ public readonly struct ComponentSignature : IEquatable<ComponentSignature>
 
     public ComponentSignature(ReadOnlySpan<Type> types)
     {
-        Types = types.ToArray();
-
         // Standard entity component sets are small (usually < 16),
-        // so a simple Insertion Sort is faster than LINQ OrderBy
-        for (int i = 1; i < Types.Length; i++)
+        // so we use rented array from ArrayPool for sorting.
+        Type[] rented = System.Buffers.ArrayPool<Type>.Shared.Rent(types.Length);
+        Span<Type> localTypes = rented.AsSpan(0, types.Length);
+        types.CopyTo(localTypes);
+
+        // Simple Insertion Sort is faster than LINQ OrderBy for small sets
+        for (int i = 1; i < localTypes.Length; i++)
         {
-            var key = Types[i];
+            var key = localTypes[i];
             long keyHandle = key.TypeHandle.Value.ToInt64();
             int j = i - 1;
-            while (j >= 0 && Types[j].TypeHandle.Value.ToInt64() > keyHandle)
+            while (j >= 0 && localTypes[j].TypeHandle.Value.ToInt64() > keyHandle)
             {
-                Types[j + 1] = Types[j];
+                localTypes[j + 1] = localTypes[j];
                 j--;
             }
-            Types[j + 1] = key;
+            localTypes[j + 1] = key;
         }
+
+        Types = localTypes.ToArray();
+        System.Buffers.ArrayPool<Type>.Shared.Return(rented, clearArray: true);
 
         ComponentIds = new int[Types.Length];
         Mask = new ComponentMask();

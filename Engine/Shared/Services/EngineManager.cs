@@ -72,40 +72,37 @@ namespace Shared.Services;
             public string? EnginePath { get; set; }
         }
 
+        private static readonly Dictionary<EngineComponent, string> ComponentNames = new()
+        {
+            { EngineComponent.Client, "Client" },
+            { EngineComponent.Server, "Server" },
+            { EngineComponent.Compiler, "Compiler" },
+            { EngineComponent.Editor, "Editor" }
+        };
+
         public string GetExecutablePath(EngineComponent component)
         {
-            string name = component switch
+            if (!ComponentNames.TryGetValue(component, out var baseName))
+                throw new ArgumentOutOfRangeException(nameof(component));
+
+            var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            var exeName = isWindows ? $"{baseName}.exe" : baseName;
+            var dllName = $"{baseName}.dll";
+
+            var searchPaths = new[]
             {
-                EngineComponent.Client => "Client",
-                EngineComponent.Server => "Server",
-                EngineComponent.Compiler => "Compiler",
-                EngineComponent.Editor => "Editor",
-                _ => throw new ArgumentOutOfRangeException(nameof(component))
+                Path.Combine(_basePath, exeName),
+                Path.Combine(_basePath, dllName),
+                Path.Combine(_basePath, "bin", exeName),
+                Path.Combine(_basePath, "bin", dllName)
             };
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            foreach (var path in searchPaths)
             {
-                name += ".exe";
+                if (File.Exists(path)) return path;
             }
 
-            // Check for direct executable
-            string path = Path.Combine(_basePath, name);
-            if (File.Exists(path)) return path;
-
-            // Check for dll (cross-platform)
-            string dllName = name.Replace(".exe", "") + ".dll";
-            string dllPath = Path.Combine(_basePath, dllName);
-            if (File.Exists(dllPath)) return dllPath;
-
-            // Check bin/ executable
-            path = Path.Combine(_basePath, "bin", name);
-            if (File.Exists(path)) return path;
-
-            // Check bin/ dll
-            dllPath = Path.Combine(_basePath, "bin", dllName);
-            if (File.Exists(dllPath)) return dllPath;
-
-            return name;
+            return exeName;
         }
 
         public bool IsComponentInstalled(EngineComponent component)

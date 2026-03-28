@@ -62,4 +62,9 @@ namespace Shared;
         /// Retrieves all objects that have been modified since the last clear.
         /// </summary>
         IEnumerable<IGameObject> GetDirtyObjects();
+
+        /// <summary>
+        /// Clears the list of dirty objects.
+        /// </summary>
+        void ClearDirtyObjects();
     }

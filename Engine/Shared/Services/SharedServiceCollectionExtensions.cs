@@ -100,8 +100,8 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddEcsServices(this IServiceCollection services)
     {
         services.AddEngineService<ComponentRegistryService>();
-        services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), typeof(IObjectPool<GameObject>));
-        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())), typeof(IObjectPool<EntityCommandBuffer>));
+        services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), typeof(IObjectPool<GameObject>), typeof(IShrinkable));
+        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())), typeof(IObjectPool<EntityCommandBuffer>), typeof(IShrinkable));
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
         services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
         services.AddEngineService<SystemManager>(typeof(ISystemManager));

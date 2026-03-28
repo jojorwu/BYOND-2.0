@@ -25,6 +25,11 @@ public class EntityQuery : IEnumerable<IGameObject>
     public IReadOnlyList<IGameObject> Snapshot => Query.Snapshot;
 
     public IEnumerable<Archetype> GetMatchingArchetypes() => Query.GetMatchingArchetypes();
+
+    public void ForEach<TVisitor>(ref TVisitor visitor) where TVisitor : struct, Archetype.IEntityVisitor, allows ref struct
+    {
+        Query.ForEach(ref visitor);
+    }
 }
 
 public class EntityQuery<T1> : EntityQuery where T1 : class, IComponent

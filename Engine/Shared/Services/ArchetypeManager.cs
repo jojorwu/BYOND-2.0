@@ -29,6 +29,7 @@ public interface IArchetypeManager
     IEnumerable<Archetype> GetArchetypesWithComponents(params ReadOnlySpan<Type> componentTypes);
     void ForEach<T>(Action<T, long> action) where T : class, IComponent;
     void ForEachEntity(Action<IGameObject> action);
+    void ForEachEntity<TVisitor>(ref TVisitor visitor) where TVisitor : struct, Archetype.IEntityVisitor, allows ref struct;
     void Compact();
 }
 
@@ -154,6 +155,15 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         }
     }
 
+    public void ForEachEntity<TVisitor>(ref TVisitor visitor) where TVisitor : struct, Archetype.IEntityVisitor, allows ref struct
+    {
+        var archetypes = _archetypes;
+        for (int i = 0; i < archetypes.Length; i++)
+        {
+            archetypes[i].ForEachEntity(ref visitor);
+        }
+    }
+
     public void RemoveComponent<T>(IGameObject entity) where T : class, IComponent
     {
         RemoveComponent(entity, typeof(T));
@@ -202,7 +212,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         }
     }
 
-    private void MoveToArchetypeInternal(IGameObject entity, Type? componentType, Dictionary<Type, IComponent>? components, bool added = true, IComponent? component = null)
+    private void MoveToArchetypeInternal(IGameObject entity, Type? componentType, IDictionary<Type, IComponent>? components, bool added = true, IComponent? component = null)
     {
         long entityId = entity.Id;
 
@@ -219,11 +229,12 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         }
         else if (componentType != null && added)
         {
-            signature = new ComponentSignature(new[] { componentType });
+            Type[] types = [componentType];
+            signature = new ComponentSignature(types);
         }
         else
         {
-            signature = new ComponentSignature(Array.Empty<Type>());
+            signature = new ComponentSignature(ReadOnlySpan<Type>.Empty);
         }
 
         // Find or create archetype
@@ -287,7 +298,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
             }
             else
             {
-                targetArchetype.AddEntity(entity, components ?? (IDictionary<Type, IComponent>)new Dictionary<Type, IComponent>());
+                targetArchetype.AddEntity(entity, components ?? _emptyComponents);
             }
 
             int newIndex = entity.ArchetypeIndex;
@@ -299,17 +310,24 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         {
             if (componentType != null && added && component != null)
             {
-                var dict = new Dictionary<Type, IComponent> { { componentType, component } };
-                targetArchetype.AddEntity(entity, dict);
+                _transferComponents.Clear();
+                _transferComponents[componentType] = component;
+                targetArchetype.AddEntity(entity, _transferComponents);
             }
             else
             {
-                targetArchetype.AddEntity(entity, components ?? (IDictionary<Type, IComponent>)new Dictionary<Type, IComponent>());
+                targetArchetype.AddEntity(entity, components ?? _emptyComponents);
             }
         }
 
         _entityToArchetype[entityId] = targetArchetype;
     }
+
+    private static readonly IDictionary<Type, IComponent> _emptyComponents = System.Collections.Frozen.FrozenDictionary<Type, IComponent>.Empty;
+
+    [ThreadStatic]
+    private static Dictionary<Type, IComponent>? _transferComponentsInstance;
+    private static Dictionary<Type, IComponent> _transferComponents => _transferComponentsInstance ??= new Dictionary<Type, IComponent>();
 
     public T? GetComponent<T>(long entityId) where T : class, IComponent
     {

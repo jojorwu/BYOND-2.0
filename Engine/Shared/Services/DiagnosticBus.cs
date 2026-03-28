@@ -11,6 +11,7 @@ namespace Shared.Services;
 public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
+    private volatile bool _hasSubscribers;
     private readonly System.Threading.Lock _lock = new();
     private readonly ConcurrentDictionary<string, (double Warning, double Critical)> _thresholds = new();
 
@@ -45,8 +46,13 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
     public void Publish(string source, string message, DiagnosticSeverity severity = DiagnosticSeverity.Info, Action<IMetricsBuilder>? metricsAction = null, string[]? tags = null)
     {
+        if (!_hasSubscribers) return;
+
         Interlocked.Increment(ref _totalPublished);
-        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
+
+        // Basic back-pressure: drop Info-level events if the channel is under extreme pressure
+        if (severity < DiagnosticSeverity.Warning && _eventChannel.Reader.Count > 10000)
+        {
             Interlocked.Increment(ref _eventsDropped);
             return;
         }
@@ -76,8 +82,13 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
     public void Publish<TState>(string source, string message, TState state, Action<IMetricsBuilder, TState> metricsAction, DiagnosticSeverity severity = DiagnosticSeverity.Info, string[]? tags = null)
     {
+        if (!_hasSubscribers) return;
+
         Interlocked.Increment(ref _totalPublished);
-        if (_subscribers.Length == 0 && _poolCount > MaxPoolSize / 2) {
+
+        // Basic back-pressure: drop Info-level events if the channel is under extreme pressure
+        if (severity < DiagnosticSeverity.Warning && _eventChannel.Reader.Count > 10000)
+        {
             Interlocked.Increment(ref _eventsDropped);
             return;
         }
@@ -217,6 +228,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         using (_lock.EnterScope())
         {
             _subscribers = Array.Empty<Action<DiagnosticEvent>>();
+            _hasSubscribers = false;
         }
         _pool.Clear();
         _poolCount = 0;
@@ -236,6 +248,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
             Array.Copy(_subscribers, updated, _subscribers.Length);
             updated[_subscribers.Length] = callback;
             _subscribers = updated;
+            _hasSubscribers = true;
         }
         return new Unsubscriber(this, callback);
     }
@@ -282,6 +295,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                 if (index > 0) Array.Copy(_bus._subscribers, 0, updated, 0, index);
                 if (index < _bus._subscribers.Length - 1) Array.Copy(_bus._subscribers, index + 1, updated, index, _bus._subscribers.Length - index - 1);
                 _bus._subscribers = updated;
+                _bus._hasSubscribers = updated.Length > 0;
             }
         }
     }

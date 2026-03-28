@@ -80,14 +80,21 @@ namespace Shared.Services;
 
         public void Shrink()
         {
-            // Prune global stack if it's large
-            if (_globalCount > LocalCapacity)
+            // Prune global stack if it's large to reclaim memory.
+            // We maintain a minimum reserve (LocalCapacity) to avoid immediate thrashing after a shrink operation.
+            int currentCount = _globalCount;
+            if (currentCount > LocalCapacity)
             {
-                // We keep some items to avoid immediate thrashing after shrink
-                int targetCount = LocalCapacity / 2;
-                while (_globalCount > targetCount && _globalStack.TryPop(out _))
+                int targetCount = LocalCapacity;
+                int toRemove = currentCount - targetCount;
+
+                for (int i = 0; i < toRemove; i++)
                 {
-                    Interlocked.Decrement(ref _globalCount);
+                    if (_globalStack.TryPop(out _))
+                    {
+                        Interlocked.Decrement(ref _globalCount);
+                    }
+                    else break;
                 }
             }
         }

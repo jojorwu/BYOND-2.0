@@ -2203,7 +2203,6 @@ public unsafe partial class BytecodeInterpreter
                                 state.RefreshSpans();
                             }
                             if (thread.State != DreamThreadState.Running) break;
-                            break; // Break for loop to re-check budget after call/return
                         }
                         RecordInstructions(actualExecutedInChunk);
                     }

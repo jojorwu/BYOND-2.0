@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Core.VM.Runtime;
 
 using Microsoft.Extensions.Logging;
 using Shared;
 using Shared.Compiler;
+using Shared.Interfaces;
+using Shared.Services;
 
 namespace Core.Scripting.DM
 {

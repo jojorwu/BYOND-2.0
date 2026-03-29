@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
@@ -8,16 +10,20 @@ namespace Shared.Services;
 
 public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
 {
+    private readonly IVfsManager _vfs;
     private readonly ConcurrentDictionary<string, Task<object?>> _cache = new();
-    private readonly List<IResourceProvider> _providers = new();
+    private readonly ConcurrentDictionary<Type, object> _loaders = new();
     private readonly IDiagnosticBus _diagnosticBus;
+
     private long _totalRequests;
     private long _cacheHits;
     private long _cacheMisses;
 
-    public ResourceSystem(IDiagnosticBus diagnosticBus)
+    public ResourceSystem(IVfsManager vfs, IDiagnosticBus diagnosticBus)
     {
+        _vfs = vfs;
         _diagnosticBus = diagnosticBus;
+        _vfs.FileChanged += OnVfsFileChanged;
     }
 
     public async Task<T?> LoadResourceAsync<T>(string path) where T : class
@@ -32,41 +38,58 @@ public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
         }
 
         Interlocked.Increment(ref _cacheMisses);
-        var task = _cache.GetOrAdd(path, p => LoadInternalAsync(p));
+        var task = _cache.GetOrAdd(path, p => LoadInternalAsync<T>(p));
         var result = await task;
         return result as T;
     }
 
-    private async Task<object?> LoadInternalAsync(string path)
+    private async Task<object?> LoadInternalAsync<T>(string path) where T : class
     {
-        foreach (var provider in _providers)
+        if (!_loaders.TryGetValue(typeof(T), out var loaderObj) || loaderObj is not IResourceLoader<T> loader)
         {
-            if (provider.CanHandle(path))
-            {
-                var resource = await provider.LoadAsync(path);
-                if (resource != null)
-                {
-                    _diagnosticBus.Publish("ResourceSystem", "Resource loaded", DiagnosticSeverity.Info, m => {
-                        m.Add("Path", path);
-                        m.Add("Type", resource.GetType().Name);
-                    });
-                    return resource;
-                }
-            }
+            _diagnosticBus.Publish("ResourceSystem", $"No loader registered for type {typeof(T).Name}", DiagnosticSeverity.Warning);
+            return null;
+        }
+
+        using var stream = await _vfs.OpenReadAsync(path);
+        if (stream == null)
+        {
+            _diagnosticBus.Publish("ResourceSystem", $"Resource not found: {path}", DiagnosticSeverity.Warning);
+            return null;
+        }
+
+        var resource = await loader.LoadAsync(stream, path);
+        if (resource != null)
+        {
+            _diagnosticBus.Publish("ResourceSystem", "Resource loaded", DiagnosticSeverity.Info, m => {
+                m.Add("Path", path);
+                m.Add("Type", typeof(T).Name);
+            });
+            return resource;
         }
 
         return null;
     }
 
-    public void RegisterProvider(IResourceProvider provider)
+    public void RegisterLoader<T>(IResourceLoader<T> loader) where T : class
     {
-        _providers.Add(provider);
+        _loaders[typeof(T)] = loader;
+    }
+
+    private void OnVfsFileChanged(string path)
+    {
+        if (_cache.TryRemove(path, out _))
+        {
+            _diagnosticBus.Publish("ResourceSystem", "Resource invalidated", DiagnosticSeverity.Info, m => m.Add("Path", path));
+            ResourceReloaded?.Invoke(path);
+        }
     }
 
     protected override Task OnStopAsync(CancellationToken cancellationToken)
     {
+        _vfs.FileChanged -= OnVfsFileChanged;
         ClearCache();
-        return Task.CompletedTask;
+        return base.OnStopAsync(cancellationToken);
     }
 
     public void ClearCache()
@@ -83,7 +106,9 @@ public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
         info["TotalRequests"] = Interlocked.Read(ref _totalRequests);
         info["CacheHits"] = Interlocked.Read(ref _cacheHits);
         info["CacheMisses"] = Interlocked.Read(ref _cacheMisses);
-        info["ProviderCount"] = _providers.Count;
+        info["LoaderCount"] = _loaders.Count;
         return info;
     }
+
+    public event Action<string>? ResourceReloaded;
 }

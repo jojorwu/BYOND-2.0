@@ -140,13 +140,8 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddEngineService<JobSystem>(typeof(IJobSystem));
-        services.AddSingleton<SoundResourceProvider>();
-        services.AddEngineService<ResourceSystem>(sp =>
-        {
-            var system = new ResourceSystem(sp.GetRequiredService<IDiagnosticBus>());
-            system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
-            return system;
-        }, typeof(IResourceSystem));
+        services.AddEngineService<VfsManager>(typeof(IVfsManager));
+        services.AddEngineService<ResourceSystem>(typeof(IResourceSystem));
         return services;
     }
     /// <summary>

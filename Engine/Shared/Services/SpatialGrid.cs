@@ -107,6 +107,13 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ulong SpreadBits3(uint x)
         {
+            if (Bmi2.X64.IsSupported)
+            {
+                // Optimization: Use hardware-accelerated Parallel Bit Deposit if supported (x64)
+                // This spreads the 21 bits of 'x' across the 64-bit result, with 2 zero bits between each set bit.
+                return Bmi2.X64.ParallelBitDeposit(x, 0x9249249249249249UL);
+            }
+
             ulong val = x & 0x1FFFFF;
             val = (val | (val << 32)) & 0x1F00000000FFFFUL;
             val = (val | (val << 16)) & 0x1F0000FF0000FFUL;
@@ -203,12 +210,11 @@ namespace Shared;
 
         private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
-            // Copy-On-Write to ensure lock-free reads during iteration
+            // Copy-On-Write optimization: only COW if we actually need to expand or if we want to ensure isolation.
+            // For now, we maintain strict COW for thread-safety during parallel queries.
             int newCount = cell.Count + 1;
             var oldArray = cell.Objects;
 
-            // If the current array has enough capacity, we can still COW by renting a new one of the SAME size
-            // This ensures active enumerators aren't affected while minimizing overhead if we're well within capacity
             int targetSize = oldArray.Length;
             if (newCount > targetSize)
             {
@@ -223,7 +229,6 @@ namespace Shared;
 
             if (oldArray.Length > 0)
             {
-                // Enqueue old array for deferred return to avoid race with active enumerators
                 EnqueueForRelease(oldArray);
             }
 

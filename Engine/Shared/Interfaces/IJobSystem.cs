@@ -81,9 +81,19 @@ namespace Shared.Interfaces;
         Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal);
 
         /// <summary>
+        /// Executes a collection of items in parallel using the job system.
+        /// </summary>
+        Task ForEachAsync<T>(IEnumerable<T> source, Func<T, ValueTask> action, JobPriority priority = JobPriority.Normal);
+
+        /// <summary>
         /// Executes a memory slice of items in parallel using the job system.
         /// </summary>
         Task ForEachAsync<T>(ReadOnlyMemory<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal);
+
+        /// <summary>
+        /// Executes a memory slice of items in parallel using the job system.
+        /// </summary>
+        Task ForEachAsync<T>(ReadOnlyMemory<T> source, Func<T, ValueTask> action, JobPriority priority = JobPriority.Normal);
 
         /// <summary>
         /// Gets the arena allocator for the current worker thread.

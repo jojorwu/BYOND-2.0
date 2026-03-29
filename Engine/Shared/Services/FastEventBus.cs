@@ -124,18 +124,22 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
         public void Publish(T eventData)
         {
             var interfaces = _interfaceHandlers;
+            var actions = _actions;
+            var asyncActions = _asyncActions;
+
+            // Zero-handler fast-path
+            if (interfaces.Length == 0 && actions.Length == 0 && asyncActions.Length == 0) return;
+
             for (int i = 0; i < interfaces.Length; i++)
             {
                 interfaces[i].Delegate.HandleEvent(eventData);
             }
 
-            var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
                 actions[i].Delegate(eventData);
             }
 
-            var asyncActions = _asyncActions;
             for (int i = 0; i < asyncActions.Length; i++)
             {
                 _ = asyncActions[i].Delegate(eventData);
@@ -145,18 +149,22 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
         public void PublishRef(in T eventData)
         {
             var interfaces = _interfaceHandlers;
+            var actions = _actions;
+            var asyncActions = _asyncActions;
+
+            // Zero-handler fast-path
+            if (interfaces.Length == 0 && actions.Length == 0 && asyncActions.Length == 0) return;
+
             for (int i = 0; i < interfaces.Length; i++)
             {
                 interfaces[i].Delegate.HandleEvent(eventData);
             }
 
-            var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
                 actions[i].Delegate(eventData);
             }
 
-            var asyncActions = _asyncActions;
             for (int i = 0; i < asyncActions.Length; i++)
             {
                 _ = asyncActions[i].Delegate(eventData);
@@ -166,26 +174,30 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
         public async ValueTask PublishAsync(T eventData)
         {
             var interfaces = _interfaceHandlers;
+            var actions = _actions;
+            var asyncActions = _asyncActions;
+
+            // Zero-handler fast-path
+            if (interfaces.Length == 0 && actions.Length == 0 && asyncActions.Length == 0) return;
+
             for (int i = 0; i < interfaces.Length; i++)
             {
                 interfaces[i].Delegate.HandleEvent(eventData);
             }
 
-            var actions = _actions;
             for (int i = 0; i < actions.Length; i++)
             {
                 actions[i].Delegate(eventData);
             }
 
-            var asyncActions = _asyncActions;
             int asyncCount = asyncActions.Length;
             if (asyncCount == 0) return;
 
             if (asyncCount == 1)
             {
-                var task = asyncActions[0].Delegate(eventData);
-                if (!task.IsCompleted) await task;
-                else task.GetAwaiter().GetResult();
+                var vt = asyncActions[0].Delegate(eventData);
+                if (!vt.IsCompleted) await vt;
+                else vt.GetAwaiter().GetResult();
                 return;
             }
 

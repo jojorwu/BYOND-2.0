@@ -72,12 +72,11 @@ public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterp
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RecordInstruction(byte opcode)
+    private void RecordInstructions(int count)
     {
         var telemetry = _telemetry ??= new ThreadTelemetry { LastReportTime = System.Diagnostics.Stopwatch.GetTimestamp() };
-        telemetry.InstructionsThisTick++;
-        telemetry.TotalInstructions++;
-        telemetry.OpcodeCounts[opcode]++;
+        telemetry.InstructionsThisTick += count;
+        telemetry.TotalInstructions += count;
     }
 
     private void ReportHotPaths(ThreadTelemetry telemetry)

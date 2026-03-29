@@ -43,6 +43,7 @@ public class Archetype
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
     private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly IComponentArray?[] _componentArrays;
+    private IComponentArray[] _activeArrays = Array.Empty<IComponentArray>();
     internal readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
     internal readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
     private readonly System.Threading.Lock _lock = new();
@@ -58,13 +59,17 @@ public class Archetype
     {
         Signature = signature;
         _componentArrays = new IComponentArray[Services.ComponentIdRegistry.Count + 32]; // Buffer for new types
+        var active = new List<IComponentArray>();
         foreach (var type in signature.Types)
         {
             var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
             int id = Services.ComponentIdRegistry.GetId(type);
             if (id >= _componentArrays.Length) Array.Resize(ref _componentArrays, id + 16);
-            _componentArrays[id] = (IComponentArray)Activator.CreateInstance(arrayType)!;
+            var array = (IComponentArray)Activator.CreateInstance(arrayType)!;
+            _componentArrays[id] = array;
+            active.Add(array);
         }
+        _activeArrays = active.ToArray();
     }
 
     public int EntityCount => _count;
@@ -82,10 +87,10 @@ public class Archetype
         // Pre-size dictionary to avoid rehashing during bursts of additions
         _entityIdToIndex.EnsureCapacity(_capacity);
 
-        var arrays = _componentArrays;
+        var arrays = _activeArrays;
         for (int i = 0; i < arrays.Length; i++)
         {
-            arrays[i]?.Resize(_capacity);
+            arrays[i].Resize(_capacity);
         }
     }
 
@@ -177,7 +182,7 @@ public class Archetype
             }
 
             int lastIndex = _count - 1;
-            var arrays = _componentArrays;
+            var arrays = _activeArrays;
 
             // Optimization: If the entity is already the last one, we skip the swap and copy
             if (index != lastIndex)
@@ -192,7 +197,7 @@ public class Archetype
 
                 for (int i = 0; i < arrays.Length; i++)
                 {
-                    arrays[i]?.Copy(lastIndex, index);
+                    arrays[i].Copy(lastIndex, index);
                 }
 
                 lastEntity.ArchetypeIndex = index;
@@ -203,7 +208,7 @@ public class Archetype
             _entityIdToIndex.Remove(entityId);
             for (int i = 0; i < arrays.Length; i++)
             {
-                arrays[i]?.Clear(lastIndex);
+                arrays[i].Clear(lastIndex);
             }
             _count--;
         }
@@ -399,6 +404,11 @@ public class Archetype
         SetComponentInternal(index, Services.ComponentIdRegistry.GetId(type), component);
     }
 
+    public interface IEntityVisitor
+    {
+        void Visit(IGameObject entity);
+    }
+
     public void ForEachEntity(Action<IGameObject> action)
     {
         using (_lock.EnterScope())
@@ -408,6 +418,23 @@ public class Archetype
             for (int i = 0; i < count; i++)
             {
                 action(entities[i]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Executes a visitor on each entity in the archetype.
+    /// Eliminates delegate and closure allocations.
+    /// </summary>
+    public void ForEachEntity<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IEntityVisitor, allows ref struct
+    {
+        using (_lock.EnterScope())
+        {
+            var entities = _entities;
+            int count = _count;
+            for (int i = 0; i < count; i++)
+            {
+                visitor.Visit(entities[i]);
             }
         }
     }
@@ -526,15 +553,11 @@ public class Archetype
 
         public bool MoveNext()
         {
-            var arrays = _archetype._componentArrays;
+            var arrays = _archetype._activeArrays;
             while (++_arrayIndex < arrays.Length)
             {
-                var array = arrays[_arrayIndex];
-                if (array != null)
-                {
-                    _current = array.Get(_entityIndex);
-                    if (_current != null) return true;
-                }
+                _current = arrays[_arrayIndex].Get(_entityIndex);
+                if (_current != null) return true;
             }
             return false;
         }
@@ -567,10 +590,10 @@ public class Archetype
             {
                 _capacity = Math.Max(_count, 8);
                 System.Array.Resize(ref _entityIds, _capacity);
-                var arrays = _componentArrays;
+                var arrays = _activeArrays;
                 for (int i = 0; i < arrays.Length; i++)
                 {
-                    arrays[i]?.Resize(_capacity);
+                    arrays[i].Resize(_capacity);
                 }
             }
         }
@@ -673,13 +696,10 @@ public class Archetype
             // Dictionary overhead (approximate: entries * (size of long + int + next pointer + padding))
             usage += _entityIdToIndex.Count * (sizeof(long) + sizeof(int) + sizeof(int) + 8);
 
-            var arrays = _componentArrays;
+            var arrays = _activeArrays;
             for (int i = 0; i < arrays.Length; i++)
             {
-                var array = arrays[i];
-                if (array != null) {
-                    usage += _capacity * Unsafe.SizeOf<IntPtr>(); // Approximate component references
-                }
+                usage += _capacity * Unsafe.SizeOf<IntPtr>(); // Approximate component references
             }
             return usage;
         }

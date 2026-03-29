@@ -186,6 +186,15 @@ namespace Shared.Services;
 
             public IEnumerable<Archetype> GetMatchingArchetypes() => _archetypes;
 
+            public void ForEach<TVisitor>(ref TVisitor visitor) where TVisitor : struct, Archetype.IEntityVisitor, allows ref struct
+            {
+                var archetypes = _archetypes;
+                for (int i = 0; i < archetypes.Length; i++)
+                {
+                    archetypes[i].ForEachEntity(ref visitor);
+                }
+            }
+
             private IReadOnlyList<IGameObject> BuildSnapshot()
             {
                 long currentVersion = Version;

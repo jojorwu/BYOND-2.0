@@ -21,6 +21,7 @@ public abstract class EngineApplication : IHostedService, IEngine
     protected readonly List<ITickable> _tickables = new();
     protected readonly List<IShrinkable> _shrinkables = new();
     protected readonly List<IEngineLifecycle> _lifecycles;
+    protected ITickable[][] _tickableGroups = Array.Empty<ITickable[]>();
     private ILifecycleOrchestrator? _orchestrator;
     private IJobSystem? _jobSystem;
 
@@ -46,11 +47,24 @@ public abstract class EngineApplication : IHostedService, IEngine
         _lifecycles = lifecycles.ToList();
         _diagnosticBus = diagnosticBus;
 
+        _jobSystem = _services.OfType<IJobSystem>().FirstOrDefault();
+
         _logger.LogInformation("{AppName} initialized with {ServiceCount} services, {ModuleCount} modules, {TickableCount} tickables, and {ShrinkableCount} shrinkables.",
             GetType().Name, _services.Count, _modules.Count, _tickables.Count, _shrinkables.Count);
     }
 
     protected void SetOrchestrator(ILifecycleOrchestrator orchestrator) => _orchestrator = orchestrator;
+
+    private void InitializeTickGroups()
+    {
+        // Pre-calculate tickable groups by priority to avoid allocations in the hot path.
+        // This must be called after all services and tickables are registered (usually in StartAsync).
+        _tickableGroups = _tickables
+            .GroupBy(t => t is IEngineService service ? service.Priority : 0)
+            .OrderByDescending(g => g.Key)
+            .Select(g => g.ToArray())
+            .ToArray();
+    }
 
     /// <summary>
     /// Starts all registered services in order of their dependency graph.
@@ -58,6 +72,8 @@ public abstract class EngineApplication : IHostedService, IEngine
     public virtual async Task StartAsync(CancellationToken cancellationToken)
     {
         if (_orchestrator == null) throw new InvalidOperationException("Lifecycle orchestrator not set.");
+
+        InitializeTickGroups();
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _logger.LogInformation("Starting {AppName} Lifecycle...", GetType().Name);
@@ -127,20 +143,30 @@ public abstract class EngineApplication : IHostedService, IEngine
     /// <summary>
     /// Executes a standard engine tick.
     /// </summary>
-    public virtual async Task TickAsync()
+    public virtual async ValueTask TickAsync()
     {
         PreTick();
 
-        // Optimized Parallel Ticking:
-        // Group tickables by priority and execute groups in parallel.
-        // Higher priority groups run first.
-        var priorityGroups = _tickables
-            .GroupBy(t => t is IEngineService service ? service.Priority : 0)
-            .OrderByDescending(g => g.Key);
-
-        foreach (var group in priorityGroups)
+        // Optimized Parallel Ticking using pre-calculated groups and JobSystem.
+        for (int i = 0; i < _tickableGroups.Length; i++)
         {
-            await Task.WhenAll(group.Select(t => t.TickAsync()));
+            var group = _tickableGroups[i];
+            if (group.Length == 1)
+            {
+                await group[0].TickAsync();
+            }
+            else if (_jobSystem != null)
+            {
+                // Utilize the engine's JobSystem for parallel ticking of services in the same priority group.
+                await _jobSystem.ForEachAsync(group, t => t.TickAsync());
+            }
+            else
+            {
+                // Fallback if JobSystem is not yet available.
+                var tasks = new Task[group.Length];
+                for (int j = 0; j < group.Length; j++) tasks[j] = group[j].TickAsync().AsTask();
+                await Task.WhenAll(tasks);
+            }
         }
 
         PostTick();
@@ -167,8 +193,6 @@ public abstract class EngineApplication : IHostedService, IEngine
     /// </summary>
     public virtual async Task MaintainAsync()
     {
-        _jobSystem ??= _services.OfType<IJobSystem>().FirstOrDefault();
-
         if (_jobSystem != null)
         {
             await _jobSystem.ForEachAsync(_shrinkables, s => s.Shrink());

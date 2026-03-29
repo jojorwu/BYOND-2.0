@@ -257,9 +257,15 @@ namespace Shared.Services;
             }
         }
 
+        private static readonly SharedPool<ActionJob> _actionJobPool = new(() => new ActionJob());
+
         public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new ActionJob(action, priority, weight), dependency, track, priority);
+            var job = _actionJobPool.Rent();
+            job.Initialize(action, priority, weight);
+            var handle = Schedule(job, dependency, track, priority);
+            handle.Task!.ContinueWith(_ => _actionJobPool.Return(job));
+            return handle;
         }
 
         public JobHandle Schedule(Func<Task> action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
@@ -316,18 +322,64 @@ namespace Shared.Services;
             // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead,
             // while still splitting work across all available workers for large collections.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
-            var handles = new List<Task>((count + batchSize - 1) / batchSize);
+            int taskCount = (count + batchSize - 1) / batchSize;
+            var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
 
-            for (int i = 0; i < count; i += batchSize)
+            try
             {
-                int start = i;
-                int end = Math.Min(i + batchSize, count);
-                handles.Add(Schedule(() =>
+                int handleIdx = 0;
+                for (int i = 0; i < count; i += batchSize)
                 {
-                    for (int j = start; j < end; j++) action(list[j]);
-                }, priority: priority, track: false).Task!);
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count);
+                    handles[handleIdx++] = Schedule(() =>
+                    {
+                        for (int j = start; j < end; j++) action(list[j]);
+                    }, priority: priority, track: false).Task!;
+                }
+                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
             }
-            await Task.WhenAll(handles);
+            finally
+            {
+                System.Buffers.ArrayPool<Task>.Shared.Return(handles, clearArray: true);
+            }
+        }
+
+        public async Task ForEachAsync<T>(ReadOnlyMemory<T> source, Func<T, ValueTask> action, JobPriority priority = JobPriority.Normal)
+        {
+            int count = source.Length;
+            if (count == 0) return;
+            if (count == 1) { await action(source.Span[0]); return; }
+
+            int workerCount = _workers.Length;
+            int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
+            int taskCount = (count + batchSize - 1) / batchSize;
+            var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
+
+            try
+            {
+                int handleIdx = 0;
+                for (int i = 0; i < count; i += batchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count);
+                    var batch = source.Slice(start, end - start);
+                    handles[handleIdx++] = Schedule(async () =>
+                    {
+                        for (int j = 0; j < batch.Length; j++)
+                        {
+                            var vt = action(batch.Span[j]);
+                            if (!vt.IsCompleted) await vt;
+                            else vt.GetAwaiter().GetResult();
+                        }
+                    }, priority: priority, track: false).Task!;
+                }
+                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<Task>.Shared.Return(handles, clearArray: true);
+            }
         }
 
         public async Task ForEachAsync<T>(ReadOnlyMemory<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
@@ -338,22 +390,68 @@ namespace Shared.Services;
 
             int workerCount = _workers.Length;
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
-            var handles = new List<Task>((count + batchSize - 1) / batchSize);
+            int taskCount = (count + batchSize - 1) / batchSize;
+            var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
 
-            for (int i = 0; i < count; i += batchSize)
+            try
             {
-                int start = i;
-                int end = Math.Min(i + batchSize, count);
-                var batch = source.Slice(start, end - start);
-                handles.Add(Schedule(async () =>
+                int handleIdx = 0;
+                for (int i = 0; i < count; i += batchSize)
                 {
-                    for (int j = 0; j < batch.Length; j++)
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count);
+                    var batch = source.Slice(start, end - start);
+                    handles[handleIdx++] = Schedule(async () =>
                     {
-                        await action(batch.Span[j]);
-                    }
-                }, priority: priority, track: false).Task!);
+                        for (int j = 0; j < batch.Length; j++)
+                        {
+                            await action(batch.Span[j]);
+                        }
+                    }, priority: priority, track: false).Task!;
+                }
+                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
             }
-            await Task.WhenAll(handles);
+            finally
+            {
+                System.Buffers.ArrayPool<Task>.Shared.Return(handles, clearArray: true);
+            }
+        }
+
+        public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, ValueTask> action, JobPriority priority = JobPriority.Normal)
+        {
+            var list = source as IReadOnlyList<T> ?? source.ToList();
+            int count = list.Count;
+            if (count == 0) return;
+            if (count == 1) { await action(list[0]); return; }
+
+            int workerCount = _workers.Length;
+            int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
+            int taskCount = (count + batchSize - 1) / batchSize;
+            var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
+
+            try
+            {
+                int handleIdx = 0;
+                for (int i = 0; i < count; i += batchSize)
+                {
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count);
+                    handles[handleIdx++] = Schedule(async () =>
+                    {
+                        for (int j = start; j < end; j++)
+                        {
+                            var vt = action(list[j]);
+                            if (!vt.IsCompleted) await vt;
+                            else vt.GetAwaiter().GetResult();
+                        }
+                    }, priority: priority, track: false).Task!;
+                }
+                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<Task>.Shared.Return(handles, clearArray: true);
+            }
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
@@ -366,18 +464,27 @@ namespace Shared.Services;
             int workerCount = _workers.Length;
             // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
-            var handles = new List<Task>((count + batchSize - 1) / batchSize);
+            int taskCount = (count + batchSize - 1) / batchSize;
+            var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
 
-            for (int i = 0; i < count; i += batchSize)
+            try
             {
-                int start = i;
-                int end = Math.Min(i + batchSize, count);
-                handles.Add(Schedule(() =>
+                int handleIdx = 0;
+                for (int i = 0; i < count; i += batchSize)
                 {
-                    for (int j = start; j < end; j++) action(list[j], j);
-                }, priority: priority, track: false).Task!);
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count);
+                    handles[handleIdx++] = Schedule(() =>
+                    {
+                        for (int j = start; j < end; j++) action(list[j], j);
+                    }, priority: priority, track: false).Task!;
+                }
+                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
             }
-            await Task.WhenAll(handles);
+            finally
+            {
+                System.Buffers.ArrayPool<Task>.Shared.Return(handles, clearArray: true);
+            }
         }
 
         public async Task ForEachAsync<T>(IEnumerable<T> source, Func<T, Task> action, JobPriority priority = JobPriority.Normal)
@@ -390,18 +497,27 @@ namespace Shared.Services;
             int workerCount = _workers.Length;
             // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
-            var handles = new List<Task>((count + batchSize - 1) / batchSize);
+            int taskCount = (count + batchSize - 1) / batchSize;
+            var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
 
-            for (int i = 0; i < count; i += batchSize)
+            try
             {
-                int start = i;
-                int end = Math.Min(i + batchSize, count);
-                handles.Add(Schedule(async () =>
+                int handleIdx = 0;
+                for (int i = 0; i < count; i += batchSize)
                 {
-                    for (int j = start; j < end; j++) await action(list[j]);
-                }, priority: priority, track: false).Task!);
+                    int start = i;
+                    int end = Math.Min(i + batchSize, count);
+                    handles[handleIdx++] = Schedule(async () =>
+                    {
+                        for (int j = start; j < end; j++) await action(list[j]);
+                    }, priority: priority, track: false).Task!;
+                }
+                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
             }
-            await Task.WhenAll(handles);
+            finally
+            {
+                System.Buffers.ArrayPool<Task>.Shared.Return(handles, clearArray: true);
+            }
         }
 
         public ConcurrentStack<IJob> CriticalQueue => _criticalQueue;
@@ -502,13 +618,13 @@ namespace Shared.Services;
             }
         }
 
-        private class ActionJob : IJob
+        private class ActionJob : IJob, IPoolable
         {
-            private readonly Action _action;
-            public JobPriority Priority { get; }
-            public int Weight { get; }
+            private Action? _action;
+            public JobPriority Priority { get; private set; }
+            public int Weight { get; private set; }
 
-            public ActionJob(Action action, JobPriority priority = JobPriority.Normal, int weight = 1)
+            public void Initialize(Action action, JobPriority priority, int weight)
             {
                 _action = action;
                 Priority = priority;
@@ -517,8 +633,15 @@ namespace Shared.Services;
 
             public Task ExecuteAsync()
             {
-                _action();
+                _action?.Invoke();
                 return Task.CompletedTask;
+            }
+
+            public void Reset()
+            {
+                _action = null;
+                Priority = JobPriority.Normal;
+                Weight = 1;
             }
         }
 

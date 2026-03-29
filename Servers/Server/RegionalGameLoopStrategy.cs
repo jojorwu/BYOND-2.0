@@ -107,7 +107,7 @@ namespace Server
             nextThreadsCollection.Add(remainingGlobals);
 
             // Use internal JobSystem instead of Parallel.ForEachAsync for better integration with engine threading and priorities
-            await _jobSystem.ForEachAsync(batchedRegions, async batch =>
+            await _jobSystem.ForEachAsync(batchedRegions, (Func<List<(MergedRegion Region, List<IGameObject> Objects)>, Task>)(async batch =>
             {
                 foreach (var (mergedRegion, gameObjects) in batch)
                 {
@@ -177,7 +177,7 @@ namespace Server
                         _udpServer.BroadcastSnapshot(mergedRegion, snapshot);
                     }
                 }
-            });
+            }));
 
             var finalThreads = nextThreadsCollection.SelectMany(t => t);
             _scriptHost.UpdateThreads(finalThreads);

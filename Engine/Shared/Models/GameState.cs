@@ -104,6 +104,14 @@ namespace Shared;
 
         public IEnumerable<IGameObject> GetDirtyObjects() => _dirtyObjects;
 
+        public void DrainDirtyObjects<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IGameState.IDirtyObjectVisitor, allows ref struct
+        {
+            while (_dirtyObjects.TryDequeue(out var obj))
+            {
+                visitor.Visit(obj);
+            }
+        }
+
         public void ClearDirtyObjects() => _dirtyObjects.Clear();
 
     }

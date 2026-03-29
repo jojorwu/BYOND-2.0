@@ -522,13 +522,11 @@ public struct OpcodeMetadata {
 
 public static class OpcodeMetadataCache {
     private static readonly FrozenDictionary<byte, OpcodeMetadata> _metadata;
-    private static readonly FrozenSet<byte> _canModifyCallStack;
-    private static readonly FrozenSet<byte> _isBranch;
+    private static readonly ulong[] _canModifyCallStackBits = new ulong[4]; // 256 bits
+    private static readonly ulong[] _isBranchBits = new ulong[4];
 
     static OpcodeMetadataCache() {
         var metadataMap = new Dictionary<byte, OpcodeMetadata>();
-        var canModifyCallStackSet = new HashSet<byte>();
-        var isBranchSet = new HashSet<byte>();
 
         foreach (Opcode opcode in Enum.GetValues<Opcode>()) {
             var field = typeof(Opcode).GetField(opcode.ToString());
@@ -538,7 +536,10 @@ public static class OpcodeMetadataCache {
 
             byte b = (byte)opcode;
             metadataMap[b] = metadata;
-            if (metadata.CanModifyCallStack) canModifyCallStackSet.Add(b);
+
+            if (metadata.CanModifyCallStack) {
+                _canModifyCallStackBits[b >> 6] |= 1UL << (b & 0x3F);
+            }
 
             bool isBranch = opcode switch {
                 Opcode.Jump => true,
@@ -569,23 +570,27 @@ public static class OpcodeMetadataCache {
                 Opcode.EnumerateNoAssign => true,
                 _ => false
             };
-            if (isBranch) isBranchSet.Add(b);
+            if (isBranch) {
+                _isBranchBits[b >> 6] |= 1UL << (b & 0x3F);
+            }
         }
 
         _metadata = metadataMap.ToFrozenDictionary();
-        _canModifyCallStack = canModifyCallStackSet.ToFrozenSet();
-        _isBranch = isBranchSet.ToFrozenSet();
     }
 
     public static OpcodeMetadata GetMetadata(Opcode opcode) {
         return _metadata.GetValueOrDefault((byte)opcode);
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool CanModifyCallStack(Opcode opcode) {
-        return _canModifyCallStack.Contains((byte)opcode);
+        byte b = (byte)opcode;
+        return (_canModifyCallStackBits[b >> 6] & (1UL << (b & 0x3F))) != 0;
     }
 
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     public static bool IsBranch(Opcode opcode) {
-        return _isBranch.Contains((byte)opcode);
+        byte b = (byte)opcode;
+        return (_isBranchBits[b >> 6] & (1UL << (b & 0x3F))) != 0;
     }
 }

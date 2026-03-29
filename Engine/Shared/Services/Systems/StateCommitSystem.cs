@@ -20,14 +20,18 @@ public class StateCommitSystem : BaseSystem
         _gameState = gameState;
     }
 
-    public override void Tick(IEntityCommandBuffer ecb)
+    private struct CommitVisitor : IGameState.IDirtyObjectVisitor
     {
-        foreach (var obj in _gameState.GetDirtyObjects())
+        public void Visit(IGameObject obj)
         {
             obj.CommitState();
             obj.ClearDirty();
         }
+    }
 
-        _gameState.ClearDirtyObjects();
+    public override void Tick(IEntityCommandBuffer ecb)
+    {
+        var visitor = new CommitVisitor();
+        _gameState.DrainDirtyObjects(ref visitor);
     }
 }

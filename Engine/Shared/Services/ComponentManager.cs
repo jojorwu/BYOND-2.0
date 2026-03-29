@@ -59,7 +59,7 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
         {
             if (_componentTypesByName.TryGetValue(componentName, out var type))
             {
-                var pool = _componentPools.GetOrAdd(type, t => (IObjectPool<IComponent>)Activator.CreateInstance(typeof(ObjectPool<>).MakeGenericType(t), (Func<IComponent>)(() => (IComponent)Activator.CreateInstance(t)!))!);
+                var pool = _componentPools.GetOrAdd(type, t => (IObjectPool<IComponent>)Activator.CreateInstance(typeof(SharedPool<>).MakeGenericType(t), (Func<IComponent>)(() => (IComponent)Activator.CreateInstance(t)!))!);
                 return pool.Rent();
             }
             return null;
@@ -67,7 +67,7 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
 
         public T CreateComponent<T>() where T : class, IComponent, new()
         {
-            var pool = _componentPools.GetOrAdd(typeof(T), t => (IObjectPool<IComponent>)new ObjectPool<T>(() => new T()));
+            var pool = _componentPools.GetOrAdd(typeof(T), t => (IObjectPool<IComponent>)new SharedPool<T>(() => new T()));
             return (T)pool.Rent();
         }
 

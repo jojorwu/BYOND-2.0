@@ -63,6 +63,17 @@ namespace Shared;
         /// </summary>
         IEnumerable<IGameObject> GetDirtyObjects();
 
+        public interface IDirtyObjectVisitor
+        {
+            void Visit(IGameObject obj);
+        }
+
+        /// <summary>
+        /// Executes an action for each dirty object and clears the dirty list.
+        /// Zero-allocation alternative to GetDirtyObjects.
+        /// </summary>
+        void DrainDirtyObjects<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IDirtyObjectVisitor, allows ref struct;
+
         /// <summary>
         /// Clears the list of dirty objects.
         /// </summary>

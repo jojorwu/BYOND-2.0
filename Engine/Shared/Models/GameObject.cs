@@ -745,6 +745,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public GameObject(ObjectType objectType) : base(objectType)
     {
         Id = Interlocked.Increment(ref nextId);
+        if (_variableStore is IObservableVariableStore observable) observable.SetOwner(this);
     }
 
     public void Initialize(ObjectType objectType, long x, long y, long z)
@@ -752,6 +753,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         base.Initialize(objectType);
         _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
         Id = Interlocked.Increment(ref nextId);
+        if (_variableStore is IObservableVariableStore observable) observable.SetOwner(this);
     }
 
     /// <summary>
@@ -760,6 +762,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     [JsonConstructor]
     public GameObject() : base(null!)
     {
+        if (_variableStore is IObservableVariableStore observable) observable.SetOwner(this);
     }
 
     /// <summary>
@@ -824,6 +827,26 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         if (_componentManager == null) throw new System.InvalidOperationException("ComponentManager not set.");
         _componentManager.AddComponent(this, component);
         IncrementVersion();
+
+        if (component is IReactiveComponent reactive && _variableStore is IObservableVariableStore observable)
+        {
+            observable.Subscribe(new ComponentReactiveBridge(reactive));
+        }
+    }
+
+    public void SubscribeToVariables(IVariableChangeListener listener)
+    {
+        if (_variableStore is IObservableVariableStore observable) observable.Subscribe(listener);
+    }
+
+    private class ComponentReactiveBridge : IVariableChangeListener
+    {
+        private readonly IReactiveComponent _component;
+        public ComponentReactiveBridge(IReactiveComponent component) => _component = component;
+        public void OnVariableChanged(IGameObject owner, int index, in DreamValue value)
+        {
+            if (_component.Enabled) _component.OnVariableChanged(index, value);
+        }
     }
 
     public void AddComponent<T>(T component) where T : class, IComponent

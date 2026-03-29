@@ -72,6 +72,41 @@ namespace Shared.Services;
             return offset;
         }
 
+        public int SerializeBatches(Span<byte> destination, IEnumerable<ReactiveStateSystem.DeltaBatch> batches, out bool truncated)
+        {
+            int offset = 0;
+            truncated = false;
+
+            foreach (var batch in batches)
+            {
+                if (offset + 128 > destination.Length) { truncated = true; break; }
+
+                offset += Utils.VarInt.Write(destination.Slice(offset), batch.EntityId);
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0); // Placeholder for version (incremental batches don't need full version check)
+
+                var changes = batch.Changes;
+                offset += Utils.VarInt.Write(destination.Slice(offset), changes.Count);
+
+                for (int i = 0; i < changes.Count; i++)
+                {
+                    var change = changes[i];
+                    int writeSize = change.Value.GetWriteSize();
+                    if (offset + 10 + writeSize > destination.Length) { truncated = true; break; }
+
+                    offset += Utils.VarInt.Write(destination.Slice(offset), change.Index);
+                    offset += change.Value.WriteTo(destination.Slice(offset));
+                }
+                if (truncated) break;
+            }
+
+            if (offset < destination.Length)
+            {
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
+            }
+
+            return offset;
+        }
+
         private struct ChangeCounter : GameObject.IChangeVisitor
         {
             public int Count;

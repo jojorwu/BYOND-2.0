@@ -11,14 +11,43 @@ namespace Shared.Services;
 /// A memory-efficient variable store that utilizes default values from an ObjectType
 /// and only stores modified values in a local flat array.
 /// </summary>
-public class TieredVariableStore : IVariableStore
+public class TieredVariableStore : IObservableVariableStore
 {
     private DreamValue[]? _defaults;
     private DreamValue[] _overrides = Array.Empty<DreamValue>();
     private ulong[] _modifiedMask = Array.Empty<ulong>();
     private int _length;
+    private IVariableChangeListener[] _listeners = Array.Empty<IVariableChangeListener>();
+    private readonly System.Threading.Lock _listenerLock = new();
+    private IGameObject? _owner;
 
     public int Length => _length;
+
+    public void SetOwner(IGameObject owner) => _owner = owner;
+
+    public void Subscribe(IVariableChangeListener listener)
+    {
+        lock (_listenerLock)
+        {
+            var updated = new IVariableChangeListener[_listeners.Length + 1];
+            _listeners.CopyTo(updated, 0);
+            updated[_listeners.Length] = listener;
+            _listeners = updated;
+        }
+    }
+
+    public void Unsubscribe(IVariableChangeListener listener)
+    {
+        lock (_listenerLock)
+        {
+            int index = Array.IndexOf(_listeners, listener);
+            if (index == -1) return;
+            var updated = new IVariableChangeListener[_listeners.Length - 1];
+            Array.Copy(_listeners, 0, updated, 0, index);
+            Array.Copy(_listeners, index + 1, updated, index, _listeners.Length - index - 1);
+            _listeners = updated;
+        }
+    }
 
     public void VisitModified(IVariableStore.Visitor visitor)
     {
@@ -134,6 +163,15 @@ public class TieredVariableStore : IVariableStore
         int bit = index & 63;
         _modifiedMask[word] |= (1UL << bit);
         if (index >= _length) _length = index + 1;
+
+        var listeners = _listeners;
+        if (listeners.Length > 0 && _owner != null)
+        {
+            for (int i = 0; i < listeners.Length; i++)
+            {
+                listeners[i].OnVariableChanged(_owner, index, value);
+            }
+        }
     }
 
     private void Expand(int minCapacity)

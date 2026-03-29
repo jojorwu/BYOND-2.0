@@ -83,6 +83,7 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
+        services.AddEngineService<ReactiveStateSystem>(typeof(IVariableChangeListener));
         services.AddEngineService<DiagnosticBus>(typeof(IDiagnosticBus));
         services.AddEngineService<LauncherPathProvider>(typeof(ILauncherPathProvider));
         services.AddEngineService<EngineManager>(typeof(IEngineManager));

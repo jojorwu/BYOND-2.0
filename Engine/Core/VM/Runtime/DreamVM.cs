@@ -16,10 +16,10 @@ namespace Core.VM.Runtime
     {
         public DreamVMContext Context { get; } = new();
         public List<string> Strings => Context.Strings;
-        public Dictionary<string, IDreamProc> Procs => Context.Procs;
+        public System.Collections.Concurrent.ConcurrentDictionary<string, IDreamProc> Procs => Context.Procs;
         public List<IDreamProc> AllProcs => Context.AllProcs;
         public IList<DreamValue> Globals => Context.Globals;
-        public Dictionary<string, int> GlobalNames => Context.GlobalNames;
+        public System.Collections.Concurrent.ConcurrentDictionary<string, int> GlobalNames => Context.GlobalNames;
         public ObjectType? ListType { get => Context.ListType; set => Context.ListType = value; }
         public DreamObject? World { get => Context.World; set => Context.World = value; }
         public IObjectTypeManager? ObjectTypeManager { get => Context.ObjectTypeManager; set => Context.ObjectTypeManager = value; }
@@ -31,6 +31,7 @@ namespace Core.VM.Runtime
         private readonly IBytecodeInterpreter _interpreter;
         private readonly IObjectFactory? _objectFactory;
         private readonly IDiagnosticBus _diagnosticBus;
+        private readonly SharedPool<DreamThread> _threadPool = new(() => new DreamThread());
 
         private readonly int _maxInstructions;
         private long _activeThreads;
@@ -84,7 +85,9 @@ namespace Core.VM.Runtime
             if (Procs.TryGetValue("/world/proc/New", out var worldNewProc) && worldNewProc is DreamProc dreamProc)
             {
                 Interlocked.Increment(ref _totalThreadStarts);
-                return new DreamThread(dreamProc, Context, _maxInstructions, interpreter: _interpreter);
+                var thread = _threadPool.Rent();
+                thread.Initialize(dreamProc, Context, _maxInstructions, interpreter: _interpreter);
+                return thread;
             }
             _logger.LogError("/world/proc/New not found. Is the script compiled correctly?");
             return null;
@@ -95,7 +98,9 @@ namespace Core.VM.Runtime
             if (Procs.TryGetValue(procName, out var proc) && proc is DreamProc dreamProc)
             {
                 Interlocked.Increment(ref _totalThreadStarts);
-                return new DreamThread(dreamProc, Context, _maxInstructions, associatedObject, _interpreter);
+                var thread = _threadPool.Rent();
+                thread.Initialize(dreamProc, Context, _maxInstructions, associatedObject, _interpreter);
+                return thread;
             }
 
             _logger.LogWarning("Could not find proc '{ProcName}' to create a thread.", procName);
@@ -103,7 +108,11 @@ namespace Core.VM.Runtime
         }
 
         public void OnThreadStarted() => Interlocked.Increment(ref _activeThreads);
-        public void OnThreadFinished() => Interlocked.Decrement(ref _activeThreads);
+        public void OnThreadFinished(DreamThread thread)
+        {
+            Interlocked.Decrement(ref _activeThreads);
+            _threadPool.Return(thread);
+        }
         public void OnExceptionThrown() => Interlocked.Increment(ref _totalExceptions);
 
         public void Dispose()

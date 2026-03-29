@@ -9,7 +9,7 @@ using System.Threading;
 namespace Shared;
     public class DreamObject : IDisposable, IBindable
     {
-        protected readonly System.Threading.Lock _lock = new();
+        protected readonly System.Threading.ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
         protected IUiBindingService? _bindingService;
         public virtual ObjectType? ObjectType { get; set; }
 
@@ -58,9 +58,14 @@ namespace Shared;
             int index = ObjectType.GetVariableIndex(name);
             if (index == -1) return DreamValue.Null;
 
-            using (_lock.EnterScope())
+            _lock.EnterReadLock();
+            try
             {
                 return _variableStore.Get(index);
+            }
+            finally
+            {
+                _lock.ExitReadLock();
             }
         }
 
@@ -78,18 +83,28 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public DreamValue GetVariable(int index)
         {
-            using (_lock.EnterScope())
+            _lock.EnterReadLock();
+            try
             {
                 return _variableStore.Get(index);
+            }
+            finally
+            {
+                _lock.ExitReadLock();
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public virtual DreamValue GetVariableDirect(int index)
         {
-            using (_lock.EnterScope())
+            _lock.EnterReadLock();
+            try
             {
                 return _variableStore.Get(index);
+            }
+            finally
+            {
+                _lock.ExitReadLock();
             }
         }
 
@@ -104,8 +119,8 @@ namespace Shared;
         {
             if ((uint)index >= 1000000) return; // Basic sanity check
 
-            // Note: SetVariableDirect still uses a lock for consistency when updating and notifying
-            using (_lock.EnterScope())
+            _lock.EnterWriteLock();
+            try
             {
                 var current = _variableStore.Get(index);
                 if (!current.Equals(value))
@@ -123,6 +138,10 @@ namespace Shared;
                     }
                 }
             }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
         }
 
         public void SetBindingService(IUiBindingService bindingService)
@@ -139,6 +158,7 @@ namespace Shared;
         {
             _variableStore.Dispose();
             _committedStore.Dispose();
+            _lock.Dispose();
             GC.SuppressFinalize(this);
         }
     }

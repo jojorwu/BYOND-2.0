@@ -34,7 +34,7 @@ internal unsafe ref struct InterpreterState
     public byte* BytecodePtr;
     public List<string> Strings;
     public IList<DreamValue> Globals;
-    public Dictionary<string, IDreamProc> Procs;
+    public System.Collections.Concurrent.ConcurrentDictionary<string, IDreamProc> Procs;
     public DreamObject? World;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

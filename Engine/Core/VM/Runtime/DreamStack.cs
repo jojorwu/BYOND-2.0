@@ -86,6 +86,15 @@ internal struct DreamStack : IDisposable
         Array = newStack;
     }
 
+    public void Reset()
+    {
+        if (Array != null)
+        {
+            System.Array.Clear(Array, 0, Pointer);
+            Pointer = 0;
+        }
+    }
+
     public void Dispose()
     {
         if (Array != null)

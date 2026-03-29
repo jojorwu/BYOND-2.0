@@ -9,13 +9,22 @@ namespace Core.VM.Runtime
     public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 100000000;
+        private const int ShardCount = 64;
         private readonly System.Threading.Lock _contextLock = new();
+        private readonly System.Threading.Lock[] _globalShards;
+
         public List<string> Strings { get; } = new();
-        public Dictionary<string, IDreamProc> Procs { get; } = new();
+        public System.Collections.Concurrent.ConcurrentDictionary<string, IDreamProc> Procs { get; } = new();
         public List<IDreamProc> AllProcs { get; } = new();
         private volatile DreamValue[] _globals = Array.Empty<DreamValue>();
         public IList<DreamValue> Globals => _globals;
-        public Dictionary<string, int> GlobalNames { get; } = new();
+        public System.Collections.Concurrent.ConcurrentDictionary<string, int> GlobalNames { get; } = new();
+
+        public DreamVMContext()
+        {
+            _globalShards = new System.Threading.Lock[ShardCount];
+            for (int i = 0; i < ShardCount; i++) _globalShards[i] = new();
+        }
 
         public void InitializeGlobals(int count)
         {
@@ -38,22 +47,29 @@ namespace Core.VM.Runtime
         public DreamValue GetGlobal(int index)
         {
             var globals = _globals;
-            if ((uint)index < (uint)globals.Length) return globals[index];
-            return DreamValue.Null;
+            if ((uint)index >= (uint)globals.Length) return DreamValue.Null;
+
+            using (_globalShards[index % ShardCount].EnterScope())
+            {
+                // Re-read current globals array after locking to handle potential resize
+                globals = _globals;
+                if ((uint)index < (uint)globals.Length) return globals[index];
+                return DreamValue.Null;
+            }
         }
 
         public void SetGlobal(int index, DreamValue value)
         {
             if (index < 0 || index >= MaxGlobals) return;
-            var globals = _globals;
-            if ((uint)index >= (uint)globals.Length)
+
+            // First ensure capacity with a coarse lock
+            if ((uint)index >= (uint)_globals.Length)
             {
                 using (_contextLock.EnterScope())
                 {
                     if (index >= _globals.Length)
                     {
                         int newSize = Math.Max(index + 1, _globals.Length * 2);
-                        // Ensure power-of-two growth for amortization
                         if (newSize < _globals.Length * 2) newSize = _globals.Length * 2;
 
                         var newGlobals = new DreamValue[newSize];
@@ -63,7 +79,12 @@ namespace Core.VM.Runtime
                     }
                 }
             }
-            _globals[index] = value;
+
+            // Then set with a fine-grained shard lock
+            using (_globalShards[index % ShardCount].EnterScope())
+            {
+                _globals[index] = value;
+            }
         }
 
         public void Reset()

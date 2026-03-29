@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Core.VM.Procs;
 using Shared;
+using Shared.Interfaces;
 
 namespace Core.VM.Runtime;
 
@@ -26,7 +27,7 @@ public struct TryBlock
 /// at the top of the stack. High-frequency opcodes are inlined directly into the
 /// Run() loop to minimize overhead.
 /// </summary>
-public partial class DreamThread : IScriptThread, IDisposable
+public partial class DreamThread : IScriptThread, IDisposable, IPoolable
 {
     public const int MaxCallStackDepth = 65536;
     public const int MaxStackSize = 10485760;
@@ -115,7 +116,8 @@ public partial class DreamThread : IScriptThread, IDisposable
     private volatile int _state = (int)DreamThreadState.Running;
     public DreamThreadState State { get => (DreamThreadState)_state; internal set => _state = (int)value; }
     public DateTime SleepUntil { get; internal set; }
-    public IGameObject? AssociatedObject { get; }
+    private IGameObject? _associatedObject;
+    public IGameObject? AssociatedObject => _associatedObject;
     public DreamObject? Usr { get; set; }
 
     public ScriptThreadPriority Priority { get; set; } = ScriptThreadPriority.Normal;
@@ -124,19 +126,29 @@ public partial class DreamThread : IScriptThread, IDisposable
     public long TotalInstructionsExecuted => _totalInstructionsExecuted;
     public int InstructionQuotaBalance { get; set; } = 0;
 
-    public DreamVMContext Context { get; }
-    internal readonly int _maxInstructions;
+    public DreamVMContext? Context { get; private set; }
+    internal int _maxInstructions;
     internal long _totalInstructionsExecuted;
     private int _maxCallStackReached;
     private readonly IBytecodeInterpreter _interpreter;
 
     public DreamThread(DreamProc proc, DreamVMContext context, int maxInstructions, IGameObject? associatedObject = null, IBytecodeInterpreter? interpreter = null)
     {
+        _interpreter = interpreter ?? new BytecodeInterpreter();
+        Initialize(proc, context, maxInstructions, associatedObject, interpreter);
+    }
+
+    public DreamThread()
+    {
+        _interpreter = new BytecodeInterpreter();
+    }
+
+    public void Initialize(DreamProc proc, DreamVMContext context, int maxInstructions, IGameObject? associatedObject = null, IBytecodeInterpreter? interpreter = null)
+    {
         Context = context;
         _maxInstructions = maxInstructions;
-        _interpreter = interpreter ?? new BytecodeInterpreter();
-        AssociatedObject = associatedObject;
-        _stack = new DreamStack(Math.Max(1024, proc.LocalVariableCount));
+        _associatedObject = associatedObject;
+        if (_stack.Array == null) _stack = new DreamStack(Math.Max(1024, proc.LocalVariableCount));
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
 
@@ -154,7 +166,7 @@ public partial class DreamThread : IScriptThread, IDisposable
         Context = other.Context;
         _maxInstructions = other._maxInstructions;
         _interpreter = other._interpreter;
-        AssociatedObject = other.AssociatedObject;
+        _associatedObject = other._associatedObject;
 
         // Rent and copy stack
         _stack = new DreamStack(other._stack.Array.Length);
@@ -301,6 +313,42 @@ public partial class DreamThread : IScriptThread, IDisposable
     public DreamThreadState Run(int instructionBudget)
     {
         return _interpreter.Run(this, instructionBudget);
+    }
+
+    public void Reset()
+    {
+        if (_callStack != null)
+        {
+            Array.Clear(_callStack, 0, _callStackPtr);
+            _callStackPtr = 0;
+        }
+
+        if (_tryStack != null)
+        {
+            Array.Clear(_tryStack, 0, _tryStackPtr);
+            _tryStackPtr = 0;
+        }
+
+        if (_enumerators != null)
+        {
+            for (int i = 0; i <= _maxEnumeratorId; i++)
+            {
+                _enumerators[i].Enumerator?.Dispose();
+                _enumerators[i] = default;
+            }
+            _maxEnumeratorId = -1;
+        }
+
+        Usr = null;
+        _associatedObject = null;
+        if (_stack.Array != null) _stack.Reset();
+
+        _totalInstructionsExecuted = 0;
+        _maxCallStackReached = 0;
+        ExecutionTime = TimeSpan.Zero;
+        WaitTicks = 0;
+        Priority = ScriptThreadPriority.Normal;
+        State = DreamThreadState.Running;
     }
 
     public void Dispose()

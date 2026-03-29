@@ -74,7 +74,7 @@ namespace Shared.Services;
             public void Visit(int index, in DreamValue value) => Count++;
         }
 
-        private ref struct ChangeSerializer
+        private ref struct ChangeSerializer : GameObject.IChangeVisitor
         {
             public Span<byte> Destination;
             public int Offset;
@@ -93,11 +93,6 @@ namespace Shared.Services;
                 Offset += Utils.VarInt.Write(Destination.Slice(Offset), propIdx);
                 Offset += val.WriteTo(Destination.Slice(Offset));
             }
-        }
-
-        private static void SerializeChange(int propIdx, in DreamValue val, ref ChangeSerializer serializer)
-        {
-            serializer.Visit(propIdx, val);
         }
 
         private bool SerializeObject(Span<byte> destination, IGameObject obj, IDictionary<long, long>? lastVersions, ref int offset, out bool truncated)
@@ -150,7 +145,7 @@ namespace Shared.Services;
                 if (counter.Count > 0)
                 {
                     var serializer = new ChangeSerializer { Destination = destination, Offset = offset };
-                    g.VisitChangesRef(ref serializer, SerializeChange);
+                    g.VisitChanges(ref serializer);
 
                     if (serializer.Truncated)
                     {

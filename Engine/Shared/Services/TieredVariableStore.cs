@@ -168,6 +168,11 @@ public class TieredVariableStore : IVariableStore
         for (int i = 0; i < _modifiedMask.Length; i++) _modifiedMask[i] = ~0UL;
     }
 
+    public void ClearModified()
+    {
+        Array.Clear(_modifiedMask, 0, _modifiedMask.Length);
+    }
+
     public void Dispose()
     {
         if (_overrides.Length > 0)

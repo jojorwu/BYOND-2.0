@@ -14,6 +14,7 @@ public interface IVariableStore : IDisposable
     ref DreamValue GetRef(int index);
     void Set(int index, DreamValue value);
     void CopyFrom(DreamValue[] source);
+    void ClearModified();
     int Length { get; }
 
     delegate void Visitor(int index, in DreamValue value);

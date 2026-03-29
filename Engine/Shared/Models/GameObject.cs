@@ -47,7 +47,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
     private int _isDirty;
-    private ComponentMask _changeMask = new();
 
     protected override void IncrementVersion()
     {
@@ -63,7 +62,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         Interlocked.Exchange(ref _isDirty, 0);
         using (_lock.EnterScope())
         {
-            _changeMask.Clear();
+            _variableStore.ClearModified();
         }
     }
 
@@ -231,6 +230,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set { if (Interlocked.Exchange(ref _densityVal, value ? 1 : 0) != (value ? 1 : 0)) IncrementVersion(); }
     }
 
+    private struct CommitVisitor : IVariableVisitor
+    {
+        public IVariableStore Target;
+        public void Visit(int index, in DreamValue value) => Target.Set(index, value);
+    }
+
     /// <summary>
     /// Commits the current state to the read-only buffer.
     /// </summary>
@@ -262,41 +267,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             }
 
             // Optimized commit: only update variables that have actually changed since last commit
-            if (!_changeMask.IsEmpty)
-            {
-                var bits = _changeMask.GetSetBits();
-                while (bits.MoveNext())
-                {
-                    int i = bits.Current;
-                    if (i < _variableStore.Length)
-                    {
-                        _committedStore.Set(i, _variableStore.Get(i));
-                    }
-                }
-                _changeMask.Clear();
-            }
+            var visitor = new CommitVisitor { Target = _committedStore };
+            _variableStore.VisitModified(ref visitor);
+            _variableStore.ClearModified();
         }
     }
 
-    public delegate void ChangeVisitorRef<T>(int index, in DreamValue value, ref T state) where T : allows ref struct;
-
-    public void VisitChangesRef<T>(ref T state, ChangeVisitorRef<T> visitor) where T : allows ref struct
-    {
-        using (_lock.EnterScope())
-        {
-            if (_changeMask.IsEmpty) return;
-
-            var bits = _changeMask.GetSetBits();
-            while (bits.MoveNext())
-            {
-                int i = bits.Current;
-                if (i < _variableStore.Length)
-                {
-                    visitor(i, _variableStore.Get(i), ref state);
-                }
-            }
-        }
-    }
 
     private IGameObject? _loc;
     /// <summary>
@@ -537,7 +513,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             if (!valueChanged) return;
 
             _variableStore.Set(index, value);
-            _changeMask.Set(index);
             if (!suppressVersion) IncrementVersion();
 
             OnVariableChanged(index, value, ref posChanged, ref oldX, ref oldY, ref oldZ);
@@ -710,21 +685,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             var type = ObjectType;
             if (type != null)
             {
-                if (type.XIndex != -1)
-                {
-                    _variableStore.Set(type.XIndex, new DreamValue(x));
-                    _changeMask.Set(type.XIndex);
-                }
-                if (type.YIndex != -1)
-                {
-                    _variableStore.Set(type.YIndex, new DreamValue(y));
-                    _changeMask.Set(type.YIndex);
-                }
-                if (type.ZIndex != -1)
-                {
-                    _variableStore.Set(type.ZIndex, new DreamValue(z));
-                    _changeMask.Set(type.ZIndex);
-                }
+                if (type.XIndex != -1) _variableStore.Set(type.XIndex, new DreamValue(x));
+                if (type.YIndex != -1) _variableStore.Set(type.YIndex, new DreamValue(y));
+                if (type.ZIndex != -1) _variableStore.Set(type.ZIndex, new DreamValue(z));
             }
 
             // Increment version once for the whole batched position update
@@ -814,30 +777,42 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     }
 
 
+    private struct DeltaStateVisitor : IVariableVisitor
+    {
+        public VariableChange[] Changes;
+        public int Index;
+        public int StoreLength;
+        public void Visit(int index, in DreamValue value)
+        {
+            if (index < StoreLength)
+            {
+                Changes[Index++] = new VariableChange { Index = index, Value = value };
+            }
+        }
+    }
+
     public DeltaState GetDeltaState()
     {
         using (_lock.EnterScope())
         {
-            if (_changeMask.IsEmpty)
+            // Delta tracking optimization: only capture variables modified since last clear/commit
+            // We can't know the count easily without iterating, so we estimate or use a temporary list
+            // For extreme efficiency, we implement a custom visitor that writes directly to rented array.
+
+            // Note: We need a way to check if anything is modified.
+            // In TieredVariableStore, we can check the mask.
+
+            var changes = ArrayPool<VariableChange>.Shared.Rent(Math.Max(128, _variableStore.Length));
+            var visitor = new DeltaStateVisitor { Changes = changes, Index = 0, StoreLength = _variableStore.Length };
+            _variableStore.VisitModified(ref visitor);
+
+            if (visitor.Index == 0)
             {
+                ArrayPool<VariableChange>.Shared.Return(changes);
                 return new DeltaState(Id, null, 0);
             }
 
-            // Delta tracking optimization: only capture variables modified since last clear/commit
-            int count = _changeMask.Count;
-            var changes = ArrayPool<VariableChange>.Shared.Rent(count);
-            int idx = 0;
-            var bits = _changeMask.GetSetBits();
-            while (bits.MoveNext())
-            {
-                int i = bits.Current;
-                if (i < _variableStore.Length)
-                {
-                    changes[idx++] = new VariableChange { Index = i, Value = _variableStore.Get(i) };
-                }
-            }
-
-            return new DeltaState(Id, changes, idx, true);
+            return new DeltaState(Id, changes, visitor.Index, true);
         }
     }
 
@@ -928,7 +903,6 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedVisuals = default;
             _densityVal = 1;
             _isDirty = 0;
-            _changeMask.Clear();
 
             _variableStore.Dispose();
             _committedStore.Dispose();

@@ -92,6 +92,8 @@ public class FlatVariableStore : IVariableStore
         _length = source.Length;
     }
 
+    public void ClearModified() { }
+
     public void Dispose()
     {
         if (_values.Length > 0)

@@ -11,8 +11,6 @@ namespace Shared.Services;
     {
         private readonly SpatialGrid _spatialGrid;
         private readonly IDiagnosticBus _diagnosticBus;
-        private static readonly ThreadLocal<List<IGameObject>> _queryBuffer = new(() => new List<IGameObject>(65536));
-        private static readonly SharedPool<List<IGameObject>> _listPool = new(() => new List<IGameObject>(1024));
         private long _totalInterestUpdates;
         private long _totalQueryVolume;
 

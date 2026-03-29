@@ -1054,6 +1054,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
         _updateListener = null;
     }
+
+    public IVariableStore Variables => _variableStore;
 }
 
 public class GameObjectConverter : JsonConverter<GameObject>

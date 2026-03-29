@@ -177,4 +177,9 @@ namespace Shared;
         /// Gets a delta state containing all changes since the last clear.
         /// </summary>
         Models.DeltaState GetDeltaState();
+
+        /// <summary>
+        /// Direct access to the variable store for high-performance iteration during serialization.
+        /// </summary>
+        Interfaces.IVariableStore Variables { get; }
     }

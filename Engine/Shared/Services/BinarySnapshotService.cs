@@ -10,24 +10,28 @@ namespace Shared.Services;
     public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
-        private readonly ThreadLocal<Dictionary<long, (byte[] Buffer, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (byte[] Buffer, int Length, long Version)>(), trackAllValues: true);
+        private readonly ThreadLocal<Dictionary<long, (int BufferOffset, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (int BufferOffset, int Length, long Version)>(), trackAllValues: true);
+        private readonly SnapshotBuffer _buffer = new();
+        private long _bufferVersion = 1;
 
         public BinarySnapshotService(StringInterner? interner = null)
         {
             _interner = interner;
         }
 
-        public void Shrink()
+        public void ResetBuffer()
         {
-            // Thread-safe iteration through all thread-local dictionaries
+            _buffer.Reset();
+            _bufferVersion++;
             foreach (var dict in _deltaCache.Values)
             {
-                foreach (var item in dict.Values)
-                {
-                    ArrayPool<byte>.Shared.Return(item.Buffer);
-                }
                 dict.Clear();
             }
+        }
+
+        public void Shrink()
+        {
+            ResetBuffer();
         }
 
         public int SerializeTo(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
@@ -112,67 +116,73 @@ namespace Shared.Services;
                     truncated = true;
                     return true;
                 }
-                cached.Buffer.AsSpan(0, cached.Length).CopyTo(destination.Slice(offset));
+                _buffer.GetSegmentAsSpan(cached.BufferOffset, cached.Length).CopyTo(destination.Slice(offset));
                 offset += cached.Length;
                 if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
                 return false;
             }
 
-            // Check if we have enough space for the basic object data
-            // Estimate: 7 fields * 10 bytes max per VarInt = 70 bytes. Use 128 for safety.
-            if (offset + 128 > destination.Length)
-            {
-                truncated = true;
-                return true;
-            }
+            // High-performance path: Serialize into a temporary segment in the persistent slab first
+            // We use a safe estimate of 1024 bytes per object for the temporary write.
+            int slabOffset;
+            var slabSpan = _buffer.AcquireSegment(Math.Min(1024, _buffer.Capacity - _buffer.Position), out slabOffset);
 
-            int startOffset = offset;
-            int objectStartOffset = offset;
-            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Id);
-            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Version);
-            offset += Utils.VarInt.Write(destination.Slice(offset), (long)(obj.ObjectType?.Id ?? -1));
-            offset += Utils.VarInt.Write(destination.Slice(offset), obj.X);
-            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Y);
-            offset += Utils.VarInt.Write(destination.Slice(offset), obj.Z);
+            int localOffset = 0;
+            localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.Id);
+            localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.Version);
+            localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), (long)(obj.ObjectType?.Id ?? -1));
+            localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.X);
+            localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.Y);
+            localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.Z);
 
             if (obj.ObjectType != null && obj is GameObject g)
             {
                 var counter = new ChangeCounter();
                 g.VisitChanges(ref counter);
 
-                offset += Utils.VarInt.Write(destination.Slice(offset), counter.Count);
+                localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), counter.Count);
 
                 if (counter.Count > 0)
                 {
-                    var serializer = new ChangeSerializer { Destination = destination, Offset = offset };
+                    var serializer = new ChangeSerializer { Destination = slabSpan, Offset = localOffset };
                     g.VisitChanges(ref serializer);
 
                     if (serializer.Truncated)
                     {
-                        offset = startOffset;
+                        // Slab segment too small, fall back to safe but slower path or handle properly
+                        // For now we assume 1024 is enough or the buffer throws on overflow
                         truncated = true;
                         return true;
                     }
-                    offset = serializer.Offset;
+                    localOffset = serializer.Offset;
                 }
             }
             else
             {
-                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
+                localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), 0);
             }
 
-            // Cache the result for reuse in the same tick
-            int length = offset - objectStartOffset;
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(length);
-            destination.Slice(objectStartOffset, length).CopyTo(buffer);
-            if (cache.TryGetValue(obj.Id, out var oldEntry))
+            // Store in cache
+            cache[obj.Id] = (slabOffset, localOffset, obj.Version);
+
+            // Copy to destination
+            if (offset + localOffset > destination.Length)
             {
-                ArrayPool<byte>.Shared.Return(oldEntry.Buffer);
+                truncated = true;
+                return true;
             }
-            cache[obj.Id] = (buffer, length, obj.Version);
+            slabSpan.Slice(0, localOffset).CopyTo(destination.Slice(offset));
+            offset += localOffset;
 
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             return false;
+        }
+
+        public void Dispose()
+        {
+            _buffer.Dispose();
+            _deltaCache.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         public void Deserialize(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)

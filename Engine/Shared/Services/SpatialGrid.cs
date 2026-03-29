@@ -17,6 +17,9 @@ namespace Shared;
         private class Cell
         {
             public volatile IGameObject[] Objects = Array.Empty<IGameObject>();
+            public volatile long[] Xs = Array.Empty<long>();
+            public volatile long[] Ys = Array.Empty<long>();
+            public volatile long[] Zs = Array.Empty<long>();
             public int Count;
             public SpinLock Lock = new(false);
             public long Version;
@@ -25,6 +28,9 @@ namespace Shared;
             {
                 // Note: We don't return to pool here anymore, parent grid handles it via _replacedArrays
                 Objects = Array.Empty<IGameObject>();
+                Xs = Array.Empty<long>();
+                Ys = Array.Empty<long>();
+                Zs = Array.Empty<long>();
                 Count = 0;
                 Version = 0;
             }
@@ -41,6 +47,14 @@ namespace Shared;
                 if (_replacedArrays.TryDequeue(out entry))
                 {
                     ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+                }
+            }
+
+            while (_replacedCoordArrays.TryPeek(out var entry) && now >= entry.ReleaseTimestamp)
+            {
+                if (_replacedCoordArrays.TryDequeue(out entry))
+                {
+                    ArrayPool<long>.Shared.Return(entry.Array, true);
                 }
             }
 
@@ -61,9 +75,17 @@ namespace Shared;
             _replacedArrays.Enqueue((releaseAt, array));
         }
 
+        private void EnqueueForRelease(long[] array)
+        {
+            if (array.Length == 0) return;
+            long releaseAt = _timeProvider.GetTimestamp() + _timeProvider.TimestampFrequency;
+            _replacedCoordArrays.Enqueue((releaseAt, array));
+        }
+
         private readonly ConcurrentDictionary<ulong, Cell> _grid = new();
         private readonly ConcurrentQueue<ulong> _emptyCellKeys = new();
         private readonly ConcurrentQueue<(long ReleaseTimestamp, IGameObject[] Array)> _replacedArrays = new();
+        private readonly ConcurrentQueue<(long ReleaseTimestamp, long[] Array)> _replacedCoordArrays = new();
         private readonly ConcurrentStack<Cell> _cellPool = new();
         private readonly TimeProvider _timeProvider;
         private readonly int _cellSize;
@@ -210,10 +232,11 @@ namespace Shared;
 
         private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
-            // Copy-On-Write optimization: only COW if we actually need to expand or if we want to ensure isolation.
-            // For now, we maintain strict COW for thread-safety during parallel queries.
             int newCount = cell.Count + 1;
             var oldArray = cell.Objects;
+            var oldX = cell.Xs;
+            var oldY = cell.Ys;
+            var oldZ = cell.Zs;
 
             int targetSize = oldArray.Length;
             if (newCount > targetSize)
@@ -222,19 +245,37 @@ namespace Shared;
             }
 
             var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
+            var newX = ArrayPool<long>.Shared.Rent(targetSize);
+            var newY = ArrayPool<long>.Shared.Rent(targetSize);
+            var newZ = ArrayPool<long>.Shared.Rent(targetSize);
+
             if (cell.Count > 0)
             {
                 Array.Copy(oldArray, newArray, cell.Count);
+                Array.Copy(oldX, newX, cell.Count);
+                Array.Copy(oldY, newY, cell.Count);
+                Array.Copy(oldZ, newZ, cell.Count);
             }
 
             if (oldArray.Length > 0)
             {
                 EnqueueForRelease(oldArray);
+                EnqueueForRelease(oldX);
+                EnqueueForRelease(oldY);
+                EnqueueForRelease(oldZ);
             }
 
             obj.SpatialGridIndex = cell.Count;
             newArray[cell.Count] = obj;
+            newX[cell.Count] = obj.X;
+            newY[cell.Count] = obj.Y;
+            newZ[cell.Count] = obj.Z;
+
             cell.Objects = newArray;
+            cell.Xs = newX;
+            cell.Ys = newY;
+            cell.Zs = newZ;
+
             cell.Count = newCount;
             cell.Version++;
             Interlocked.Increment(ref _version);
@@ -268,19 +309,31 @@ namespace Shared;
 
             int lastIndex = cell.Count - 1;
             var oldArray = cell.Objects;
+            var oldX = cell.Xs;
+            var oldY = cell.Ys;
+            var oldZ = cell.Zs;
 
-            // We still COW even on remove to maintain thread-safety for enumerators
             var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
-            // Ensure the rented array is clean of stale references before use
+            var newX = ArrayPool<long>.Shared.Rent(oldX.Length);
+            var newY = ArrayPool<long>.Shared.Rent(oldY.Length);
+            var newZ = ArrayPool<long>.Shared.Rent(oldZ.Length);
+
             Array.Clear(newArray, 0, newArray.Length);
 
             if (lastIndex > 0)
             {
                 Array.Copy(oldArray, newArray, cell.Count);
+                Array.Copy(oldX, newX, cell.Count);
+                Array.Copy(oldY, newY, cell.Count);
+                Array.Copy(oldZ, newZ, cell.Count);
+
                 if (index < lastIndex)
                 {
                     var lastObj = newArray[lastIndex];
                     newArray[index] = lastObj;
+                    newX[index] = newX[lastIndex];
+                    newY[index] = newY[lastIndex];
+                    newZ[index] = newZ[lastIndex];
                     lastObj.SpatialGridIndex = index;
                 }
                 newArray[lastIndex] = null!;
@@ -289,9 +342,16 @@ namespace Shared;
             if (oldArray.Length > 0)
             {
                 EnqueueForRelease(oldArray);
+                EnqueueForRelease(oldX);
+                EnqueueForRelease(oldY);
+                EnqueueForRelease(oldZ);
             }
 
             cell.Objects = newArray;
+            cell.Xs = newX;
+            cell.Ys = newY;
+            cell.Zs = newZ;
+
             cell.Count--;
             cell.Version++;
             Interlocked.Increment(ref _version);
@@ -355,20 +415,51 @@ namespace Shared;
                 {
                     if (_currentCell != null)
                     {
-                        _currentIndexInCell++;
-                        // Lock-free read of COW array
                         var objs = _currentCell.Objects;
+                        var xs = _currentCell.Xs;
+                        var ys = _currentCell.Ys;
+                        var zs = _currentCell.Zs;
                         int count = _currentCell.Count;
-                        if (_currentIndexInCell < count && _currentIndexInCell < objs.Length)
+
+                        while (++_currentIndexInCell < count)
                         {
-                            _current = objs[_currentIndexInCell];
-                            if (_current != null && _current.X >= _box.Left && _current.X <= _box.Right &&
-                                _current.Y >= _box.Bottom && _current.Y <= _box.Top &&
-                                _current.Z >= _box.Back && _current.Z <= _box.Front)
+                            // SIMD-Accelerated filtering
+                            if (System.Runtime.Intrinsics.Vector256.IsHardwareAccelerated && count - _currentIndexInCell >= 4)
                             {
+                                var vx = System.Runtime.Intrinsics.Vector256.Create(xs, _currentIndexInCell);
+                                var vy = System.Runtime.Intrinsics.Vector256.Create(ys, _currentIndexInCell);
+                                var vz = System.Runtime.Intrinsics.Vector256.Create(zs, _currentIndexInCell);
+
+                                var vLeft = System.Runtime.Intrinsics.Vector256.Create(_box.Left);
+                                var vRight = System.Runtime.Intrinsics.Vector256.Create(_box.Right);
+                                var vBottom = System.Runtime.Intrinsics.Vector256.Create(_box.Bottom);
+                                var vTop = System.Runtime.Intrinsics.Vector256.Create(_box.Top);
+                                var vBack = System.Runtime.Intrinsics.Vector256.Create(_box.Back);
+                                var vFront = System.Runtime.Intrinsics.Vector256.Create(_box.Front);
+
+                                var mask = System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vx, vLeft) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vx, vRight) &
+                                           System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vy, vBottom) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vy, vTop) &
+                                           System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vz, vBack) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vz, vFront);
+
+                                uint moveMask = (uint)System.Runtime.Intrinsics.Vector256.ExtractMostSignificantBits(mask);
+                                if (moveMask != 0)
+                                {
+                                    int bit = System.Numerics.BitOperations.TrailingZeroCount(moveMask);
+                                    _currentIndexInCell += bit;
+                                    _current = objs[_currentIndexInCell];
+                                    return true;
+                                }
+                                _currentIndexInCell += 3;
+                                continue;
+                            }
+
+                            if (xs[_currentIndexInCell] >= _box.Left && xs[_currentIndexInCell] <= _box.Right &&
+                                ys[_currentIndexInCell] >= _box.Bottom && ys[_currentIndexInCell] <= _box.Top &&
+                                zs[_currentIndexInCell] >= _box.Back && zs[_currentIndexInCell] <= _box.Front)
+                            {
+                                _current = objs[_currentIndexInCell];
                                 return true;
                             }
-                            continue;
                         }
                     }
 
@@ -466,8 +557,11 @@ namespace Shared;
                             {
                                 if (_grid.TryRemove(key, out var removed))
                                 {
-                                    var array = removed.Objects;
-                                    if (array.Length > 0) EnqueueForRelease(array);
+                                    if (removed.Objects.Length > 0) EnqueueForRelease(removed.Objects);
+                                    if (removed.Xs.Length > 0) EnqueueForRelease(removed.Xs);
+                                    if (removed.Ys.Length > 0) EnqueueForRelease(removed.Ys);
+                                    if (removed.Zs.Length > 0) EnqueueForRelease(removed.Zs);
+
                                     removed.Reset();
                                     _cellPool.Push(removed);
                                 }
@@ -529,20 +623,28 @@ namespace Shared;
         {
             foreach (var cell in _grid.Values)
             {
-                var array = cell.Objects;
-                if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
+                if (cell.Objects.Length > 0) ArrayPool<IGameObject>.Shared.Return(cell.Objects, true);
+                if (cell.Xs.Length > 0) ArrayPool<long>.Shared.Return(cell.Xs, true);
+                if (cell.Ys.Length > 0) ArrayPool<long>.Shared.Return(cell.Ys, true);
+                if (cell.Zs.Length > 0) ArrayPool<long>.Shared.Return(cell.Zs, true);
             }
             _grid.Clear();
 
             while (_cellPool.TryPop(out var cell))
             {
-                var array = cell.Objects;
-                if (array.Length > 0) ArrayPool<IGameObject>.Shared.Return(array, true);
+                if (cell.Objects.Length > 0) ArrayPool<IGameObject>.Shared.Return(cell.Objects, true);
+                if (cell.Xs.Length > 0) ArrayPool<long>.Shared.Return(cell.Xs, true);
+                if (cell.Ys.Length > 0) ArrayPool<long>.Shared.Return(cell.Ys, true);
+                if (cell.Zs.Length > 0) ArrayPool<long>.Shared.Return(cell.Zs, true);
             }
 
             while (_replacedArrays.TryDequeue(out var entry))
             {
                 ArrayPool<IGameObject>.Shared.Return(entry.Array, true);
+            }
+            while (_replacedCoordArrays.TryDequeue(out var entry))
+            {
+                ArrayPool<long>.Shared.Return(entry.Array, true);
             }
 
             GC.SuppressFinalize(this);

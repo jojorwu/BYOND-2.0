@@ -19,6 +19,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 {
     private static long nextId = 1;
 
+    [ThreadStatic]
+    private static long _threadIdBase;
+    [ThreadStatic]
+    private static int _threadIdOffset;
+    private const int IdBlockSize = 1024;
+
     public static void EnsureNextId(long id)
     {
         long current;
@@ -27,6 +33,17 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             current = nextId;
             if (current > id) break;
         } while (Interlocked.CompareExchange(ref nextId, id + 1, current) != current);
+    }
+
+    private static long AllocateNextId()
+    {
+        if (_threadIdOffset <= 0)
+        {
+            _threadIdBase = Interlocked.Add(ref nextId, IdBlockSize) - IdBlockSize;
+            _threadIdOffset = IdBlockSize;
+        }
+        _threadIdOffset--;
+        return _threadIdBase++;
     }
 
     private IComponentManager? _componentManager;
@@ -744,7 +761,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     /// <param name="objectType">The ObjectType of the game object.</param>
     public GameObject(ObjectType objectType) : base(objectType)
     {
-        Id = Interlocked.Increment(ref nextId);
+        Id = AllocateNextId();
         if (_variableStore is IObservableVariableStore observable) observable.SetOwner(this);
     }
 
@@ -752,7 +769,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     {
         base.Initialize(objectType);
         _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
-        Id = Interlocked.Increment(ref nextId);
+        Id = AllocateNextId();
         if (_variableStore is IObservableVariableStore observable) observable.SetOwner(this);
     }
 

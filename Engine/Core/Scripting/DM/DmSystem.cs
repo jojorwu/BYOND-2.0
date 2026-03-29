@@ -18,19 +18,68 @@ namespace Core.Scripting.DM
         private readonly IDreamVM _dreamVM;
         private readonly Lazy<IScriptHost> _scriptHostLazy;
         private readonly ILogger<DmSystem> _logger;
+        private readonly IScriptBridge _scriptBridge;
         private IScriptHost _scriptHost => _scriptHostLazy.Value;
 
 
-        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger)
+        public DmSystem(IObjectTypeManager typeManager, IDreamMakerLoader loader, IDreamVM dreamVM, Lazy<IScriptHost> scriptHostLazy, ILogger<DmSystem> logger, IScriptBridge? scriptBridge = null)
         {
             _typeManager = typeManager;
             _loader = loader;
             _dreamVM = dreamVM;
             _scriptHostLazy = scriptHostLazy;
             _logger = logger;
+            _scriptBridge = scriptBridge ?? MockScriptBridge.Instance;
         }
 
-        public void Initialize() { }
+        public void Initialize()
+        {
+            // DM integration: Bridge native providers can now expose the bridge to DM code.
+            // Systems that populate native procs should inject IScriptBridge.
+        }
+
+        private class DreamScriptFunction : IScriptFunction
+        {
+            public string Name { get; }
+            public ScriptLanguage Language => ScriptLanguage.DM;
+            private readonly IDreamVM _vm;
+            private readonly IScriptHost _host;
+
+            public DreamScriptFunction(string name, IDreamVM vm, IScriptHost host)
+            {
+                Name = name;
+                _vm = vm;
+                _host = host;
+            }
+
+            public async ValueTask<object?> InvokeAsync(params object?[] args)
+            {
+                var thread = _vm.CreateThread(Name);
+                if (thread is not DreamThread dt) return null;
+
+                for (int i = args.Length - 1; i >= 0; i--)
+                {
+                    dt.Push(DreamValue.FromObject(args[i]));
+                }
+
+                // If calling from another script, we usually want synchronous execution for the bridge
+                // We'll execute it immediately until it sleeps or finishes
+                var state = dt.Run(1000000);
+
+                if (state == DreamThreadState.Finished)
+                {
+                    var result = dt.Pop();
+                    var obj = result.ToObject();
+                    // We must return the thread to the pool manually if it finished immediately
+                    if (_vm is DreamVM dreamVM) dreamVM.OnThreadFinished(dt);
+                    return obj;
+                }
+
+                // If it's still running (e.g. sleep/spawn), add to scheduler
+                _host.AddThread(dt);
+                return null;
+            }
+        }
 
         public async Task LoadScripts(string rootDirectory)
         {

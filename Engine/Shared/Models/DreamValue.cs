@@ -371,12 +371,26 @@ namespace Shared;
                 long l => new DreamValue(l),
                 float f => new DreamValue(f),
                 double d => new DreamValue(d),
+                bool b => b ? True : False,
                 DreamObject o => new DreamValue(o),
                 ObjectType t => new DreamValue(t),
                 DreamResource r => new DreamValue(r),
                 IDreamProc p => new DreamValue(p),
                 JsonElement e => FromJsonElement(e),
                 _ => throw new ArgumentException($"Unsupported type for DreamValue: {value.GetType()}")
+            };
+        }
+
+        public object? ToObject()
+        {
+            return Type switch
+            {
+                DreamValueType.Float => _floatValue,
+                DreamValueType.Integer => _longValue,
+                DreamValueType.String => _objectValue,
+                DreamValueType.DreamObject => _objectValue,
+                DreamValueType.Null => null,
+                _ => _objectValue
             };
         }
 

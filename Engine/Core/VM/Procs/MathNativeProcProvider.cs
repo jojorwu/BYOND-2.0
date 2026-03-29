@@ -7,9 +7,30 @@ namespace Core.VM.Procs
 {
     public class MathNativeProcProvider : INativeProcProvider
     {
+        private readonly IScriptBridge? _bridge;
+
+        public MathNativeProcProvider(IScriptBridge? bridge = null)
+        {
+            _bridge = bridge;
+        }
+
         public IDictionary<string, IDreamProc> GetNativeProcs()
         {
             var procs = new Dictionary<string, IDreamProc>();
+
+            if (_bridge != null)
+            {
+                procs["bridge_call"] = new NativeProc("bridge_call", (thread, instance, args) =>
+                {
+                    if (args.Length < 1) return DreamValue.Null;
+                    string funcName = args[0].StringValue;
+                    object?[] bridgeArgs = new object?[args.Length - 1];
+                    for (int i = 1; i < args.Length; i++) bridgeArgs[i - 1] = args[i].ToObject();
+
+                    var result = _bridge.CallAsync(funcName, bridgeArgs).GetAwaiter().GetResult();
+                    return DreamValue.FromObject(result);
+                });
+            }
 
             procs["abs"] = new NativeProc("abs", (thread, src, args) =>
                 args.Length > 0 ? new DreamValue(SharedOperations.Abs(args[0].GetValueAsFloat())) : DreamValue.Null);

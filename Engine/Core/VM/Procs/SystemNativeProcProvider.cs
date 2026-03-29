@@ -8,15 +8,31 @@ namespace Core.VM.Procs
     public class SystemNativeProcProvider : INativeProcProvider
     {
         private readonly ISoundApi? _soundApi;
+        private readonly IScriptBridge? _bridge;
 
-        public SystemNativeProcProvider(ISoundApi? soundApi = null)
+        public SystemNativeProcProvider(ISoundApi? soundApi = null, IScriptBridge? bridge = null)
         {
             _soundApi = soundApi;
+            _bridge = bridge;
         }
 
         public IDictionary<string, IDreamProc> GetNativeProcs()
         {
             var procs = new Dictionary<string, IDreamProc>();
+
+            if (_bridge != null)
+            {
+                procs["bridge_call"] = new NativeProc("bridge_call", (thread, instance, args) =>
+                {
+                    if (args.Length < 1) return DreamValue.Null;
+                    string funcName = args[0].StringValue;
+                    object?[] bridgeArgs = new object?[args.Length - 1];
+                    for (int i = 1; i < args.Length; i++) bridgeArgs[i - 1] = args[i].ToObject();
+
+                    var result = _bridge.CallAsync(funcName, bridgeArgs).GetAwaiter().GetResult();
+                    return DreamValue.FromObject(result);
+                });
+            }
 
             procs["sleep"] = new NativeProc("sleep", (thread, src, args) =>
             {

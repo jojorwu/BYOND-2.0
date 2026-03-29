@@ -11,11 +11,13 @@ namespace Core.Scripting.CSharp
     public class CSharpSystem : IScriptSystem
     {
         private readonly IGameApi _gameApi;
+        private readonly IScriptBridge _scriptBridge;
         private readonly List<object> _scriptInstances = new();
 
-        public CSharpSystem(IGameApi gameApi)
+        public CSharpSystem(IGameApi gameApi, IScriptBridge? scriptBridge = null)
         {
             _gameApi = gameApi;
+            _scriptBridge = scriptBridge ?? MockScriptBridge.Instance;
         }
 
         public void Initialize() { }
@@ -30,7 +32,7 @@ namespace Core.Scripting.CSharp
                 .AddImports("System", "System.Numerics", "Core", "Core.Graphics");
 
             // Глобальный объект, доступный в скриптах
-            var globals = new ScriptGlobals { Game = _gameApi };
+            var globals = new ScriptGlobals { Game = _gameApi, Bridge = _scriptBridge };
 
             foreach (var file in csFiles)
             {
@@ -71,5 +73,6 @@ namespace Core.Scripting.CSharp
     public class ScriptGlobals
     {
         public IGameApi? Game { get; set; }
+        public IScriptBridge? Bridge { get; set; }
     }
 }

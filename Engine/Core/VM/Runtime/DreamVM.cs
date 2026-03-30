@@ -111,6 +111,7 @@ namespace Core.VM.Runtime
         public void OnThreadFinished(DreamThread thread)
         {
             Interlocked.Decrement(ref _activeThreads);
+            thread.Reset();
             _threadPool.Return(thread);
         }
         public void OnExceptionThrown() => Interlocked.Increment(ref _totalExceptions);

@@ -2266,7 +2266,10 @@ public unsafe partial class BytecodeInterpreter
         }
 
         thread._stack.Pointer = state.StackPtr;
-        _vm?.OnThreadFinished(thread);
+        if (thread.State == DreamThreadState.Finished || thread.State == DreamThreadState.Error)
+        {
+            _vm?.OnThreadFinished(thread);
+        }
         return thread.State;
     }
 }

@@ -333,18 +333,40 @@ public class Archetype
             {
                 using (_lock.EnterScope())
                 {
-                    var data = ((ComponentArray<T>)array).Data;
+                    var typed = (ComponentArray<T>)array;
                     var entityIds = _entityIds;
                     int count = _count;
 
-                    ref T dataRef = ref MemoryMarshal.GetArrayDataReference(data);
                     ref long idRef = ref MemoryMarshal.GetArrayDataReference(entityIds);
-
                     for (int i = 0; i < count; i++)
                     {
-                        action(Unsafe.Add(ref dataRef, i), Unsafe.Add(ref idRef, i));
+                        action(typed.GetAsT(i), Unsafe.Add(ref idRef, i));
                     }
                 }
+            }
+        }
+    }
+
+    public void BeginUpdate()
+    {
+        using (_lock.EnterScope())
+        {
+            var arrays = _activeArrays;
+            for (int i = 0; i < arrays.Length; i++)
+            {
+                arrays[i].BeginUpdate(_count);
+            }
+        }
+    }
+
+    public void CommitUpdate()
+    {
+        using (_lock.EnterScope())
+        {
+            var arrays = _activeArrays;
+            for (int i = 0; i < arrays.Length; i++)
+            {
+                arrays[i].CommitUpdate(_count);
             }
         }
     }
@@ -607,19 +629,30 @@ public class Archetype
         void CopyTo(int sourceIndex, IComponentArray destination, int destinationIndex);
         void Clear(int index);
         IComponent Get(int index);
+        void BeginUpdate(int count);
+        void CommitUpdate(int count);
     }
 
     private class ComponentArray<T> : IComponentArray where T : class, IComponent
     {
         public T[] Data = System.Array.Empty<T>();
+        public T[] NextData = System.Array.Empty<T>();
+        private bool _isUpdating = false;
 
-        public void Resize(int capacity) => System.Array.Resize(ref Data, capacity);
+        public void Resize(int capacity)
+        {
+            System.Array.Resize(ref Data, capacity);
+            System.Array.Resize(ref NextData, capacity);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(int index, IComponent component)
         {
             ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
             Unsafe.Add(ref dataRef, index) = (T)component;
+
+            ref T nextRef = ref MemoryMarshal.GetArrayDataReference(NextData);
+            Unsafe.Add(ref nextRef, index) = (T)component;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -627,6 +660,9 @@ public class Archetype
         {
             ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
             Unsafe.Add(ref dataRef, to) = Unsafe.Add(ref dataRef, from);
+
+            ref T nextRef = ref MemoryMarshal.GetArrayDataReference(NextData);
+            Unsafe.Add(ref nextRef, to) = Unsafe.Add(ref nextRef, from);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -641,6 +677,9 @@ public class Archetype
         {
             ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
             Unsafe.Add(ref dataRef, index) = null!;
+
+            ref T nextRef = ref MemoryMarshal.GetArrayDataReference(NextData);
+            Unsafe.Add(ref nextRef, index) = null!;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -648,6 +687,30 @@ public class Archetype
         {
             ref T dataRef = ref MemoryMarshal.GetArrayDataReference(Data);
             return Unsafe.Add(ref dataRef, index);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T GetAsT(int index)
+        {
+            ref T dataRef = ref MemoryMarshal.GetArrayDataReference(_isUpdating ? NextData : Data);
+            return Unsafe.Add(ref dataRef, index);
+        }
+
+        public void BeginUpdate(int count)
+        {
+            _isUpdating = true;
+            System.Array.Copy(Data, NextData, count);
+            for (int i = 0; i < count; i++) NextData[i]?.BeginUpdate();
+        }
+
+        public void CommitUpdate(int count)
+        {
+            _isUpdating = false;
+            for (int i = 0; i < count; i++) NextData[i]?.CommitUpdate();
+            (Data, NextData) = (NextData, Data);
+            // After swap, we also need to update the new NextData to match the new Data
+            // to ensure future incremental updates starting from BeginUpdate are correct.
+            System.Array.Copy(Data, NextData, count);
         }
     }
 

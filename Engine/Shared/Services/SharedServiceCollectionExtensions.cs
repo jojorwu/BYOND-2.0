@@ -83,6 +83,9 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
+        services.AddEngineService<ScriptBridge>(typeof(IScriptBridge));
+        services.AddSingleton<IArenaAllocator, ArenaAllocator>();
+        services.AddEngineService<ReactiveStateSystem>(typeof(IVariableChangeListener));
         services.AddEngineService<DiagnosticBus>(typeof(IDiagnosticBus));
         services.AddEngineService<LauncherPathProvider>(typeof(ILauncherPathProvider));
         services.AddEngineService<EngineManager>(typeof(IEngineManager));
@@ -101,7 +104,7 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddEngineService<ComponentRegistryService>();
         services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), typeof(IObjectPool<GameObject>), typeof(IShrinkable));
-        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>())), typeof(IObjectPool<EntityCommandBuffer>), typeof(IShrinkable));
+        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IJobSystem>())), typeof(IObjectPool<EntityCommandBuffer>), typeof(IShrinkable));
         services.AddSingleton<ISystemRegistry, SystemRegistry>();
         services.AddSingleton<ISystemExecutionPlanner, SystemExecutionPlanner>();
         services.AddEngineService<SystemManager>(typeof(ISystemManager));
@@ -137,13 +140,8 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddSingleton<IComputeService, ComputeService>();
         services.AddEngineService<JobSystem>(typeof(IJobSystem));
-        services.AddSingleton<SoundResourceProvider>();
-        services.AddEngineService<ResourceSystem>(sp =>
-        {
-            var system = new ResourceSystem(sp.GetRequiredService<IDiagnosticBus>());
-            system.RegisterProvider(sp.GetRequiredService<SoundResourceProvider>());
-            return system;
-        }, typeof(IResourceSystem));
+        services.AddEngineService<VfsManager>(typeof(IVfsManager));
+        services.AddEngineService<ResourceSystem>(typeof(IResourceSystem));
         return services;
     }
     /// <summary>

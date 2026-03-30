@@ -5,7 +5,7 @@ using Shared.Interfaces;
 
 namespace Shared.Models;
 
-public class EntityQuery : IEnumerable<IGameObject>
+public class EntityQuery : IEntityQuery
 {
     private readonly IComponentQueryService _queryService;
     private readonly Type[] _componentTypes;
@@ -30,6 +30,8 @@ public class EntityQuery : IEnumerable<IGameObject>
     {
         Query.ForEach(ref visitor);
     }
+
+    public long Version => Query.Version;
 }
 
 public class EntityQuery<T1> : EntityQuery where T1 : class, IComponent

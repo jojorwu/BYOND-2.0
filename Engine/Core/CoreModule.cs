@@ -100,7 +100,7 @@ namespace Core
             services.AddSingleton<IBytecodeInterpreter, BytecodeInterpreter>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();
-            services.AddSingleton<INativeProcProvider>(p => new Core.VM.Procs.SystemNativeProcProvider(p.GetService<ISoundApi>()));
+            services.AddSingleton<INativeProcProvider>(p => new Core.VM.Procs.SystemNativeProcProvider(p.GetService<ISoundApi>(), p.GetService<IScriptBridge>()));
             services.AddSingleton<DreamVM>();
             services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
             services.AddSingleton<IEngineService>(provider => provider.GetRequiredService<DreamVM>());
@@ -129,7 +129,8 @@ namespace Core
                     provider.GetRequiredService<IDreamMakerLoader>(),
                     provider.GetRequiredService<IDreamVM>(),
                     new Lazy<IScriptHost>(() => provider.GetRequiredService<IScriptHost>()),
-                    provider.GetRequiredService<ILogger<Core.Scripting.DM.DmSystem>>()
+                    provider.GetRequiredService<ILogger<Core.Scripting.DM.DmSystem>>(),
+                    provider.GetRequiredService<IScriptBridge>()
                 )
             );
         }

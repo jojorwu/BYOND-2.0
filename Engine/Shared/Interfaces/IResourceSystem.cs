@@ -1,20 +1,19 @@
+using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Shared.Interfaces;
 
-/// <summary>
-/// A centralized system for managing game assets and resources.
-/// Supports caching, lazy loading, and provider-based asset resolution.
-/// </summary>
-public interface IResourceSystem
+public interface IResourceLoader<T> where T : class
 {
-    Task<T?> LoadResourceAsync<T>(string path) where T : class;
-    void RegisterProvider(IResourceProvider provider);
-    void ClearCache();
+    Task<T?> LoadAsync(Stream stream, string path);
 }
 
-public interface IResourceProvider
+public interface IResourceSystem : IEngineService
 {
-    bool CanHandle(string path);
-    Task<object?> LoadAsync(string path);
+    Task<T?> LoadResourceAsync<T>(string path) where T : class;
+    void RegisterLoader<T>(IResourceLoader<T> loader) where T : class;
+    void ClearCache();
+
+    event Action<string>? ResourceReloaded;
 }

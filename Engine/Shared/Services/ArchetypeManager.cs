@@ -31,6 +31,8 @@ public interface IArchetypeManager
     void ForEachEntity(Action<IGameObject> action);
     void ForEachEntity<TVisitor>(ref TVisitor visitor) where TVisitor : struct, Archetype.IEntityVisitor, allows ref struct;
     void Compact();
+    void BeginUpdate();
+    void CommitUpdate();
 }
 
 public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
@@ -466,6 +468,24 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
         _diagnosticBus.Publish("ArchetypeManager", "Archetypes compacted", DiagnosticSeverity.Info, m => {
             m.Add("ArchetypeCount", archetypes.Length);
         });
+    }
+
+    public void BeginUpdate()
+    {
+        var archetypes = _archetypes;
+        for (int i = 0; i < archetypes.Length; i++)
+        {
+            archetypes[i].BeginUpdate();
+        }
+    }
+
+    public void CommitUpdate()
+    {
+        var archetypes = _archetypes;
+        for (int i = 0; i < archetypes.Length; i++)
+        {
+            archetypes[i].CommitUpdate();
+        }
     }
 
     public void Shrink()

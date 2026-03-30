@@ -4,10 +4,10 @@ namespace Shared;
     public interface IDreamVM
     {
         List<string> Strings { get; }
-        Dictionary<string, IDreamProc> Procs { get; }
+        System.Collections.Concurrent.ConcurrentDictionary<string, IDreamProc> Procs { get; }
         List<IDreamProc> AllProcs { get; }
         IList<DreamValue> Globals { get; }
-        Dictionary<string, int> GlobalNames { get; }
+        System.Collections.Concurrent.ConcurrentDictionary<string, int> GlobalNames { get; }
         ObjectType? ListType { get; set; }
         DreamObject? World { get; set; }
         IObjectTypeManager? ObjectTypeManager { get; set; }

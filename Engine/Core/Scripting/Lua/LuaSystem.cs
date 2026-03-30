@@ -1,7 +1,10 @@
 using Shared;
+using Shared.Interfaces;
+using Shared.Services;
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using NLua;
 
 namespace Core.Scripting.LuaSystem
@@ -10,10 +13,12 @@ namespace Core.Scripting.LuaSystem
     {
         private Lua? _lua;
         private readonly IGameApi _gameApi;
+        private readonly IScriptBridge _scriptBridge;
 
-        public LuaSystem(IGameApi gameApi)
+        public LuaSystem(IGameApi gameApi, IScriptBridge? scriptBridge = null)
         {
             _gameApi = gameApi;
+            _scriptBridge = scriptBridge ?? MockScriptBridge.Instance;
         }
 
         public void Initialize()
@@ -42,6 +47,7 @@ namespace Core.Scripting.LuaSystem
                 // Disabling CLR for security
                 // _lua.LoadCLRPackage();
                 _lua["Game"] = new LuaGameApi(_gameApi); // Твоя обертка
+                _lua["Bridge"] = new LuaBridgeWrapper(_scriptBridge);
 
                 // Allow registering commands and sounds from Lua
                 _lua.DoString(@"
@@ -126,6 +132,42 @@ namespace Core.Scripting.LuaSystem
             catch (Exception ex)
             {
                 return $"[Lua Error] {ex.Message}";
+            }
+        }
+
+        private class LuaScriptFunction : IScriptFunction
+        {
+            public string Name { get; }
+            public ScriptLanguage Language => ScriptLanguage.Lua;
+            private readonly LuaFunction _function;
+
+            public LuaScriptFunction(string name, LuaFunction function)
+            {
+                Name = name;
+                _function = function;
+            }
+
+            public ValueTask<object?> InvokeAsync(params object?[] args)
+            {
+                var result = _function.Call(args);
+                return new ValueTask<object?>(result?.FirstOrDefault());
+            }
+        }
+
+        private class LuaBridgeWrapper
+        {
+            private readonly IScriptBridge _bridge;
+            public LuaBridgeWrapper(IScriptBridge bridge) => _bridge = bridge;
+
+            public void Register(string name, LuaFunction function)
+            {
+                _bridge.RegisterFunction(new LuaScriptFunction(name, function));
+            }
+
+            public object? Call(string name, params object?[] args)
+            {
+                // Synchronous wrapper for Lua
+                return _bridge.CallAsync(name, args).GetAwaiter().GetResult();
             }
         }
     }

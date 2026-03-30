@@ -29,6 +29,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
     private readonly IProfilingService _profilingService;
     private readonly IJobSystem _jobSystem;
     private readonly IObjectPool<EntityCommandBuffer> _ecbPool;
+    private readonly IArchetypeManager _archetypeManager;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IComponentQueryService _queryService;
     private readonly IDiagnosticBus _diagnosticBus;
@@ -41,6 +42,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         IProfilingService profilingService,
         IJobSystem jobSystem,
         IObjectPool<EntityCommandBuffer> ecbPool,
+        IArchetypeManager archetypeManager,
         IEnumerable<ISystem> systems,
         ILoggerFactory loggerFactory,
         IComponentQueryService queryService,
@@ -51,6 +53,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         _profilingService = profilingService;
         _jobSystem = jobSystem;
         _ecbPool = ecbPool;
+        _archetypeManager = archetypeManager;
         _loggerFactory = loggerFactory;
         _queryService = queryService;
         _diagnosticBus = diagnosticBus;
@@ -91,6 +94,26 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
             }
         }
 
+        // Also check base types for fields
+        var baseType = type.BaseType;
+        while (baseType != null && baseType != typeof(object))
+        {
+            var baseFields = baseType.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            foreach (var field in baseFields)
+            {
+                if (field.GetCustomAttribute<QueryAttribute>() != null && typeof(EntityQuery).IsAssignableFrom(field.FieldType))
+                {
+                    if (field.GetValue(system) == null)
+                    {
+                        var query = (IEntityQuery)CreateEntityQuery(field.FieldType);
+                        field.SetValue(system, query);
+                        queries.Add(query);
+                    }
+                }
+            }
+            baseType = baseType.BaseType;
+        }
+
         var properties = type.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         foreach (var prop in properties)
         {
@@ -119,7 +142,17 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
     private void RebuildExecutionLayers()
     {
-        var layers = _planner.PlanExecution(_registry.GetSystems(), Phases);
+        var systems = _registry.GetSystems();
+        foreach (var system in systems)
+        {
+            if (!_systemInfoCache.TryGetValue(system, out var info))
+            {
+                info = InitializeSystem(system);
+                _systemInfoCache[system] = info;
+            }
+        }
+
+        var layers = _planner.PlanExecution(systems, Phases);
         for (int i = 0; i < Phases.Length; i++)
         {
             if (layers[i] == null)
@@ -153,6 +186,11 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         var totalSw = System.Diagnostics.Stopwatch.StartNew();
         using (_profilingService.Measure("SystemManager.Tick"))
         {
+            using (_profilingService.Measure("SystemManager.BeginUpdate"))
+            {
+                _archetypeManager.BeginUpdate();
+            }
+
             // Execute Phases
             for (int i = 0; i < Phases.Length; i++)
             {
@@ -193,10 +231,10 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                                 // Batch rent ECBs before starting the parallel loop to minimize pool contention inside the loop
                                 for (int k = 0; k < layer.Length; k++) ecbArray[k] = _ecbPool.Rent();
 
-                                await _jobSystem.ForEachAsync(layer, async (info, index) =>
+                                await _jobSystem.ForEachAsync(layer, (info, index) =>
                                 {
                                     var ecb = ecbArray[index];
-                                    await ExecuteSystemAsync(info, ecb);
+                                    ExecuteSystemAsync(info, ecb).AsTask().Wait(); // Sync over async for parallel wrapper
                                 });
 
                                 await _jobSystem.CompleteAllAsync();
@@ -230,6 +268,11 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                 });
             }
 
+            using (_profilingService.Measure("SystemManager.CommitUpdate"))
+            {
+                _archetypeManager.CommitUpdate();
+            }
+
             // Cleanup Phase: Reset all worker arenas
             using (_profilingService.Measure("SystemManager.Cleanup"))
             {
@@ -240,6 +283,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
     private async ValueTask ExecuteSystemAsync(SystemExecutionInfo info, IEntityCommandBuffer ecb)
     {
+        if (!info.System.Enabled) return;
         var system = info.System;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         using (_profilingService.Measure($"System.{system.Name}"))
@@ -253,36 +297,16 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
             {
                 if (system.ParallelArchetypes)
                 {
-                    int totalArchetypes = 0;
+                    var allMatching = new List<Archetype>();
                     for (int i = 0; i < queries.Length; i++)
                     {
-                        var matching = queries[i].GetMatchingArchetypes();
-                        if (matching is IReadOnlyList<Archetype> list) totalArchetypes += list.Count;
-                        else totalArchetypes += matching.Count();
+                        allMatching.AddRange(queries[i].GetMatchingArchetypes());
                     }
 
-                    if (totalArchetypes > 0)
+                    if (allMatching.Count > 0)
                     {
-                        var matchingArchetypes = System.Buffers.ArrayPool<Archetype>.Shared.Rent(totalArchetypes);
-                        try
-                        {
-                            int offset = 0;
-                            for (int i = 0; i < queries.Length; i++)
-                            {
-                                foreach (var arch in queries[i].GetMatchingArchetypes())
-                                {
-                                    matchingArchetypes[offset++] = arch;
-                                }
-                            }
-
-                            var memory = matchingArchetypes.AsMemory(0, totalArchetypes);
-                            await _jobSystem.ForEachAsync<Archetype>(memory, arch => system.TickAsync(arch, ecb));
-                            batchHandled = true;
-                        }
-                        finally
-                        {
-                            System.Buffers.ArrayPool<Archetype>.Shared.Return(matchingArchetypes, clearArray: true);
-                        }
+                        await _jobSystem.ForEachAsync(allMatching, arch => system.TickAsync(arch, ecb));
+                        batchHandled = true;
                     }
                 }
                 else

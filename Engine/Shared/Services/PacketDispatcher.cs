@@ -13,6 +13,7 @@ namespace Shared.Services;
         void AddMiddleware(IPacketMiddleware middleware);
         Task DispatchAsync(INetworkPeer peer, string data);
         Task DispatchAsync(INetworkPeer peer, ReadOnlyMemory<byte> data);
+        void Dispatch(INetworkPeer peer, byte typeId, ReadOnlySpan<byte> payload);
     }
 
     public class PacketDispatcher : IPacketDispatcher
@@ -98,6 +99,17 @@ namespace Shared.Services;
                         System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
                     }
                 }, track: false);
+            }
+        }
+
+        public void Dispatch(INetworkPeer peer, byte typeId, ReadOnlySpan<byte> payload)
+        {
+            // Zero-copy immediate dispatch for internal or performance-critical low-latency packets.
+            // Skips middleware and JobSystem scheduling.
+            if (_handlers.TryGetValue(typeId, out var handler))
+            {
+                // Note: HandleAsync is still task-based, but we can wrap it if low-latency is needed.
+                _ = handler.HandleAsync(peer, payload.ToArray());
             }
         }
     }

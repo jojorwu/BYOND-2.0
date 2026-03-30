@@ -91,6 +91,7 @@ namespace Shared.Services;
         }
 
         private readonly IObjectFactory _objectFactory;
+        private readonly IJobSystem? _jobSystem;
         private readonly ConcurrentBag<CommandBuffer> _commandBuffers = new();
         private readonly ThreadLocal<CommandBuffer> _localBuffer;
 
@@ -100,9 +101,10 @@ namespace Shared.Services;
         private readonly List<IGameObject> _uniqueTargets = new(128);
         private static readonly SharedPool<List<int>> _intListPool = new(() => new List<int>(64));
 
-        public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager)
+        public EntityCommandBuffer(IObjectFactory objectFactory, IComponentManager componentManager, IJobSystem? jobSystem = null)
         {
             _objectFactory = objectFactory;
+            _jobSystem = jobSystem;
             _localBuffer = new ThreadLocal<CommandBuffer>(() =>
             {
                 var buffer = new CommandBuffer();
@@ -190,7 +192,48 @@ namespace Shared.Services;
 
                 // Handle grouped updates and destructions per entity.
                 // Parallelize across entities to maximize throughput while maintaining per-entity order.
-                if (_uniqueTargets.Count > 64)
+                if (_uniqueTargets.Count > 64 && _jobSystem != null)
+                {
+                    _jobSystem.ForEachAsync(_uniqueTargets, target =>
+                    {
+                        int lastIdx = _targetToLastCommand[target];
+
+                        // Use stack-allocated buffer for common short command chains
+                        Span<int> stackIndices = stackalloc int[16];
+                        int count = 0;
+                        int walker = lastIdx;
+                        while (walker != -1 && count < stackIndices.Length)
+                        {
+                            stackIndices[count++] = walker;
+                            walker = allCommands[walker].PrevIndex;
+                        }
+
+                        if (walker == -1)
+                        {
+                            for (int j = count - 1; j >= 0; j--)
+                            {
+                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
+                            }
+                        }
+                        else
+                        {
+                            // Fallback for very long command chains
+                            var indices = new List<int>(count * 2);
+                            for (int i = 0; i < count; i++) indices.Add(stackIndices[i]);
+                            while (walker != -1)
+                            {
+                                indices.Add(walker);
+                                walker = allCommands[walker].PrevIndex;
+                            }
+
+                            for (int j = indices.Count - 1; j >= 0; j--)
+                            {
+                                ExecuteCommand(target, in allCommands[indices[j]]);
+                            }
+                        }
+                    }).GetAwaiter().GetResult();
+                }
+                else if (_uniqueTargets.Count > 64)
                 {
                     System.Threading.Tasks.Parallel.ForEach(_uniqueTargets, target =>
                     {

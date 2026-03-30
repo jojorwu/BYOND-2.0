@@ -7,6 +7,9 @@ namespace Core.VM.Procs
 {
     public class SpatialNativeProcProvider : INativeProcProvider
     {
+        private readonly IScriptBridge? _bridge;
+        public SpatialNativeProcProvider(IScriptBridge? bridge = null) => _bridge = bridge;
+
         public IDictionary<string, IDreamProc> GetNativeProcs()
         {
             var procs = new Dictionary<string, IDreamProc>();

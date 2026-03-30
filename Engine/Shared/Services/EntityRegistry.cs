@@ -9,11 +9,13 @@ public class EntityRegistry : IEntityRegistry
 {
     public IComponentManager ComponentManager { get; }
     public IObjectPool<GameObject> EntityPool { get; }
+    private readonly IVariableChangeListener? _reactiveSystem;
 
-    public EntityRegistry(IObjectPool<GameObject> entityPool, IComponentManager componentManager)
+    public EntityRegistry(IObjectPool<GameObject> entityPool, IComponentManager componentManager, IVariableChangeListener? reactiveSystem = null)
     {
         EntityPool = entityPool;
         ComponentManager = componentManager;
+        _reactiveSystem = reactiveSystem;
     }
 
     public GameObject CreateEntity(ObjectType objectType, long x = 0, long y = 0, long z = 0)
@@ -21,6 +23,7 @@ public class EntityRegistry : IEntityRegistry
         var entity = EntityPool.Rent();
         entity.SetComponentManager(ComponentManager);
         entity.Initialize(objectType, x, y, z);
+        if (_reactiveSystem != null) entity.SubscribeToVariables(_reactiveSystem);
         return entity;
     }
 

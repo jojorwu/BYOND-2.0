@@ -10,10 +10,12 @@ namespace Core
     public class GameStateSnapshotter : EngineService, IGameStateSnapshotter
     {
         private readonly BinarySnapshotService _binarySnapshotService;
+        private readonly ReactiveStateSystem? _reactiveSystem;
 
-        public GameStateSnapshotter(BinarySnapshotService binarySnapshotService)
+        public GameStateSnapshotter(BinarySnapshotService binarySnapshotService, ReactiveStateSystem? reactiveSystem = null)
         {
             _binarySnapshotService = binarySnapshotService;
+            _reactiveSystem = reactiveSystem;
         }
 
         public string GetSnapshot(IGameState gameState)
@@ -86,6 +88,33 @@ namespace Core
 
         public byte[] GetSparseBinarySnapshot(IGameState gameState)
         {
+            if (_reactiveSystem != null)
+            {
+                var batches = _reactiveSystem.ConsumeBatches().ToList();
+                if (batches.Count == 0) return Array.Empty<byte>();
+
+                int bufferSize = Math.Max(4096, batches.Count * 64);
+                while (true)
+                {
+                    var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                    try
+                    {
+                        int bytesWritten = _binarySnapshotService.SerializeBatches(buffer, batches, out bool truncated);
+                        if (!truncated)
+                        {
+                            byte[] result = new byte[bytesWritten];
+                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
+                            return result;
+                        }
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(buffer);
+                    }
+                    bufferSize *= 2;
+                }
+            }
+
             using (gameState.ReadLock())
             {
                 var objects = gameState.GetDirtyObjects().ToList();

@@ -17,6 +17,9 @@ public abstract class BaseComponent : IComponent
         Owner?.SendMessage(message);
     }
 
+    public virtual void BeginUpdate() { }
+    public virtual void CommitUpdate() { }
+
     public virtual void Reset()
     {
         Owner = null;

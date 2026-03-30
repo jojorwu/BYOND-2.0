@@ -88,6 +88,8 @@ namespace Shared.Services;
             return ScheduleInternal(job, track);
         }
 
+        private static readonly SharedPool<TrackingJob> _trackingJobPool = new(() => new TrackingJob());
+
         private JobHandle ScheduleInternal(IJob job, bool track)
         {
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -101,7 +103,9 @@ namespace Shared.Services;
                 _pendingJobTrackers.Add(tcs);
             }
 
-            var finalJob = new TrackingJob(job, tcs, track, _logger);
+            var finalJob = _trackingJobPool.Rent();
+            finalJob.Initialize(job, tcs, track, _logger);
+            tcs.Task.ContinueWith(_ => _trackingJobPool.Return(finalJob));
 
             if (job.Priority == JobPriority.Critical)
             {
@@ -337,7 +341,11 @@ namespace Shared.Services;
                         for (int j = start; j < end; j++) action(list[j]);
                     }, priority: priority, track: false).Task!;
                 }
-                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+
+                for (int i = 0; i < taskCount; i++)
+                {
+                    await handles[i];
+                }
             }
             finally
             {
@@ -374,7 +382,11 @@ namespace Shared.Services;
                         }
                     }, priority: priority, track: false).Task!;
                 }
-                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+
+                for (int i = 0; i < taskCount; i++)
+                {
+                    await handles[i];
+                }
             }
             finally
             {
@@ -409,7 +421,11 @@ namespace Shared.Services;
                         }
                     }, priority: priority, track: false).Task!;
                 }
-                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+
+                for (int i = 0; i < taskCount; i++)
+                {
+                    await handles[i];
+                }
             }
             finally
             {
@@ -446,7 +462,11 @@ namespace Shared.Services;
                         }
                     }, priority: priority, track: false).Task!;
                 }
-                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+
+                for (int i = 0; i < taskCount; i++)
+                {
+                    await handles[i];
+                }
             }
             finally
             {
@@ -479,7 +499,11 @@ namespace Shared.Services;
                         for (int j = start; j < end; j++) action(list[j], j);
                     }, priority: priority, track: false).Task!;
                 }
-                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+
+                for (int i = 0; i < taskCount; i++)
+                {
+                    await handles[i];
+                }
             }
             finally
             {
@@ -512,7 +536,11 @@ namespace Shared.Services;
                         for (int j = start; j < end; j++) await action(list[j]);
                     }, priority: priority, track: false).Task!;
                 }
-                await Task.WhenAll(handles.AsMemory(0, taskCount).ToArray());
+
+                for (int i = 0; i < taskCount; i++)
+                {
+                    await handles[i];
+                }
             }
             finally
             {
@@ -575,18 +603,18 @@ namespace Shared.Services;
             return info;
         }
 
-        private class TrackingJob : IJob
+        private class TrackingJob : IJob, IPoolable
         {
-            private readonly IJob _inner;
-            private readonly TaskCompletionSource _tcs;
-            private readonly bool _isTracked;
-            private readonly ILogger _logger;
+            private IJob? _inner;
+            private TaskCompletionSource? _tcs;
+            private bool _isTracked;
+            private ILogger? _logger;
 
-            public JobPriority Priority => _inner.Priority;
-            public int Weight => _inner.Weight;
-            public int PreferredWorkerId => _inner.PreferredWorkerId;
+            public JobPriority Priority => _inner?.Priority ?? JobPriority.Normal;
+            public int Weight => _inner?.Weight ?? 1;
+            public int PreferredWorkerId => _inner?.PreferredWorkerId ?? -1;
 
-            public TrackingJob(IJob inner, TaskCompletionSource tcs, bool isTracked, ILogger logger)
+            public void Initialize(IJob inner, TaskCompletionSource tcs, bool isTracked, ILogger logger)
             {
                 _inner = inner;
                 _tcs = tcs;
@@ -598,23 +626,31 @@ namespace Shared.Services;
             {
                 try
                 {
-                    await _inner.ExecuteAsync();
-                    _tcs.TrySetResult();
+                    await _inner!.ExecuteAsync();
+                    _tcs!.TrySetResult();
                 }
                 catch (Exception ex)
                 {
                     // Enrich exception with job metadata for easier troubleshooting
-                    ex.Data["JobType"] = _inner.GetType().Name;
+                    ex.Data["JobType"] = _inner!.GetType().Name;
                     ex.Data["JobPriority"] = Priority.ToString();
                     ex.Data["JobWeight"] = Weight;
 
-                    _tcs.TrySetException(ex);
+                    _tcs!.TrySetException(ex);
                     if (!_isTracked)
                     {
-                        _logger.LogError(ex, "Untracked job failed: {JobType} (Priority: {Priority}, Weight: {Weight})",
+                        _logger!.LogError(ex, "Untracked job failed: {JobType} (Priority: {Priority}, Weight: {Weight})",
                             _inner.GetType().Name, Priority, Weight);
                     }
                 }
+            }
+
+            public void Reset()
+            {
+                _inner = null;
+                _tcs = null;
+                _isTracked = false;
+                _logger = null;
             }
         }
 

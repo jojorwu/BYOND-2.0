@@ -38,6 +38,7 @@ public abstract class BaseSystem : ISystem
     public virtual Task ShutdownAsync() => Task.CompletedTask;
     public virtual void PreTick() { }
     public abstract void Tick(IEntityCommandBuffer ecb);
+    public virtual void Tick(Archetype archetype, IEntityCommandBuffer ecb) { }
     public virtual void PostTick() { }
 
     public virtual IEnumerable<IJob> CreateJobs() => Array.Empty<IJob>();

@@ -1,18 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Shared;
+using Shared.Interfaces;
+using Shared.Models;
 
-namespace Client.Services;
-
-public interface IStateInterpolator
-{
-    void Interpolate(GameState world, Snapshot from, Snapshot to, double t);
-}
-
-public interface IInterpolatedProperty
-{
-    void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t);
-}
+namespace Shared.Services;
 
 public class PositionProperty : IInterpolatedProperty
 {
@@ -41,7 +32,7 @@ public class LayerProperty : IInterpolatedProperty
     }
 }
 
-public class StateInterpolator : IStateInterpolator
+public class InterpolationService : IStateInterpolator
 {
     private readonly List<IInterpolatedProperty> _properties = new()
     {

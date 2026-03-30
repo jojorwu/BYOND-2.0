@@ -7,8 +7,9 @@ using Core;
 using Shared;
 using Shared.Interfaces;
 using Shared.Utils;
+using Shared.Services;
 using LiteNetLib;
-using Client.Services;
+using Client.Networking;
 
 namespace Client
 {
@@ -16,6 +17,7 @@ namespace Client
     {
         private readonly ISnapshotManager _snapshotManager;
         private readonly IStateInterpolator _stateInterpolator;
+        private readonly IPacketDispatcher _packetDispatcher;
         public GameState CurrentState { get; private set; }
 
         private readonly object _lock = new object();
@@ -28,29 +30,32 @@ namespace Client
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly string _serverAddress;
-        private readonly IObjectTypeManager _typeManager;
-        private readonly IObjectFactory _objectFactory;
-        private readonly Shared.Services.BinarySnapshotService _binaryService;
         private readonly Stopwatch _gameTime = new();
+        private LiteNetNetworkPeer? _serverPeer;
 
         public event Action<SoundData>? SoundReceived;
         public event Action<string, long?>? StopSoundReceived;
         public event Action<string, object>? CVarSyncReceived;
 
-        public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator)
+        public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, IEnumerable<IPacketHandler> handlers)
         {
-            CurrentState = new GameState();
+            CurrentState = gameState;
             _snapshotManager = snapshotManager;
             _stateInterpolator = stateInterpolator;
+            _packetDispatcher = packetDispatcher;
+
+            foreach (var handler in handlers)
+            {
+                _packetDispatcher.RegisterHandler(handler);
+            }
+
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener);
             _thread = new Thread(GameLoop);
             _serverAddress = serverAddress;
-            _typeManager = typeManager;
-            _objectFactory = objectFactory;
-            _binaryService = new Shared.Services.BinarySnapshotService(new Shared.Services.BitPackedSnapshotSerializer());
 
             _listener.NetworkReceiveEvent += OnNetworkReceive;
+            _listener.PeerConnectedEvent += (peer) => _serverPeer = new LiteNetNetworkPeer(peer);
         }
 
         public void Start()
@@ -88,63 +93,17 @@ namespace Client
 
         public void SendCommand(string command)
         {
-            if (_netManager.FirstPeer != null && _netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
-            {
-                var writer = new LiteNetLib.Utils.NetDataWriter();
-                writer.Put(command);
-                _netManager.FirstPeer.Send(writer, DeliveryMethod.ReliableOrdered);
-            }
+            _serverPeer?.SendAsync(command);
         }
 
-        private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+        private async void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
-            var messageType = (SnapshotMessageType)reader.GetByte();
+            if (_serverPeer == null) return;
 
-            if (messageType == SnapshotMessageType.BitPackedDelta || messageType == SnapshotMessageType.Binary)
-            {
-                byte[] data = new byte[reader.AvailableBytes];
-                reader.GetBytes(data, reader.AvailableBytes);
+            byte[] data = new byte[reader.AvailableBytes];
+            reader.GetBytes(data, reader.AvailableBytes);
 
-                lock (_lock)
-                {
-                    if (messageType == SnapshotMessageType.BitPackedDelta)
-                        _binaryService.DeserializeBitPacked(data, CurrentState.GameObjects, _typeManager, _objectFactory);
-                    else
-                        _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
-
-                    _snapshotManager.AddSnapshot(_gameTime.Elapsed.TotalSeconds, CurrentState.GameObjects.Values);
-                }
-            }
-            else if (messageType == SnapshotMessageType.Sound)
-            {
-                var sound = new SoundData();
-                sound.File = reader.GetString();
-                sound.Volume = reader.GetFloat();
-                sound.Pitch = reader.GetFloat();
-                sound.Repeat = reader.GetBool();
-                if (reader.GetBool()) sound.X = reader.GetLong();
-                if (reader.GetBool()) sound.Y = reader.GetLong();
-                if (reader.GetBool()) sound.Z = reader.GetLong();
-                if (reader.GetBool()) sound.ObjectId = reader.GetLong();
-                sound.Falloff = reader.GetFloat();
-                SoundReceived?.Invoke(sound);
-            }
-            else if (messageType == SnapshotMessageType.StopSound)
-            {
-                var file = reader.GetString();
-                long? objectId = null;
-                if (reader.GetBool()) objectId = reader.GetLong();
-                StopSoundReceived?.Invoke(file, objectId);
-            }
-            else if (messageType == SnapshotMessageType.SyncCVars)
-            {
-                var json = reader.GetString();
-                var cvars = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-                if (cvars != null)
-                {
-                    foreach (var kvp in cvars) CVarSyncReceived?.Invoke(kvp.Key, kvp.Value);
-                }
-            }
+            await _packetDispatcher.DispatchAsync(_serverPeer, data);
 
             reader.Recycle();
         }

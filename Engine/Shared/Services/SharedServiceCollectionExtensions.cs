@@ -132,6 +132,8 @@ public static class SharedServiceCollectionExtensions
         });
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
         services.AddSingleton<ISnapshotSerializer, BitPackedSnapshotSerializer>();
+        services.AddSingleton<ISnapshotManager, SnapshotManager>();
+        services.AddSingleton<IStateInterpolator, InterpolationService>();
         services.AddEngineService<BinarySnapshotService>();
         services.AddEngineService<SpatialGrid>();
         services.AddEngineService<InterestManager>(typeof(IInterestManager));

@@ -1,7 +1,8 @@
 using System;
 using Microsoft.Extensions.DependencyInjection;
-using Client.Services;
 using Shared.Services;
+using Shared.Interfaces;
+using Client.Networking.Handlers;
 
 namespace Client;
 
@@ -9,9 +10,11 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddClientServices(this IServiceCollection services)
     {
-        services.AddSingleton<ISnapshotManager, SnapshotManager>();
-        services.AddSingleton<IStateInterpolator, StateInterpolator>();
+        services.AddSharedEngineServices();
         services.AddSingleton<Game>();
+
+        services.AddSingleton<IPacketHandler, BitPackedDeltaHandler>();
+
         return services;
     }
 }

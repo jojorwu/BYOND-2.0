@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Utils;
@@ -11,23 +10,14 @@ namespace Shared.Services;
     public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
+        private readonly ISnapshotSerializer _serializer;
         private readonly ThreadLocal<Dictionary<long, (int BufferOffset, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (int BufferOffset, int Length, long Version)>(), trackAllValues: true);
         private readonly SnapshotBuffer _buffer = new();
         private long _bufferVersion = 1;
 
-        [Flags]
-        private enum GameObjectFields : ushort
+        public BinarySnapshotService(ISnapshotSerializer serializer, StringInterner? interner = null)
         {
-            None = 0,
-            Position = 1 << 0,
-            Visuals = 1 << 1,
-            Variables = 1 << 2,
-            Type = 1 << 3,
-            NewObject = 1 << 4
-        }
-
-        public BinarySnapshotService(StringInterner? interner = null)
-        {
+            _serializer = serializer;
             _interner = interner;
         }
 
@@ -51,7 +41,6 @@ namespace Shared.Services;
             int offset = 0;
             truncated = false;
 
-            // Fast-path: detect common collection types to avoid IEnumerable overhead
             if (objects is IReadOnlyList<IGameObject> list)
             {
                 int count = list.Count;
@@ -78,7 +67,7 @@ namespace Shared.Services;
 
             if (offset < destination.Length)
             {
-                offset += Utils.VarInt.Write(destination.Slice(offset), 0); // End of stream marker
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
             }
 
             return offset;
@@ -86,106 +75,7 @@ namespace Shared.Services;
 
         public int SerializeBitPackedDelta(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
         {
-            truncated = false;
-
-            var writer = new BitWriter(destination);
-
-            foreach (var obj in objects)
-            {
-                bool isNew = lastVersions == null || !lastVersions.ContainsKey(obj.Id);
-                if (!isNew && lastVersions != null && lastVersions.TryGetValue(obj.Id, out long lastVersion) && lastVersion == obj.Version)
-                {
-                    continue;
-                }
-
-                if (writer.BytesWritten + 128 > destination.Length) { truncated = true; break; }
-
-                writer.WriteVarInt(obj.Id);
-                writer.WriteVarInt(obj.Version);
-
-                GameObjectFields fields = GameObjectFields.None;
-                if (isNew) fields |= GameObjectFields.NewObject | GameObjectFields.Type;
-
-                fields |= GameObjectFields.Position;
-                fields |= GameObjectFields.Visuals;
-
-                var g = obj as GameObject;
-                int changeCount = 0;
-                if (g != null)
-                {
-                    var counter = new ChangeCounter();
-                    g.VisitChanges(ref counter);
-                    changeCount = counter.Count;
-                    if (changeCount > 0) fields |= GameObjectFields.Variables;
-                }
-
-                writer.WriteBits((ulong)fields, 8);
-
-                if ((fields & GameObjectFields.Type) != 0)
-                {
-                    writer.WriteVarInt(obj.ObjectType?.Id ?? -1);
-                }
-
-                if ((fields & GameObjectFields.Position) != 0)
-                {
-                    writer.WriteZigZag(obj.X);
-                    writer.WriteZigZag(obj.Y);
-                    writer.WriteZigZag(obj.Z);
-                }
-
-                if ((fields & GameObjectFields.Visuals) != 0)
-                {
-                    if (g != null)
-                    {
-                        writer.WriteVarInt(g.Dir);
-                        writer.WriteDouble(g.Alpha);
-                        writer.WriteDouble(g.Layer);
-                        WriteBitString(ref writer, g.Icon);
-                        WriteBitString(ref writer, g.IconState);
-                        WriteBitString(ref writer, g.Color);
-                    }
-                }
-
-                if ((fields & GameObjectFields.Variables) != 0 && g != null)
-                {
-                    writer.WriteVarInt(changeCount);
-                    var serializer = new BitChangeSerializer { Writer = writer };
-                    g.VisitChanges(ref serializer);
-                    writer = serializer.Writer;
-                }
-
-                if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
-            }
-
-            if (!truncated)
-            {
-                writer.WriteVarInt(0); // End marker
-            }
-
-            return writer.BytesWritten;
-        }
-
-        private static void WriteBitString(ref BitWriter writer, string? s)
-        {
-            if (string.IsNullOrEmpty(s))
-            {
-                writer.WriteVarInt(0);
-            }
-            else
-            {
-                byte[] bytes = System.Text.Encoding.UTF8.GetBytes(s);
-                writer.WriteVarInt(bytes.Length);
-                foreach (var b in bytes) writer.WriteBits(b, 8);
-            }
-        }
-
-        private static string ReadBitString(ref BitReader reader)
-        {
-            int len = (int)reader.ReadVarInt();
-            if (len == 0) return string.Empty;
-            byte[] bytes = new byte[len];
-            for (int i = 0; i < len; i++) bytes[i] = (byte)reader.ReadBits(8);
-            return System.Text.Encoding.UTF8.GetString(bytes);
+            return _serializer.SerializeBitPackedDelta(destination, objects, lastVersions, out truncated);
         }
 
         public int SerializeBatches(Span<byte> destination, IEnumerable<ReactiveStateSystem.DeltaBatch> batches, out bool truncated)
@@ -198,7 +88,7 @@ namespace Shared.Services;
                 if (offset + 128 > destination.Length) { truncated = true; break; }
 
                 offset += Utils.VarInt.Write(destination.Slice(offset), batch.EntityId);
-                offset += Utils.VarInt.Write(destination.Slice(offset), 0); // Placeholder for version (incremental batches don't need full version check)
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
 
                 var changes = batch.Changes;
                 offset += Utils.VarInt.Write(destination.Slice(offset), changes.Count);
@@ -227,16 +117,6 @@ namespace Shared.Services;
         {
             public int Count;
             public void Visit(int index, in DreamValue value) => Count++;
-        }
-
-        private ref struct BitChangeSerializer : GameObject.IChangeVisitor
-        {
-            public BitWriter Writer;
-            public void Visit(int propIdx, in DreamValue val)
-            {
-                Writer.WriteVarInt(propIdx);
-                val.BitWriteTo(ref Writer);
-            }
         }
 
         private ref struct ChangeSerializer : GameObject.IChangeVisitor
@@ -268,7 +148,6 @@ namespace Shared.Services;
                 return false;
             }
 
-            // Delta Caching: Check if we've already serialized this object state in the current tick
             var cache = _deltaCache.Value!;
             if (cache.TryGetValue(obj.Id, out var cached) && cached.Version == obj.Version)
             {
@@ -283,8 +162,6 @@ namespace Shared.Services;
                 return false;
             }
 
-            // High-performance path: Serialize into a temporary segment in the persistent slab first
-            // We use a safe estimate of 1024 bytes per object for the temporary write.
             int slabOffset;
             var slabSpan = _buffer.AcquireSegment(Math.Min(1024, _buffer.Capacity - _buffer.Position), out slabOffset);
 
@@ -310,8 +187,6 @@ namespace Shared.Services;
 
                     if (serializer.Truncated)
                     {
-                        // Slab segment too small, fall back to safe but slower path or handle properly
-                        // For now we assume 1024 is enough or the buffer throws on overflow
                         truncated = true;
                         return true;
                     }
@@ -323,10 +198,8 @@ namespace Shared.Services;
                 localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), 0);
             }
 
-            // Store in cache
             cache[obj.Id] = (slabOffset, localOffset, obj.Version);
 
-            // Copy to destination
             if (offset + localOffset > destination.Length)
             {
                 truncated = true;
@@ -437,7 +310,6 @@ namespace Shared.Services;
                 }
             }
 
-            // Second pass: Resolve references
             foreach (var (target, propIdx, refId) in unresolvedReferences)
             {
                 if (world.TryGetValue(refId, out var refObj))
@@ -453,105 +325,6 @@ namespace Shared.Services;
 
         public void DeserializeBitPacked(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
-            var reader = new BitReader(data);
-            var unresolvedReferences = new List<(GameObject target, int propIdx, long refId)>();
-
-            while (true)
-            {
-                long id = reader.ReadVarInt();
-                if (id == 0) break;
-
-                long version = reader.ReadVarInt();
-                GameObjectFields fields = (GameObjectFields)reader.ReadBits(8);
-
-                GameObject? gameObject;
-                world.TryGetValue(id, out gameObject);
-
-                if ((fields & GameObjectFields.Type) != 0)
-                {
-                    int typeId = (int)reader.ReadVarInt();
-                    if (gameObject == null)
-                    {
-                        var type = typeManager.GetObjectType(typeId);
-                        if (type != null)
-                        {
-                            gameObject = factory.Create(type, 0, 0, 0);
-                            gameObject.Id = id;
-                            world[id] = gameObject;
-                        }
-                    }
-                }
-
-                if ((fields & GameObjectFields.Position) != 0)
-                {
-                    long x = reader.ReadZigZag();
-                    long y = reader.ReadZigZag();
-                    long z = reader.ReadZigZag();
-                    if (gameObject != null && (gameObject.Version < version || (fields & GameObjectFields.NewObject) != 0))
-                    {
-                        gameObject.SetPosition(x, y, z);
-                    }
-                }
-
-                if ((fields & GameObjectFields.Visuals) != 0)
-                {
-                    int dir = (int)reader.ReadVarInt();
-                    double alpha = reader.ReadDouble();
-                    double layer = reader.ReadDouble();
-                    string icon = ReadBitString(ref reader);
-                    string iconState = ReadBitString(ref reader);
-                    string color = ReadBitString(ref reader);
-
-                    if (gameObject != null && (gameObject.Version < version || (fields & GameObjectFields.NewObject) != 0))
-                    {
-                        gameObject.Dir = dir;
-                        gameObject.Alpha = alpha;
-                        gameObject.Layer = layer;
-                        gameObject.Icon = icon;
-                        gameObject.IconState = iconState;
-                        gameObject.Color = color;
-                    }
-                }
-
-                if ((fields & GameObjectFields.Variables) != 0)
-                {
-                    int propertyCount = (int)reader.ReadVarInt();
-                    for (int i = 0; i < propertyCount; i++)
-                    {
-                        int propIdx = (int)reader.ReadVarInt();
-                        var val = DreamValue.BitReadFrom(ref reader);
-
-                        if (gameObject != null && (gameObject.Version < version || (fields & GameObjectFields.NewObject) != 0))
-                        {
-                            if (val.IsObjectIdReference)
-                            {
-                                unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
-                            }
-                            else
-                            {
-                                gameObject.SetVariableDirect(propIdx, val);
-                            }
-                        }
-                    }
-                }
-
-                if (gameObject != null)
-                {
-                    gameObject.Version = version;
-                }
-            }
-
-             // Second pass: Resolve references
-            foreach (var (target, propIdx, refId) in unresolvedReferences)
-            {
-                if (world.TryGetValue(refId, out var refObj))
-                {
-                    target.SetVariableDirect(propIdx, new DreamValue(refObj));
-                }
-                else
-                {
-                    target.SetVariableDirect(propIdx, DreamValue.Null);
-                }
-            }
+            _serializer.DeserializeBitPacked(data, world, typeManager, factory);
         }
     }

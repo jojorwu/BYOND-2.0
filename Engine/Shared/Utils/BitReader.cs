@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Shared.Utils;
 
@@ -85,5 +86,15 @@ public ref struct BitReader
     {
         ulong zigzag = (ulong)ReadVarInt();
         return (long)(zigzag >> 1) ^ -(long)(zigzag & 1);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public string ReadString()
+    {
+        int len = (int)ReadVarInt();
+        if (len == 0) return string.Empty;
+        byte[] bytes = new byte[len];
+        for (int i = 0; i < len; i++) bytes[i] = (byte)ReadBits(8);
+        return Encoding.UTF8.GetString(bytes);
     }
 }

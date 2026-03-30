@@ -12,6 +12,7 @@ using Client.Assets;
 using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
+using Client.Services;
 using Shared;
 using Shared.Config;
 using Shared.Enums;
@@ -28,7 +29,7 @@ namespace Client
         InGame
     }
 
-    public class Game : IClient
+    public class Game
     {
         private readonly IObjectTypeManager _typeManager;
         private readonly IObjectFactory _objectFactory;
@@ -236,7 +237,7 @@ new MyShader()
                 if (_connectionPanel.IsConnectRequested)
                 {
                     _connectionPanel.IsConnectRequested = false;
-                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory);
+                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory, _serviceProvider.GetRequiredService<ISnapshotManager>(), _serviceProvider.GetRequiredService<IStateInterpolator>());
                     _logicThread.SoundReceived += (sound) => _soundSystem.Play(sound);
                     _logicThread.StopSoundReceived += (file, objId) => _soundSystem.Stop(file, objId);
                     _logicThread.CVarSyncReceived += (key, val) =>

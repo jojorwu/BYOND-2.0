@@ -13,13 +13,15 @@ namespace Tests;
 public class NetworkingTests
 {
     private BinarySnapshotService _snapshotService;
+    private BitPackedSnapshotSerializer _serializer;
     private Mock<IObjectTypeManager> _typeManagerMock;
     private Mock<IObjectFactory> _factoryMock;
 
     [SetUp]
     public void SetUp()
     {
-        _snapshotService = new BinarySnapshotService();
+        _serializer = new BitPackedSnapshotSerializer();
+        _snapshotService = new BinarySnapshotService(_serializer);
         _typeManagerMock = new Mock<IObjectTypeManager>();
         _factoryMock = new Mock<IObjectFactory>();
     }

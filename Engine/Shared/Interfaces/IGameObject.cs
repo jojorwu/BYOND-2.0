@@ -104,6 +104,9 @@ namespace Shared;
         double PixelY { get; set; }
         double Layer { get; set; }
 
+        string Icon { get; set; }
+        string IconState { get; set; }
+
         /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>

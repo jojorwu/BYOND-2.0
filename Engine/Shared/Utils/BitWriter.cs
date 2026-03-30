@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Shared.Utils;
 
@@ -85,5 +86,20 @@ public ref struct BitWriter
     {
         ulong zigzag = (ulong)((value << 1) ^ (value >> 63));
         WriteVarInt((long)zigzag);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteString(string? s)
+    {
+        if (string.IsNullOrEmpty(s))
+        {
+            WriteVarInt(0);
+        }
+        else
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(s);
+            WriteVarInt(bytes.Length);
+            foreach (var b in bytes) WriteBits(b, 8);
+        }
     }
 }

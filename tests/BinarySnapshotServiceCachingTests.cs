@@ -14,7 +14,7 @@ namespace tests
         [Test]
         public void SerializeTo_UsesCache()
         {
-            var service = new BinarySnapshotService();
+            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer());
             var type = new ObjectType(1, "/obj");
             type.FinalizeVariables();
 
@@ -48,7 +48,7 @@ namespace tests
         [Test]
         public void SerializeTo_HandlesCacheInvalidation()
         {
-            var service = new BinarySnapshotService();
+            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer());
             var type = new ObjectType(1, "/obj");
             type.FinalizeVariables();
 

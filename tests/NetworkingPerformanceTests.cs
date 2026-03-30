@@ -15,7 +15,7 @@ namespace tests
         public void BinarySnapshotService_Serialization_MinimizesAllocations()
         {
             var interner = new StringInterner();
-            var service = new BinarySnapshotService(interner);
+            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer(), interner);
 
             var type = new ObjectType(1, "/obj/test");
             for (int i = 0; i < 20; i++)

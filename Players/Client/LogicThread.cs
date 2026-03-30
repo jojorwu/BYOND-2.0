@@ -8,43 +8,14 @@ using Shared;
 using Shared.Interfaces;
 using Shared.Utils;
 using LiteNetLib;
+using Client.Services;
 
 namespace Client
 {
     public class LogicThread
     {
-        public class Snapshot
-        {
-            public double Timestamp;
-            public Dictionary<long, ObjectState> States = new();
-
-            public void Reset()
-            {
-                Timestamp = 0;
-                States.Clear();
-            }
-        }
-
-        public struct ObjectState
-        {
-            public long X;
-            public long Y;
-            public long Z;
-            public VisualData Visuals;
-        }
-
-        public struct VisualData
-        {
-            public int Dir;
-            public double Alpha;
-            public double Layer;
-            public string Icon;
-            public string IconState;
-            public string Color;
-        }
-
-        private readonly Queue<Snapshot> _snapshotQueue = new();
-        private readonly Stack<Snapshot> _snapshotPool = new();
+        private readonly ISnapshotManager _snapshotManager;
+        private readonly IStateInterpolator _stateInterpolator;
         public GameState CurrentState { get; private set; }
 
         private readonly object _lock = new object();
@@ -52,7 +23,7 @@ namespace Client
         private bool _isRunning;
         public const int TicksPerSecond = 30;
         public const float TimeStep = 1.0f / TicksPerSecond;
-        private const double InterpolationDelay = 0.1; // 100ms buffer for smoothness
+        private const double InterpolationDelay = 0.1;
 
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
@@ -66,16 +37,18 @@ namespace Client
         public event Action<string, long?>? StopSoundReceived;
         public event Action<string, object>? CVarSyncReceived;
 
-        public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
+        public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator)
         {
             CurrentState = new GameState();
+            _snapshotManager = snapshotManager;
+            _stateInterpolator = stateInterpolator;
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener);
             _thread = new Thread(GameLoop);
             _serverAddress = serverAddress;
             _typeManager = typeManager;
             _objectFactory = objectFactory;
-            _binaryService = new Shared.Services.BinarySnapshotService();
+            _binaryService = new Shared.Services.BinarySnapshotService(new Shared.Services.BitPackedSnapshotSerializer());
 
             _listener.NetworkReceiveEvent += OnNetworkReceive;
         }
@@ -139,35 +112,7 @@ namespace Client
                     else
                         _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
 
-                    // Acquire pooled snapshot or create new
-                    if (!_snapshotPool.TryPop(out var snapshot)) snapshot = new Snapshot();
-                    snapshot.Timestamp = _gameTime.Elapsed.TotalSeconds;
-
-                    foreach (var obj in CurrentState.GameObjects.Values)
-                    {
-                        snapshot.States[obj.Id] = new ObjectState {
-                            X = obj.X,
-                            Y = obj.Y,
-                            Z = obj.Z,
-                            Visuals = new VisualData {
-                                Dir = obj.Dir,
-                                Alpha = obj.Alpha,
-                                Layer = obj.Layer,
-                                Icon = obj.Icon,
-                                IconState = obj.IconState,
-                                Color = obj.Color
-                            }
-                        };
-                    }
-                    _snapshotQueue.Enqueue(snapshot);
-
-                    // Recycle old snapshots
-                    while (_snapshotQueue.Count > 20)
-                    {
-                        var old = _snapshotQueue.Dequeue();
-                        old.Reset();
-                        _snapshotPool.Push(old);
-                    }
+                    _snapshotManager.AddSnapshot(_gameTime.Elapsed.TotalSeconds, CurrentState.GameObjects.Values);
                 }
             }
             else if (messageType == SnapshotMessageType.Sound)
@@ -210,48 +155,10 @@ namespace Client
 
             lock (_lock)
             {
-                if (_snapshotQueue.Count < 2) return;
-
-                Snapshot? from = null;
-                Snapshot? to = null;
-
-                foreach (var s in _snapshotQueue)
-                {
-                    if (s.Timestamp <= renderTime) from = s;
-                    if (s.Timestamp > renderTime)
-                    {
-                        to = s;
-                        break;
-                    }
-                }
-
+                var (from, to, t) = _snapshotManager.GetInterpolationData(renderTime);
                 if (from != null && to != null)
                 {
-                    double t = (renderTime - from.Timestamp) / (to.Timestamp - from.Timestamp);
-                    t = Math.Clamp(t, 0, 1);
-
-                    foreach (var kvp in to.States)
-                    {
-                        if (CurrentState.GameObjects.TryGetValue(kvp.Key, out var obj))
-                        {
-                            if (from.States.TryGetValue(kvp.Key, out var fromState))
-                            {
-                                // Interpolate Position
-                                double interpX = fromState.X + (kvp.Value.X - fromState.X) * t;
-                                double interpY = fromState.Y + (kvp.Value.Y - fromState.Y) * t;
-                                double interpZ = fromState.Z + (kvp.Value.Z - fromState.Z) * t;
-
-                                // Sub-tile smoothing using Pixel offsets
-                                obj.PixelX = (interpX - kvp.Value.X) * 32;
-                                obj.PixelY = (interpY - kvp.Value.Y) * 32;
-                                // For Z, if we had PixelZ, we'd use it. For now, we only have PixelX/Y.
-
-                                // Interpolate Visuals
-                                obj.Alpha = fromState.Visuals.Alpha + (kvp.Value.Visuals.Alpha - fromState.Visuals.Alpha) * t;
-                                obj.Layer = fromState.Visuals.Layer + (kvp.Value.Visuals.Layer - fromState.Visuals.Layer) * t;
-                            }
-                        }
-                    }
+                    _stateInterpolator.Interpolate(CurrentState, from, to, t);
                 }
             }
         }

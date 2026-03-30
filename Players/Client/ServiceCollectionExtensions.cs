@@ -14,6 +14,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Game>();
 
         services.AddSingleton<IPacketHandler, BitPackedDeltaHandler>();
+        services.AddSingleton<IPacketHandler, SoundHandler>();
+        services.AddSingleton<IPacketHandler, StopSoundHandler>();
+        services.AddSingleton<IPacketHandler, SyncCVarsHandler>();
 
         return services;
     }

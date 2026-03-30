@@ -13,6 +13,7 @@ using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Shared.Interfaces;
+using Shared.Messaging;
 using Shared;
 using Shared.Config;
 using Shared.Enums;
@@ -237,15 +238,18 @@ new MyShader()
                 if (_connectionPanel.IsConnectRequested)
                 {
                     _connectionPanel.IsConnectRequested = false;
+
+                    var eventBus = _serviceProvider.GetRequiredService<IEventBus>();
+                    eventBus.Subscribe<Shared.Events.SoundEvent>(e => _soundSystem.Play(e.Data));
+                    eventBus.Subscribe<Shared.Events.StopSoundEvent>(e => _soundSystem.Stop(e.File, e.ObjectId));
+                    eventBus.Subscribe<Shared.Events.CVarSyncEvent>(e =>
+                    {
+                        if (_configManager is ConfigurationManager mgr) mgr.SetCVarDirect(e.Key, e.Value);
+                        else _configManager.SetCVar(e.Key, e.Value);
+                    });
+
                     var gameState = new GameState();
                     _logicThread = new LogicThread(_connectionPanel.ServerAddress, gameState, _serviceProvider.GetRequiredService<ISnapshotManager>(), _serviceProvider.GetRequiredService<IStateInterpolator>(), _serviceProvider.GetRequiredService<IPacketDispatcher>(), _serviceProvider.GetServices<IPacketHandler>());
-                    _logicThread.SoundReceived += (sound) => _soundSystem.Play(sound);
-                    _logicThread.StopSoundReceived += (file, objId) => _soundSystem.Stop(file, objId);
-                    _logicThread.CVarSyncReceived += (key, val) =>
-                    {
-                        if (_configManager is ConfigurationManager mgr) mgr.SetCVarDirect(key, val);
-                        else _configManager.SetCVar(key, val);
-                    };
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();
                     _clientState = ClientState.InGame;

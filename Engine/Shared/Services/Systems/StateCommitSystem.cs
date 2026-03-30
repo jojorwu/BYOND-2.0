@@ -26,6 +26,9 @@ public class StateCommitSystem : BaseSystem
         {
             obj.CommitState();
             obj.ClearDirty();
+            // Note: We don't clear ChangeMask here because it's used by the Snapshotter
+            // which might run after this system in some configurations, or parallel.
+            // ClearChangeMask is called by the SnapshotSerializer after it finishes processing the object.
         }
     }
 

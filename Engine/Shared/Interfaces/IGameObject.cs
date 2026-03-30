@@ -107,6 +107,10 @@ namespace Shared;
         string Icon { get; set; }
         string IconState { get; set; }
 
+        double RenderX { get; set; }
+        double RenderY { get; set; }
+        double RenderZ { get; set; }
+
         /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>
@@ -196,4 +200,19 @@ namespace Shared;
         /// Subscribes a listener to all variable changes on this object.
         /// </summary>
         void SubscribeToVariables(IVariableChangeListener listener);
+
+        /// <summary>
+        /// Gets the mask of fields that have changed since the last clear.
+        /// </summary>
+        Shared.Enums.GameObjectFields GetChangeMask();
+
+        /// <summary>
+        /// Clears the field change tracking mask.
+        /// </summary>
+        void ClearChangeMask();
+
+        /// <summary>
+        /// Gets or sets the rotation of the object.
+        /// </summary>
+        float Rotation { get; set; }
     }

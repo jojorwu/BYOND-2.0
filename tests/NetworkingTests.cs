@@ -5,6 +5,7 @@ using Shared;
 using Shared.Services;
 using Shared.Interfaces;
 using Shared.Utils;
+using Shared.Enums;
 using Moq;
 
 namespace Tests;
@@ -146,5 +147,33 @@ public class NetworkingTests
         // Verify
         Assert.That(world.ContainsKey(404), Is.True);
         Assert.That(world[404].X, Is.EqualTo(5L));
+    }
+
+    [Test]
+    public void BitPackedProtocol_OnlySerializesChangedFields()
+    {
+        // Setup
+        var type = CreateTestType();
+        var obj = new GameObject(type) { Id = 505, Version = 10 };
+        obj.ClearChangeMask(); // Mock clean state
+
+        // Only change X
+        obj.X = 42;
+
+        var lastVersions = new Dictionary<long, long> { { 505, 9 } };
+        var objects = new List<IGameObject> { obj };
+        byte[] buffer = new byte[1024];
+
+        int written = _snapshotService.SerializeBitPackedDelta(buffer, objects, lastVersions, out _);
+
+        // Analyze buffer
+        var reader = new BitReader(buffer);
+        reader.ReadVarInt(); // Id
+        reader.ReadVarInt(); // Version
+        GameObjectFields mask = (GameObjectFields)reader.ReadBits(16);
+
+        Assert.That((mask & GameObjectFields.PositionX), Is.Not.EqualTo(GameObjectFields.None));
+        Assert.That((mask & GameObjectFields.PositionY), Is.EqualTo(GameObjectFields.None));
+        Assert.That((mask & GameObjectFields.Visuals), Is.EqualTo(GameObjectFields.None));
     }
 }

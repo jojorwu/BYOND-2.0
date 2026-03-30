@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
 using System.Collections.Generic;
+using System.Linq;
 using Core;
 using Shared;
 using Shared.Interfaces;
@@ -10,6 +11,7 @@ using Shared.Utils;
 using Shared.Services;
 using LiteNetLib;
 using Client.Networking;
+using Client.Networking.Handlers;
 
 namespace Client
 {
@@ -32,10 +34,6 @@ namespace Client
         private readonly string _serverAddress;
         private readonly Stopwatch _gameTime = new();
         private LiteNetNetworkPeer? _serverPeer;
-
-        public event Action<SoundData>? SoundReceived;
-        public event Action<string, long?>? StopSoundReceived;
-        public event Action<string, object>? CVarSyncReceived;
 
         public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, IEnumerable<IPacketHandler> handlers)
         {

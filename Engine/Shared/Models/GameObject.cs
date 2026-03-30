@@ -64,6 +64,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
 
     private int _isDirty;
+    private uint _changeMask;
+
+    public GameObjectFields GetChangeMask() => (GameObjectFields)Volatile.Read(ref _changeMask);
+    public void ClearChangeMask() => Interlocked.Exchange(ref _changeMask, 0);
 
     protected override void IncrementVersion()
     {
@@ -72,6 +76,17 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             _updateListener?.OnStateChanged(this);
         }
+    }
+
+    private void MarkFieldDirty(GameObjectFields field)
+    {
+        uint current;
+        uint next;
+        do
+        {
+            current = _changeMask;
+            next = current | (uint)field;
+        } while (Interlocked.CompareExchange(ref _changeMask, next, current) != current);
     }
 
     public void ClearDirty()
@@ -101,9 +116,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     private struct TransformState
     {
         public Robust.Shared.Maths.Vector3l Position;
+        public float Rotation;
         public long CommittedX;
         public long CommittedY;
         public long CommittedZ;
+        public double RenderX;
+        public double RenderY;
+        public double RenderZ;
     }
 
     private struct VisualState
@@ -132,6 +151,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         }
         set => SetPosition(value.X, value.Y, value.Z);
     }
+
+    public float Rotation
+    {
+        get => _transform.Rotation;
+        set { if (_transform.Rotation != value) { _transform.Rotation = value; MarkFieldDirty(GameObjectFields.Rotation); IncrementVersion(); } }
+    }
+
+    public double RenderX { get => _transform.RenderX; set => _transform.RenderX = value; }
+    public double RenderY { get => _transform.RenderY; set => _transform.RenderY = value; }
+    public double RenderZ { get => _transform.RenderZ; set => _transform.RenderZ = value; }
 
     /// <summary>
     /// Gets or sets the X-coordinate of the game object.
@@ -671,6 +700,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     oldX = _transform.Position.X; oldY = _transform.Position.Y; oldZ = _transform.Position.Z;
                     _transform.Position.X = value.RawLong;
                     posChanged = true;
+                    MarkFieldDirty(GameObjectFields.PositionX);
                 }
                 break;
             case BuiltinVar.Y:
@@ -679,6 +709,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     oldX = _transform.Position.X; oldY = _transform.Position.Y; oldZ = _transform.Position.Z;
                     _transform.Position.Y = value.RawLong;
                     posChanged = true;
+                    MarkFieldDirty(GameObjectFields.PositionY);
                 }
                 break;
             case BuiltinVar.Z:
@@ -687,6 +718,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
                     oldX = _transform.Position.X; oldY = _transform.Position.Y; oldZ = _transform.Position.Z;
                     _transform.Position.Z = value.RawLong;
                     posChanged = true;
+                    MarkFieldDirty(GameObjectFields.PositionZ);
                 }
                 break;
             case BuiltinVar.Loc:
@@ -698,6 +730,14 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             case BuiltinVar.Density:
                 Interlocked.Exchange(ref _densityVal, value.IsFalse() ? 0 : 1);
                 break;
+            case BuiltinVar.Dir: MarkFieldDirty(GameObjectFields.Dir); break;
+            case BuiltinVar.Alpha: MarkFieldDirty(GameObjectFields.Alpha); break;
+            case BuiltinVar.Color: MarkFieldDirty(GameObjectFields.Color); break;
+            case BuiltinVar.Layer: MarkFieldDirty(GameObjectFields.Layer); break;
+            case BuiltinVar.Icon: MarkFieldDirty(GameObjectFields.Icon); break;
+            case BuiltinVar.IconState: MarkFieldDirty(GameObjectFields.IconState); break;
+            case BuiltinVar.PixelX: MarkFieldDirty(GameObjectFields.PixelX); break;
+            case BuiltinVar.PixelY: MarkFieldDirty(GameObjectFields.PixelY); break;
         }
     }
 
@@ -813,6 +853,10 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             oldZ = _transform.Position.Z;
 
             if (oldX == x && oldY == y && oldZ == z) return;
+
+            if (oldX != x) MarkFieldDirty(GameObjectFields.PositionX);
+            if (oldY != y) MarkFieldDirty(GameObjectFields.PositionY);
+            if (oldZ != z) MarkFieldDirty(GameObjectFields.PositionZ);
 
             _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
 
@@ -1072,6 +1116,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             _committedVisuals = default;
             _densityVal = 1;
             _isDirty = 0;
+            _changeMask = 0;
 
             _variableStore.Dispose();
             _committedStore.Dispose();

@@ -22,6 +22,7 @@ public class SnapshotManager : ISnapshotManager
                 X = obj.X,
                 Y = obj.Y,
                 Z = obj.Z,
+                Rotation = obj.Rotation,
                 Visuals = new VisualData {
                     Dir = obj.Dir,
                     Alpha = obj.Alpha,

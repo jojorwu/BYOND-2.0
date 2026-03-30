@@ -20,6 +20,7 @@ public struct ObjectState
     public long X;
     public long Y;
     public long Z;
+    public float Rotation;
     public VisualData Visuals;
 }
 

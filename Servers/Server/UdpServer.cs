@@ -8,6 +8,7 @@ using Shared.Services;
 using Shared.Interfaces;
 using Core;
 using Shared.Config;
+using Shared.Utils;
 using System.Linq;
 using System.Buffers;
 
@@ -59,16 +60,14 @@ namespace Server
 
         public void BroadcastSnapshot(MergedRegion region, string snapshot)
         {
-            // We should ideally wrap this with a message type, but keeping it for compatibility
             foreach(var r in region.Regions)
                 _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(snapshot));
         }
 
         public void BroadcastSnapshot(MergedRegion region, byte[] snapshot)
         {
-            // Prefix with Binary message type
             byte[] message = new byte[snapshot.Length + 1];
-            message[0] = (byte)SnapshotMessageType.Binary;
+            message[0] = (byte)SnapshotMessageType.BitPackedDelta;
             Buffer.BlockCopy(snapshot, 0, message, 1, snapshot.Length);
 
             foreach(var r in region.Regions)
@@ -85,13 +84,9 @@ namespace Server
 
             if (players.Count == 0) return;
 
-            // Parallelize snapshot generation per player to utilize multiple cores for serialization
             await _jobSystem.ForEachAsync(players, peer =>
             {
-                // Filter objects by interest if the player has an AOI defined
                 var interestedObjects = _interestManager.GetInterestedObjects(peer);
-
-                // Use the modern SerializeTo API with a pooled buffer
                 var objectsToSend = interestedObjects.IsDefault ? objects : (IEnumerable<IGameObject>)interestedObjects;
                 int bufferSize = 65536;
                 while (true)
@@ -99,15 +94,13 @@ namespace Server
                     byte[] rented = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int written = _binarySnapshotService.SerializeTo(rented, objectsToSend, peer.LastSentVersions, out bool truncated);
+                        int written = _binarySnapshotService.SerializeBitPackedDelta(rented.AsSpan(1), objectsToSend, peer.LastSentVersions, out bool truncated);
                         if (!truncated)
                         {
                             if (written > 0)
                             {
-                                byte[] message = new byte[written + 1];
-                                message[0] = (byte)SnapshotMessageType.Binary;
-                                Buffer.BlockCopy(rented, 0, message, 1, written);
-                                _ = peer.SendAsync(message);
+                                rented[0] = (byte)SnapshotMessageType.BitPackedDelta;
+                                _ = peer.SendAsync(new ReadOnlyMemory<byte>(rented, 0, written + 1));
                             }
                             break;
                         }
@@ -117,7 +110,7 @@ namespace Server
                         ArrayPool<byte>.Shared.Return(rented);
                     }
                     bufferSize *= 2;
-                    if (bufferSize > 1024 * 1024 * 10) break; // 10MB limit per player snapshot
+                    if (bufferSize > 1024 * 1024 * 10) break;
                 }
             });
         }
@@ -131,7 +124,7 @@ namespace Server
         public void BroadcastSound(SoundData sound)
         {
             byte[] data = SerializeSound(sound);
-            _networkService.BroadcastSnapshot(data); // Using BroadcastSnapshot for general byte broadcast
+            _networkService.BroadcastSnapshot(data);
         }
 
         public void BroadcastSound(SoundData sound, Region region)
@@ -151,29 +144,26 @@ namespace Server
 
         private byte[] SerializeSound(SoundData sound)
         {
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put((byte)SnapshotMessageType.Sound);
-                writer.Put(sound.File);
-                writer.Put(sound.Volume);
-                writer.Put(sound.Pitch);
-                writer.Put(sound.Repeat);
-                writer.Put(sound.X.HasValue);
-                if (sound.X.HasValue) writer.Put(sound.X.Value);
-                writer.Put(sound.Y.HasValue);
-                if (sound.Y.HasValue) writer.Put(sound.Y.Value);
-                writer.Put(sound.Z.HasValue);
-                if (sound.Z.HasValue) writer.Put(sound.Z.Value);
-                writer.Put(sound.ObjectId.HasValue);
-                if (sound.ObjectId.HasValue) writer.Put(sound.ObjectId.Value);
-                writer.Put(sound.Falloff);
-                return writer.CopyData();
-            }
-            finally
-            {
-                _writerPool.Return(writer);
-            }
+            byte[] buffer = new byte[1024];
+            var writer = new BitWriter(buffer);
+            writer.WriteBits((byte)SnapshotMessageType.Sound, 8);
+            writer.WriteString(sound.File);
+            writer.WriteDouble(sound.Volume);
+            writer.WriteDouble(sound.Pitch);
+            writer.WriteBool(sound.Repeat);
+            writer.WriteBool(sound.X.HasValue);
+            if (sound.X.HasValue) writer.WriteZigZag(sound.X.Value);
+            writer.WriteBool(sound.Y.HasValue);
+            if (sound.Y.HasValue) writer.WriteZigZag(sound.Y.Value);
+            writer.WriteBool(sound.Z.HasValue);
+            if (sound.Z.HasValue) writer.WriteZigZag(sound.Z.Value);
+            writer.WriteBool(sound.ObjectId.HasValue);
+            if (sound.ObjectId.HasValue) writer.WriteVarInt(sound.ObjectId.Value);
+            writer.WriteDouble(sound.Falloff);
+
+            byte[] result = new byte[writer.BytesWritten];
+            buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+            return result;
         }
 
         public void StopSound(string file, Region? region = null)
@@ -196,19 +186,16 @@ namespace Server
 
         private byte[] SerializeStopSound(string file, long? objectId)
         {
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put((byte)SnapshotMessageType.StopSound);
-                writer.Put(file);
-                writer.Put(objectId.HasValue);
-                if (objectId.HasValue) writer.Put(objectId.Value);
-                return writer.CopyData();
-            }
-            finally
-            {
-                _writerPool.Return(writer);
-            }
+            byte[] buffer = new byte[512];
+            var writer = new BitWriter(buffer);
+            writer.WriteBits((byte)SnapshotMessageType.StopSound, 8);
+            writer.WriteString(file);
+            writer.WriteBool(objectId.HasValue);
+            if (objectId.HasValue) writer.WriteVarInt(objectId.Value);
+
+            byte[] result = new byte[writer.BytesWritten];
+            buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+            return result;
         }
 
         public void SendCVars(INetworkPeer peer)
@@ -219,18 +206,15 @@ namespace Server
 
             if (replicatedCVars.Count == 0) return;
 
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put((byte)SnapshotMessageType.SyncCVars);
-                string json = System.Text.Json.JsonSerializer.Serialize(replicatedCVars);
-                writer.Put(json);
-                _ = peer.SendAsync(writer.CopyData());
-            }
-            finally
-            {
-                _writerPool.Return(writer);
-            }
+            byte[] buffer = new byte[4096];
+            var writer = new BitWriter(buffer);
+            writer.WriteBits((byte)SnapshotMessageType.SyncCVars, 8);
+            string json = System.Text.Json.JsonSerializer.Serialize(replicatedCVars);
+            writer.WriteString(json);
+
+            byte[] result = new byte[writer.BytesWritten];
+            buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+            _ = peer.SendAsync(result);
         }
     }
 }

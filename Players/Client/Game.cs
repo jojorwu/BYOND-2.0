@@ -244,7 +244,6 @@ new MyShader()
                         if (_configManager is ConfigurationManager mgr) mgr.SetCVarDirect(key, val);
                         else _configManager.SetCVar(key, val);
                     };
-                    _previousState = _logicThread.PreviousState;
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();
                     _clientState = ClientState.InGame;
@@ -252,15 +251,14 @@ new MyShader()
             }
             else if (_clientState == ClientState.InGame)
             {
+                _logicThread.UpdateRenderState();
+                _currentState = _logicThread.GetStateForRender();
+
                 _accumulator += deltaTime;
 
                 while (_accumulator >= LogicThread.TimeStep)
                 {
-                    var states = _logicThread.GetStatesForRender();
-                    _previousState = states.Item1;
-                    _currentState = states.Item2;
                     _accumulator -= LogicThread.TimeStep;
-
                     UpdatePlayerObject();
                 }
 
@@ -326,7 +324,7 @@ new MyShader()
                 {
                     var renderContext = new RenderContext(
                         _gl!,
-                        _previousState,
+                        null,
                         _currentState,
                         _alpha,
                         GetCullRect(),

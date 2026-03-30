@@ -141,13 +141,10 @@ void main() {
                                     (float)(frame.Y + dmi.Description.Height) / dmi.Height
                                 );
 
-                                Vector2 pos = new Vector2(obj.X, obj.Y);
-                                if (previousState != null && previousState.GameObjects.TryGetValue(obj.Id, out var prevObj))
-                                {
-                                    pos = Vector2.Lerp(new Vector2(prevObj.X, prevObj.Y), pos, alpha);
-                                }
+                                Vector2 pos = new Vector2(obj.X * 32 + (float)obj.PixelX, obj.Y * 32 + (float)obj.PixelY);
+                                Color color = Color.FromHex(obj.Color).WithAlpha((float)obj.Alpha / 255.0f);
 
-                                _instancedRenderer.Draw(dmi.TextureId, pos * 32, new Vector2(32, 32), uv, Color.White);
+                                _instancedRenderer.Draw(dmi.TextureId, pos, new Vector2(32, 32), uv, color);
                             }
                         }
                     }

@@ -2,16 +2,49 @@ using System;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
+using System.Collections.Generic;
 using Core;
 using Shared;
 using Shared.Interfaces;
+using Shared.Utils;
 using LiteNetLib;
 
 namespace Client
 {
     public class LogicThread
     {
-        public GameState PreviousState { get; private set; }
+        public class Snapshot
+        {
+            public double Timestamp;
+            public Dictionary<long, ObjectState> States = new();
+
+            public void Reset()
+            {
+                Timestamp = 0;
+                States.Clear();
+            }
+        }
+
+        public struct ObjectState
+        {
+            public long X;
+            public long Y;
+            public long Z;
+            public VisualData Visuals;
+        }
+
+        public struct VisualData
+        {
+            public int Dir;
+            public double Alpha;
+            public double Layer;
+            public string Icon;
+            public string IconState;
+            public string Color;
+        }
+
+        private readonly Queue<Snapshot> _snapshotQueue = new();
+        private readonly Stack<Snapshot> _snapshotPool = new();
         public GameState CurrentState { get; private set; }
 
         private readonly object _lock = new object();
@@ -19,6 +52,7 @@ namespace Client
         private bool _isRunning;
         public const int TicksPerSecond = 30;
         public const float TimeStep = 1.0f / TicksPerSecond;
+        private const double InterpolationDelay = 0.1; // 100ms buffer for smoothness
 
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
@@ -26,6 +60,7 @@ namespace Client
         private readonly IObjectTypeManager _typeManager;
         private readonly IObjectFactory _objectFactory;
         private readonly Shared.Services.BinarySnapshotService _binaryService;
+        private readonly Stopwatch _gameTime = new();
 
         public event Action<SoundData>? SoundReceived;
         public event Action<string, long?>? StopSoundReceived;
@@ -33,7 +68,6 @@ namespace Client
 
         public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
         {
-            PreviousState = new GameState();
             CurrentState = new GameState();
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener);
@@ -50,14 +84,15 @@ namespace Client
         {
             _isRunning = true;
             _netManager.Start();
+            _gameTime.Start();
 
             var parts = _serverAddress.Split(':');
             var host = parts[0];
-            var port = parts.Length > 1 ? int.Parse(parts[1]) : 9050; // Default port
+            var port = parts.Length > 1 ? int.Parse(parts[1]) : 9050;
 
             var writer = new LiteNetLib.Utils.NetDataWriter();
             writer.Put("BYOND2.0");
-            writer.Put("Player" + Random.Shared.Next(100, 999)); // Example nickname
+            writer.Put("Player" + Random.Shared.Next(100, 999));
             _netManager.Connect(host, port, writer);
             _thread.Start();
         }
@@ -71,27 +106,10 @@ namespace Client
 
         private void GameLoop()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
-            double lastTime = stopwatch.Elapsed.TotalSeconds;
-            double accumulator = 0;
-
             while (_isRunning)
             {
                 _netManager.PollEvents();
-
-                double currentTime = stopwatch.Elapsed.TotalSeconds;
-                double frameTime = currentTime - lastTime;
-                lastTime = currentTime;
-                accumulator += frameTime;
-
-                while (accumulator >= TimeStep)
-                {
-                    // Update logic is now driven by server responses
-                    accumulator -= TimeStep;
-                }
-
-                Thread.Sleep(15);
+                Thread.Sleep(5);
             }
         }
 
@@ -107,18 +125,49 @@ namespace Client
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
-            // First byte is the message type. We may have other types later.
             var messageType = (SnapshotMessageType)reader.GetByte();
 
-            if (messageType == SnapshotMessageType.Binary)
+            if (messageType == SnapshotMessageType.BitPackedDelta || messageType == SnapshotMessageType.Binary)
             {
                 byte[] data = new byte[reader.AvailableBytes];
                 reader.GetBytes(data, reader.AvailableBytes);
 
                 lock (_lock)
                 {
-                    PreviousState = CurrentState; // This is a bit simplified for deltas
-                    _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
+                    if (messageType == SnapshotMessageType.BitPackedDelta)
+                        _binaryService.DeserializeBitPacked(data, CurrentState.GameObjects, _typeManager, _objectFactory);
+                    else
+                        _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
+
+                    // Acquire pooled snapshot or create new
+                    if (!_snapshotPool.TryPop(out var snapshot)) snapshot = new Snapshot();
+                    snapshot.Timestamp = _gameTime.Elapsed.TotalSeconds;
+
+                    foreach (var obj in CurrentState.GameObjects.Values)
+                    {
+                        snapshot.States[obj.Id] = new ObjectState {
+                            X = obj.X,
+                            Y = obj.Y,
+                            Z = obj.Z,
+                            Visuals = new VisualData {
+                                Dir = obj.Dir,
+                                Alpha = obj.Alpha,
+                                Layer = obj.Layer,
+                                Icon = obj.Icon,
+                                IconState = obj.IconState,
+                                Color = obj.Color
+                            }
+                        };
+                    }
+                    _snapshotQueue.Enqueue(snapshot);
+
+                    // Recycle old snapshots
+                    while (_snapshotQueue.Count > 20)
+                    {
+                        var old = _snapshotQueue.Dequeue();
+                        old.Reset();
+                        _snapshotPool.Push(old);
+                    }
                 }
             }
             else if (messageType == SnapshotMessageType.Sound)
@@ -128,14 +177,11 @@ namespace Client
                 sound.Volume = reader.GetFloat();
                 sound.Pitch = reader.GetFloat();
                 sound.Repeat = reader.GetBool();
-
                 if (reader.GetBool()) sound.X = reader.GetLong();
                 if (reader.GetBool()) sound.Y = reader.GetLong();
                 if (reader.GetBool()) sound.Z = reader.GetLong();
                 if (reader.GetBool()) sound.ObjectId = reader.GetLong();
-
                 sound.Falloff = reader.GetFloat();
-
                 SoundReceived?.Invoke(sound);
             }
             else if (messageType == SnapshotMessageType.StopSound)
@@ -148,50 +194,71 @@ namespace Client
             else if (messageType == SnapshotMessageType.SyncCVars)
             {
                 var json = reader.GetString();
-                var cvars = JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
+                var cvars = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
                 if (cvars != null)
                 {
-                    foreach (var kvp in cvars)
-                    {
-                        CVarSyncReceived?.Invoke(kvp.Key, kvp.Value);
-                    }
-                }
-            }
-            else if (messageType == SnapshotMessageType.Full)
-            {
-                var json = reader.GetString();
-
-                // Deserialize outside of the lock to avoid blocking the render thread
-                var newGameState = JsonSerializer.Deserialize<GameState>(json);
-
-                if (newGameState != null) {
-                    lock (_lock)
-                    {
-                        PreviousState = CurrentState;
-                        CurrentState = newGameState;
-                    }
-                }
-            } else {
-                // We might receive other message types like commands responses, etc.
-                // For now, we just print them if they are not snapshots.
-                // Note: a robust implementation would have a proper message dispatcher.
-                try {
-                    var text = reader.GetString();
-                    Console.WriteLine($"Received non-snapshot message: {text}");
-                } catch {
-                     Console.WriteLine("Received unknown binary message.");
+                    foreach (var kvp in cvars) CVarSyncReceived?.Invoke(kvp.Key, kvp.Value);
                 }
             }
 
             reader.Recycle();
         }
 
-        public (GameState, GameState) GetStatesForRender()
+        public void UpdateRenderState()
         {
+            double renderTime = _gameTime.Elapsed.TotalSeconds - InterpolationDelay;
+
             lock (_lock)
             {
-                return (PreviousState, CurrentState);
+                if (_snapshotQueue.Count < 2) return;
+
+                Snapshot? from = null;
+                Snapshot? to = null;
+
+                foreach (var s in _snapshotQueue)
+                {
+                    if (s.Timestamp <= renderTime) from = s;
+                    if (s.Timestamp > renderTime)
+                    {
+                        to = s;
+                        break;
+                    }
+                }
+
+                if (from != null && to != null)
+                {
+                    double t = (renderTime - from.Timestamp) / (to.Timestamp - from.Timestamp);
+                    t = Math.Clamp(t, 0, 1);
+
+                    foreach (var kvp in to.States)
+                    {
+                        if (CurrentState.GameObjects.TryGetValue(kvp.Key, out var obj))
+                        {
+                            if (from.States.TryGetValue(kvp.Key, out var fromState))
+                            {
+                                // Interpolate Position
+                                double interpX = fromState.X + (kvp.Value.X - fromState.X) * t;
+                                double interpY = fromState.Y + (kvp.Value.Y - fromState.Y) * t;
+                                double interpZ = fromState.Z + (kvp.Value.Z - fromState.Z) * t;
+
+                                // Sub-tile smoothing using Pixel offsets
+                                obj.PixelX = (interpX - kvp.Value.X) * 32;
+                                obj.PixelY = (interpY - kvp.Value.Y) * 32;
+                                // For Z, if we had PixelZ, we'd use it. For now, we only have PixelX/Y.
+
+                                // Interpolate Visuals
+                                obj.Alpha = fromState.Visuals.Alpha + (kvp.Value.Visuals.Alpha - fromState.Visuals.Alpha) * t;
+                                obj.Layer = fromState.Visuals.Layer + (kvp.Value.Visuals.Layer - fromState.Visuals.Layer) * t;
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        public GameState GetStateForRender()
+        {
+            return CurrentState;
         }
     }
 }

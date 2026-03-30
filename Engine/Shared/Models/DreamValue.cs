@@ -889,6 +889,54 @@ namespace Shared;
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void BitWriteTo(ref BitWriter writer)
+        {
+            writer.WriteBits((ulong)Type, 4);
+            switch (Type)
+            {
+                case DreamValueType.Float:
+                    writer.WriteDouble(_floatValue);
+                    break;
+                case DreamValueType.Integer:
+                    writer.WriteZigZag(_longValue);
+                    break;
+                case DreamValueType.String:
+                    {
+                        var s = (string)_objectValue!;
+                        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(s);
+                        writer.WriteVarInt(bytes.Length);
+                        foreach (var b in bytes) writer.WriteBits(b, 8);
+                    }
+                    break;
+                case DreamValueType.DreamObject:
+                    if (_objectValue is GameObject g)
+                    {
+                        writer.WriteBool(true);
+                        writer.WriteVarInt(g.Id);
+                    }
+                    else
+                    {
+                        writer.WriteBool(false);
+                        var s = (_objectValue != null) ? _objectValue.ToString() ?? string.Empty : string.Empty;
+                        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(s);
+                        writer.WriteVarInt(bytes.Length);
+                        foreach (var b in bytes) writer.WriteBits(b, 8);
+                    }
+                    break;
+                case DreamValueType.Null:
+                    break;
+                default:
+                    {
+                        var s = ToString();
+                        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(s);
+                        writer.WriteVarInt(bytes.Length);
+                        foreach (var b in bytes) writer.WriteBits(b, 8);
+                    }
+                    break;
+            }
+        }
+
         public static DreamValue ReadFrom(ReadOnlySpan<byte> span, out int bytesRead)
         {
             var type = (DreamValueType)span[0];
@@ -930,6 +978,49 @@ namespace Shared;
                         offset += lenBytes;
                         bytesRead = offset + (int)len;
                         return new DreamValue(System.Text.Encoding.UTF8.GetString(span.Slice(offset, (int)len)));
+                    }
+            }
+        }
+
+        public static DreamValue BitReadFrom(ref BitReader reader)
+        {
+            var type = (DreamValueType)reader.ReadBits(4);
+            switch (type)
+            {
+                case DreamValueType.Float:
+                    return new DreamValue(reader.ReadDouble());
+                case DreamValueType.Integer:
+                    return new DreamValue(reader.ReadZigZag());
+                case DreamValueType.String:
+                    {
+                        int len = (int)reader.ReadVarInt();
+                        if (len == 0) return new DreamValue(string.Empty);
+                        byte[] bytes = new byte[len];
+                        for (int i = 0; i < len; i++) bytes[i] = (byte)reader.ReadBits(8);
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(bytes));
+                    }
+                case DreamValueType.DreamObject:
+                    if (reader.ReadBool())
+                    {
+                        return CreateObjectIdReference(reader.ReadVarInt());
+                    }
+                    else
+                    {
+                        int len = (int)reader.ReadVarInt();
+                        if (len == 0) return new DreamValue(string.Empty);
+                        byte[] bytes = new byte[len];
+                        for (int i = 0; i < len; i++) bytes[i] = (byte)reader.ReadBits(8);
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(bytes));
+                    }
+                case DreamValueType.Null:
+                    return Null;
+                default:
+                    {
+                        int len = (int)reader.ReadVarInt();
+                        if (len == 0) return new DreamValue(string.Empty);
+                        byte[] bytes = new byte[len];
+                        for (int i = 0; i < len; i++) bytes[i] = (byte)reader.ReadBits(8);
+                        return new DreamValue(System.Text.Encoding.UTF8.GetString(bytes));
                     }
             }
         }

@@ -98,6 +98,12 @@ namespace Shared;
         double CommittedPixelX { get; }
         double CommittedPixelY { get; }
 
+        double Alpha { get; set; }
+        string Color { get; set; }
+        double PixelX { get; set; }
+        double PixelY { get; set; }
+        double Layer { get; set; }
+
         /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>

@@ -59,9 +59,6 @@ namespace Core
         {
             using (gameState.ReadLock())
             {
-                // Optimization: only snapshot dirty objects if possible, but for a full world snapshot
-                // we usually need all currently active objects. sparse snapshotting is better handled
-                // at the connection level tracking.
                 var objects = gameState.GameObjects.Values;
                 int bufferSize = Math.Max(65536, objects.Count * 64);
                 while (true)
@@ -69,7 +66,7 @@ namespace Core
                     var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
+                        int bytesWritten = _binarySnapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
                         if (!truncated)
                         {
                             byte[] result = new byte[bytesWritten];
@@ -88,6 +85,9 @@ namespace Core
 
         public byte[] GetSparseBinarySnapshot(IGameState gameState)
         {
+            // If we have a reactive system, we should ideally use BitPacked as well
+            // But for now let's focus on the primary binary snapshot which is used for full/regional updates
+
             if (_reactiveSystem != null)
             {
                 var batches = _reactiveSystem.ConsumeBatches().ToList();
@@ -126,7 +126,7 @@ namespace Core
                     var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
+                        int bytesWritten = _binarySnapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
                         if (!truncated)
                         {
                             byte[] result = new byte[bytesWritten];
@@ -154,7 +154,7 @@ namespace Core
                     var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
+                        int bytesWritten = _binarySnapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
                         if (!truncated)
                         {
                             byte[] result = new byte[bytesWritten];

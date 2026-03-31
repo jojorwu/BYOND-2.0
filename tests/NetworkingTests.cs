@@ -6,8 +6,13 @@ using Shared.Services;
 using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Enums;
+using Shared.Networking;
 using Shared.Networking.Messages;
+using Shared.Networking.Handlers;
+using Shared.Models;
 using Moq;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Tests;
 
@@ -18,6 +23,8 @@ public class NetworkingTests
     private BitPackedSnapshotSerializer _serializer;
     private Mock<IObjectTypeManager> _typeManagerMock;
     private Mock<IObjectFactory> _factoryMock;
+    private ServiceCollection _services;
+    private ServiceProvider _serviceProvider;
 
     [SetUp]
     public void SetUp()
@@ -26,6 +33,16 @@ public class NetworkingTests
         _snapshotService = new BinarySnapshotService(_serializer);
         _typeManagerMock = new Mock<IObjectTypeManager>();
         _factoryMock = new Mock<IObjectFactory>();
+
+        _services = new ServiceCollection();
+        _services.AddSingleton<ISnapshotSerializer>(_serializer);
+        _services.AddSingleton<IObjectTypeManager>(_typeManagerMock.Object);
+        _services.AddSingleton<IObjectFactory>(_factoryMock.Object);
+        _services.AddSingleton<ISnapshotManager>(new Mock<ISnapshotManager>().Object);
+        _services.AddSingleton<ILogger<ClientInputMessageHandler>>(new Mock<ILogger<ClientInputMessageHandler>>().Object);
+        _services.AddSingleton<IMessageHandler, ClientInputMessageHandler>();
+
+        _serviceProvider = _services.BuildServiceProvider();
     }
 
     private ObjectType CreateTestType()
@@ -66,8 +83,9 @@ public class NetworkingTests
         byte[] buffer = new byte[1024];
 
         // Serialize
-        int written = _snapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
-        Assert.That(truncated, Is.False);
+        var writer = new BitWriter(buffer);
+        _snapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+        int written = writer.BytesWritten;
         Assert.That(written, Is.GreaterThan(0));
 
         byte[] data = new byte[written];
@@ -79,7 +97,8 @@ public class NetworkingTests
         world[101] = targetObj;
 
         // Deserialize
-        _snapshotService.DeserializeBitPacked(data, world, _typeManagerMock.Object, _factoryMock.Object);
+        var reader = new BitReader(data);
+        _snapshotService.DeserializeBitPacked(ref reader, world, _typeManagerMock.Object, _factoryMock.Object);
 
         // Verify
         Assert.That(targetObj.Id, Is.EqualTo(101L));
@@ -103,9 +122,10 @@ public class NetworkingTests
         var objects = new List<IGameObject> { obj };
         byte[] buffer = new byte[1024];
 
-        int written = _snapshotService.SerializeBitPackedDelta(buffer, objects, null, out _);
-        byte[] data = new byte[written];
-        Array.Copy(buffer, data, written);
+        var writer = new BitWriter(buffer);
+        _snapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+        byte[] data = new byte[writer.BytesWritten];
+        Array.Copy(buffer, data, writer.BytesWritten);
 
         var world = new Dictionary<long, GameObject>();
         var targetObj = new GameObject(type) { Id = 303 };
@@ -113,7 +133,8 @@ public class NetworkingTests
         world[303] = targetObj;
 
         // Deserialize
-        _snapshotService.DeserializeBitPacked(data, world, _typeManagerMock.Object, _factoryMock.Object);
+        var reader = new BitReader(data);
+        _snapshotService.DeserializeBitPacked(ref reader, world, _typeManagerMock.Object, _factoryMock.Object);
 
         // Verify
         Assert.That(targetObj.X, Is.EqualTo(0L));
@@ -136,14 +157,16 @@ public class NetworkingTests
         byte[] buffer = new byte[1024];
         var lastVersions = new Dictionary<long, long>();
 
-        int written = _snapshotService.SerializeBitPackedDelta(buffer, objects, lastVersions, out _);
-        byte[] data = new byte[written];
-        Array.Copy(buffer, data, written);
+        var writer = new BitWriter(buffer);
+        _snapshotService.SerializeBitPackedDelta(ref writer, objects, lastVersions);
+        byte[] data = new byte[writer.BytesWritten];
+        Array.Copy(buffer, data, writer.BytesWritten);
 
         var world = new Dictionary<long, GameObject>();
 
         // Deserialize
-        _snapshotService.DeserializeBitPacked(data, world, _typeManagerMock.Object, _factoryMock.Object);
+        var reader = new BitReader(data);
+        _snapshotService.DeserializeBitPacked(ref reader, world, _typeManagerMock.Object, _factoryMock.Object);
 
         // Verify
         Assert.That(world.ContainsKey(404), Is.True);
@@ -165,7 +188,8 @@ public class NetworkingTests
         var objects = new List<IGameObject> { obj };
         byte[] buffer = new byte[1024];
 
-        int written = _snapshotService.SerializeBitPackedDelta(buffer, objects, lastVersions, out _);
+        var writer = new BitWriter(buffer);
+        _snapshotService.SerializeBitPackedDelta(ref writer, objects, lastVersions);
 
         // Analyze buffer
         var reader = new BitReader(buffer);
@@ -197,5 +221,90 @@ public class NetworkingTests
         Assert.That(msg2.Data.Volume, Is.EqualTo(50f));
         Assert.That(msg2.Data.X, Is.EqualTo(10L));
         Assert.That(msg2.Data.Repeat, Is.True);
+    }
+
+    [Test]
+    public void NetworkMessageHandler_DispatchesCorrectly()
+    {
+        var handler = new TestMessageHandler();
+
+        var services = new ServiceCollection();
+        services.AddSingleton<IMessageHandler>(handler);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var dispatcher = new NetworkMessageHandler(serviceProvider);
+
+        var inputMsg = new ClientInputMessage { InputType = ClientInputType.Move, X = 1, Y = 2 };
+        byte[] buffer = new byte[1024];
+        var writer = new BitWriter(buffer);
+        writer.WriteByte(inputMsg.MessageTypeId);
+        inputMsg.Write(ref writer);
+
+        var data = new ReadOnlyMemory<byte>(buffer, 0, writer.BytesWritten);
+        var peerMock = new Mock<INetworkPeer>();
+
+        dispatcher.HandleAsync(peerMock.Object, data).Wait();
+
+        Assert.That(handler.WasCalled, Is.True);
+    }
+
+    private class TestMessageHandler : IMessageHandler
+    {
+        public byte MessageTypeId => (byte)ClientMessageType.Input;
+        public bool WasCalled { get; private set; }
+
+        public ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader)
+        {
+            WasCalled = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private class SyncableComponent : BaseComponent
+    {
+        public int Value { get; set; }
+        public override void WriteState(ref BitWriter writer) { Console.WriteLine($"Writing Value: {Value}"); writer.WriteVarInt(Value); }
+        public override void ReadState(ref BitReader reader) { Value = (int)reader.ReadVarInt(); Console.WriteLine($"Read Value: {Value}"); }
+    }
+
+    [Test]
+    public void BitPackedProtocol_SyncsComponentState()
+    {
+        var type = CreateTestType();
+        var diagnosticBus = new MockDiagnosticBus();
+        var archetypeManager = new ArchetypeManager(Microsoft.Extensions.Logging.Abstractions.NullLogger<ArchetypeManager>.Instance, diagnosticBus);
+        var componentManager = new ComponentManager(archetypeManager);
+
+        var obj = new GameObject(type) { Id = 606 };
+        obj.SetComponentManager(componentManager);
+        var comp = new SyncableComponent { Value = 42 };
+        obj.AddComponent(comp);
+
+        var objects = new List<IGameObject> { obj };
+        byte[] buffer = new byte[1024];
+        var writer = new BitWriter(buffer);
+        _snapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+
+        var data = new byte[writer.BytesWritten];
+        Array.Copy(buffer, data, writer.BytesWritten);
+
+        var world = new Dictionary<long, GameObject>();
+        var targetObj = new GameObject(type) { Id = 606 };
+        targetObj.SetComponentManager(componentManager);
+        var targetComp = new SyncableComponent();
+        targetObj.AddComponent(targetComp);
+        world[606] = targetObj;
+
+        var reader = new BitReader(data);
+        Console.WriteLine($"Starting deserialization of {data.Length} bytes");
+        _snapshotService.DeserializeBitPacked(ref reader, world, _typeManagerMock.Object, _factoryMock.Object);
+
+        Assert.That(targetComp.Value, Is.EqualTo(42));
+    }
+
+    [TearDown]
+    public void TearDown()
+    {
+        _serviceProvider?.Dispose();
     }
 }

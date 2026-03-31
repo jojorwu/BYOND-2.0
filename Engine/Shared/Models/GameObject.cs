@@ -506,7 +506,17 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         } finally { _lock.ExitReadLock(); }
     }
 
-    public void SendMessage(IComponentMessage message) { /* Implementation same as before, truncated for brevity */ }
+    public void SendMessage(IComponentMessage message)
+    {
+        var components = GetComponents();
+        foreach (var component in components)
+        {
+            if (component.Enabled)
+            {
+                component.OnMessage(message);
+            }
+        }
+    }
 
     public virtual void Reset()
     {

@@ -11,6 +11,7 @@ using Shared.Config;
 using Shared.Utils;
 using System.Linq;
 using System.Buffers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server
 {
@@ -25,8 +26,9 @@ namespace Server
         private readonly IJobSystem _jobSystem;
         private readonly IConfigurationManager _configManager;
         private readonly INetworkSender _networkSender;
+        private readonly IServiceProvider _serviceProvider;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, INetworkSender networkSender)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, INetworkSender networkSender, IServiceProvider serviceProvider)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
@@ -36,6 +38,7 @@ namespace Server
             _jobSystem = jobSystem;
             _configManager = configManager;
             _networkSender = networkSender;
+            _serviceProvider = serviceProvider;
         }
 
         protected override Task OnStartAsync(CancellationToken cancellationToken)
@@ -84,34 +87,20 @@ namespace Server
 
             if (players.Count == 0) return;
 
+            var serializer = _serviceProvider.GetRequiredService<ISnapshotSerializer>();
+
             await _jobSystem.ForEachAsync(players, peer =>
             {
                 var interestedObjects = _interestManager.GetInterestedObjects(peer);
                 var objectsToSend = interestedObjects.IsDefault ? objects : (IEnumerable<IGameObject>)interestedObjects;
-                int bufferSize = 65536;
-                while (true)
+
+                var message = new Shared.Networking.Messages.StateDeltaMessage(serializer)
                 {
-                    byte[] rented = ArrayPool<byte>.Shared.Rent(bufferSize);
-                    try
-                    {
-                        int written = _binarySnapshotService.SerializeBitPackedDelta(rented.AsSpan(1), objectsToSend, peer.LastSentVersions, out bool truncated);
-                        if (!truncated)
-                        {
-                            if (written > 0)
-                            {
-                                rented[0] = (byte)SnapshotMessageType.BitPackedDelta;
-                                _ = peer.SendAsync(new ReadOnlyMemory<byte>(rented, 0, written + 1));
-                            }
-                            break;
-                        }
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(rented);
-                    }
-                    bufferSize *= 2;
-                    if (bufferSize > 1024 * 1024 * 10) break;
-                }
+                    Objects = objectsToSend,
+                    LastSentVersions = peer.LastSentVersions
+                };
+
+                _ = _networkSender.SendAsync(peer, message);
             });
         }
 

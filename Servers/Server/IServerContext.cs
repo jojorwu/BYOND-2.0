@@ -12,5 +12,6 @@ namespace Server
         IRegionManager RegionManager { get; }
         PerformanceMonitor PerformanceMonitor { get; }
         IInterestManager InterestManager { get; }
+        IServiceProvider ServiceProvider { get; }
     }
 }

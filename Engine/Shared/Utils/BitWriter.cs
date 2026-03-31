@@ -44,9 +44,47 @@ public ref struct BitWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void PatchBits(int bitOffset, ulong value, int bitCount)
+    {
+        int savedOffset = _bitOffset;
+        _bitOffset = bitOffset;
+
+        while (bitCount > 0)
+        {
+            int byteIdx = _bitOffset / 8;
+            int bitInByteIdx = _bitOffset % 8;
+            int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
+
+            ulong mask = (1UL << bitsToWriteInByte) - 1;
+            ulong bits = (value >> (bitCount - bitsToWriteInByte)) & mask;
+
+            byte clearMask = (byte)~(((1 << bitsToWriteInByte) - 1) << (8 - bitInByteIdx - bitsToWriteInByte));
+            _destination[byteIdx] &= clearMask;
+            _destination[byteIdx] |= (byte)(bits << (8 - bitInByteIdx - bitsToWriteInByte));
+
+            _bitOffset += bitsToWriteInByte;
+            bitCount -= bitsToWriteInByte;
+        }
+
+        _bitOffset = savedOffset;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBool(bool value)
     {
         WriteBits(value ? 1UL : 0UL, 1);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteByte(byte value)
+    {
+        WriteBits(value, 8);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteFloat(float value)
+    {
+        WriteBits((uint)BitConverter.SingleToInt32Bits(value), 32);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

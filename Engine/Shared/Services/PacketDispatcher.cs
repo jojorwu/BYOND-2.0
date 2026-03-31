@@ -105,11 +105,4 @@ public class PacketDispatcher : IPacketDispatcher
         }
     }
 
-    public void Dispatch(INetworkPeer peer, byte typeId, ReadOnlySpan<byte> payload)
-    {
-        if (_handlers.TryGetValue(typeId, out var handler))
-        {
-            _ = handler.HandleAsync(peer, payload.ToArray());
-        }
-    }
 }

@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 using System.Linq;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace tests
 {
@@ -105,7 +106,7 @@ namespace tests
             var contextMock = new Mock<IServerContext>();
             contextMock.Setup(c => c.PlayerManager).Returns(playerManagerMock.Object);
 
-            var snapshotServiceMock = new Mock<BinarySnapshotService>(new Mock<StringInterner>().Object);
+            var snapshotServiceMock = new Mock<BinarySnapshotService>(new Mock<ISnapshotSerializer>().Object, new Mock<StringInterner>().Object);
             var interestManagerMock = new Mock<IInterestManager>();
 
             var udpServer = new UdpServer(
@@ -116,7 +117,8 @@ namespace tests
                 interestManagerMock.Object,
                 _jobSystemMock.Object,
                 new Mock<Shared.Config.IConfigurationManager>().Object,
-                new Mock<INetworkSender>().Object);
+                new Mock<INetworkSender>().Object,
+                new ServiceCollection().AddSingleton(new Mock<ISnapshotSerializer>().Object).BuildServiceProvider());
 
             var region = new Region((0L, 0L), 0);
             var mergedRegion = new MergedRegion(new List<Region> { region });

@@ -21,6 +21,7 @@ public enum GameObjectFields : uint
     Variables = 1 << 12,
     Type = 1 << 13,
     NewObject = 1 << 14,
+    Components = 1 << 15,
 
     Position = PositionX | PositionY | PositionZ,
     Visuals = Dir | Alpha | Color | Layer | Icon | IconState | PixelX | PixelY

@@ -2,26 +2,44 @@ using System;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Utils;
+using Shared.Networking;
 
 namespace Shared.Services;
 
-public interface INetworkSender
-{
-    ValueTask SendAsync(INetworkPeer peer, INetworkMessage message);
-}
-
 public class NetworkSender : INetworkSender
 {
+    private readonly INetworkBufferPool _bufferPool;
+
+    public NetworkSender(INetworkBufferPool bufferPool)
+    {
+        _bufferPool = bufferPool;
+    }
+
     public async ValueTask SendAsync(INetworkPeer peer, INetworkMessage message)
     {
-        byte[] buffer = new byte[1024]; // Reusable pooled buffer would be better
-        var writer = new BitWriter(buffer);
-        writer.WriteBits(message.MessageTypeId, 8);
-        message.Write(ref writer);
+        int bufferSize = 2048;
+        while (true)
+        {
+            byte[] buffer = _bufferPool.Rent(bufferSize);
+            try
+            {
+                var writer = new BitWriter(buffer);
+                writer.WriteByte((byte)NetworkMessageType.Message);
+                writer.WriteByte(message.MessageTypeId);
+                message.Write(ref writer);
 
-        byte[] result = new byte[writer.BytesWritten];
-        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-
-        await peer.SendAsync(result);
+                await peer.SendAsync(new ReadOnlyMemory<byte>(buffer, 0, writer.BytesWritten));
+                return;
+            }
+            catch (IndexOutOfRangeException)
+            {
+                bufferSize *= 2;
+                if (bufferSize > 1024 * 1024) throw; // Max 1MB
+            }
+            finally
+            {
+                _bufferPool.Return(buffer);
+            }
+        }
     }
 }

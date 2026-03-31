@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Shared.Utils;
 
 namespace Shared.Interfaces;
 
@@ -11,10 +12,10 @@ public interface ISnapshotSerializer
     /// <summary>
     /// Serializes a collection of game objects into a bit-packed delta format.
     /// </summary>
-    int SerializeBitPackedDelta(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated);
+    void SerializeBitPackedDelta(ref BitWriter writer, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions);
 
     /// <summary>
     /// Deserializes a bit-packed delta into the game world.
     /// </summary>
-    void DeserializeBitPacked(ReadOnlySpan<byte> data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory);
+    void DeserializeBitPacked(ref BitReader reader, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory);
 }

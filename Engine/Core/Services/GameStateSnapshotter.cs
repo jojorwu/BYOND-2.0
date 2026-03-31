@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Shared;
 using Shared.Services;
+using Shared.Utils;
 
 namespace Core
 {
@@ -66,19 +67,21 @@ namespace Core
                     var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
-                        if (!truncated)
-                        {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
-                        }
+                        var writer = new BitWriter(buffer);
+                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+                        byte[] result = new byte[writer.BytesWritten];
+                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+                        return result;
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        bufferSize *= 2;
+                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
                     }
                     finally
                     {
                         ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bufferSize *= 2;
                 }
             }
         }
@@ -126,19 +129,21 @@ namespace Core
                     var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
-                        if (!truncated)
-                        {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
-                        }
+                        var writer = new BitWriter(buffer);
+                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+                        byte[] result = new byte[writer.BytesWritten];
+                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+                        return result;
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        bufferSize *= 2;
+                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
                     }
                     finally
                     {
                         ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bufferSize *= 2;
                 }
             }
         }
@@ -151,22 +156,24 @@ namespace Core
                 int bufferSize = Math.Max(65536, objects.Count * 64);
                 while (true)
                 {
-                    var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(bufferSize);
+                    var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeBitPackedDelta(buffer, objects, null, out bool truncated);
-                        if (!truncated)
-                        {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
-                        }
+                        var writer = new BitWriter(buffer);
+                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+                        byte[] result = new byte[writer.BytesWritten];
+                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+                        return result;
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        bufferSize *= 2;
+                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
                     }
                     finally
                     {
-                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                        ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bufferSize *= 2;
                 }
             }
         }

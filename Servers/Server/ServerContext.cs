@@ -13,8 +13,9 @@ namespace Server
         public IRegionManager RegionManager { get; }
         public PerformanceMonitor PerformanceMonitor { get; }
         public IInterestManager InterestManager { get; }
+        public IServiceProvider ServiceProvider { get; }
 
-        public ServerContext(IGameState gameState, IPlayerManager playerManager, IOptions<ServerSettings> settings, IRegionManager regionManager, PerformanceMonitor performanceMonitor, IInterestManager interestManager)
+        public ServerContext(IGameState gameState, IPlayerManager playerManager, IOptions<ServerSettings> settings, IRegionManager regionManager, PerformanceMonitor performanceMonitor, IInterestManager interestManager, IServiceProvider serviceProvider)
         {
             GameState = gameState;
             PlayerManager = playerManager;
@@ -22,6 +23,7 @@ namespace Server
             RegionManager = regionManager;
             PerformanceMonitor = performanceMonitor;
             InterestManager = interestManager;
+            ServiceProvider = serviceProvider;
         }
     }
 }

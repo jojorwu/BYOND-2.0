@@ -73,9 +73,9 @@ namespace Shared.Services;
             return offset;
         }
 
-        public int SerializeBitPackedDelta(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
+        public void SerializeBitPackedDelta(ref BitWriter writer, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions)
         {
-            return _serializer.SerializeBitPackedDelta(destination, objects, lastVersions, out truncated);
+            _serializer.SerializeBitPackedDelta(ref writer, objects, lastVersions);
         }
 
         public int SerializeBatches(Span<byte> destination, IEnumerable<ReactiveStateSystem.DeltaBatch> batches, out bool truncated)
@@ -323,8 +323,8 @@ namespace Shared.Services;
             }
         }
 
-        public void DeserializeBitPacked(byte[] data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
+        public void DeserializeBitPacked(ref BitReader reader, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
         {
-            _serializer.DeserializeBitPacked(data, world, typeManager, factory);
+            _serializer.DeserializeBitPacked(ref reader, world, typeManager, factory);
         }
     }

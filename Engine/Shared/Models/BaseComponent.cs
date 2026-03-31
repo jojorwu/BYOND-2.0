@@ -1,5 +1,6 @@
 using Shared.Enums;
 using Shared.Interfaces;
+using Shared.Utils;
 
 namespace Shared.Models;
 
@@ -19,6 +20,9 @@ public abstract class BaseComponent : IComponent
 
     public virtual void BeginUpdate() { }
     public virtual void CommitUpdate() { }
+
+    public virtual void WriteState(ref BitWriter writer) { }
+    public virtual void ReadState(ref BitReader reader) { }
 
     public virtual void Reset()
     {

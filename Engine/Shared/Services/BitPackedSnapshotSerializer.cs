@@ -4,16 +4,14 @@ using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Models;
 using Shared.Enums;
+using Shared.Networking.Messages;
 
 namespace Shared.Services;
 
 public class BitPackedSnapshotSerializer : ISnapshotSerializer
 {
-    public int SerializeBitPackedDelta(Span<byte> destination, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions, out bool truncated)
+    public void SerializeBitPackedDelta(ref BitWriter writer, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions)
     {
-        truncated = false;
-        var writer = new BitWriter(destination);
-
         foreach (var obj in objects)
         {
             bool isNew = lastVersions == null || !lastVersions.ContainsKey(obj.Id);
@@ -22,12 +20,11 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
                 continue;
             }
 
-            if (writer.BytesWritten + 128 > destination.Length) { truncated = true; break; }
-
             writer.WriteVarInt(obj.Id);
             writer.WriteVarInt(obj.Version);
 
             GameObjectFields mask = obj.GetChangeMask();
+            mask |= GameObjectFields.Components;
             if (isNew) mask |= GameObjectFields.NewObject | GameObjectFields.Type | GameObjectFields.Position | GameObjectFields.Visuals;
 
             var g = obj as GameObject;
@@ -42,10 +39,7 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
 
             writer.WriteBits((ulong)mask, 16);
 
-            if ((mask & GameObjectFields.Type) != 0)
-            {
-                writer.WriteVarInt(obj.ObjectType?.Id ?? -1);
-            }
+            if ((mask & GameObjectFields.Type) != 0) writer.WriteVarInt(obj.ObjectType?.Id ?? -1);
 
             if ((mask & GameObjectFields.PositionX) != 0) writer.WriteZigZag(obj.X);
             if ((mask & GameObjectFields.PositionY) != 0) writer.WriteZigZag(obj.Y);
@@ -69,21 +63,42 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
                 writer = serializer.Writer;
             }
 
+            if (g != null && (mask & GameObjectFields.Components) != 0)
+            {
+                var components = g.GetComponents().ToList();
+                if (components.Count > 0)
+                {
+                    writer.WriteVarInt(components.Count);
+                    foreach (var comp in components)
+                    {
+                        writer.WriteString(comp.GetType().Name);
+
+                        int sizeFieldOffset = writer.BitsWritten;
+                        writer.WriteInt(0, 16); // Placeholder for size in bits
+
+                        int startBits = writer.BitsWritten;
+                        comp.WriteState(ref writer);
+                        int endBits = writer.BitsWritten;
+
+                        int payloadBits = endBits - startBits;
+                        writer.PatchBits(sizeFieldOffset, (ulong)payloadBits, 16);
+                    }
+                }
+                else
+                {
+                    writer.WriteVarInt(0);
+                }
+            }
+
             if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
             obj.ClearChangeMask();
         }
 
-        if (!truncated)
-        {
-            writer.WriteVarInt(0); // End marker
-        }
-
-        return writer.BytesWritten;
+        writer.WriteVarInt(0); // End marker
     }
 
-    public void DeserializeBitPacked(ReadOnlySpan<byte> data, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
+    public void DeserializeBitPacked(ref BitReader reader, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
     {
-        var reader = new BitReader(data);
         var unresolvedReferences = new List<(GameObject target, int propIdx, long refId)>();
 
         while (true)
@@ -135,33 +150,44 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
                     {
                         int propIdx = (int)reader.ReadVarInt();
                         var val = DreamValue.BitReadFrom(ref reader);
-
                         if (val.IsObjectIdReference) unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
                         else gameObject.SetVariableDirect(propIdx, val);
+                    }
+                }
+
+                if ((mask & GameObjectFields.Components) != 0)
+                {
+                    int compCount = (int)reader.ReadVarInt();
+                    for (int i = 0; i < compCount; i++)
+                    {
+                        string compTypeName = reader.ReadString();
+                        int payloadBits = reader.ReadInt(16);
+
+                        // Find or create component
+                        var components = gameObject.GetComponents().ToList();
+                        var component = components.FirstOrDefault(c => c.GetType().Name == compTypeName);
+                        if (component != null)
+                        {
+                            int startBits = reader.BitsRead;
+                            component.ReadState(ref reader);
+                            int actualRead = reader.BitsRead - startBits;
+                            if (actualRead != payloadBits)
+                            {
+                                // Desync detected, skip to correct offset
+                                reader.SkipBits(payloadBits - actualRead);
+                            }
+                        }
+                        else
+                        {
+                            reader.SkipBits(payloadBits);
+                        }
                     }
                 }
                 gameObject.Version = version;
             }
             else
             {
-                // Skip logic
-                if ((mask & GameObjectFields.PositionX) != 0) reader.ReadZigZag();
-                if ((mask & GameObjectFields.PositionY) != 0) reader.ReadZigZag();
-                if ((mask & GameObjectFields.PositionZ) != 0) reader.ReadZigZag();
-                if ((mask & GameObjectFields.Dir) != 0) reader.ReadVarInt();
-                if ((mask & GameObjectFields.Alpha) != 0) reader.ReadDouble();
-                if ((mask & GameObjectFields.Color) != 0) reader.ReadString();
-                if ((mask & GameObjectFields.Layer) != 0) reader.ReadDouble();
-                if ((mask & GameObjectFields.Icon) != 0) reader.ReadString();
-                if ((mask & GameObjectFields.IconState) != 0) reader.ReadString();
-                if ((mask & GameObjectFields.PixelX) != 0) reader.ReadDouble();
-                if ((mask & GameObjectFields.PixelY) != 0) reader.ReadDouble();
-                if ((mask & GameObjectFields.Rotation) != 0) reader.ReadDouble();
-                if ((mask & GameObjectFields.Variables) != 0)
-                {
-                    int count = (int)reader.ReadVarInt();
-                    for (int i = 0; i < count; i++) { reader.ReadVarInt(); DreamValue.BitReadFrom(ref reader); }
-                }
+                SkipObject(ref reader, mask);
             }
         }
 
@@ -169,6 +195,39 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
         {
             if (world.TryGetValue(refId, out var refObj)) target.SetVariableDirect(propIdx, new DreamValue(refObj));
             else target.SetVariableDirect(propIdx, DreamValue.Null);
+        }
+    }
+
+    private void SkipObject(ref BitReader reader, GameObjectFields mask)
+    {
+        if ((mask & GameObjectFields.PositionX) != 0) reader.ReadZigZag();
+        if ((mask & GameObjectFields.PositionY) != 0) reader.ReadZigZag();
+        if ((mask & GameObjectFields.PositionZ) != 0) reader.ReadZigZag();
+        if ((mask & GameObjectFields.Dir) != 0) reader.ReadVarInt();
+        if ((mask & GameObjectFields.Alpha) != 0) reader.ReadDouble();
+        if ((mask & GameObjectFields.Color) != 0) reader.ReadString();
+        if ((mask & GameObjectFields.Layer) != 0) reader.ReadDouble();
+        if ((mask & GameObjectFields.Icon) != 0) reader.ReadString();
+        if ((mask & GameObjectFields.IconState) != 0) reader.ReadString();
+        if ((mask & GameObjectFields.PixelX) != 0) reader.ReadDouble();
+        if ((mask & GameObjectFields.PixelY) != 0) reader.ReadDouble();
+        if ((mask & GameObjectFields.Rotation) != 0) reader.ReadDouble();
+        if ((mask & GameObjectFields.Type) != 0) reader.ReadVarInt();
+        if ((mask & GameObjectFields.Variables) != 0)
+        {
+            int count = (int)reader.ReadVarInt();
+            for (int i = 0; i < count; i++) { reader.ReadVarInt(); DreamValue.BitReadFrom(ref reader); }
+        }
+
+        if ((mask & GameObjectFields.Components) != 0)
+        {
+            int compCount = (int)reader.ReadVarInt();
+            for (int i = 0; i < compCount; i++)
+            {
+                reader.ReadString(); // Type name
+                int payloadBits = reader.ReadInt(16);
+                reader.SkipBits(payloadBits);
+            }
         }
     }
 

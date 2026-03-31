@@ -130,6 +130,18 @@ public static class SharedServiceCollectionExtensions
             dispatcher.AddMiddleware(sp.GetRequiredService<LoggingPacketMiddleware>());
             return dispatcher;
         });
+
+        // Register Packet Handlers
+        services.AddSingleton<IPacketHandler, Shared.Networking.Handlers.SnapshotHandler>();
+        services.AddSingleton<IPacketHandler, Shared.Networking.Handlers.NetworkMessageHandler>();
+
+        // Register Message Handlers
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.SoundMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.StopSoundMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.CVarSyncMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.ClientCommandMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.ClientInputMessageHandler>();
+
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
         services.AddSingleton<ISnapshotSerializer, BitPackedSnapshotSerializer>();
         services.AddSingleton<ISnapshotManager, SnapshotManager>();

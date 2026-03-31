@@ -253,7 +253,14 @@ new MyShader()
                     });
 
                     var gameState = new GameState();
-                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, gameState, _serviceProvider.GetRequiredService<ISnapshotManager>(), _serviceProvider.GetRequiredService<IStateInterpolator>(), _serviceProvider.GetRequiredService<IPacketDispatcher>(), timeService, _serviceProvider.GetServices<IPacketHandler>());
+                    _logicThread = new LogicThread(
+                        _connectionPanel.ServerAddress,
+                        gameState,
+                        _serviceProvider.GetRequiredService<ISnapshotManager>(),
+                        _serviceProvider.GetRequiredService<IStateInterpolator>(),
+                        _serviceProvider.GetRequiredService<IPacketDispatcher>(),
+                        timeService,
+                        _serviceProvider.GetRequiredService<INetworkSender>());
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();
                     _clientState = ClientState.InGame;

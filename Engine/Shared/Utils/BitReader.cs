@@ -44,6 +44,24 @@ public ref struct BitReader
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SkipBits(int bitCount)
+    {
+        _bitOffset += bitCount;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public byte ReadByte()
+    {
+        return (byte)ReadBits(8);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public float ReadFloat()
+    {
+        return BitConverter.Int32BitsToSingle((int)ReadBits(32));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ReadBool()
     {
         return ReadBits(1) == 1;

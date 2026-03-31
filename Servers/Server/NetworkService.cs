@@ -6,7 +6,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using LiteNetLib;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Shared;
+using Shared.Interfaces;
 using Shared.Services;
 using Core;
 
@@ -132,12 +134,14 @@ namespace Server
             _context.PerformanceMonitor.RecordBytesReceived(reader.AvailableBytes);
             if (reader.AvailableBytes > 0)
             {
-                // Safety limit for command length
-                const int MaxCommandLength = 4096;
-                var command = reader.GetString(MaxCommandLength);
-
                 if(_peers.TryGetValue(peer, out var networkPeer))
-                    CommandReceived?.Invoke(networkPeer, command);
+                {
+                    byte[] data = new byte[reader.AvailableBytes];
+                    reader.GetBytes(data, reader.AvailableBytes);
+
+                    var dispatcher = _context.ServiceProvider.GetRequiredService<IPacketDispatcher>();
+                    _ = dispatcher.DispatchAsync(networkPeer, data);
+                }
             }
             reader.Recycle();
         }

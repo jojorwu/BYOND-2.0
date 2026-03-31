@@ -11,7 +11,6 @@ using Shared.Utils;
 using Shared.Services;
 using LiteNetLib;
 using Client.Networking;
-using Client.Networking.Handlers;
 
 namespace Client
 {
@@ -21,6 +20,7 @@ namespace Client
         private readonly IStateInterpolator _stateInterpolator;
         private readonly IPacketDispatcher _packetDispatcher;
         private readonly INetworkTimeService _timeService;
+        private readonly INetworkSender _networkSender;
         public GameState CurrentState { get; private set; }
 
         private readonly object _lock = new object();
@@ -36,13 +36,14 @@ namespace Client
         private readonly Stopwatch _gameTime = new();
         private LiteNetNetworkPeer? _serverPeer;
 
-        public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, INetworkTimeService timeService, IEnumerable<IPacketHandler> handlers)
+        public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, INetworkTimeService timeService, INetworkSender networkSender)
         {
             CurrentState = gameState;
             _snapshotManager = snapshotManager;
             _stateInterpolator = stateInterpolator;
             _packetDispatcher = packetDispatcher;
             _timeService = timeService;
+            _networkSender = networkSender;
 
             _packetDispatcher.Initialize();
 
@@ -90,17 +91,22 @@ namespace Client
 
         public void SendCommand(string command)
         {
-            _serverPeer?.SendAsync(command);
+            if (_serverPeer == null) return;
+            _networkSender.SendAsync(_serverPeer, new Shared.Networking.Messages.ClientCommandMessage { Command = command });
         }
 
         private async void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
             if (_serverPeer == null) return;
 
-            byte[] data = new byte[reader.AvailableBytes];
-            reader.GetBytes(data, reader.AvailableBytes);
+            int available = reader.AvailableBytes;
+            if (available == 0) { reader.Recycle(); return; }
 
-            await _packetDispatcher.DispatchAsync(_serverPeer, data);
+            // ReadOnlyMemory allocation from reader to avoid large byte[] copy
+            byte[] data = new byte[available];
+            reader.GetBytes(data, available);
+
+            await _packetDispatcher.DispatchAsync(_serverPeer, new ReadOnlyMemory<byte>(data));
 
             reader.Recycle();
         }

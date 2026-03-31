@@ -11,5 +11,4 @@ public interface IPacketDispatcher
     void AddMiddleware(IPacketMiddleware middleware);
     Task DispatchAsync(INetworkPeer peer, string data);
     Task DispatchAsync(INetworkPeer peer, ReadOnlyMemory<byte> data);
-    void Dispatch(INetworkPeer peer, byte typeId, ReadOnlySpan<byte> payload);
 }

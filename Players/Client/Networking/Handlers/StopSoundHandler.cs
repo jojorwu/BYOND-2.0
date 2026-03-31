@@ -6,7 +6,7 @@ using Shared.Services;
 using Shared.Events;
 using Shared.Messaging;
 using Shared.Utils;
-using Core;
+using Shared.Networking.Messages;
 
 namespace Client.Networking.Handlers;
 
@@ -26,11 +26,10 @@ public class StopSoundHandler : BasePacketHandler
         // Message Type
         reader.ReadBits(8);
 
-        var file = reader.ReadString();
-        long? objectId = null;
-        if (reader.ReadBool()) objectId = reader.ReadVarInt();
+        var msg = new StopSoundMessage();
+        msg.Read(ref reader);
 
-        _eventBus.Publish(new StopSoundEvent(file, objectId));
+        _eventBus.Publish(new StopSoundEvent(msg.File, msg.ObjectId));
         return Task.CompletedTask;
     }
 }

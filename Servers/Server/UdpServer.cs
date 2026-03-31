@@ -24,9 +24,9 @@ namespace Server
         private readonly IInterestManager _interestManager;
         private readonly IJobSystem _jobSystem;
         private readonly IConfigurationManager _configManager;
-        private readonly NetDataWriterPool _writerPool;
+        private readonly INetworkSender _networkSender;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, NetDataWriterPool writerPool)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, INetworkSender networkSender)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
@@ -35,7 +35,7 @@ namespace Server
             _interestManager = interestManager;
             _jobSystem = jobSystem;
             _configManager = configManager;
-            _writerPool = writerPool;
+            _networkSender = networkSender;
         }
 
         protected override Task OnStartAsync(CancellationToken cancellationToken)
@@ -117,85 +117,46 @@ namespace Server
 
         public void SendSound(INetworkPeer peer, SoundData sound)
         {
-            byte[] data = SerializeSound(sound);
-            _ = peer.SendAsync(data);
+            _ = _networkSender.SendAsync(peer, new Shared.Networking.Messages.SoundMessage { Data = sound });
         }
 
         public void BroadcastSound(SoundData sound)
         {
-            byte[] data = SerializeSound(sound);
-            _networkService.BroadcastSnapshot(data);
+            var msg = new Shared.Networking.Messages.SoundMessage { Data = sound };
+            _context.PlayerManager.ForEachPlayer(peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void BroadcastSound(SoundData sound, Region region)
         {
-            byte[] data = SerializeSound(sound);
-            _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+            var msg = new Shared.Networking.Messages.SoundMessage { Data = sound };
+            _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void BroadcastSound(SoundData sound, MergedRegion mergedRegion)
         {
-            byte[] data = SerializeSound(sound);
+            var msg = new Shared.Networking.Messages.SoundMessage { Data = sound };
             foreach (var r in mergedRegion.Regions)
             {
-                _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(data));
+                _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = _networkSender.SendAsync(peer, msg));
             }
-        }
-
-        private byte[] SerializeSound(SoundData sound)
-        {
-            byte[] buffer = new byte[1024];
-            var writer = new BitWriter(buffer);
-            writer.WriteBits((byte)SnapshotMessageType.Sound, 8);
-            writer.WriteString(sound.File);
-            writer.WriteDouble(sound.Volume);
-            writer.WriteDouble(sound.Pitch);
-            writer.WriteBool(sound.Repeat);
-            writer.WriteBool(sound.X.HasValue);
-            if (sound.X.HasValue) writer.WriteZigZag(sound.X.Value);
-            writer.WriteBool(sound.Y.HasValue);
-            if (sound.Y.HasValue) writer.WriteZigZag(sound.Y.Value);
-            writer.WriteBool(sound.Z.HasValue);
-            if (sound.Z.HasValue) writer.WriteZigZag(sound.Z.Value);
-            writer.WriteBool(sound.ObjectId.HasValue);
-            if (sound.ObjectId.HasValue) writer.WriteVarInt(sound.ObjectId.Value);
-            writer.WriteDouble(sound.Falloff);
-
-            byte[] result = new byte[writer.BytesWritten];
-            buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-            return result;
         }
 
         public void StopSound(string file, Region? region = null)
         {
-            byte[] data = SerializeStopSound(file, null);
+            var msg = new Shared.Networking.Messages.StopSoundMessage { File = file };
             if (region != null)
-                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = _networkSender.SendAsync(peer, msg));
             else
-                _networkService.BroadcastSnapshot(data);
+                _context.PlayerManager.ForEachPlayer(peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void StopSoundOn(string file, long objectId, Region? region = null)
         {
-            byte[] data = SerializeStopSound(file, objectId);
+            var msg = new Shared.Networking.Messages.StopSoundMessage { File = file, ObjectId = objectId };
             if (region != null)
-                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = _networkSender.SendAsync(peer, msg));
             else
-                _networkService.BroadcastSnapshot(data);
-        }
-
-        private byte[] SerializeStopSound(string file, long? objectId)
-        {
-            byte[] buffer = new byte[512];
-            var writer = new BitWriter(buffer);
-            writer.WriteBits((byte)SnapshotMessageType.StopSound, 8);
-            writer.WriteString(file);
-            writer.WriteBool(objectId.HasValue);
-            if (objectId.HasValue) writer.WriteVarInt(objectId.Value);
-
-            byte[] result = new byte[writer.BytesWritten];
-            buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-            return result;
+                _context.PlayerManager.ForEachPlayer(peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void SendCVars(INetworkPeer peer)
@@ -206,15 +167,7 @@ namespace Server
 
             if (replicatedCVars.Count == 0) return;
 
-            byte[] buffer = new byte[4096];
-            var writer = new BitWriter(buffer);
-            writer.WriteBits((byte)SnapshotMessageType.SyncCVars, 8);
-            string json = System.Text.Json.JsonSerializer.Serialize(replicatedCVars);
-            writer.WriteString(json);
-
-            byte[] result = new byte[writer.BytesWritten];
-            buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-            _ = peer.SendAsync(result);
+            _ = _networkSender.SendAsync(peer, new Shared.Networking.Messages.CVarSyncMessage { CVars = replicatedCVars });
         }
     }
 }

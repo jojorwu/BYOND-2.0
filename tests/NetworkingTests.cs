@@ -6,6 +6,7 @@ using Shared.Services;
 using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Enums;
+using Shared.Networking.Messages;
 using Moq;
 
 namespace Tests;
@@ -175,5 +176,26 @@ public class NetworkingTests
         Assert.That((mask & GameObjectFields.PositionX), Is.Not.EqualTo(GameObjectFields.None));
         Assert.That((mask & GameObjectFields.PositionY), Is.EqualTo(GameObjectFields.None));
         Assert.That((mask & GameObjectFields.Visuals), Is.EqualTo(GameObjectFields.None));
+    }
+
+    [Test]
+    public void MessageBasedArchitecture_SoundMessage_Works()
+    {
+        var sound = new SoundData("test.ogg", 50f, 1.2f, true);
+        sound.X = 10;
+        var msg = new SoundMessage { Data = sound };
+
+        byte[] buffer = new byte[1024];
+        var writer = new BitWriter(buffer);
+        msg.Write(ref writer);
+
+        var reader = new BitReader(buffer);
+        var msg2 = new SoundMessage();
+        msg2.Read(ref reader);
+
+        Assert.That(msg2.Data.File, Is.EqualTo("test.ogg"));
+        Assert.That(msg2.Data.Volume, Is.EqualTo(50f));
+        Assert.That(msg2.Data.X, Is.EqualTo(10L));
+        Assert.That(msg2.Data.Repeat, Is.True);
     }
 }

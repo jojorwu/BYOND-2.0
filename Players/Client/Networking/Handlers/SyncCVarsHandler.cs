@@ -1,14 +1,13 @@
 using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Text.Json;
 using Shared;
 using Shared.Interfaces;
 using Shared.Services;
 using Shared.Events;
 using Shared.Messaging;
 using Shared.Utils;
-using Core;
+using Shared.Networking.Messages;
 
 namespace Client.Networking.Handlers;
 
@@ -28,14 +27,12 @@ public class SyncCVarsHandler : BasePacketHandler
         // Message Type
         reader.ReadBits(8);
 
-        var json = reader.ReadString();
-        var cvars = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-        if (cvars != null)
+        var msg = new CVarSyncMessage();
+        msg.Read(ref reader);
+
+        foreach (var kvp in msg.CVars)
         {
-            foreach (var kvp in cvars)
-            {
-                _eventBus.Publish(new CVarSyncEvent(kvp.Key, kvp.Value));
-            }
+            _eventBus.Publish(new CVarSyncEvent(kvp.Key, kvp.Value));
         }
         return Task.CompletedTask;
     }

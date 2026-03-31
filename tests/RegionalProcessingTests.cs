@@ -116,7 +116,7 @@ namespace tests
                 interestManagerMock.Object,
                 _jobSystemMock.Object,
                 new Mock<Shared.Config.IConfigurationManager>().Object,
-                new NetDataWriterPool());
+                new Mock<INetworkSender>().Object);
 
             var region = new Region((0L, 0L), 0);
             var mergedRegion = new MergedRegion(new List<Region> { region });

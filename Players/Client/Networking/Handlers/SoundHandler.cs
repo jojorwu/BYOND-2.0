@@ -6,7 +6,7 @@ using Shared.Services;
 using Shared.Events;
 using Shared.Messaging;
 using Shared.Utils;
-using Core;
+using Shared.Networking.Messages;
 
 namespace Client.Networking.Handlers;
 
@@ -26,20 +26,10 @@ public class SoundHandler : BasePacketHandler
         // Message Type
         reader.ReadBits(8);
 
-        var sound = new SoundData();
-        sound.File = reader.ReadString();
-        sound.Volume = (float)reader.ReadDouble();
-        sound.Pitch = (float)reader.ReadDouble();
-        sound.Repeat = reader.ReadBool();
+        var msg = new SoundMessage();
+        msg.Read(ref reader);
 
-        if (reader.ReadBool()) sound.X = reader.ReadZigZag();
-        if (reader.ReadBool()) sound.Y = reader.ReadZigZag();
-        if (reader.ReadBool()) sound.Z = reader.ReadZigZag();
-        if (reader.ReadBool()) sound.ObjectId = reader.ReadVarInt();
-
-        sound.Falloff = (float)reader.ReadDouble();
-
-        _eventBus.Publish(new SoundEvent(sound));
+        _eventBus.Publish(new SoundEvent(msg.Data));
         return Task.CompletedTask;
     }
 }

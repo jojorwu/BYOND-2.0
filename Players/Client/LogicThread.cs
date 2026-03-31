@@ -20,6 +20,7 @@ namespace Client
         private readonly ISnapshotManager _snapshotManager;
         private readonly IStateInterpolator _stateInterpolator;
         private readonly IPacketDispatcher _packetDispatcher;
+        private readonly INetworkTimeService _timeService;
         public GameState CurrentState { get; private set; }
 
         private readonly object _lock = new object();
@@ -35,17 +36,15 @@ namespace Client
         private readonly Stopwatch _gameTime = new();
         private LiteNetNetworkPeer? _serverPeer;
 
-        public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, IEnumerable<IPacketHandler> handlers)
+        public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, INetworkTimeService timeService, IEnumerable<IPacketHandler> handlers)
         {
             CurrentState = gameState;
             _snapshotManager = snapshotManager;
             _stateInterpolator = stateInterpolator;
             _packetDispatcher = packetDispatcher;
+            _timeService = timeService;
 
-            foreach (var handler in handlers)
-            {
-                _packetDispatcher.RegisterHandler(handler);
-            }
+            _packetDispatcher.Initialize();
 
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener);
@@ -108,7 +107,7 @@ namespace Client
 
         public void UpdateRenderState()
         {
-            double renderTime = _gameTime.Elapsed.TotalSeconds - InterpolationDelay;
+            double renderTime = _timeService.RemoteToLocalTime(_timeService.ServerTime) - InterpolationDelay;
 
             lock (_lock)
             {

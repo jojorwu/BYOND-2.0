@@ -1,35 +1,33 @@
-using System;
 using System.Threading.Tasks;
+using System;
 using Shared;
 using Shared.Interfaces;
 using Shared.Services;
+using Shared.Models;
 using Core;
+using Client.Services;
 
 namespace Client.Networking.Handlers;
 
 public class BitPackedDeltaHandler : BasePacketHandler
 {
-    private readonly GameState _gameState;
     private readonly ISnapshotSerializer _serializer;
-    private readonly IObjectTypeManager _typeManager;
-    private readonly IObjectFactory _objectFactory;
     private readonly ISnapshotManager _snapshotManager;
+    private readonly IClientObjectManager _objectManager;
 
     public override byte PacketTypeId => (byte)SnapshotMessageType.BitPackedDelta;
 
-    public BitPackedDeltaHandler(GameState gameState, ISnapshotSerializer serializer, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISnapshotManager snapshotManager)
+    public BitPackedDeltaHandler(ISnapshotSerializer serializer, ISnapshotManager snapshotManager, IClientObjectManager objectManager)
     {
-        _gameState = gameState;
         _serializer = serializer;
-        _typeManager = typeManager;
-        _objectFactory = objectFactory;
         _snapshotManager = snapshotManager;
+        _objectManager = objectManager;
     }
 
     public override Task HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
-        _serializer.DeserializeBitPacked(data.Span, _gameState.GameObjects, _typeManager, _objectFactory);
-        _snapshotManager.AddSnapshot(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0, _gameState.GameObjects.Values);
+        _serializer.DeserializeBitPacked(data.Span, _objectManager.World, null!, null!);
+        _snapshotManager.AddSnapshot(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0, _objectManager.World.Values);
         return Task.CompletedTask;
     }
 }

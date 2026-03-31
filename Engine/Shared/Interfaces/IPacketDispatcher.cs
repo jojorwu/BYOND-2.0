@@ -5,6 +5,7 @@ namespace Shared.Interfaces;
 
 public interface IPacketDispatcher
 {
+    void Initialize();
     void RegisterHandler(IPacketHandler handler);
     void UnregisterHandler(byte packetTypeId);
     void AddMiddleware(IPacketMiddleware middleware);

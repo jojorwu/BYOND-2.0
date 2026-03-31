@@ -126,7 +126,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<LoggingPacketMiddleware>();
         services.AddSingleton<IPacketDispatcher>(sp =>
         {
-            var dispatcher = new PacketDispatcher(sp.GetRequiredService<IJobSystem>());
+            var dispatcher = new PacketDispatcher(sp.GetRequiredService<IJobSystem>(), sp);
             dispatcher.AddMiddleware(sp.GetRequiredService<LoggingPacketMiddleware>());
             return dispatcher;
         });
@@ -134,6 +134,8 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<ISnapshotSerializer, BitPackedSnapshotSerializer>();
         services.AddSingleton<ISnapshotManager, SnapshotManager>();
         services.AddSingleton<IStateInterpolator, InterpolationService>();
+        services.AddSingleton<INetworkTimeService, NetworkTimeService>();
+        services.AddSingleton<INetworkSender, NetworkSender>();
         services.AddEngineService<BinarySnapshotService>();
         services.AddEngineService<SpatialGrid>();
         services.AddEngineService<InterestManager>(typeof(IInterestManager));

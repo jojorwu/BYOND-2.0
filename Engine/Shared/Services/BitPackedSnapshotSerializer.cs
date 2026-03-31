@@ -136,26 +136,18 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
                         int propIdx = (int)reader.ReadVarInt();
                         var val = DreamValue.BitReadFrom(ref reader);
 
-                        if (val.IsObjectIdReference)
-                        {
-                            unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
-                        }
-                        else
-                        {
-                            gameObject.SetVariableDirect(propIdx, val);
-                        }
+                        if (val.IsObjectIdReference) unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
+                        else gameObject.SetVariableDirect(propIdx, val);
                     }
                 }
-
                 gameObject.Version = version;
             }
             else
             {
-                // Skip data if we don't need it
+                // Skip logic
                 if ((mask & GameObjectFields.PositionX) != 0) reader.ReadZigZag();
                 if ((mask & GameObjectFields.PositionY) != 0) reader.ReadZigZag();
                 if ((mask & GameObjectFields.PositionZ) != 0) reader.ReadZigZag();
-
                 if ((mask & GameObjectFields.Dir) != 0) reader.ReadVarInt();
                 if ((mask & GameObjectFields.Alpha) != 0) reader.ReadDouble();
                 if ((mask & GameObjectFields.Color) != 0) reader.ReadString();
@@ -165,29 +157,18 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
                 if ((mask & GameObjectFields.PixelX) != 0) reader.ReadDouble();
                 if ((mask & GameObjectFields.PixelY) != 0) reader.ReadDouble();
                 if ((mask & GameObjectFields.Rotation) != 0) reader.ReadDouble();
-
                 if ((mask & GameObjectFields.Variables) != 0)
                 {
-                    int propertyCount = (int)reader.ReadVarInt();
-                    for (int i = 0; i < propertyCount; i++)
-                    {
-                        reader.ReadVarInt(); // propIdx
-                        DreamValue.BitReadFrom(ref reader);
-                    }
+                    int count = (int)reader.ReadVarInt();
+                    for (int i = 0; i < count; i++) { reader.ReadVarInt(); DreamValue.BitReadFrom(ref reader); }
                 }
             }
         }
 
         foreach (var (target, propIdx, refId) in unresolvedReferences)
         {
-            if (world.TryGetValue(refId, out var refObj))
-            {
-                target.SetVariableDirect(propIdx, new DreamValue(refObj));
-            }
-            else
-            {
-                target.SetVariableDirect(propIdx, DreamValue.Null);
-            }
+            if (world.TryGetValue(refId, out var refObj)) target.SetVariableDirect(propIdx, new DreamValue(refObj));
+            else target.SetVariableDirect(propIdx, DreamValue.Null);
         }
     }
 

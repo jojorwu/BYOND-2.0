@@ -239,6 +239,10 @@ new MyShader()
                 {
                     _connectionPanel.IsConnectRequested = false;
 
+                    var timeService = _serviceProvider.GetRequiredService<INetworkTimeService>();
+                    // Mock sync for now
+                    timeService.Synchronize(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0, 0.05);
+
                     var eventBus = _serviceProvider.GetRequiredService<IEventBus>();
                     eventBus.Subscribe<Shared.Events.SoundEvent>(e => _soundSystem.Play(e.Data));
                     eventBus.Subscribe<Shared.Events.StopSoundEvent>(e => _soundSystem.Stop(e.File, e.ObjectId));
@@ -249,7 +253,7 @@ new MyShader()
                     });
 
                     var gameState = new GameState();
-                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, gameState, _serviceProvider.GetRequiredService<ISnapshotManager>(), _serviceProvider.GetRequiredService<IStateInterpolator>(), _serviceProvider.GetRequiredService<IPacketDispatcher>(), _serviceProvider.GetServices<IPacketHandler>());
+                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, gameState, _serviceProvider.GetRequiredService<ISnapshotManager>(), _serviceProvider.GetRequiredService<IStateInterpolator>(), _serviceProvider.GetRequiredService<IPacketDispatcher>(), timeService, _serviceProvider.GetServices<IPacketHandler>());
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();
                     _clientState = ClientState.InGame;

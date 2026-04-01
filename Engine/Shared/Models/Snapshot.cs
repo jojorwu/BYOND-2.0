@@ -6,12 +6,26 @@ namespace Shared.Models;
 public class Snapshot
 {
     public double Timestamp;
-    public Dictionary<long, ObjectState> States = new();
+    public long[] ObjectIds = Array.Empty<long>();
+    public ObjectState[] ObjectStates = Array.Empty<ObjectState>();
+    public int Count;
 
     public void Reset()
     {
         Timestamp = 0;
-        States.Clear();
+        Count = 0;
+    }
+
+    public bool TryGetState(long id, out ObjectState state)
+    {
+        int index = Array.BinarySearch(ObjectIds, 0, Count, id);
+        if (index >= 0)
+        {
+            state = ObjectStates[index];
+            return true;
+        }
+        state = default;
+        return false;
     }
 }
 

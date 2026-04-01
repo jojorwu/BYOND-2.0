@@ -17,24 +17,27 @@ public class InterpolationService : IStateInterpolator
 
     public void Interpolate(GameState world, Snapshot from, Snapshot to, double t)
     {
-        foreach (var kvp in to.States)
+        for (int i = 0; i < to.Count; i++)
         {
-            if (world.GameObjects.TryGetValue(kvp.Key, out var obj))
+            long id = to.ObjectIds[i];
+            var toState = to.ObjectStates[i];
+
+            if (world.GameObjects.TryGetValue(id, out var obj))
             {
-                if (from.States.TryGetValue(kvp.Key, out var fromState))
+                if (from.TryGetState(id, out var fromState))
                 {
                     foreach (var prop in _properties)
                     {
-                        prop.Interpolate(obj, fromState, kvp.Value, t);
+                        prop.Interpolate(obj, fromState, toState, t);
                     }
                 }
                 else
                 {
                     // If no 'from' state, just snap to 'to'
-                    obj.RenderX = kvp.Value.X;
-                    obj.RenderY = kvp.Value.Y;
-                    obj.RenderZ = kvp.Value.Z;
-                    obj.Rotation = kvp.Value.Rotation;
+                    obj.RenderX = toState.X;
+                    obj.RenderY = toState.Y;
+                    obj.RenderZ = toState.Z;
+                    obj.Rotation = toState.Rotation;
                 }
             }
         }

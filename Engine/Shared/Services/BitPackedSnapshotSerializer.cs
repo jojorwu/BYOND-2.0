@@ -35,15 +35,11 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
             mask |= GameObjectFields.Components;
             if (isNew) mask |= GameObjectFields.NewObject | GameObjectFields.Type | GameObjectFields.Position | GameObjectFields.Visuals;
 
-            var g = obj as GameObject;
             int changeCount = 0;
-            if (g != null)
-            {
-                var counter = new Shared.Networking.FieldHandlers.VariablesFieldHandler.ChangeCounter();
-                g.VisitChanges(ref counter);
-                changeCount = counter.Count;
-                if (changeCount > 0) mask |= GameObjectFields.Variables;
-            }
+            var counter = new Shared.Networking.FieldHandlers.VariablesFieldHandler.ChangeCounter();
+            obj.Variables.VisitModified(ref counter);
+            changeCount = counter.Count;
+            if (changeCount > 0) mask |= GameObjectFields.Variables;
 
             writer.WriteBits((ulong)mask, 16);
 

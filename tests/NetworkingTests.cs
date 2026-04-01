@@ -240,7 +240,7 @@ public class NetworkingTests
         services.AddSingleton<IMessageHandler>(handler);
         var serviceProvider = services.BuildServiceProvider();
 
-        var dispatcher = new NetworkMessageHandler(serviceProvider);
+        var dispatcher = new NetworkMessageHandler(serviceProvider.GetServices<IMessageHandler>());
 
         var inputMsg = new ClientInputMessage { InputType = ClientInputType.Move, X = 1, Y = 2 };
         byte[] buffer = new byte[1024];

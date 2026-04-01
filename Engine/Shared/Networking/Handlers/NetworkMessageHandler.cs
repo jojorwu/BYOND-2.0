@@ -8,32 +8,31 @@ namespace Shared.Networking.Handlers;
 
 public class NetworkMessageHandler : IPacketHandler
 {
-    private readonly IServiceProvider _serviceProvider;
+    private readonly Dictionary<byte, IMessageHandler> _handlers = new();
 
     public byte PacketTypeId => (byte)NetworkMessageType.Message;
 
-    public NetworkMessageHandler(IServiceProvider serviceProvider)
+    public NetworkMessageHandler(IEnumerable<IMessageHandler> handlers)
     {
-        _serviceProvider = serviceProvider;
+        foreach (var handler in handlers)
+        {
+            _handlers[handler.MessageTypeId] = handler;
+        }
     }
 
     public async Task HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
+        if (data.Length == 0) return;
+
         // We use a non-ref reader for the dispatching phase
         var reader = new BitReader(data.Span);
         byte messageTypeId = reader.ReadByte();
 
-        // Pass the remaining data to the specific handler
-        var payload = data.Slice(reader.BitsRead / 8);
-
-        var handlers = _serviceProvider.GetServices<IMessageHandler>();
-        foreach(var handler in handlers)
+        if (_handlers.TryGetValue(messageTypeId, out var handler))
         {
-            if(handler.MessageTypeId == messageTypeId)
-            {
-                await handler.HandleAsync(peer, payload);
-                return;
-            }
+            // Pass the remaining data to the specific handler
+            var payload = data.Slice(reader.BitsRead / 8);
+            await handler.HandleAsync(peer, payload);
         }
     }
 }

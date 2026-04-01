@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Models;
 using Shared.Collections;
+using System.Linq;
 
 namespace Shared.Services;
 
@@ -23,22 +24,47 @@ public class SnapshotManager : ISnapshotManager
         if (!_snapshotPool.TryPop(out var snapshot)) snapshot = new Snapshot();
         snapshot.Timestamp = timestamp;
 
-        foreach (var obj in objects)
+        int count = 0;
+        if (objects is ICollection<IGameObject> coll) count = coll.Count;
+        else count = objects.Count();
+
+        if (snapshot.ObjectIds.Length < count)
         {
-            snapshot.States[obj.Id] = new ObjectState {
-                X = obj.X,
-                Y = obj.Y,
-                Z = obj.Z,
-                Rotation = obj.Rotation,
-                Visuals = new VisualData {
-                    Dir = obj.Dir,
-                    Alpha = obj.Alpha,
-                    Layer = obj.Layer,
-                    Icon = obj.Icon,
-                    IconState = obj.IconState,
-                    Color = obj.Color
-                }
-            };
+            snapshot.ObjectIds = new long[count * 2];
+            snapshot.ObjectStates = new ObjectState[count * 2];
+        }
+
+        var tempObjects = System.Buffers.ArrayPool<IGameObject>.Shared.Rent(count);
+        try
+        {
+            int idx = 0;
+            foreach (var obj in objects) tempObjects[idx++] = obj;
+            Array.Sort(tempObjects, 0, count, Comparer<IGameObject>.Create((a, b) => a.Id.CompareTo(b.Id)));
+
+            snapshot.Count = count;
+            for (int i = 0; i < count; i++)
+            {
+                var obj = tempObjects[i];
+                snapshot.ObjectIds[i] = obj.Id;
+                snapshot.ObjectStates[i] = new ObjectState {
+                    X = obj.X,
+                    Y = obj.Y,
+                    Z = obj.Z,
+                    Rotation = obj.Rotation,
+                    Visuals = new VisualData {
+                        Dir = obj.Dir,
+                        Alpha = obj.Alpha,
+                        Layer = obj.Layer,
+                        Icon = obj.Icon,
+                        IconState = obj.IconState,
+                        Color = obj.Color
+                    }
+                };
+            }
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<IGameObject>.Shared.Return(tempObjects);
         }
 
         _snapshotQueue.Add(snapshot);

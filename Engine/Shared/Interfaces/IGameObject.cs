@@ -2,6 +2,12 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared;
+
+    public interface IComponentVisitor
+    {
+        void Visit(IComponent component);
+    }
+
     /// <summary>
     /// Represents a primary entity within the game world.
     /// </summary>
@@ -155,6 +161,11 @@ namespace Shared;
         /// Gets all components attached to this object.
         /// </summary>
         IEnumerable<IComponent> GetComponents();
+
+        /// <summary>
+        /// Visits all components attached to this object without allocation.
+        /// </summary>
+        void VisitComponents<T>(ref T visitor) where T : struct, IComponentVisitor, allows ref struct;
 
         /// <summary>
         /// Gets a component of the specified type.

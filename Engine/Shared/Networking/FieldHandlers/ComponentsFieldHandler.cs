@@ -12,28 +12,37 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
     public void Write(ref BitWriter writer, IGameObject obj, GameObjectFields currentMask)
     {
-        if (obj is GameObject g)
+        var counter = new ComponentCounter();
+        obj.VisitComponents(ref counter);
+        writer.WriteVarInt(counter.Count);
+
+        var serializer = new ComponentSerializer { Writer = writer };
+        obj.VisitComponents(ref serializer);
+        writer = serializer.Writer;
+    }
+
+    private struct ComponentCounter : IComponentVisitor
+    {
+        public int Count;
+        public void Visit(IComponent component) => Count++;
+    }
+
+    private ref struct ComponentSerializer : IComponentVisitor
+    {
+        public BitWriter Writer;
+        public void Visit(IComponent comp)
         {
-            var components = g.GetComponents().ToList();
-            writer.WriteVarInt(components.Count);
-            foreach (var comp in components)
-            {
-                writer.WriteString(comp.GetType().Name);
+            Writer.WriteString(comp.GetType().Name);
 
-                int sizeFieldOffset = writer.BitsWritten;
-                writer.WriteInt(0, 16);
+            int sizeFieldOffset = Writer.BitsWritten;
+            Writer.WriteInt(0, 16);
 
-                int startBits = writer.BitsWritten;
-                comp.WriteState(ref writer);
-                int endBits = writer.BitsWritten;
+            int startBits = Writer.BitsWritten;
+            comp.WriteState(ref Writer);
+            int endBits = Writer.BitsWritten;
 
-                int payloadBits = endBits - startBits;
-                writer.PatchBits(sizeFieldOffset, (ulong)payloadBits, 16);
-            }
-        }
-        else
-        {
-            writer.WriteVarInt(0);
+            int payloadBits = endBits - startBits;
+            Writer.PatchBits(sizeFieldOffset, (ulong)payloadBits, 16);
         }
     }
 
@@ -45,12 +54,13 @@ public class ComponentsFieldHandler : INetworkFieldHandler
             string compTypeName = reader.ReadString();
             int payloadBits = reader.ReadInt(16);
 
-            var components = obj.GetComponents().ToList();
-            var component = components.FirstOrDefault(c => c.GetType().Name == compTypeName);
-            if (component != null)
+            var finder = new ComponentFinder { TypeName = compTypeName };
+            obj.VisitComponents(ref finder);
+
+            if (finder.Found != null)
             {
                 int startBits = reader.BitsRead;
-                component.ReadState(ref reader);
+                finder.Found.ReadState(ref reader);
                 int actualRead = reader.BitsRead - startBits;
                 if (actualRead != payloadBits) reader.SkipBits(payloadBits - actualRead);
             }
@@ -58,6 +68,16 @@ public class ComponentsFieldHandler : INetworkFieldHandler
             {
                 reader.SkipBits(payloadBits);
             }
+        }
+    }
+
+    private struct ComponentFinder : IComponentVisitor
+    {
+        public string TypeName;
+        public IComponent? Found;
+        public void Visit(IComponent component)
+        {
+            if (Found == null && component.GetType().Name == TypeName) Found = component;
         }
     }
 

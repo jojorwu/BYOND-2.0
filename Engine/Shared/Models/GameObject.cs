@@ -493,6 +493,24 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
     }
 
+    public void VisitComponents<T>(ref T visitor) where T : struct, IComponentVisitor, allows ref struct {
+        if (Archetype is Archetype arch) {
+            var arrays = arch._componentArrays;
+            for (int i = 0; i < arrays.Length; i++) {
+                var array = arrays[i];
+                if (array != null) {
+                    var comp = array.Get(ArchetypeIndex);
+                    if (comp != null) visitor.Visit(comp);
+                }
+            }
+        } else {
+            var components = _componentManager?.GetAllComponents(this);
+            if (components != null) {
+                foreach (var comp in components) visitor.Visit(comp);
+            }
+        }
+    }
+
     public interface IChangeVisitor : IVariableVisitor { }
     public void VisitChanges<T>(ref T visitor) where T : struct, IChangeVisitor, allows ref struct {
         _lock.EnterReadLock(); try { _variableStore.VisitModified(ref visitor); } finally { _lock.ExitReadLock(); }

@@ -16,12 +16,12 @@ public class ClientInputMessageHandler : IMessageHandler
         _logger = logger;
     }
 
-    public ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader)
+    public ValueTask HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
+        var reader = new BitReader(data.Span);
         var msg = new ClientInputMessage();
         msg.Read(ref reader);
 
-        // In a real implementation, this would be passed to the movement system or entity controller
         _logger.LogDebug("Received input from {Peer}: {Type} ({X}, {Y})", peer.Nickname, msg.InputType, msg.X, msg.Y);
 
         return ValueTask.CompletedTask;

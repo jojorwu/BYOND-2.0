@@ -143,9 +143,18 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.ClientInputMessageHandler>();
 
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.TypeFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.TransformFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.VisualFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.VariablesFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.ComponentsFieldHandler>();
         services.AddSingleton<ISnapshotSerializer, BitPackedSnapshotSerializer>();
         services.AddSingleton<ISnapshotManager, SnapshotManager>();
         services.AddSingleton<IStateInterpolator, InterpolationService>();
+        services.AddSingleton<IInterpolatedProperty, PositionProperty>();
+        services.AddSingleton<IInterpolatedProperty, AlphaProperty>();
+        services.AddSingleton<IInterpolatedProperty, LayerProperty>();
+        services.AddSingleton<IInterpolatedProperty, RotationProperty>();
         services.AddSingleton<INetworkTimeService, NetworkTimeService>();
         services.AddSingleton<INetworkSender, NetworkSender>();
         services.AddEngineService<BinarySnapshotService>();

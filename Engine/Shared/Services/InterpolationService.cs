@@ -8,13 +8,12 @@ namespace Shared.Services;
 
 public class InterpolationService : IStateInterpolator
 {
-    private readonly List<IInterpolatedProperty> _properties = new()
+    private readonly IEnumerable<IInterpolatedProperty> _properties;
+
+    public InterpolationService(IEnumerable<IInterpolatedProperty> properties)
     {
-        new PositionProperty(),
-        new AlphaProperty(),
-        new LayerProperty(),
-        new RotationProperty()
-    };
+        _properties = properties;
+    }
 
     public void Interpolate(GameState world, Snapshot from, Snapshot to, double t)
     {
@@ -46,13 +45,15 @@ public class PositionProperty : IInterpolatedProperty
 {
     public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
     {
-        obj.RenderX = from.X + (to.X - from.X) * t;
-        obj.RenderY = from.Y + (to.Y - from.Y) * t;
-        obj.RenderZ = from.Z + (to.Z - from.Z) * t;
+        if (obj is GameObject g)
+        {
+            g.RenderState.X = from.X + (to.X - from.X) * t;
+            g.RenderState.Y = from.Y + (to.Y - from.Y) * t;
+            g.RenderState.Z = from.Z + (to.Z - from.Z) * t;
 
-        // Pixel offsets are used for sub-tile rendering if the renderer uses integer tile coords
-        obj.PixelX = (obj.RenderX - to.X) * 32;
-        obj.PixelY = (obj.RenderY - to.Y) * 32;
+            g.RenderState.PixelX = (g.RenderState.X - to.X) * 32;
+            g.RenderState.PixelY = (g.RenderState.Y - to.Y) * 32;
+        }
     }
 }
 
@@ -60,7 +61,10 @@ public class AlphaProperty : IInterpolatedProperty
 {
     public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
     {
-        obj.Alpha = from.Visuals.Alpha + (to.Visuals.Alpha - from.Visuals.Alpha) * t;
+        if (obj is GameObject g)
+        {
+            g.RenderState.Alpha = from.Visuals.Alpha + (to.Visuals.Alpha - from.Visuals.Alpha) * t;
+        }
     }
 }
 
@@ -68,7 +72,10 @@ public class LayerProperty : IInterpolatedProperty
 {
     public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
     {
-        obj.Layer = from.Visuals.Layer + (to.Visuals.Layer - from.Visuals.Layer) * t;
+        if (obj is GameObject g)
+        {
+            g.RenderState.Layer = from.Visuals.Layer + (to.Visuals.Layer - from.Visuals.Layer) * t;
+        }
     }
 }
 
@@ -76,9 +83,12 @@ public class RotationProperty : IInterpolatedProperty
 {
     public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
     {
-        float diff = to.Rotation - from.Rotation;
-        while (diff < -180) diff += 360;
-        while (diff > 180) diff -= 360;
-        obj.Rotation = from.Rotation + diff * (float)t;
+        if (obj is GameObject g)
+        {
+            float diff = to.Rotation - from.Rotation;
+            while (diff < -180) diff += 360;
+            while (diff > 180) diff -= 360;
+            g.RenderState.Rotation = from.Rotation + diff * (float)t;
+        }
     }
 }

@@ -137,7 +137,21 @@ public ref struct BitWriter
         {
             byte[] bytes = Encoding.UTF8.GetBytes(s);
             WriteVarInt(bytes.Length);
-            foreach (var b in bytes) WriteBits(b, 8);
+
+            int byteOffset = _bitOffset / 8;
+            int bitInByteIdx = _bitOffset % 8;
+
+            if (bitInByteIdx == 0)
+            {
+                // Fast path: bit aligned
+                bytes.CopyTo(_destination.Slice(byteOffset));
+                _bitOffset += bytes.Length * 8;
+            }
+            else
+            {
+                // Slow path: bit-by-bit
+                foreach (var b in bytes) WriteBits(b, 8);
+            }
         }
     }
 }

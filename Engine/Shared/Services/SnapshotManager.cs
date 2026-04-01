@@ -2,17 +2,24 @@ using System;
 using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Models;
+using Shared.Collections;
 
 namespace Shared.Services;
 
 public class SnapshotManager : ISnapshotManager
 {
-    private readonly Queue<Snapshot> _snapshotQueue = new();
+    private readonly RingBuffer<Snapshot> _snapshotQueue = new(20);
     private readonly Stack<Snapshot> _snapshotPool = new();
-    private const int MaxQueueSize = 20;
 
     public void AddSnapshot(double timestamp, IEnumerable<IGameObject> objects)
     {
+        if (_snapshotQueue.Count == _snapshotQueue.Capacity)
+        {
+             var oldest = _snapshotQueue.PopOldest();
+             oldest.Reset();
+             _snapshotPool.Push(oldest);
+        }
+
         if (!_snapshotPool.TryPop(out var snapshot)) snapshot = new Snapshot();
         snapshot.Timestamp = timestamp;
 
@@ -34,13 +41,7 @@ public class SnapshotManager : ISnapshotManager
             };
         }
 
-        _snapshotQueue.Enqueue(snapshot);
-        while (_snapshotQueue.Count > MaxQueueSize)
-        {
-            var old = _snapshotQueue.Dequeue();
-            old.Reset();
-            _snapshotPool.Push(old);
-        }
+        _snapshotQueue.Add(snapshot);
     }
 
     public (Snapshot? From, Snapshot? To, double T) GetInterpolationData(double renderTime)

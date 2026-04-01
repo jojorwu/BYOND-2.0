@@ -108,8 +108,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public Robust.Shared.Maths.Vector3l? CurrentGridCellKey { get; set; }
     public IStateMachine? StateMachine { get; set; }
 
+    public struct GameObjectRenderState
+    {
+        public double X;
+        public double Y;
+        public double Z;
+        public float Rotation;
+        public double Alpha;
+        public double Layer;
+        public double PixelX;
+        public double PixelY;
+    }
+
     private GameObjectTransformState _transform;
     private CommittedGameObjectState _committedState;
+    public GameObjectRenderState RenderState;
 
     public Robust.Shared.Maths.Vector3l Position
     {
@@ -128,9 +141,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         set { if (_transform.Rotation != value) { _transform.Rotation = value; MarkFieldDirty(GameObjectFields.Rotation); IncrementVersion(); } }
     }
 
-    public double RenderX { get; set; }
-    public double RenderY { get; set; }
-    public double RenderZ { get; set; }
+    public double RenderX { get => RenderState.X; set => RenderState.X = value; }
+    public double RenderY { get => RenderState.Y; set => RenderState.Y = value; }
+    public double RenderZ { get => RenderState.Z; set => RenderState.Z = value; }
 
     public long X { get => Position.X; set => SetPosition(value, Y, Z); }
     public long Y { get => Position.Y; set => SetPosition(X, value, Z); }
@@ -434,16 +447,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public void SetPosition(long x, long y, long z)
     {
+        long oldX, oldY, oldZ;
         _lock.EnterWriteLock();
         try {
-            if (_transform.Position.X == x && _transform.Position.Y == y && _transform.Position.Z == z) return;
-            if (_transform.Position.X != x) MarkFieldDirty(GameObjectFields.PositionX);
-            if (_transform.Position.Y != y) MarkFieldDirty(GameObjectFields.PositionY);
-            if (_transform.Position.Z != z) MarkFieldDirty(GameObjectFields.PositionZ);
+            oldX = _transform.Position.X;
+            oldY = _transform.Position.Y;
+            oldZ = _transform.Position.Z;
+
+            if (oldX == x && oldY == y && oldZ == z) return;
+            if (oldX != x) MarkFieldDirty(GameObjectFields.PositionX);
+            if (oldY != y) MarkFieldDirty(GameObjectFields.PositionY);
+            if (oldZ != z) MarkFieldDirty(GameObjectFields.PositionZ);
             _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
             IncrementVersion();
         } finally { _lock.ExitWriteLock(); }
-        _updateListener?.OnPositionChanged(this, 0, 0, 0);
+        _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
     }
 
     public void AddComponent(IComponent component) { _componentManager?.AddComponent(this, component); IncrementVersion(); }

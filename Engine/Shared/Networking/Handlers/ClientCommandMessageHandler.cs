@@ -16,12 +16,12 @@ public class ClientCommandMessageHandler : IMessageHandler
         _commandManager = commandManager;
     }
 
-    public ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader)
+    public async ValueTask HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
+        var reader = new BitReader(data.Span);
         var msg = new ClientCommandMessage();
         msg.Read(ref reader);
 
-        _ = _commandManager.ExecuteCommand(msg.Command);
-        return ValueTask.CompletedTask;
+        await _commandManager.ExecuteCommand(msg.Command);
     }
 }

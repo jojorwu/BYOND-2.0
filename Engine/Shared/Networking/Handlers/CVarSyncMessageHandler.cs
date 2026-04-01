@@ -18,8 +18,9 @@ public class CVarSyncMessageHandler : IMessageHandler
         _configManager = configManager;
     }
 
-    public ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader)
+    public ValueTask HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
+        var reader = new BitReader(data.Span);
         var msg = new CVarSyncMessage();
         msg.Read(ref reader);
 

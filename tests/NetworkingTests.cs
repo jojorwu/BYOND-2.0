@@ -29,7 +29,15 @@ public class NetworkingTests
     [SetUp]
     public void SetUp()
     {
-        _serializer = new BitPackedSnapshotSerializer();
+        var fieldHandlers = new List<INetworkFieldHandler>
+        {
+            new Shared.Networking.FieldHandlers.TypeFieldHandler(),
+            new Shared.Networking.FieldHandlers.TransformFieldHandler(),
+            new Shared.Networking.FieldHandlers.VisualFieldHandler(),
+            new Shared.Networking.FieldHandlers.VariablesFieldHandler(),
+            new Shared.Networking.FieldHandlers.ComponentsFieldHandler()
+        };
+        _serializer = new BitPackedSnapshotSerializer(fieldHandlers);
         _snapshotService = new BinarySnapshotService(_serializer);
         _typeManagerMock = new Mock<IObjectTypeManager>();
         _factoryMock = new Mock<IObjectFactory>();
@@ -253,7 +261,7 @@ public class NetworkingTests
         public byte MessageTypeId => (byte)ClientMessageType.Input;
         public bool WasCalled { get; private set; }
 
-        public ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader)
+        public ValueTask HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
         {
             WasCalled = true;
             return ValueTask.CompletedTask;

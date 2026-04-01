@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Shared;
 using Shared.Interfaces;
 using Shared.Services;
+using Shared.Networking.FieldHandlers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,11 +12,20 @@ namespace tests
     [TestFixture]
     public class NetworkingPerformanceTests
     {
+        private IEnumerable<INetworkFieldHandler> GetHandlers() => new INetworkFieldHandler[]
+        {
+            new TypeFieldHandler(),
+            new TransformFieldHandler(),
+            new VisualFieldHandler(),
+            new VariablesFieldHandler(),
+            new ComponentsFieldHandler()
+        };
+
         [Test]
         public void BinarySnapshotService_Serialization_MinimizesAllocations()
         {
             var interner = new StringInterner();
-            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer(), interner);
+            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer(GetHandlers()), interner);
 
             var type = new ObjectType(1, "/obj/test");
             for (int i = 0; i < 20; i++)

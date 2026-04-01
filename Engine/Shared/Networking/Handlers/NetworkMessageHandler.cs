@@ -19,17 +19,19 @@ public class NetworkMessageHandler : IPacketHandler
 
     public async Task HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
+        // We use a non-ref reader for the dispatching phase
         var reader = new BitReader(data.Span);
         byte messageTypeId = reader.ReadByte();
 
-        // We need a way to find specific message handlers
-        // For now, let's just use a simple factory or service lookup
+        // Pass the remaining data to the specific handler
+        var payload = data.Slice(reader.BitsRead / 8);
+
         var handlers = _serviceProvider.GetServices<IMessageHandler>();
         foreach(var handler in handlers)
         {
             if(handler.MessageTypeId == messageTypeId)
             {
-                await handler.HandleAsync(peer, ref reader);
+                await handler.HandleAsync(peer, payload);
                 return;
             }
         }
@@ -39,5 +41,5 @@ public class NetworkMessageHandler : IPacketHandler
 public interface IMessageHandler
 {
     byte MessageTypeId { get; }
-    ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader);
+    ValueTask HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data);
 }

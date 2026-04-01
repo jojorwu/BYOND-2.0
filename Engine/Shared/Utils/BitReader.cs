@@ -111,8 +111,23 @@ public ref struct BitReader
     {
         int len = (int)ReadVarInt();
         if (len == 0) return string.Empty;
-        byte[] bytes = new byte[len];
-        for (int i = 0; i < len; i++) bytes[i] = (byte)ReadBits(8);
-        return Encoding.UTF8.GetString(bytes);
+
+        int byteOffset = _bitOffset / 8;
+        int bitInByteIdx = _bitOffset % 8;
+
+        if (bitInByteIdx == 0)
+        {
+            // Fast path: bit aligned
+            var result = Encoding.UTF8.GetString(_source.Slice(byteOffset, len));
+            _bitOffset += len * 8;
+            return result;
+        }
+        else
+        {
+            // Slow path: bit-by-bit
+            byte[] bytes = new byte[len];
+            for (int i = 0; i < len; i++) bytes[i] = (byte)ReadBits(8);
+            return Encoding.UTF8.GetString(bytes);
+        }
     }
 }

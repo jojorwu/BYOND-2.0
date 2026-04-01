@@ -2,6 +2,7 @@ using NUnit.Framework;
 using Shared;
 using Shared.Services;
 using Shared.Interfaces;
+using Shared.Networking.FieldHandlers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,10 +12,19 @@ namespace tests
     [TestFixture]
     public class BinarySnapshotServiceCachingTests
     {
+        private IEnumerable<INetworkFieldHandler> GetHandlers() => new INetworkFieldHandler[]
+        {
+            new TypeFieldHandler(),
+            new TransformFieldHandler(),
+            new VisualFieldHandler(),
+            new VariablesFieldHandler(),
+            new ComponentsFieldHandler()
+        };
+
         [Test]
         public void SerializeTo_UsesCache()
         {
-            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer());
+            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer(GetHandlers()));
             var type = new ObjectType(1, "/obj");
             type.FinalizeVariables();
 
@@ -48,7 +58,7 @@ namespace tests
         [Test]
         public void SerializeTo_HandlesCacheInvalidation()
         {
-            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer());
+            var service = new BinarySnapshotService(new BitPackedSnapshotSerializer(GetHandlers()));
             var type = new ObjectType(1, "/obj");
             type.FinalizeVariables();
 

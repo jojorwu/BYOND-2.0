@@ -17,8 +17,9 @@ public class StopSoundMessageHandler : IMessageHandler
         _eventBus = eventBus;
     }
 
-    public ValueTask HandleAsync(INetworkPeer peer, ref BitReader reader)
+    public ValueTask HandleAsync(INetworkPeer peer, ReadOnlyMemory<byte> data)
     {
+        var reader = new BitReader(data.Span);
         var msg = new StopSoundMessage();
         msg.Read(ref reader);
 

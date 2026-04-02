@@ -25,7 +25,7 @@ public unsafe partial class BytecodeInterpreter
             StackPtr = thread._stack.Pointer,
             BytecodeArray = currentFrame.Proc.Bytecode,
             BytecodePtr = null, // Initialized in fixed block
-            Strings = thread.Context!.Strings,
+            Strings = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(thread.Context!.Strings),
             Context = thread.Context,
             Procs = thread.Context.Procs,
             World = thread.Context.World
@@ -36,6 +36,7 @@ public unsafe partial class BytecodeInterpreter
         long totalInstructionsExecuted = thread._totalInstructionsExecuted;
         long maxInstructions = thread._maxInstructions;
 
+        var telemetry = _telemetry ??= new ThreadTelemetry { LastReportTime = System.Diagnostics.Stopwatch.GetTimestamp() };
         while (thread.State == DreamThreadState.Running)
         {
             ReportTelemetry();
@@ -98,6 +99,9 @@ public unsafe partial class BytecodeInterpreter
                             byte rawOpcode = state.BytecodePtr[state.PC++];
                             var opcode = (Opcode)rawOpcode;
 
+                            // Update telemetry for hot path analysis
+                            telemetry.OpcodeCounts[rawOpcode]++;
+
                             // Fast-path switch for the most critical hot opcodes.
                             // Moving less frequent logic to the dispatch table reduces method size,
                             // enabling better JIT optimization and improving CPU branch prediction.
@@ -153,6 +157,14 @@ public unsafe partial class BytecodeInterpreter
                                     state.Push(new DreamValue(*(double*)(state.BytecodePtr + state.PC)));
                                     state.PC += 8;
                                     break;
+                                case Opcode.PushString:
+                                    state.Push(new DreamValue(state.Strings[*(int*)(state.BytecodePtr + state.PC)]));
+                                    state.PC += 4;
+                                    break;
+                                case Opcode.PushType:
+                                    state.Push(new DreamValue(thread.Context!.ObjectTypeManager!.GetObjectType(*(int*)(state.BytecodePtr + state.PC))!));
+                                    state.PC += 4;
+                                    break;
                                 case Opcode.PushNull:
                                     state.Push(DreamValue.Null);
                                     break;
@@ -178,38 +190,75 @@ public unsafe partial class BytecodeInterpreter
                                         PerformJumpIfFalse(ref state, address);
                                     }
                                     break;
+                                case Opcode.GetVariable:
+                                    HandleGetVariable(ref state);
+                                    break;
+                                case Opcode.SetVariable:
+                                    HandleSetVariable(ref state);
+                                    break;
+                                case Opcode.PushReferenceValue:
+                                    HandlePushReferenceValue(ref state);
+                                    break;
+                                case Opcode.BitAnd:
+                                    {
+                                        var b = state.Pop();
+                                        ref var a = ref state.Peek();
+                                        a = new DreamValue(a.RawLong & b.RawLong);
+                                    }
+                                    break;
+                                case Opcode.BitOr:
+                                    {
+                                        var b = state.Pop();
+                                        ref var a = ref state.Peek();
+                                        a = new DreamValue(a.RawLong | b.RawLong);
+                                    }
+                                    break;
+                                case Opcode.BitNot:
+                                    {
+                                        ref var a = ref state.Peek();
+                                        a = new DreamValue(~a.RawLong);
+                                    }
+                                    break;
+                                case Opcode.Negate:
+                                    {
+                                        ref var a = ref state.Peek();
+                                        if (a.Type == DreamValueType.Integer) a = new DreamValue(-a.UnsafeRawLong);
+                                        else a = new DreamValue(-a.RawDouble);
+                                    }
+                                    break;
+                                case Opcode.Call:
+                                    HandleCall(ref state);
+                                    goto FrameChanged;
+                                case Opcode.CallGlobalProc:
+                                    HandleCallGlobalProc(ref state);
+                                    goto FrameChanged;
                                 case Opcode.Return:
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.StackPtr = thread._stackPtr;
-                                    RecordInstructions(actualExecutedInChunk);
                                     goto FrameChanged;
                                 case Opcode.ReturnNull:
                                     state.Push(DreamValue.Null);
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.StackPtr = thread._stackPtr;
-                                    RecordInstructions(actualExecutedInChunk);
                                     goto FrameChanged;
                                 case Opcode.ReturnTrue:
                                     state.Push(DreamValue.True);
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.StackPtr = thread._stackPtr;
-                                    RecordInstructions(actualExecutedInChunk);
                                     goto FrameChanged;
                                 case Opcode.ReturnFalse:
                                     state.Push(DreamValue.False);
                                     thread._stackPtr = state.StackPtr;
                                     thread.Opcode_Return(ref state.Proc, ref state.PC);
                                     state.StackPtr = thread._stackPtr;
-                                    RecordInstructions(actualExecutedInChunk);
                                     goto FrameChanged;
                                 default:
                                     _dispatchTable[rawOpcode](ref state);
                                     if (OpcodeMetadataCache.CanModifyCallStack(opcode))
                                     {
-                                        RecordInstructions(actualExecutedInChunk);
                                         goto FrameChanged;
                                     }
                                     break;

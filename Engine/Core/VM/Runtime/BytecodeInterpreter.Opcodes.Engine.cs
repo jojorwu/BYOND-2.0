@@ -467,7 +467,7 @@ public unsafe partial class BytecodeInterpreter
         int formatCount = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
 
-        if (stringId < 0 || stringId >= state.Strings.Count)
+        if (stringId < 0 || stringId >= state.Strings.Length)
             throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
         if (formatCount < 0 || formatCount > state.StackPtr)
             throw new ScriptRuntimeException($"Invalid format count: {formatCount}", state.Proc, state.PC, state.Thread);

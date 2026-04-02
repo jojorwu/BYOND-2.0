@@ -45,7 +45,7 @@ internal unsafe ref struct InterpreterState
     /// Fixed pointer to the bytecode array to bypass Bounds Checks and BinaryPrimitives overhead.
     /// </summary>
     public byte* BytecodePtr;
-    public List<string> Strings;
+    public ReadOnlySpan<string> Strings;
     public DreamVMContext Context;
     public System.Collections.Concurrent.ConcurrentDictionary<string, IDreamProc> Procs;
     public DreamObject? World;
@@ -145,7 +145,7 @@ internal unsafe ref struct InterpreterState
     public int ReadInt32()
     {
         if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
-        var value = *(int*)(BytecodePtr + PC);
+        var value = Unsafe.ReadUnaligned<int>(BytecodePtr + PC);
         PC += 4;
         return value;
     }
@@ -154,7 +154,7 @@ internal unsafe ref struct InterpreterState
     public double ReadDouble()
     {
         if (PC + 8 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
-        var value = *(double*)(BytecodePtr + PC);
+        var value = Unsafe.ReadUnaligned<double>(BytecodePtr + PC);
         PC += 8;
         return value;
     }
@@ -186,26 +186,30 @@ internal unsafe ref struct InterpreterState
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DMReference ReadReference()
     {
+        if (PC >= BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
         var refType = (DMReference.Type)BytecodePtr[PC++];
         if (refType == DMReference.Type.Local || refType == DMReference.Type.Argument)
         {
-            var idx = *(int*)(BytecodePtr + PC);
+            if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
+            var idx = Unsafe.ReadUnaligned<int>(BytecodePtr + PC);
             PC += 4;
             return new DMReference { RefType = refType, Index = idx };
         }
 
         if (refType >= DMReference.Type.Global && refType <= DMReference.Type.GlobalProc)
         {
-            var globalIdx = *(int*)(BytecodePtr + PC);
+            if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
+            var globalIdx = Unsafe.ReadUnaligned<int>(BytecodePtr + PC);
             PC += 4;
             return new DMReference { RefType = refType, Index = globalIdx };
         }
 
         if (refType >= DMReference.Type.Field && refType <= DMReference.Type.SrcField)
         {
-            var nameId = *(int*)(BytecodePtr + PC);
+            if (PC + 4 > BytecodeArray.Length) throw new ScriptRuntimeException("Read past end of bytecode", Proc, PC, Thread);
+            var nameId = Unsafe.ReadUnaligned<int>(BytecodePtr + PC);
             PC += 4;
-            if ((uint)nameId >= (uint)Strings.Count) throw new ScriptRuntimeException($"Invalid string ID: {nameId}", Proc, PC - 5, Thread);
+            if ((uint)nameId >= (uint)Strings.Length) throw new ScriptRuntimeException($"Invalid string ID: {nameId}", Proc, PC - 5, Thread);
             return new DMReference { RefType = refType, Name = Strings[nameId] };
         }
 

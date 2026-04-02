@@ -12,7 +12,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandlePushString(ref InterpreterState state)
     {
         var stringId = state.ReadInt32();
-        if (stringId < 0 || stringId >= state.Strings.Count)
+        if (stringId < 0 || stringId >= state.Strings.Length)
             throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
         state.Push(new DreamValue(state.Strings[stringId]));
     }

@@ -10,7 +10,9 @@ namespace Shared;
         private readonly List<DreamValue> _values;
         public IReadOnlyList<DreamValue> Values => _values;
         private ConcurrentDictionary<DreamValue, DreamValue>? _associativeValues;
-        public ConcurrentDictionary<DreamValue, DreamValue> AssociativeValues => _associativeValues ??= new();
+        private DreamValue[]? _linearKeys;
+        private DreamValue[]? _linearValues;
+        private int _linearCount;
         private Dictionary<DreamValue, int>? _valueCounts;
 
         public DreamList(ObjectType? listType) : base(listType)
@@ -80,7 +82,48 @@ namespace Shared;
             _lock.EnterWriteLock();
             try
             {
-                AssociativeValues[key] = value;
+                if (_associativeValues != null)
+                {
+                    _associativeValues[key] = value;
+                }
+                else
+                {
+                    // Linear search/update
+                    int idx = -1;
+                    if (_linearKeys != null)
+                    {
+                        for (int i = 0; i < _linearCount; i++)
+                        {
+                            if (_linearKeys[i].Equals(key)) { idx = i; break; }
+                        }
+                    }
+
+                    if (idx != -1)
+                    {
+                        _linearValues![idx] = value;
+                    }
+                    else
+                    {
+                        if (_linearCount < DictionaryThreshold)
+                        {
+                            _linearKeys ??= new DreamValue[DictionaryThreshold];
+                            _linearValues ??= new DreamValue[DictionaryThreshold];
+                            _linearKeys[_linearCount] = key;
+                            _linearValues[_linearCount] = value;
+                            _linearCount++;
+                        }
+                        else
+                        {
+                            // Promote to dictionary
+                            _associativeValues = new ConcurrentDictionary<DreamValue, DreamValue>();
+                            for (int i = 0; i < _linearCount; i++) _associativeValues[_linearKeys![i]] = _linearValues![i];
+                            _associativeValues[key] = value;
+                            _linearKeys = null;
+                            _linearValues = null;
+                        }
+                    }
+                }
+
                 if (!ContainsInternal(key))
                 {
                     if (_values.Count >= MaxListSize)
@@ -125,6 +168,21 @@ namespace Shared;
                     if (RemoveCount(value))
                     {
                         if (_associativeValues != null) _associativeValues.TryRemove(value, out _);
+                        else if (_linearKeys != null)
+                        {
+                            for (int i = 0; i < _linearCount; i++)
+                            {
+                                if (_linearKeys[i].Equals(value))
+                                {
+                                    _linearKeys[i] = _linearKeys[_linearCount - 1];
+                                    _linearValues![i] = _linearValues![_linearCount - 1];
+                                    _linearKeys[_linearCount - 1] = default;
+                                    _linearValues![_linearCount - 1] = default;
+                                    _linearCount--;
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -161,6 +219,21 @@ namespace Shared;
                     _values.RemoveRange(writeIndex, _values.Count - writeIndex);
                     if (_valueCounts != null) _valueCounts.Remove(value);
                     if (_associativeValues != null) _associativeValues.TryRemove(value, out _);
+                    else if (_linearKeys != null)
+                    {
+                        for (int i = 0; i < _linearCount; i++)
+                        {
+                            if (_linearKeys[i].Equals(value))
+                            {
+                                _linearKeys[i] = _linearKeys[_linearCount - 1];
+                                _linearValues![i] = _linearValues![_linearCount - 1];
+                                _linearKeys[_linearCount - 1] = default;
+                                _linearValues![_linearCount - 1] = default;
+                                _linearCount--;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
             finally
@@ -214,6 +287,21 @@ namespace Shared;
                     if (RemoveCount(old))
                     {
                         if (_associativeValues != null) _associativeValues.TryRemove(old, out _);
+                        else if (_linearKeys != null)
+                        {
+                            for (int i = 0; i < _linearCount; i++)
+                            {
+                                if (_linearKeys[i].Equals(old))
+                                {
+                                    _linearKeys[i] = _linearKeys[_linearCount - 1];
+                                    _linearValues![i] = _linearValues![_linearCount - 1];
+                                    _linearKeys[_linearCount - 1] = default;
+                                    _linearValues![_linearCount - 1] = default;
+                                    _linearCount--;
+                                    break;
+                                }
+                            }
+                        }
                     }
                     AddCount(value);
                 }
@@ -259,10 +347,22 @@ namespace Shared;
         public DreamValue GetValue(DreamValue key)
         {
             // Associative lookup is now lock-free if dictionary exists
-            if (_associativeValues != null && _associativeValues.TryGetValue(key, out var value))
+            var assoc = _associativeValues;
+            if (assoc != null)
             {
-                return value;
+                return assoc.TryGetValue(key, out var value) ? value : DreamValue.Null;
             }
+
+            // Linear search for tiered storage
+            var keys = _linearKeys;
+            if (keys != null)
+            {
+                for (int i = 0; i < _linearCount; i++)
+                {
+                    if (keys[i].Equals(key)) return _linearValues![i];
+                }
+            }
+
             return DreamValue.Null;
         }
 

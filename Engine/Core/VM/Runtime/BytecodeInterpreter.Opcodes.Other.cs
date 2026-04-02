@@ -128,6 +128,36 @@ public unsafe partial class BytecodeInterpreter
                     else state.Push(DreamValue.Null);
                 }
                 break;
+            case DMReference.Type.Field:
+                {
+                    int nameId = *(int*)(state.BytecodePtr + state.PC);
+                    int pcForCache = state.PC - 1;
+                    state.PC += 4;
+                    var objValue = state.Pop();
+                    DreamValue val = DreamValue.Null;
+                    if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+                    {
+                        ref var cache = ref state.Proc._inlineCache[pcForCache];
+                        if (cache.ObjectType == obj.ObjectType)
+                        {
+                            val = obj.GetVariableDirect(cache.VariableIndex);
+                        }
+                        else
+                        {
+                            var name = state.Strings[nameId];
+                            int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                            if (varIdx != -1)
+                            {
+                                cache.ObjectType = obj.ObjectType;
+                                cache.VariableIndex = varIdx;
+                                val = obj.GetVariableDirect(varIdx);
+                            }
+                            else val = obj.GetVariable(name);
+                        }
+                    }
+                    state.Push(val);
+                }
+                break;
             default:
                 {
                     state.PC--;

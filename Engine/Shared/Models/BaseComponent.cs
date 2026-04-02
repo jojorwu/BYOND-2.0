@@ -8,6 +8,7 @@ public abstract class BaseComponent : IComponent
 {
     public IGameObject? Owner { get; set; }
     public bool Enabled { get; set; } = true;
+    public bool IsDirty { get; set; } = true;
 
     public virtual void Initialize() { }
     public virtual void Shutdown() { }

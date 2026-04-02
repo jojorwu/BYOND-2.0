@@ -32,8 +32,12 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
             writer.WriteVarInt(obj.Version);
 
             GameObjectFields mask = obj.GetChangeMask();
-            mask |= GameObjectFields.Components;
-            if (isNew) mask |= GameObjectFields.NewObject | GameObjectFields.Type | GameObjectFields.Position | GameObjectFields.Visuals;
+
+            var compCounter = new Shared.Networking.FieldHandlers.ComponentsFieldHandler.ComponentCounter();
+            obj.VisitComponents(ref compCounter);
+            if (compCounter.DirtyCount > 0) mask |= GameObjectFields.Components;
+
+            if (isNew) mask |= GameObjectFields.NewObject | GameObjectFields.Type | GameObjectFields.Position | GameObjectFields.Visuals | GameObjectFields.Components;
 
             int changeCount = 0;
             var counter = new Shared.Networking.FieldHandlers.VariablesFieldHandler.ChangeCounter();

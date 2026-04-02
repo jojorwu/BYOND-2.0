@@ -12,12 +12,10 @@ public class SnapshotManager : ISnapshotManager
     private readonly RingBuffer<Snapshot> _snapshotQueue = new(20);
     private readonly Stack<Snapshot> _snapshotPool = new();
     private readonly List<INetworkFieldHandler> _fieldHandlers;
-    private readonly int _stateStride;
 
     public SnapshotManager(IEnumerable<INetworkFieldHandler> fieldHandlers)
     {
         _fieldHandlers = fieldHandlers.OrderBy(h => h.Priority).ToList();
-        _stateStride = _fieldHandlers.Sum(h => h.SnapshotStateSize);
     }
 
     public void AddSnapshot(double timestamp, IEnumerable<IGameObject> objects)
@@ -31,16 +29,19 @@ public class SnapshotManager : ISnapshotManager
 
         if (!_snapshotPool.TryPop(out var snapshot)) snapshot = new Snapshot();
         snapshot.Timestamp = timestamp;
-        snapshot.StateStride = _stateStride;
+
+        if (snapshot.HandlerOffsets.Length != _fieldHandlers.Count)
+             snapshot.HandlerOffsets = new int[_fieldHandlers.Count];
 
         int count = 0;
         if (objects is ICollection<IGameObject> coll) count = coll.Count;
         else count = objects.Count();
 
+        int totalStride = _fieldHandlers.Sum(h => h.SnapshotStateSize);
         if (snapshot.ObjectIds.Length < count)
         {
             snapshot.ObjectIds = new long[count * 2];
-            snapshot.StateBuffer = new byte[count * 2 * _stateStride];
+            snapshot.StateBuffer = new byte[count * 2 * totalStride];
         }
 
         var tempObjects = System.Buffers.ArrayPool<IGameObject>.Shared.Rent(count);
@@ -51,17 +52,22 @@ public class SnapshotManager : ISnapshotManager
             Array.Sort(tempObjects, 0, count, Comparer<IGameObject>.Create((a, b) => a.Id.CompareTo(b.Id)));
 
             snapshot.Count = count;
-            for (int i = 0; i < count; i++)
+            int bufferOffset = 0;
+            for (int hIdx = 0; hIdx < _fieldHandlers.Count; hIdx++)
             {
-                var obj = tempObjects[i];
-                snapshot.ObjectIds[i] = obj.Id;
+                var handler = _fieldHandlers[hIdx];
+                snapshot.HandlerOffsets[hIdx] = bufferOffset;
 
-                var stateSpan = snapshot.StateBuffer.AsSpan(i * _stateStride, _stateStride);
-                int offset = 0;
-                foreach (var handler in _fieldHandlers)
+                if (handler.SnapshotStateSize > 0)
                 {
-                    handler.SaveState(stateSpan.Slice(offset, handler.SnapshotStateSize), obj);
-                    offset += handler.SnapshotStateSize;
+                    for (int i = 0; i < count; i++)
+                    {
+                        var obj = tempObjects[i];
+                        if (hIdx == 0) snapshot.ObjectIds[i] = obj.Id;
+
+                        handler.SaveState(snapshot.StateBuffer.AsSpan(bufferOffset + (i * handler.SnapshotStateSize), handler.SnapshotStateSize), obj);
+                    }
+                    bufferOffset += count * handler.SnapshotStateSize;
                 }
             }
         }

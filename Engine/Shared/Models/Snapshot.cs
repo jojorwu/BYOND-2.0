@@ -7,9 +7,9 @@ public class Snapshot
 {
     public double Timestamp;
     public long[] ObjectIds = Array.Empty<long>();
-    public byte[] StateBuffer = Array.Empty<byte>();
+    public byte[] StateBuffer = Array.Empty<byte>(); // Layout: [FieldHandler1 States][FieldHandler2 States]...
     public int Count;
-    public int StateStride;
+    public int[] HandlerOffsets = Array.Empty<int>();
 
     public void Reset()
     {
@@ -17,13 +17,4 @@ public class Snapshot
         Count = 0;
     }
 
-    public ReadOnlySpan<byte> GetStateSpan(long id)
-    {
-        int index = Array.BinarySearch(ObjectIds, 0, Count, id);
-        if (index >= 0)
-        {
-            return StateBuffer.AsSpan(index * StateStride, StateStride);
-        }
-        return ReadOnlySpan<byte>.Empty;
-    }
 }

@@ -2,6 +2,7 @@ using Shared.Enums;
 using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Models;
+using System.Linq;
 
 namespace Shared.Networking.FieldHandlers;
 
@@ -12,27 +13,34 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
     public void Write(ref BitWriter writer, IGameObject obj, GameObjectFields currentMask)
     {
-        var counter = new ComponentCounter();
+        var counter = new ComponentCounter { IsNew = (currentMask & Enums.GameObjectFields.NewObject) != 0 };
         obj.VisitComponents(ref counter);
-        writer.WriteVarInt(counter.Count);
+        writer.WriteVarInt(counter.DirtyCount);
 
-        var serializer = new ComponentSerializer { Writer = writer };
+        var serializer = new ComponentSerializer { Writer = writer, IsNew = counter.IsNew };
         obj.VisitComponents(ref serializer);
         writer = serializer.Writer;
     }
 
-    private struct ComponentCounter : IComponentVisitor
+    public struct ComponentCounter : IComponentVisitor
     {
-        public int Count;
-        public void Visit(IComponent component) => Count++;
+        public int DirtyCount;
+        public bool IsNew;
+        public void Visit(IComponent component)
+        {
+            if (IsNew || component.IsDirty) DirtyCount++;
+        }
     }
 
     private ref struct ComponentSerializer : IComponentVisitor
     {
         public BitWriter Writer;
+        public bool IsNew;
         public void Visit(IComponent comp)
         {
-            Writer.WriteString(comp.GetType().Name);
+            if (!IsNew && !comp.IsDirty) return;
+
+            Writer.WriteVarInt(Shared.Services.ComponentIdRegistry.GetId(comp.GetType()));
 
             int sizeFieldOffset = Writer.BitsWritten;
             Writer.WriteInt(0, 16);
@@ -43,6 +51,7 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
             int payloadBits = endBits - startBits;
             Writer.PatchBits(sizeFieldOffset, (ulong)payloadBits, 16);
+            comp.IsDirty = false;
         }
     }
 
@@ -51,10 +60,10 @@ public class ComponentsFieldHandler : INetworkFieldHandler
         int compCount = (int)reader.ReadVarInt();
         for (int i = 0; i < compCount; i++)
         {
-            string compTypeName = reader.ReadString();
+            int componentId = (int)reader.ReadVarInt();
             int payloadBits = reader.ReadInt(16);
 
-            var finder = new ComponentFinder { TypeName = compTypeName };
+            var finder = new ComponentFinder { ComponentId = componentId };
             obj.VisitComponents(ref finder);
 
             if (finder.Found != null)
@@ -73,11 +82,11 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
     private struct ComponentFinder : IComponentVisitor
     {
-        public string TypeName;
+        public int ComponentId;
         public IComponent? Found;
         public void Visit(IComponent component)
         {
-            if (Found == null && component.GetType().Name == TypeName) Found = component;
+            if (Found == null && Shared.Services.ComponentIdRegistry.GetId(component.GetType()) == ComponentId) Found = component;
         }
     }
 
@@ -86,7 +95,7 @@ public class ComponentsFieldHandler : INetworkFieldHandler
         int compCount = (int)reader.ReadVarInt();
         for (int i = 0; i < compCount; i++)
         {
-            reader.ReadString();
+            reader.ReadVarInt(); // ComponentId
             int payloadBits = reader.ReadInt(16);
             reader.SkipBits(payloadBits);
         }

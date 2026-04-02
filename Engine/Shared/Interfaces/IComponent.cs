@@ -5,6 +5,7 @@ namespace Shared.Interfaces;
     {
         IGameObject? Owner { get; set; }
         bool Enabled { get; set; }
+        bool IsDirty { get; set; }
         void Initialize() { }
         void Shutdown() { }
 

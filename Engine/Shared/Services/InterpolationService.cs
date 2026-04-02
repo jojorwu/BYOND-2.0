@@ -17,30 +17,34 @@ public class InterpolationService : IStateInterpolator
 
     public void Interpolate(GameState world, Snapshot from, Snapshot to, double t)
     {
-        for (int i = 0; i < to.Count; i++)
+        for (int hIdx = 0; hIdx < _fieldHandlers.Count; hIdx++)
         {
-            long id = to.ObjectIds[i];
-            var toSpan = to.GetStateSpan(id);
+            var handler = _fieldHandlers[hIdx];
+            int size = handler.SnapshotStateSize;
+            if (size == 0) continue;
 
-            if (world.GameObjects.TryGetValue(id, out var obj))
+            int toBaseOffset = to.HandlerOffsets[hIdx];
+            bool hasFromOffsets = from.HandlerOffsets.Length > hIdx;
+            int fromBaseOffset = hasFromOffsets ? from.HandlerOffsets[hIdx] : -1;
+
+            for (int i = 0; i < to.Count; i++)
             {
-                var fromSpan = from.GetStateSpan(id);
-                if (!fromSpan.IsEmpty)
+                long id = to.ObjectIds[i];
+                if (world.GameObjects.TryGetValue(id, out var obj))
                 {
-                    int offset = 0;
-                    foreach (var handler in _fieldHandlers)
+                    var toSpan = to.StateBuffer.AsSpan(toBaseOffset + (i * size), size);
+
+                    int fromIdx = fromBaseOffset != -1 ? Array.BinarySearch(from.ObjectIds, 0, from.Count, id) : -1;
+                    if (fromIdx >= 0)
                     {
-                        if (handler.SnapshotStateSize > 0)
-                        {
-                            handler.Interpolate(obj, fromSpan.Slice(offset, handler.SnapshotStateSize), toSpan.Slice(offset, handler.SnapshotStateSize), t);
-                            offset += handler.SnapshotStateSize;
-                        }
+                        var fromSpan = from.StateBuffer.AsSpan(fromBaseOffset + (fromIdx * size), size);
+                        handler.Interpolate(obj, fromSpan, toSpan, t);
                     }
-                }
-                else
-                {
-                    // Snap logic - ideally we'd have handler.SnapToState or similar
-                    // But for now, we'll let TransformHandler handle it during normal interpolate if it was smarter
+                    else
+                    {
+                        // No 'from' state for this object in this handler's slice
+                        // For transform, we should snap.
+                    }
                 }
             }
         }

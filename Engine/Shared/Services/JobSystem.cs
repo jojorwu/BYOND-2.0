@@ -192,27 +192,33 @@ namespace Shared.Services;
                 totalPending += worker.JobCount;
             }
 
-            // Scaling rules
-            if (totalPending > currentWorkers.Length * 10 || (busyCount == currentWorkers.Length && currentWorkers.Length < _maxWorkers))
+            // Scaling rules: more aggressive upward scaling based on backlog ratio
+            if (totalPending > currentWorkers.Length * 20 && currentWorkers.Length < _maxWorkers)
+            {
+                // Jump directly to a larger number of workers for large bursts
+                int target = Math.Min(_maxWorkers, currentWorkers.Length + (totalPending / 20));
+                AdjustWorkerCount(target);
+            }
+            else if (totalPending > currentWorkers.Length * 10 || (busyCount == currentWorkers.Length && currentWorkers.Length < _maxWorkers))
             {
                 AdjustWorkerCount(currentWorkers.Length + 1);
             }
             else if (currentWorkers.Length > _minWorkers)
             {
-                // Find a worker that has been idle for a while
-                WorkerThread? idleWorker = null;
+                // Scaling down logic: find if multiple workers have been idle for a while
+                int idleLongEnoughCount = 0;
                 foreach (var worker in currentWorkers)
                 {
-                    if (!worker.IsBusy && worker.JobCount == 0 && (now - worker.LastActiveTime).TotalSeconds > 10)
+                    if (!worker.IsBusy && worker.JobCount == 0 && (now - worker.LastActiveTime).TotalSeconds > 30)
                     {
-                        idleWorker = worker;
-                        break;
+                        idleLongEnoughCount++;
                     }
                 }
 
-                if (idleWorker != null)
+                if (idleLongEnoughCount > 0)
                 {
-                    AdjustWorkerCount(currentWorkers.Length - 1);
+                    // Scale down by more than one if there's a large pool of idle workers
+                    AdjustWorkerCount(Math.Max(_minWorkers, currentWorkers.Length - Math.Max(1, idleLongEnoughCount / 2)));
                 }
             }
 
@@ -248,15 +254,21 @@ namespace Shared.Services;
                 }
                 else
                 {
-                    // Remove workers (one at a time for stability)
+                    // Remove workers (allowing multiple removals at once)
+                    int toRemoveCount = currentCount - targetCount;
                     var newWorkers = new WorkerThread[targetCount];
                     Array.Copy(_workers, newWorkers, targetCount);
 
-                    var toRemove = _workers[currentCount - 1];
+                    var toRemoveList = new List<WorkerThread>(toRemoveCount);
+                    for (int i = targetCount; i < currentCount; i++) toRemoveList.Add(_workers[i]);
+
                     _workers = newWorkers;
 
-                    // Drain and dispose
-                    Task.Run(() => toRemove.Dispose());
+                    // Parallelize disposal of idle workers to avoid blocking the maintenance cycle
+                    foreach (var worker in toRemoveList)
+                    {
+                        Task.Run(() => worker.Dispose());
+                    }
                 }
             }
         }

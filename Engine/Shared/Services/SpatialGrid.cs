@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics.Arm;
 using System;
@@ -423,25 +424,25 @@ namespace Shared;
 
                         while (++_currentIndexInCell < count)
                         {
-                            // SIMD-Accelerated filtering
-                            if (System.Runtime.Intrinsics.Vector256.IsHardwareAccelerated && count - _currentIndexInCell >= 4)
+                            // SIMD-Accelerated filtering (AVX2)
+                            if (Vector256.IsHardwareAccelerated && count - _currentIndexInCell >= 4)
                             {
-                                var vx = System.Runtime.Intrinsics.Vector256.Create(xs, _currentIndexInCell);
-                                var vy = System.Runtime.Intrinsics.Vector256.Create(ys, _currentIndexInCell);
-                                var vz = System.Runtime.Intrinsics.Vector256.Create(zs, _currentIndexInCell);
+                                var vx = Vector256.Create(xs, _currentIndexInCell);
+                                var vy = Vector256.Create(ys, _currentIndexInCell);
+                                var vz = Vector256.Create(zs, _currentIndexInCell);
 
-                                var vLeft = System.Runtime.Intrinsics.Vector256.Create(_box.Left);
-                                var vRight = System.Runtime.Intrinsics.Vector256.Create(_box.Right);
-                                var vBottom = System.Runtime.Intrinsics.Vector256.Create(_box.Bottom);
-                                var vTop = System.Runtime.Intrinsics.Vector256.Create(_box.Top);
-                                var vBack = System.Runtime.Intrinsics.Vector256.Create(_box.Back);
-                                var vFront = System.Runtime.Intrinsics.Vector256.Create(_box.Front);
+                                var vLeft = Vector256.Create(_box.Left);
+                                var vRight = Vector256.Create(_box.Right);
+                                var vBottom = Vector256.Create(_box.Bottom);
+                                var vTop = Vector256.Create(_box.Top);
+                                var vBack = Vector256.Create(_box.Back);
+                                var vFront = Vector256.Create(_box.Front);
 
-                                var mask = System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vx, vLeft) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vx, vRight) &
-                                           System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vy, vBottom) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vy, vTop) &
-                                           System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vz, vBack) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vz, vFront);
+                                var mask = Vector256.GreaterThanOrEqual(vx, vLeft) & Vector256.LessThanOrEqual(vx, vRight) &
+                                           Vector256.GreaterThanOrEqual(vy, vBottom) & Vector256.LessThanOrEqual(vy, vTop) &
+                                           Vector256.GreaterThanOrEqual(vz, vBack) & Vector256.LessThanOrEqual(vz, vFront);
 
-                                uint moveMask = (uint)System.Runtime.Intrinsics.Vector256.ExtractMostSignificantBits(mask);
+                                uint moveMask = (uint)Vector256.ExtractMostSignificantBits(mask);
                                 if (moveMask != 0)
                                 {
                                     int bit = System.Numerics.BitOperations.TrailingZeroCount(moveMask);
@@ -450,6 +451,38 @@ namespace Shared;
                                     return true;
                                 }
                                 _currentIndexInCell += 3;
+                                continue;
+                            }
+                            // SIMD-Accelerated filtering (NEON)
+                            else if (AdvSimd.IsSupported && count - _currentIndexInCell >= 2)
+                            {
+                                var vx = Vector128.Create(xs[_currentIndexInCell], xs[_currentIndexInCell + 1]);
+                                var vy = Vector128.Create(ys[_currentIndexInCell], ys[_currentIndexInCell + 1]);
+                                var vz = Vector128.Create(zs[_currentIndexInCell], zs[_currentIndexInCell + 1]);
+
+                                var vLeft = Vector128.Create(_box.Left);
+                                var vRight = Vector128.Create(_box.Right);
+                                var vBottom = Vector128.Create(_box.Bottom);
+                                var vTop = Vector128.Create(_box.Top);
+                                var vBack = Vector128.Create(_box.Back);
+                                var vFront = Vector128.Create(_box.Front);
+
+                                var mask = Vector128.GreaterThanOrEqual(vx, vLeft) & Vector128.LessThanOrEqual(vx, vRight) &
+                                           Vector128.GreaterThanOrEqual(vy, vBottom) & Vector128.LessThanOrEqual(vy, vTop) &
+                                           Vector128.GreaterThanOrEqual(vz, vBack) & Vector128.LessThanOrEqual(vz, vFront);
+
+                                if (mask.GetElement(0) != 0)
+                                {
+                                    _current = objs[_currentIndexInCell];
+                                    return true;
+                                }
+                                if (mask.GetElement(1) != 0)
+                                {
+                                    _currentIndexInCell++;
+                                    _current = objs[_currentIndexInCell];
+                                    return true;
+                                }
+                                _currentIndexInCell++;
                                 continue;
                             }
 

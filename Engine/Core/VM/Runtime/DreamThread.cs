@@ -159,6 +159,9 @@ public partial class DreamThread : IScriptThread, IDisposable, IPoolable
             _stack.Pointer = localCount;
             _stack.FastFillNull(0, localCount);
         }
+
+        // Restore execution context if necessary when being initialized for a new logical task
+        if (Usr == null && associatedObject is DreamObject obj) Usr = obj;
     }
 
     public DreamThread(DreamThread other, int pc)

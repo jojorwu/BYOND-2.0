@@ -13,7 +13,7 @@ namespace Shared;
         public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory) };
 
         private IMap? _map;
-        private readonly System.Threading.Lock _worldLock = new();
+        private readonly ReaderWriterLockSlim _worldLock = new(LockRecursionPolicy.SupportsRecursion);
         public IMap? Map { get => Volatile.Read(ref _map); set => Volatile.Write(ref _map, value); }
         public SpatialGrid SpatialGrid { get; }
         public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
@@ -35,19 +35,20 @@ namespace Shared;
 
         public IDisposable ReadLock()
         {
-            _worldLock.Enter();
-            return new DisposableAction(() => _worldLock.Exit());
+            _worldLock.EnterReadLock();
+            return new DisposableAction(() => _worldLock.ExitReadLock());
         }
 
         public IDisposable WriteLock()
         {
-            _worldLock.Enter();
-            return new DisposableAction(() => _worldLock.Exit());
+            _worldLock.EnterWriteLock();
+            return new DisposableAction(() => _worldLock.ExitWriteLock());
         }
 
         public void Dispose()
         {
             SpatialGrid.Dispose();
+            _worldLock.Dispose();
         }
 
         private sealed class DisposableAction : IDisposable

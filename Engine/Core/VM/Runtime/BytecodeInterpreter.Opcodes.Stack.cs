@@ -29,7 +29,7 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandlePop(ref InterpreterState state)
     {
-        state.StackPtr--;
+        state.Pop();
     }
 
     private static void HandlePushProc(ref InterpreterState state)
@@ -133,7 +133,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandlePopN(ref InterpreterState state)
     {
         int count = state.ReadInt32();
-        state.StackPtr -= count;
+        for (int i = 0; i < count; i++) state.Pop();
     }
 
 }

@@ -20,6 +20,9 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
 
     public void SerializeBitPackedDelta(ref BitWriter writer, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions)
     {
+        var handlers = _fieldHandlers;
+        int handlerCount = handlers.Count;
+
         foreach (var obj in objects)
         {
             bool isNew = lastVersions == null || !lastVersions.ContainsKey(obj.Id);
@@ -47,8 +50,10 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
 
             writer.WriteBits((ulong)mask, 16);
 
-            foreach (var handler in _fieldHandlers)
+            // Optimized unrolled loop for field handlers
+            for (int i = 0; i < handlerCount; i++)
             {
+                var handler = handlers[i];
                 if ((mask & handler.FieldMask) != 0)
                 {
                     handler.Write(ref writer, obj, mask);

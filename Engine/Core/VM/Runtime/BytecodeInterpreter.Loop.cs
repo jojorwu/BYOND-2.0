@@ -97,6 +97,13 @@ public unsafe partial class BytecodeInterpreter
                             actualExecutedInChunk++;
 
                             byte rawOpcode = state.BytecodePtr[state.PC++];
+
+                            // Instruction Pre-fetching: Read next opcode early if possible
+                            // to improve instruction pipeline utilization in the CPU.
+                            Opcode nextOpcode = state.PC < state.BytecodeArray.Length
+                                ? (Opcode)state.BytecodePtr[state.PC]
+                                : Opcode.Return;
+
                             var opcode = (Opcode)rawOpcode;
 
                             // Update telemetry for hot path analysis
@@ -169,7 +176,7 @@ public unsafe partial class BytecodeInterpreter
                                     state.Push(DreamValue.Null);
                                     break;
                                 case Opcode.Pop:
-                                    state.StackPtr--;
+                                    state.Pop();
                                     break;
                                 case Opcode.Add:
                                     PerformAdd(ref state);

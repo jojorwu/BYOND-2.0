@@ -226,4 +226,14 @@ namespace Shared;
         /// Gets or sets the rotation of the object.
         /// </summary>
         float Rotation { get; set; }
+
+        /// <summary>
+        /// Cache for the reactive state system to avoid dictionary lookups.
+        /// </summary>
+        object? LastDeltaBatch { get; set; }
+
+        /// <summary>
+        /// The tick version of the cached DeltaBatch.
+        /// </summary>
+        long LastDeltaBatchTick { get; set; }
     }

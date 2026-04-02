@@ -24,16 +24,17 @@ namespace Shared;
             public int Count;
             public SpinLock Lock = new(false);
             public long Version;
+            public int Readers;
 
             public void Reset()
             {
-                // Note: We don't return to pool here anymore, parent grid handles it via _replacedArrays
                 Objects = Array.Empty<IGameObject>();
                 Xs = Array.Empty<long>();
                 Ys = Array.Empty<long>();
                 Zs = Array.Empty<long>();
                 Count = 0;
                 Version = 0;
+                Readers = 0;
             }
         }
 
@@ -234,48 +235,62 @@ namespace Shared;
         private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
             int newCount = cell.Count + 1;
-            var oldArray = cell.Objects;
-            var oldX = cell.Xs;
-            var oldY = cell.Ys;
-            var oldZ = cell.Zs;
+            var objects = cell.Objects;
 
-            int targetSize = oldArray.Length;
-            if (newCount > targetSize)
+            // Optimization: If no active readers, we can potentially modify in-place if capacity allows
+            if (Volatile.Read(ref cell.Readers) == 0 && newCount <= objects.Length)
             {
-                targetSize = targetSize == 0 ? 4 : targetSize * 2;
+                obj.SpatialGridIndex = cell.Count;
+                objects[cell.Count] = obj;
+                cell.Xs[cell.Count] = obj.X;
+                cell.Ys[cell.Count] = obj.Y;
+                cell.Zs[cell.Count] = obj.Z;
             }
-
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
-            var newX = ArrayPool<long>.Shared.Rent(targetSize);
-            var newY = ArrayPool<long>.Shared.Rent(targetSize);
-            var newZ = ArrayPool<long>.Shared.Rent(targetSize);
-
-            if (cell.Count > 0)
+            else
             {
-                Array.Copy(oldArray, newArray, cell.Count);
-                Array.Copy(oldX, newX, cell.Count);
-                Array.Copy(oldY, newY, cell.Count);
-                Array.Copy(oldZ, newZ, cell.Count);
+                var oldArray = objects;
+                var oldX = cell.Xs;
+                var oldY = cell.Ys;
+                var oldZ = cell.Zs;
+
+                int targetSize = oldArray.Length;
+                if (newCount > targetSize)
+                {
+                    targetSize = targetSize == 0 ? 4 : targetSize * 2;
+                }
+
+                var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
+                var newX = ArrayPool<long>.Shared.Rent(targetSize);
+                var newY = ArrayPool<long>.Shared.Rent(targetSize);
+                var newZ = ArrayPool<long>.Shared.Rent(targetSize);
+
+                if (cell.Count > 0)
+                {
+                    Array.Copy(oldArray, newArray, cell.Count);
+                    Array.Copy(oldX, newX, cell.Count);
+                    Array.Copy(oldY, newY, cell.Count);
+                    Array.Copy(oldZ, newZ, cell.Count);
+                }
+
+                if (oldArray.Length > 0)
+                {
+                    EnqueueForRelease(oldArray);
+                    EnqueueForRelease(oldX);
+                    EnqueueForRelease(oldY);
+                    EnqueueForRelease(oldZ);
+                }
+
+                obj.SpatialGridIndex = cell.Count;
+                newArray[cell.Count] = obj;
+                newX[cell.Count] = obj.X;
+                newY[cell.Count] = obj.Y;
+                newZ[cell.Count] = obj.Z;
+
+                cell.Objects = newArray;
+                cell.Xs = newX;
+                cell.Ys = newY;
+                cell.Zs = newZ;
             }
-
-            if (oldArray.Length > 0)
-            {
-                EnqueueForRelease(oldArray);
-                EnqueueForRelease(oldX);
-                EnqueueForRelease(oldY);
-                EnqueueForRelease(oldZ);
-            }
-
-            obj.SpatialGridIndex = cell.Count;
-            newArray[cell.Count] = obj;
-            newX[cell.Count] = obj.X;
-            newY[cell.Count] = obj.Y;
-            newZ[cell.Count] = obj.Z;
-
-            cell.Objects = newArray;
-            cell.Xs = newX;
-            cell.Ys = newY;
-            cell.Zs = newZ;
 
             cell.Count = newCount;
             cell.Version++;
@@ -309,49 +324,68 @@ namespace Shared;
             if (index == -1) return;
 
             int lastIndex = cell.Count - 1;
-            var oldArray = cell.Objects;
-            var oldX = cell.Xs;
-            var oldY = cell.Ys;
-            var oldZ = cell.Zs;
+            var objects = cell.Objects;
 
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
-            var newX = ArrayPool<long>.Shared.Rent(oldX.Length);
-            var newY = ArrayPool<long>.Shared.Rent(oldY.Length);
-            var newZ = ArrayPool<long>.Shared.Rent(oldZ.Length);
-
-            Array.Clear(newArray, 0, newArray.Length);
-
-            if (lastIndex > 0)
+            // Optimization: If no active readers, we can modify in-place
+            if (Volatile.Read(ref cell.Readers) == 0)
             {
-                Array.Copy(oldArray, newArray, cell.Count);
-                Array.Copy(oldX, newX, cell.Count);
-                Array.Copy(oldY, newY, cell.Count);
-                Array.Copy(oldZ, newZ, cell.Count);
-
                 if (index < lastIndex)
                 {
-                    var lastObj = newArray[lastIndex];
-                    newArray[index] = lastObj;
-                    newX[index] = newX[lastIndex];
-                    newY[index] = newY[lastIndex];
-                    newZ[index] = newZ[lastIndex];
+                    var lastObj = objects[lastIndex];
+                    objects[index] = lastObj;
+                    cell.Xs[index] = cell.Xs[lastIndex];
+                    cell.Ys[index] = cell.Ys[lastIndex];
+                    cell.Zs[index] = cell.Zs[lastIndex];
                     lastObj.SpatialGridIndex = index;
                 }
-                newArray[lastIndex] = null!;
+                objects[lastIndex] = null!;
             }
-
-            if (oldArray.Length > 0)
+            else
             {
-                EnqueueForRelease(oldArray);
-                EnqueueForRelease(oldX);
-                EnqueueForRelease(oldY);
-                EnqueueForRelease(oldZ);
-            }
+                var oldArray = objects;
+                var oldX = cell.Xs;
+                var oldY = cell.Ys;
+                var oldZ = cell.Zs;
 
-            cell.Objects = newArray;
-            cell.Xs = newX;
-            cell.Ys = newY;
-            cell.Zs = newZ;
+                var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
+                var newX = ArrayPool<long>.Shared.Rent(oldX.Length);
+                var newY = ArrayPool<long>.Shared.Rent(oldY.Length);
+                var newZ = ArrayPool<long>.Shared.Rent(oldZ.Length);
+
+                Array.Clear(newArray, 0, newArray.Length);
+
+                if (lastIndex > 0)
+                {
+                    Array.Copy(oldArray, newArray, cell.Count);
+                    Array.Copy(oldX, newX, cell.Count);
+                    Array.Copy(oldY, newY, cell.Count);
+                    Array.Copy(oldZ, newZ, cell.Count);
+
+                    if (index < lastIndex)
+                    {
+                        var lastObj = newArray[lastIndex];
+                        newArray[index] = lastObj;
+                        newX[index] = newX[lastIndex];
+                        newY[index] = newY[lastIndex];
+                        newZ[index] = newZ[lastIndex];
+                        lastObj.SpatialGridIndex = index;
+                    }
+                    newArray[lastIndex] = null!;
+                }
+
+                if (oldArray.Length > 0)
+                {
+                    EnqueueForRelease(oldArray);
+                    EnqueueForRelease(oldX);
+                    EnqueueForRelease(oldY);
+                    EnqueueForRelease(oldZ);
+                }
+
+                cell.Objects = newArray;
+                cell.Xs = newX;
+                cell.Ys = newY;
+                cell.Zs = newZ;
+            }
 
             cell.Count--;
             cell.Version++;
@@ -518,6 +552,7 @@ namespace Shared;
                         if (Volatile.Read(ref _currentCell.Count) > 0)
                         {
                             _currentIndexInCell = -1;
+                            Interlocked.Increment(ref _currentCell.Readers);
                         }
                         else
                         {
@@ -532,7 +567,14 @@ namespace Shared;
 
             public void Reset() => throw new NotSupportedException();
 
-            public void Dispose() { }
+            public void Dispose()
+            {
+                if (_currentCell != null)
+                {
+                    Interlocked.Decrement(ref _currentCell.Readers);
+                    _currentCell = null;
+                }
+            }
 
             public BoxEnumerator GetEnumerator() => this;
         }

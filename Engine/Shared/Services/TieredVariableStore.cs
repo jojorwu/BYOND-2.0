@@ -57,13 +57,17 @@ public class TieredVariableStore : IObservableVariableStore
     {
         if (_sparseIndices != null)
         {
-            for (int i = 0; i < _sparseCount; i++) visitor(_sparseIndices[i], _sparseValues![i]);
+            var indices = _sparseIndices;
+            var values = _sparseValues!;
+            for (int i = 0; i < _sparseCount; i++) visitor(indices[i], values[i]);
             return;
         }
 
-        for (int i = 0; i < _modifiedMask.Length; i++)
+        var maskSpan = _modifiedMask.AsSpan();
+        var overrides = _overrides;
+        for (int i = 0; i < maskSpan.Length; i++)
         {
-            ulong mask = _modifiedMask[i];
+            ulong mask = maskSpan[i];
             if (mask == 0) continue;
 
             int baseIdx = i << 6;
@@ -71,9 +75,9 @@ public class TieredVariableStore : IObservableVariableStore
             {
                 int bit = System.Numerics.BitOperations.TrailingZeroCount(mask);
                 int index = baseIdx + bit;
-                if (index < _length)
+                if ((uint)index < (uint)_length)
                 {
-                    visitor(index, _overrides[index]);
+                    visitor(index, overrides[index]);
                 }
                 mask &= mask - 1;
             }
@@ -84,13 +88,17 @@ public class TieredVariableStore : IObservableVariableStore
     {
         if (_sparseIndices != null)
         {
-            for (int i = 0; i < _sparseCount; i++) visitor.Visit(_sparseIndices[i], _sparseValues![i]);
+            var indices = _sparseIndices;
+            var values = _sparseValues!;
+            for (int i = 0; i < _sparseCount; i++) visitor.Visit(indices[i], values[i]);
             return;
         }
 
-        for (int i = 0; i < _modifiedMask.Length; i++)
+        var maskSpan = _modifiedMask.AsSpan();
+        var overrides = _overrides;
+        for (int i = 0; i < maskSpan.Length; i++)
         {
-            ulong mask = _modifiedMask[i];
+            ulong mask = maskSpan[i];
             if (mask == 0) continue;
 
             int baseIdx = i << 6;
@@ -98,9 +106,9 @@ public class TieredVariableStore : IObservableVariableStore
             {
                 int bit = System.Numerics.BitOperations.TrailingZeroCount(mask);
                 int index = baseIdx + bit;
-                if (index < _length)
+                if ((uint)index < (uint)_length)
                 {
-                    visitor.Visit(index, _overrides[index]);
+                    visitor.Visit(index, overrides[index]);
                 }
                 mask &= mask - 1;
             }

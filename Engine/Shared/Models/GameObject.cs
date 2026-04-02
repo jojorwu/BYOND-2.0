@@ -54,6 +54,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
     public List<IScriptThread>? ActiveThreads { get; set; }
+    public object? LastDeltaBatch { get; set; }
+    public long LastDeltaBatchTick { get; set; }
 
     private IEngineUpdateListener? _updateListener;
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;

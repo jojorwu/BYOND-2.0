@@ -141,8 +141,11 @@ namespace Core
 
             if (_reactiveSystem != null)
             {
-                var batches = _reactiveSystem.ConsumeBatches().ToList();
-                if (batches.Count == 0) return Array.Empty<byte>();
+                int count = _reactiveSystem.BatchCount;
+                if (count == 0) return Array.Empty<byte>();
+
+                var batches = new List<ReactiveStateSystem.DeltaBatch>(count);
+                _reactiveSystem.ConsumeBatches(batches);
 
                 int bufferSize = Math.Max(4096, batches.Count * 64);
                 while (true)

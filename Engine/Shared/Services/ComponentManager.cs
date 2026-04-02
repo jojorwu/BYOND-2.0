@@ -55,11 +55,28 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             return name.AsSpan().ContainsAny(_assemblyKeywords);
         }
 
+        private static readonly ConcurrentDictionary<Type, Func<IComponent>> _factories = new();
+
+        private static Func<IComponent> GetFactory(Type type)
+        {
+            return _factories.GetOrAdd(type, t =>
+            {
+                var constructor = t.GetConstructor(Type.EmptyTypes) ?? throw new InvalidOperationException($"Component {t.Name} must have a parameterless constructor.");
+                var body = System.Linq.Expressions.Expression.New(constructor);
+                return System.Linq.Expressions.Expression.Lambda<Func<IComponent>>(body).Compile();
+            });
+        }
+
         public IComponent? CreateComponent(string componentName)
         {
             if (_componentTypesByName.TryGetValue(componentName, out var type))
             {
-                var pool = _componentPools.GetOrAdd(type, t => (IObjectPool<IComponent>)Activator.CreateInstance(typeof(SharedPool<>).MakeGenericType(t), (Func<IComponent>)(() => (IComponent)Activator.CreateInstance(t)!))!);
+                var pool = _componentPools.GetOrAdd(type, t =>
+                {
+                    var factory = GetFactory(t);
+                    var poolType = typeof(SharedPool<>).MakeGenericType(t);
+                    return (IObjectPool<IComponent>)Activator.CreateInstance(poolType, factory)!;
+                });
                 return pool.Rent();
             }
             return null;

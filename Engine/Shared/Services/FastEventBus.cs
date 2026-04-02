@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
@@ -35,9 +36,9 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
 
     private class HandlerList<T> : IHandlerList
     {
-        private volatile HandlerEntry<Action<T>>[] _actions = Array.Empty<HandlerEntry<Action<T>>>();
-        private volatile HandlerEntry<Func<T, ValueTask>>[] _asyncActions = Array.Empty<HandlerEntry<Func<T, ValueTask>>>();
-        private volatile HandlerEntry<IEventHandler<T>>[] _interfaceHandlers = Array.Empty<HandlerEntry<IEventHandler<T>>>();
+        internal volatile HandlerEntry<Action<T>>[] _actions = Array.Empty<HandlerEntry<Action<T>>>();
+        internal volatile HandlerEntry<Func<T, ValueTask>>[] _asyncActions = Array.Empty<HandlerEntry<Func<T, ValueTask>>>();
+        internal volatile HandlerEntry<IEventHandler<T>>[] _interfaceHandlers = Array.Empty<HandlerEntry<IEventHandler<T>>>();
         private readonly System.Threading.Lock _lock = new();
 
         public int Count => _actions.Length + _asyncActions.Length + _interfaceHandlers.Length;
@@ -202,7 +203,11 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             }
 
             // Start all async tasks concurrently
-            var tasks = ArrayPool<ValueTask>.Shared.Rent(asyncCount);
+            ValueTask[]? poolArray = null;
+            ValueTask[]? stackArray = null;
+            if (asyncCount <= 8) stackArray = ArrayPool<ValueTask>.Shared.Rent(8);
+            var tasks = stackArray ?? (poolArray = ArrayPool<ValueTask>.Shared.Rent(asyncCount));
+
             try
             {
                 for (int i = 0; i < asyncCount; i++)
@@ -219,7 +224,14 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
             }
             finally
             {
-                ArrayPool<ValueTask>.Shared.Return(tasks, clearArray: true);
+                if (poolArray != null)
+                {
+                    ArrayPool<ValueTask>.Shared.Return(poolArray, clearArray: true);
+                }
+                if (stackArray != null)
+                {
+                    ArrayPool<ValueTask>.Shared.Return(stackArray, clearArray: true);
+                }
             }
         }
 
@@ -241,10 +253,41 @@ public class FastEventBus : EngineService, IEventBus, IFreezable
     private readonly ConcurrentDictionary<Type, IHandlerList> _typeToHandlers = new();
     private volatile FrozenDictionary<Type, IHandlerList> _frozenHandlers = FrozenDictionary<Type, IHandlerList>.Empty;
 
+    private static int _nextEventId = -1;
+    private static class EventId<T> { public static readonly int Value = Interlocked.Increment(ref _nextEventId); }
+    private IHandlerList?[] _handlers = new IHandlerList[64];
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private HandlerList<T> GetHandlers<T>()
     {
-        if (_frozenHandlers.TryGetValue(typeof(T), out var handlers)) return (HandlerList<T>)handlers;
-        return (HandlerList<T>)_typeToHandlers.GetOrAdd(typeof(T), _ => new HandlerList<T>());
+        int id = EventId<T>.Value;
+        var lookup = _handlers;
+        if ((uint)id < (uint)lookup.Length)
+        {
+            var h = lookup[id];
+            if (h != null) return (HandlerList<T>)h;
+        }
+        return GetHandlersSlow<T>(id);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private HandlerList<T> GetHandlersSlow<T>(int id)
+    {
+        lock (_typeToHandlers)
+        {
+            if (id >= _handlers.Length)
+            {
+                Array.Resize(ref _handlers, Math.Max(id + 1, _handlers.Length * 2));
+            }
+
+            if (!_typeToHandlers.TryGetValue(typeof(T), out var handlers))
+            {
+                handlers = _typeToHandlers.GetOrAdd(typeof(T), _ => new HandlerList<T>());
+            }
+
+            _handlers[id] = handlers;
+            return (HandlerList<T>)handlers;
+        }
     }
 
     public void Freeze()

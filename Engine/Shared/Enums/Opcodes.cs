@@ -415,6 +415,12 @@ public enum Opcode : byte {
     LocalFieldTransfer = 0xD2,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
     GlobalJumpIfFalse = 0xD3,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label)]
+    LocalPushDereferenceFieldJumpIfFalse = 0xF5,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalAddConst = 0xF6,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalSubConst = 0xF7,
     [OpcodeMetadata(1)] PushLocal0 = 0xD4,
     [OpcodeMetadata(1)] PushLocal1 = 0xD5,
     [OpcodeMetadata(1)] PushLocal2 = 0xD6,
@@ -565,6 +571,7 @@ public static class OpcodeMetadataCache {
                 Opcode.LocalCompareGreaterThanJumpIfFalse => true,
                 Opcode.LocalCompareLessThanOrEqualJumpIfFalse => true,
                 Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse => true,
+                Opcode.LocalPushDereferenceFieldJumpIfFalse => true,
                 Opcode.BooleanAnd => true,
                 Opcode.BooleanOr => true,
                 Opcode.Enumerate => true,

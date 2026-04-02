@@ -490,6 +490,24 @@ public unsafe partial class BytecodeInterpreter
         a = new DreamValue(Math.Abs(a.GetValueAsDouble()));
     }
 
+    private static void HandleLocalAddConst(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble + val);
+        else a = a + val;
+    }
+
+    private static void HandleLocalSubConst(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        double val = state.ReadDouble();
+        ref var a = ref state.GetLocal(idx);
+        if (a.Type <= DreamValueType.Integer) a = new DreamValue(a.UnsafeRawDouble - val);
+        else a = a - val;
+    }
+
     private static void HandleMultiplyReference(ref InterpreterState state)
     {
         var refType = (DMReference.Type)state.ReadByte();

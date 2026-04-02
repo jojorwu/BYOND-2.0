@@ -598,10 +598,43 @@ namespace Core.VM.Utils
                     {
                         if (bytecode[opPc] == (byte)Opcode.Add)
                         {
+                            int assignPc = opPc + 1;
+                            if (IsAssignLocal(bytecode, assignPc, out int targetIdx) && targetIdx == idx && !IsJumpTarget(assignPc, 6))
+                            {
+                                int popPc = assignPc + 6;
+                                if (popPc < bytecode.Length && bytecode[popPc] == (byte)Opcode.Pop && !IsJumpTarget(popPc, 1))
+                                {
+                                    MarkPcMap(pc, popPc + 1, optimized.Count);
+                                    optimized.Add((byte)Opcode.LocalAddConst);
+                                    optimized.AddRange(BitConverter.GetBytes(idx));
+                                    optimized.AddRange(bytecode.AsSpan(nextPc + 1, 8));
+                                    pc = popPc + 1;
+                                    return true;
+                                }
+                            }
+
                             if (TryOptimizeArithmeticFloatPattern(bytecode, pc, nextPc, opPc, idx, Opcode.LocalAddFloatAssign, Opcode.LocalAddFloat, optimized, out int newPc))
                             {
                                 pc = newPc;
                                 return true;
+                            }
+                        }
+
+                        if (bytecode[opPc] == (byte)Opcode.Subtract)
+                        {
+                            int assignPc = opPc + 1;
+                            if (IsAssignLocal(bytecode, assignPc, out int targetIdx) && targetIdx == idx && !IsJumpTarget(assignPc, 6))
+                            {
+                                int popPc = assignPc + 6;
+                                if (popPc < bytecode.Length && bytecode[popPc] == (byte)Opcode.Pop && !IsJumpTarget(popPc, 1))
+                                {
+                                    MarkPcMap(pc, popPc + 1, optimized.Count);
+                                    optimized.Add((byte)Opcode.LocalSubConst);
+                                    optimized.AddRange(BitConverter.GetBytes(idx));
+                                    optimized.AddRange(bytecode.AsSpan(nextPc + 1, 8));
+                                    pc = popPc + 1;
+                                    return true;
+                                }
                             }
                         }
                         if (bytecode[opPc] == (byte)Opcode.Multiply)
@@ -687,6 +720,19 @@ namespace Core.VM.Utils
                         optimized.AddRange(BitConverter.GetBytes(nameId));
                         optimized.AddRange(bytecode.AsSpan(callPc + 5, 5)); // argType, argStackDelta
                         pc = callPc + 10;
+                        return true;
+                    }
+
+                    int branchPc2 = nextPc + 5;
+                    if (branchPc2 + 4 < bytecode.Length && bytecode[branchPc2] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(branchPc2, 5))
+                    {
+                        MarkPcMap(pc, branchPc2 + 5, optimized.Count);
+                        optimized.Add((byte)Opcode.LocalPushDereferenceFieldJumpIfFalse);
+                        optimized.AddRange(BitConverter.GetBytes(idx));
+                        optimized.AddRange(BitConverter.GetBytes(nameId));
+                        labels.Add(optimized.Count);
+                        optimized.AddRange(bytecode.AsSpan(branchPc2 + 1, 4));
+                        pc = branchPc2 + 5;
                         return true;
                     }
 

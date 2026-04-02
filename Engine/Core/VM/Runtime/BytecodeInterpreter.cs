@@ -244,6 +244,9 @@ public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterp
         _dispatchTable[(byte)Opcode.LocalJumpIfFieldTrue] = &HandleLocalJumpIfFieldTrue;
         _dispatchTable[(byte)Opcode.LocalFieldTransfer] = &HandleLocalFieldTransfer;
         _dispatchTable[(byte)Opcode.GlobalJumpIfFalse] = &HandleGlobalJumpIfFalse;
+        _dispatchTable[(byte)Opcode.LocalPushDereferenceFieldJumpIfFalse] = &HandleLocalPushDereferenceFieldJumpIfFalse;
+        _dispatchTable[(byte)Opcode.LocalAddConst] = &HandleLocalAddConst;
+        _dispatchTable[(byte)Opcode.LocalSubConst] = &HandleLocalSubConst;
 
         // Specialized opcodes
         _dispatchTable[(byte)Opcode.PushLocal0] = &HandlePushLocal0;

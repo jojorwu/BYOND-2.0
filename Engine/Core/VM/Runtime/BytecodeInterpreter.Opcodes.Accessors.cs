@@ -514,6 +514,16 @@ public unsafe partial class BytecodeInterpreter
         PerformLocalPushDereferenceField(ref state, idx, nameId, pcForCache);
     }
 
+    private static void HandleLocalPushDereferenceFieldJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int pcForCache = state.PC - 5;
+        int address = state.ReadInt32();
+        PerformLocalPushDereferenceField(ref state, idx, nameId, pcForCache);
+        PerformJumpIfFalse(ref state, address);
+    }
+
     private static void HandleLocalMulLocalAssign(ref InterpreterState state)
     {
         int idx1 = state.ReadInt32();

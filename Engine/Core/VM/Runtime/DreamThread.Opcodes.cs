@@ -335,7 +335,7 @@ public partial class DreamThread
             if (localCount > 0)
             {
                 _stack.EnsureCapacity(localCount, MaxStackSize);
-                _stack.Array.AsSpan(_stack.Pointer, localCount).Fill(DreamValue.Null);
+                _stack.FastFillNull(_stack.Pointer, localCount);
                 _stack.Pointer += localCount;
             }
         }

@@ -52,6 +52,13 @@ internal struct DreamStack : IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void FastFillNull(int start, int count)
+    {
+        if (count <= 0) return;
+        Array.AsSpan(start, count).Fill(DreamValue.Null);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue Pop()
     {
         ref var valRef = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(Array), --Pointer);

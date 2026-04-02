@@ -152,12 +152,12 @@ public partial class DreamThread : IScriptThread, IDisposable, IPoolable
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
 
-        // Initialize locals for the entry-point frame
+        // Initialize locals for the entry-point frame using optimized fast-fill
         int localCount = proc.LocalVariableCount;
         if (localCount > 0)
         {
-            _stack.Array.AsSpan(0, localCount).Fill(DreamValue.Null);
             _stack.Pointer = localCount;
+            _stack.FastFillNull(0, localCount);
         }
     }
 

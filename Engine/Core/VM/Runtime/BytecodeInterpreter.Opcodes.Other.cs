@@ -9,261 +9,61 @@ namespace Core.VM.Runtime;
 
 public unsafe partial class BytecodeInterpreter
 {
-    private static readonly delegate*<ref InterpreterState, void>[] _dispatchTable = CreateDispatchTable();
-
-    private static delegate*<ref InterpreterState, void>[] CreateDispatchTable()
-    {
-        var table = new delegate*<ref InterpreterState, void>[256];
-        for (int i = 0; i < 256; i++) table[i] = &HandleUnknownOpcode;
-
-        table[(byte)Opcode.PushString] = &HandlePushString;
-        table[(byte)Opcode.PushFloat] = &HandlePushFloat;
-        table[(byte)Opcode.PushNull] = &HandlePushNull;
-        table[(byte)Opcode.Pop] = &HandlePop;
-        table[(byte)Opcode.Add] = &HandleAdd;
-        table[(byte)Opcode.Subtract] = &HandleSubtract;
-        table[(byte)Opcode.Multiply] = &HandleMultiply;
-        table[(byte)Opcode.Divide] = &HandleDivide;
-        table[(byte)Opcode.CompareEquals] = &HandleCompareEquals;
-        table[(byte)Opcode.CompareNotEquals] = &HandleCompareNotEquals;
-        table[(byte)Opcode.CompareLessThan] = &HandleCompareLessThan;
-        table[(byte)Opcode.CompareGreaterThan] = &HandleCompareGreaterThan;
-        table[(byte)Opcode.CompareLessThanOrEqual] = &HandleCompareLessThanOrEqual;
-        table[(byte)Opcode.CompareGreaterThanOrEqual] = &HandleCompareGreaterThanOrEqual;
-        table[(byte)Opcode.CompareEquivalent] = &HandleCompareEquivalent;
-        table[(byte)Opcode.CompareNotEquivalent] = &HandleCompareNotEquivalent;
-        table[(byte)Opcode.Negate] = &HandleNegate;
-        table[(byte)Opcode.BooleanNot] = &HandleBooleanNot;
-        table[(byte)Opcode.Call] = &HandleCall;
-        table[(byte)Opcode.CallStatement] = &HandleCallStatement;
-        table[(byte)Opcode.PushProc] = &HandlePushProc;
-        table[(byte)Opcode.Jump] = &HandleJump;
-        table[(byte)Opcode.JumpIfFalse] = &HandleJumpIfFalse;
-        table[(byte)Opcode.JumpIfTrueReference] = &HandleJumpIfTrueReference;
-        table[(byte)Opcode.JumpIfFalseReference] = &HandleJumpIfFalseReference;
-        table[(byte)Opcode.Output] = &HandleOutput;
-        table[(byte)Opcode.OutputReference] = &HandleOutputReference;
-        table[(byte)Opcode.Return] = &HandleReturn;
-        table[(byte)Opcode.BitAnd] = &HandleBitAnd;
-        table[(byte)Opcode.BitOr] = &HandleBitOr;
-        table[(byte)Opcode.BitXor] = &HandleBitXor;
-        table[(byte)Opcode.BitXorReference] = &HandleBitXorReference;
-        table[(byte)Opcode.BitNot] = &HandleBitNot;
-        table[(byte)Opcode.BitShiftLeft] = &HandleBitShiftLeft;
-        table[(byte)Opcode.BitShiftLeftReference] = &HandleBitShiftLeftReference;
-        table[(byte)Opcode.BitShiftRight] = &HandleBitShiftRight;
-        table[(byte)Opcode.BitShiftRightReference] = &HandleBitShiftRightReference;
-        table[(byte)Opcode.GetVariable] = &HandleGetVariable;
-        table[(byte)Opcode.SetVariable] = &HandleSetVariable;
-        table[(byte)Opcode.PushReferenceValue] = &HandlePushReferenceValue;
-        table[(byte)Opcode.Assign] = &HandleAssign;
-        table[(byte)Opcode.PushGlobalVars] = &HandlePushGlobalVars;
-        table[(byte)Opcode.IsNull] = &HandleIsNull;
-        table[(byte)Opcode.JumpIfNull] = &HandleJumpIfNull;
-        table[(byte)Opcode.JumpIfNullNoPop] = &HandleJumpIfNullNoPop;
-        table[(byte)Opcode.SwitchCase] = &HandleSwitchCase;
-        table[(byte)Opcode.SwitchCaseRange] = &HandleSwitchCaseRange;
-        table[(byte)Opcode.BooleanAnd] = &HandleBooleanAnd;
-        table[(byte)Opcode.BooleanOr] = &HandleBooleanOr;
-        table[(byte)Opcode.Increment] = &HandleIncrement;
-        table[(byte)Opcode.Decrement] = &HandleDecrement;
-        table[(byte)Opcode.Modulus] = &HandleModulus;
-        table[(byte)Opcode.AssignInto] = &HandleAssignInto;
-        table[(byte)Opcode.ModulusReference] = &HandleModulusReference;
-        table[(byte)Opcode.ModulusModulus] = &HandleModulusModulus;
-        table[(byte)Opcode.ModulusModulusReference] = &HandleModulusModulusReference;
-        table[(byte)Opcode.CreateList] = &HandleCreateList;
-        table[(byte)Opcode.CreateAssociativeList] = &HandleCreateAssociativeList;
-        table[(byte)Opcode.CreateStrictAssociativeList] = &HandleCreateStrictAssociativeList;
-        table[(byte)Opcode.IsInList] = &HandleIsInList;
-        table[(byte)Opcode.Input] = &HandleInput;
-        table[(byte)Opcode.PickUnweighted] = &HandlePickUnweighted;
-        table[(byte)Opcode.PickWeighted] = &HandlePickWeighted;
-        table[(byte)Opcode.DereferenceField] = &HandleDereferenceField;
-        table[(byte)Opcode.DereferenceIndex] = &HandleDereferenceIndex;
-        table[(byte)Opcode.PopReference] = &HandlePopReference;
-        table[(byte)Opcode.DereferenceCall] = &HandleDereferenceCall;
-        table[(byte)Opcode.Initial] = &HandleInitial;
-        table[(byte)Opcode.IsType] = &HandleIsType;
-        table[(byte)Opcode.AsType] = &HandleAsType;
-        table[(byte)Opcode.CreateListEnumerator] = &HandleCreateListEnumerator;
-        table[(byte)Opcode.Enumerate] = &HandleEnumerate;
-        table[(byte)Opcode.EnumerateAssoc] = &HandleEnumerateAssoc;
-        table[(byte)Opcode.DestroyEnumerator] = &HandleDestroyEnumerator;
-        table[(byte)Opcode.Append] = &HandleAppend;
-        table[(byte)Opcode.Remove] = &HandleRemove;
-        table[(byte)Opcode.DeleteObject] = &HandleDeleteObject;
-        table[(byte)Opcode.Prob] = &HandleProb;
-        table[(byte)Opcode.IsSaved] = &HandleIsSaved;
-        table[(byte)Opcode.GetStep] = &HandleGetStep;
-        table[(byte)Opcode.GetStepTo] = &HandleGetStepTo;
-        table[(byte)Opcode.GetDist] = &HandleGetDist;
-        table[(byte)Opcode.GetDir] = &HandleGetDir;
-        table[(byte)Opcode.MassConcatenation] = &HandleMassConcatenation;
-        table[(byte)Opcode.FormatString] = &HandleFormatString;
-        table[(byte)Opcode.Power] = &HandlePower;
-        table[(byte)Opcode.Sqrt] = &HandleSqrt;
-        table[(byte)Opcode.Abs] = &HandleAbs;
-        table[(byte)Opcode.MultiplyReference] = &HandleMultiplyReference;
-        table[(byte)Opcode.Sin] = &HandleSin;
-        table[(byte)Opcode.DivideReference] = &HandleDivideReference;
-        table[(byte)Opcode.Cos] = &HandleCos;
-        table[(byte)Opcode.Tan] = &HandleTan;
-        table[(byte)Opcode.ArcSin] = &HandleArcSin;
-        table[(byte)Opcode.ArcCos] = &HandleArcCos;
-        table[(byte)Opcode.ArcTan] = &HandleArcTan;
-        table[(byte)Opcode.ArcTan2] = &HandleArcTan2;
-        table[(byte)Opcode.Log] = &HandleLog;
-        table[(byte)Opcode.LogE] = &HandleLogE;
-        table[(byte)Opcode.PushType] = &HandlePushType;
-        table[(byte)Opcode.CreateObject] = &HandleCreateObject;
-        table[(byte)Opcode.LocateCoord] = &HandleLocateCoord;
-        table[(byte)Opcode.Locate] = &HandleLocate;
-        table[(byte)Opcode.Length] = &HandleLength;
-        table[(byte)Opcode.IsInRange] = &HandleIsInRange;
-        table[(byte)Opcode.Throw] = &HandleThrow;
-        table[(byte)Opcode.Try] = &HandleTry;
-        table[(byte)Opcode.TryNoValue] = &HandleTryNoValue;
-        table[(byte)Opcode.EndTry] = &HandleEndTry;
-        table[(byte)Opcode.Spawn] = &HandleSpawn;
-        table[(byte)Opcode.Rgb] = &HandleRgb;
-        table[(byte)Opcode.Gradient] = &HandleGradient;
-        table[(byte)Opcode.AppendNoPush] = &HandleAppendNoPush;
-        table[(byte)Opcode.AssignNoPush] = &HandleAssignNoPush;
-        table[(byte)Opcode.PushRefAndDereferenceField] = &HandlePushRefAndDereferenceField;
-        table[(byte)Opcode.PushNRefs] = &HandlePushNRefs;
-        table[(byte)Opcode.PushNFloats] = &HandlePushNFloats;
-        table[(byte)Opcode.PushStringFloat] = &HandlePushStringFloat;
-        table[(byte)Opcode.PushResource] = &HandlePushResource;
-        table[(byte)Opcode.SwitchOnFloat] = &HandleSwitchOnFloat;
-        table[(byte)Opcode.SwitchOnString] = &HandleSwitchOnString;
-        table[(byte)Opcode.JumpIfReferenceFalse] = &HandleJumpIfReferenceFalse;
-        table[(byte)Opcode.ReturnFloat] = &HandleReturnFloat;
-        table[(byte)Opcode.NPushFloatAssign] = &HandleNPushFloatAssign;
-        table[(byte)Opcode.IsTypeDirect] = &HandleIsTypeDirect;
-        table[(byte)Opcode.NullRef] = &HandleNullRef;
-        table[(byte)Opcode.IndexRefWithString] = &HandleIndexRefWithString;
-        table[(byte)Opcode.ReturnReferenceValue] = &HandleReturnReferenceValue;
-        table[(byte)Opcode.PushFloatAssign] = &HandlePushFloatAssign;
-        table[(byte)Opcode.PushLocal] = &HandlePushLocal;
-        table[(byte)Opcode.AssignLocal] = &HandleAssignLocal;
-        table[(byte)Opcode.PushArgument] = &HandlePushArgument;
-        table[(byte)Opcode.LocalPushLocalPushAdd] = &HandleLocalPushLocalPushAdd;
-        table[(byte)Opcode.LocalAddFloat] = &HandleLocalAddFloat;
-        table[(byte)Opcode.LocalMulAdd] = &HandleLocalMulAdd;
-        table[(byte)Opcode.GetBuiltinVar] = &HandleGetBuiltinVar;
-        table[(byte)Opcode.SetBuiltinVar] = &HandleSetBuiltinVar;
-        table[(byte)Opcode.LocalPushReturn] = &HandleLocalPushReturn;
-        table[(byte)Opcode.LocalCompareEquals] = &HandleLocalCompareEquals;
-        table[(byte)Opcode.LocalJumpIfFalse] = &HandleLocalJumpIfFalse;
-        table[(byte)Opcode.LocalJumpIfTrue] = &HandleLocalJumpIfTrue;
-        table[(byte)Opcode.ReturnNull] = &HandleReturnNull;
-        table[(byte)Opcode.ReturnTrue] = &HandleReturnTrue;
-        table[(byte)Opcode.ReturnFalse] = &HandleReturnFalse;
-        table[(byte)Opcode.LocalCompareNotEquals] = &HandleLocalCompareNotEquals;
-        table[(byte)Opcode.LocalIncrement] = &HandleLocalIncrement;
-        table[(byte)Opcode.LocalDecrement] = &HandleLocalDecrement;
-        table[(byte)Opcode.LocalPushLocalPushSub] = &HandleLocalPushLocalPushSub;
-        table[(byte)Opcode.LocalAddLocalAssign] = &HandleLocalAddLocalAssign;
-        table[(byte)Opcode.LocalSubLocalAssign] = &HandleLocalSubLocalAssign;
-        table[(byte)Opcode.LocalJumpIfNull] = &HandleLocalJumpIfNull;
-        table[(byte)Opcode.LocalJumpIfNotNull] = &HandleLocalJumpIfNotNull;
-        table[(byte)Opcode.LocalCompareEqualsJumpIfFalse] = &HandleLocalCompareEqualsJumpIfFalse;
-        table[(byte)Opcode.LocalCompareNotEqualsJumpIfFalse] = &HandleLocalCompareNotEqualsJumpIfFalse;
-        table[(byte)Opcode.LocalCompareLessThanJumpIfFalse] = &HandleLocalCompareLessThanJumpIfFalse;
-        table[(byte)Opcode.LocalCompareGreaterThanJumpIfFalse] = &HandleLocalCompareGreaterThanJumpIfFalse;
-        table[(byte)Opcode.LocalCompareLessThanOrEqualJumpIfFalse] = &HandleLocalCompareLessThanOrEqualJumpIfFalse;
-        table[(byte)Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualJumpIfFalse;
-        table[(byte)Opcode.LocalPushDereferenceField] = &HandleLocalPushDereferenceField;
-        table[(byte)Opcode.LocalPushDereferenceCall] = &HandleLocalPushDereferenceCall;
-        table[(byte)Opcode.LocalPushDereferenceIndex] = &HandleLocalPushDereferenceIndex;
-        table[(byte)Opcode.LocalMulLocalAssign] = &HandleLocalMulLocalAssign;
-        table[(byte)Opcode.LocalDivLocalAssign] = &HandleLocalDivLocalAssign;
-        table[(byte)Opcode.LocalMulFloatAssign] = &HandleLocalMulFloatAssign;
-        table[(byte)Opcode.LocalDivFloatAssign] = &HandleLocalDivFloatAssign;
-        table[(byte)Opcode.PopN] = &HandlePopN;
-        table[(byte)Opcode.LocalAddFloatAssign] = &HandleLocalAddFloatAssign;
-        table[(byte)Opcode.LocalCompareLessThan] = &HandleLocalCompareLessThan;
-        table[(byte)Opcode.LocalCompareGreaterThan] = &HandleLocalCompareGreaterThan;
-        table[(byte)Opcode.LocalCompareLessThanOrEqual] = &HandleLocalCompareLessThanOrEqual;
-        table[(byte)Opcode.LocalCompareGreaterThanOrEqual] = &HandleLocalCompareGreaterThanOrEqual;
-        table[(byte)Opcode.LocalCompareLessThanFloatJumpIfFalse] = &HandleLocalCompareLessThanFloatJumpIfFalse;
-        table[(byte)Opcode.LocalCompareGreaterThanFloatJumpIfFalse] = &HandleLocalCompareGreaterThanFloatJumpIfFalse;
-        table[(byte)Opcode.LocalCompareLessThanOrEqualFloatJumpIfFalse] = &HandleLocalCompareLessThanOrEqualFloatJumpIfFalse;
-        table[(byte)Opcode.LocalCompareGreaterThanOrEqualFloatJumpIfFalse] = &HandleLocalCompareGreaterThanOrEqualFloatJumpIfFalse;
-        table[(byte)Opcode.LocalJumpIfFieldFalse] = &HandleLocalJumpIfFieldFalse;
-        table[(byte)Opcode.LocalJumpIfFieldTrue] = &HandleLocalJumpIfFieldTrue;
-        table[(byte)Opcode.LocalFieldTransfer] = &HandleLocalFieldTransfer;
-        table[(byte)Opcode.GlobalJumpIfFalse] = &HandleGlobalJumpIfFalse;
-
-        table[(byte)Opcode.PushLocal0] = &HandlePushLocal0;
-        table[(byte)Opcode.PushLocal1] = &HandlePushLocal1;
-        table[(byte)Opcode.PushLocal2] = &HandlePushLocal2;
-        table[(byte)Opcode.PushLocal3] = &HandlePushLocal3;
-        table[(byte)Opcode.PushLocal4] = &HandlePushLocal4;
-        table[(byte)Opcode.PushLocal5] = &HandlePushLocal5;
-        table[(byte)Opcode.PushLocal6] = &HandlePushLocal6;
-        table[(byte)Opcode.PushLocal7] = &HandlePushLocal7;
-        table[(byte)Opcode.PushLocal8] = &HandlePushLocal8;
-        table[(byte)Opcode.PushLocal9] = &HandlePushLocal9;
-        table[(byte)Opcode.PushLocal10] = &HandlePushLocal10;
-        table[(byte)Opcode.PushLocal11] = &HandlePushLocal11;
-        table[(byte)Opcode.PushLocal12] = &HandlePushLocal12;
-        table[(byte)Opcode.PushLocal13] = &HandlePushLocal13;
-        table[(byte)Opcode.PushLocal14] = &HandlePushLocal14;
-        table[(byte)Opcode.PushLocal15] = &HandlePushLocal15;
-
-        table[(byte)Opcode.AssignLocal0] = &HandleAssignLocal0;
-        table[(byte)Opcode.AssignLocal1] = &HandleAssignLocal1;
-        table[(byte)Opcode.AssignLocal2] = &HandleAssignLocal2;
-        table[(byte)Opcode.AssignLocal3] = &HandleAssignLocal3;
-        table[(byte)Opcode.AssignLocal4] = &HandleAssignLocal4;
-        table[(byte)Opcode.AssignLocal5] = &HandleAssignLocal5;
-        table[(byte)Opcode.AssignLocal6] = &HandleAssignLocal6;
-        table[(byte)Opcode.AssignLocal7] = &HandleAssignLocal7;
-        table[(byte)Opcode.AssignLocal8] = &HandleAssignLocal8;
-        table[(byte)Opcode.AssignLocal9] = &HandleAssignLocal9;
-        table[(byte)Opcode.AssignLocal10] = &HandleAssignLocal10;
-        table[(byte)Opcode.AssignLocal11] = &HandleAssignLocal11;
-        table[(byte)Opcode.AssignLocal12] = &HandleAssignLocal12;
-        table[(byte)Opcode.AssignLocal13] = &HandleAssignLocal13;
-        table[(byte)Opcode.AssignLocal14] = &HandleAssignLocal14;
-        table[(byte)Opcode.AssignLocal15] = &HandleAssignLocal15;
-
-        table[(byte)Opcode.CallGlobalProc] = &HandleCallGlobalProc;
-
-        return table;
-    }
-
-    private static void HandleUnknownOpcode(ref InterpreterState state)
-    {
-        throw new ScriptRuntimeException($"Unknown opcode: 0x{(byte)state.BytecodePtr[state.PC - 1]:X2}", state.Proc, state.PC - 1, state.Thread);
-    }
-
     private static void HandleGetVariable(ref InterpreterState state)
     {
-        var nameId = state.ReadInt32();
+        int id = state.ReadInt32();
+        int pcForCache = state.PC - 5;
         var instance = state.Frame.Instance;
         DreamValue val = DreamValue.Null;
         if (instance != null)
         {
-            var name = state.Strings[nameId];
-            int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
-            val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
+            // Persistent Inline Cache: utilize opcode-relative addressing for fast property access
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == instance.ObjectType)
+            {
+                val = instance.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[id];
+                int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (idx != -1)
+                {
+                    cache.ObjectType = instance.ObjectType;
+                    cache.VariableIndex = idx;
+                    val = instance.GetVariableDirect(idx);
+                }
+                else val = instance.GetVariable(name);
+            }
         }
         state.Push(val);
     }
 
     private static void HandleSetVariable(ref InterpreterState state)
     {
-        var nameId = state.ReadInt32();
+        int id = state.ReadInt32();
+        int pcForCache = state.PC - 5;
         var val = state.Pop();
-        if (state.Frame.Instance != null)
+        var instance = state.Frame.Instance;
+        if (instance != null)
         {
-            var name = state.Strings[nameId];
-            int idx = state.Frame.Instance.ObjectType?.GetVariableIndex(name) ?? -1;
-            if (idx != -1) state.Frame.Instance.SetVariableDirect(idx, val);
-            else state.Frame.Instance.SetVariable(name, val);
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == instance.ObjectType)
+            {
+                instance.SetVariableDirect(cache.VariableIndex, val);
+            }
+            else
+            {
+                var name = state.Strings[id];
+                int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (idx != -1)
+                {
+                    cache.ObjectType = instance.ObjectType;
+                    cache.VariableIndex = idx;
+                    instance.SetVariableDirect(idx, val);
+                }
+                else instance.SetVariable(name, val);
+            }
         }
     }
 

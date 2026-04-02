@@ -711,6 +711,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator -(DreamValue a)
         {
+            if (a.Type == DreamValueType.Integer) return new DreamValue(-a._longValue);
             return new DreamValue(-a.GetValueAsDouble());
         }
 

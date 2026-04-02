@@ -84,14 +84,29 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleDereferenceField(ref InterpreterState state)
     {
         if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during DereferenceField", state.Proc, state.PC, state.Thread);
+        int pcForCache = state.PC - 1;
         var nameId = state.ReadInt32();
         var objValue = state.Pop();
         DreamValue val = DreamValue.Null;
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
-            var name = state.Strings[nameId];
-            int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
-            val = idx != -1 ? obj.GetVariableDirect(idx) : obj.GetVariable(name);
+            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            if (cache.ObjectType == obj.ObjectType)
+            {
+                val = obj.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int idx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (idx != -1)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.VariableIndex = idx;
+                    val = obj.GetVariableDirect(idx);
+                }
+                else val = obj.GetVariable(name);
+            }
         }
         state.Push(val);
     }

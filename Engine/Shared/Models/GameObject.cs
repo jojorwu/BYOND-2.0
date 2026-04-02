@@ -410,6 +410,17 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         {
             var current = _variableStore.Get(index);
             if (current.Equals(value)) return;
+
+            // Fast-path for built-in variables to bypass dictionary lookups in OnVariableChanged
+            var type = ObjectType;
+            if (type != null)
+            {
+                if (index == type.XIndex) { Position = new Robust.Shared.Maths.Vector3l(value.RawLong, Y, Z); MarkFieldDirty(GameObjectFields.PositionX); _variableStore.Set(index, value); if (!suppressVersion) IncrementVersion(); return; }
+                if (index == type.YIndex) { Position = new Robust.Shared.Maths.Vector3l(X, value.RawLong, Z); MarkFieldDirty(GameObjectFields.PositionY); _variableStore.Set(index, value); if (!suppressVersion) IncrementVersion(); return; }
+                if (index == type.ZIndex) { Position = new Robust.Shared.Maths.Vector3l(X, Y, value.RawLong); MarkFieldDirty(GameObjectFields.PositionZ); _variableStore.Set(index, value); if (!suppressVersion) IncrementVersion(); return; }
+                if (index == type.LocIndex) { SetLocInternal((value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) ? loc : null, false); _variableStore.Set(index, value); if (!suppressVersion) IncrementVersion(); return; }
+            }
+
             _variableStore.Set(index, value);
             if (!suppressVersion) IncrementVersion();
             OnVariableChanged(index, value);

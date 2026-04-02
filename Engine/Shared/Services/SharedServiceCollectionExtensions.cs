@@ -151,10 +151,6 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<ISnapshotSerializer, BitPackedSnapshotSerializer>();
         services.AddSingleton<ISnapshotManager, SnapshotManager>();
         services.AddSingleton<IStateInterpolator, InterpolationService>();
-        services.AddSingleton<IInterpolatedProperty, PositionProperty>();
-        services.AddSingleton<IInterpolatedProperty, AlphaProperty>();
-        services.AddSingleton<IInterpolatedProperty, LayerProperty>();
-        services.AddSingleton<IInterpolatedProperty, RotationProperty>();
         services.AddSingleton<INetworkTimeService, NetworkTimeService>();
         services.AddSingleton<INetworkSender, NetworkSender>();
         services.AddEngineService<BinarySnapshotService>();

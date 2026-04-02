@@ -7,8 +7,9 @@ public class Snapshot
 {
     public double Timestamp;
     public long[] ObjectIds = Array.Empty<long>();
-    public ObjectState[] ObjectStates = Array.Empty<ObjectState>();
+    public byte[] StateBuffer = Array.Empty<byte>();
     public int Count;
+    public int StateStride;
 
     public void Reset()
     {
@@ -16,34 +17,13 @@ public class Snapshot
         Count = 0;
     }
 
-    public bool TryGetState(long id, out ObjectState state)
+    public ReadOnlySpan<byte> GetStateSpan(long id)
     {
         int index = Array.BinarySearch(ObjectIds, 0, Count, id);
         if (index >= 0)
         {
-            state = ObjectStates[index];
-            return true;
+            return StateBuffer.AsSpan(index * StateStride, StateStride);
         }
-        state = default;
-        return false;
+        return ReadOnlySpan<byte>.Empty;
     }
-}
-
-public struct ObjectState
-{
-    public long X;
-    public long Y;
-    public long Z;
-    public float Rotation;
-    public VisualData Visuals;
-}
-
-public struct VisualData
-{
-    public int Dir;
-    public double Alpha;
-    public double Layer;
-    public string Icon;
-    public string IconState;
-    public string Color;
 }

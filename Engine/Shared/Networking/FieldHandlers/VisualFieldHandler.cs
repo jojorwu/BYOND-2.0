@@ -45,4 +45,29 @@ public class VisualFieldHandler : INetworkFieldHandler
         if ((currentMask & GameObjectFields.PixelX) != 0) reader.ReadDouble();
         if ((currentMask & GameObjectFields.PixelY) != 0) reader.ReadDouble();
     }
+
+    public int SnapshotStateSize => 2 * sizeof(double); // Alpha and Layer
+
+    public void SaveState(Span<byte> destination, IGameObject obj)
+    {
+        double alpha = obj.Alpha;
+        double layer = obj.Layer;
+        System.Runtime.InteropServices.MemoryMarshal.Write(destination.Slice(0, 8), in alpha);
+        System.Runtime.InteropServices.MemoryMarshal.Write(destination.Slice(8, 8), in layer);
+    }
+
+    public void Interpolate(IGameObject obj, ReadOnlySpan<byte> from, ReadOnlySpan<byte> to, double t)
+    {
+        double fa = System.Runtime.InteropServices.MemoryMarshal.Read<double>(from.Slice(0, 8));
+        double fl = System.Runtime.InteropServices.MemoryMarshal.Read<double>(from.Slice(8, 8));
+
+        double ta = System.Runtime.InteropServices.MemoryMarshal.Read<double>(to.Slice(0, 8));
+        double tl = System.Runtime.InteropServices.MemoryMarshal.Read<double>(to.Slice(8, 8));
+
+        if (obj is GameObject g)
+        {
+            g.RenderState.Alpha = fa + (ta - fa) * t;
+            g.RenderState.Layer = fl + (tl - fl) * t;
+        }
+    }
 }

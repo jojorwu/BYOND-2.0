@@ -11,6 +11,14 @@ public class SnapshotManager : ISnapshotManager
 {
     private readonly RingBuffer<Snapshot> _snapshotQueue = new(20);
     private readonly Stack<Snapshot> _snapshotPool = new();
+    private readonly List<INetworkFieldHandler> _fieldHandlers;
+    private readonly int _stateStride;
+
+    public SnapshotManager(IEnumerable<INetworkFieldHandler> fieldHandlers)
+    {
+        _fieldHandlers = fieldHandlers.OrderBy(h => h.Priority).ToList();
+        _stateStride = _fieldHandlers.Sum(h => h.SnapshotStateSize);
+    }
 
     public void AddSnapshot(double timestamp, IEnumerable<IGameObject> objects)
     {
@@ -23,6 +31,7 @@ public class SnapshotManager : ISnapshotManager
 
         if (!_snapshotPool.TryPop(out var snapshot)) snapshot = new Snapshot();
         snapshot.Timestamp = timestamp;
+        snapshot.StateStride = _stateStride;
 
         int count = 0;
         if (objects is ICollection<IGameObject> coll) count = coll.Count;
@@ -31,7 +40,7 @@ public class SnapshotManager : ISnapshotManager
         if (snapshot.ObjectIds.Length < count)
         {
             snapshot.ObjectIds = new long[count * 2];
-            snapshot.ObjectStates = new ObjectState[count * 2];
+            snapshot.StateBuffer = new byte[count * 2 * _stateStride];
         }
 
         var tempObjects = System.Buffers.ArrayPool<IGameObject>.Shared.Rent(count);
@@ -46,20 +55,14 @@ public class SnapshotManager : ISnapshotManager
             {
                 var obj = tempObjects[i];
                 snapshot.ObjectIds[i] = obj.Id;
-                snapshot.ObjectStates[i] = new ObjectState {
-                    X = obj.X,
-                    Y = obj.Y,
-                    Z = obj.Z,
-                    Rotation = obj.Rotation,
-                    Visuals = new VisualData {
-                        Dir = obj.Dir,
-                        Alpha = obj.Alpha,
-                        Layer = obj.Layer,
-                        Icon = obj.Icon,
-                        IconState = obj.IconState,
-                        Color = obj.Color
-                    }
-                };
+
+                var stateSpan = snapshot.StateBuffer.AsSpan(i * _stateStride, _stateStride);
+                int offset = 0;
+                foreach (var handler in _fieldHandlers)
+                {
+                    handler.SaveState(stateSpan.Slice(offset, handler.SnapshotStateSize), obj);
+                    offset += handler.SnapshotStateSize;
+                }
             }
         }
         finally

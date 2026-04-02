@@ -8,8 +8,3 @@ public interface IStateInterpolator
 {
     void Interpolate(GameState world, Snapshot from, Snapshot to, double t);
 }
-
-public interface IInterpolatedProperty
-{
-    void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t);
-}

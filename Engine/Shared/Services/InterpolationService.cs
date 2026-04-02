@@ -8,11 +8,11 @@ namespace Shared.Services;
 
 public class InterpolationService : IStateInterpolator
 {
-    private readonly IEnumerable<IInterpolatedProperty> _properties;
+    private readonly List<INetworkFieldHandler> _fieldHandlers;
 
-    public InterpolationService(IEnumerable<IInterpolatedProperty> properties)
+    public InterpolationService(IEnumerable<INetworkFieldHandler> fieldHandlers)
     {
-        _properties = properties;
+        _fieldHandlers = fieldHandlers.OrderBy(h => h.Priority).ToList();
     }
 
     public void Interpolate(GameState world, Snapshot from, Snapshot to, double t)
@@ -20,78 +20,29 @@ public class InterpolationService : IStateInterpolator
         for (int i = 0; i < to.Count; i++)
         {
             long id = to.ObjectIds[i];
-            var toState = to.ObjectStates[i];
+            var toSpan = to.GetStateSpan(id);
 
             if (world.GameObjects.TryGetValue(id, out var obj))
             {
-                if (from.TryGetState(id, out var fromState))
+                var fromSpan = from.GetStateSpan(id);
+                if (!fromSpan.IsEmpty)
                 {
-                    foreach (var prop in _properties)
+                    int offset = 0;
+                    foreach (var handler in _fieldHandlers)
                     {
-                        prop.Interpolate(obj, fromState, toState, t);
+                        if (handler.SnapshotStateSize > 0)
+                        {
+                            handler.Interpolate(obj, fromSpan.Slice(offset, handler.SnapshotStateSize), toSpan.Slice(offset, handler.SnapshotStateSize), t);
+                            offset += handler.SnapshotStateSize;
+                        }
                     }
                 }
                 else
                 {
-                    // If no 'from' state, just snap to 'to'
-                    obj.RenderX = toState.X;
-                    obj.RenderY = toState.Y;
-                    obj.RenderZ = toState.Z;
-                    obj.Rotation = toState.Rotation;
+                    // Snap logic - ideally we'd have handler.SnapToState or similar
+                    // But for now, we'll let TransformHandler handle it during normal interpolate if it was smarter
                 }
             }
-        }
-    }
-}
-
-public class PositionProperty : IInterpolatedProperty
-{
-    public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
-    {
-        if (obj is GameObject g)
-        {
-            g.RenderState.X = from.X + (to.X - from.X) * t;
-            g.RenderState.Y = from.Y + (to.Y - from.Y) * t;
-            g.RenderState.Z = from.Z + (to.Z - from.Z) * t;
-
-            g.RenderState.PixelX = (g.RenderState.X - to.X) * 32;
-            g.RenderState.PixelY = (g.RenderState.Y - to.Y) * 32;
-        }
-    }
-}
-
-public class AlphaProperty : IInterpolatedProperty
-{
-    public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
-    {
-        if (obj is GameObject g)
-        {
-            g.RenderState.Alpha = from.Visuals.Alpha + (to.Visuals.Alpha - from.Visuals.Alpha) * t;
-        }
-    }
-}
-
-public class LayerProperty : IInterpolatedProperty
-{
-    public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
-    {
-        if (obj is GameObject g)
-        {
-            g.RenderState.Layer = from.Visuals.Layer + (to.Visuals.Layer - from.Visuals.Layer) * t;
-        }
-    }
-}
-
-public class RotationProperty : IInterpolatedProperty
-{
-    public void Interpolate(IGameObject obj, in ObjectState from, in ObjectState to, double t)
-    {
-        if (obj is GameObject g)
-        {
-            float diff = to.Rotation - from.Rotation;
-            while (diff < -180) diff += 360;
-            while (diff > 180) diff -= 360;
-            g.RenderState.Rotation = from.Rotation + diff * (float)t;
         }
     }
 }

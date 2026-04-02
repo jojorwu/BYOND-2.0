@@ -24,4 +24,8 @@ public class TypeFieldHandler : INetworkFieldHandler
     {
         // Type was already consumed in DeserializeBitPacked before deciding to skip or read other fields
     }
+
+    public int SnapshotStateSize => 0;
+    public void SaveState(Span<byte> destination, IGameObject obj) { }
+    public void Interpolate(IGameObject obj, ReadOnlySpan<byte> from, ReadOnlySpan<byte> to, double t) { }
 }

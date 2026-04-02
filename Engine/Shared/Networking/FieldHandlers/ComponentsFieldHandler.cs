@@ -91,4 +91,8 @@ public class ComponentsFieldHandler : INetworkFieldHandler
             reader.SkipBits(payloadBits);
         }
     }
+
+    public int SnapshotStateSize => 0;
+    public void SaveState(Span<byte> destination, IGameObject obj) { }
+    public void Interpolate(IGameObject obj, ReadOnlySpan<byte> from, ReadOnlySpan<byte> to, double t) { }
 }

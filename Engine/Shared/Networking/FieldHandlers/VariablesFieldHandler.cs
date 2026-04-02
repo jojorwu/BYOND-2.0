@@ -38,6 +38,10 @@ public class VariablesFieldHandler : INetworkFieldHandler
         for (int i = 0; i < count; i++) { reader.ReadVarInt(); DreamValue.BitReadFrom(ref reader); }
     }
 
+    public int SnapshotStateSize => 0;
+    public void SaveState(Span<byte> destination, IGameObject obj) { }
+    public void Interpolate(IGameObject obj, ReadOnlySpan<byte> from, ReadOnlySpan<byte> to, double t) { }
+
     public struct ChangeCounter : GameObject.IChangeVisitor
     {
         public int Count;

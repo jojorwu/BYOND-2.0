@@ -126,11 +126,33 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<LoggingPacketMiddleware>();
         services.AddSingleton<IPacketDispatcher>(sp =>
         {
-            var dispatcher = new PacketDispatcher(sp.GetRequiredService<IJobSystem>());
+            var dispatcher = new PacketDispatcher(sp.GetRequiredService<IJobSystem>(), sp);
             dispatcher.AddMiddleware(sp.GetRequiredService<LoggingPacketMiddleware>());
             return dispatcher;
         });
+
+        // Register Packet Handlers
+        services.AddSingleton<IPacketHandler, Shared.Networking.Handlers.SnapshotHandler>();
+        services.AddSingleton<IPacketHandler, Shared.Networking.Handlers.NetworkMessageHandler>();
+
+        // Register Message Handlers
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.SoundMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.StopSoundMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.CVarSyncMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.ClientCommandMessageHandler>();
+        services.AddSingleton<Shared.Networking.Handlers.IMessageHandler, Shared.Networking.Handlers.ClientInputMessageHandler>();
+
         services.AddSingleton<ISnapshotProvider, SnapshotProvider>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.TypeFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.TransformFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.VisualFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.VariablesFieldHandler>();
+        services.AddSingleton<INetworkFieldHandler, Shared.Networking.FieldHandlers.ComponentsFieldHandler>();
+        services.AddSingleton<ISnapshotSerializer, BitPackedSnapshotSerializer>();
+        services.AddSingleton<ISnapshotManager, SnapshotManager>();
+        services.AddSingleton<IStateInterpolator, InterpolationService>();
+        services.AddSingleton<INetworkTimeService, NetworkTimeService>();
+        services.AddSingleton<INetworkSender, NetworkSender>();
         services.AddEngineService<BinarySnapshotService>();
         services.AddEngineService<SpatialGrid>();
         services.AddEngineService<InterestManager>(typeof(IInterestManager));

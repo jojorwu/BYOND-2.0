@@ -5,6 +5,7 @@ namespace Core
         Full,
         Delta,
         Binary,
+        BitPackedDelta,
         Json,
         Sound,
         StopSound,

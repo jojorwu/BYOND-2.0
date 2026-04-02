@@ -49,8 +49,9 @@ namespace tests
             var rm = new Mock<IRegionManager>().Object;
             var perf = new PerformanceMonitor(new Mock<ILogger<PerformanceMonitor>>().Object, new Mock<IDiagnosticBus>().Object, new Mock<IProfilingService>().Object);
             var im = new Mock<IInterestManager>().Object;
+            var sp = new Mock<IServiceProvider>().Object;
 
-            var context = new ServerContext(gs, pm, Options.Create(set), rm, perf, im);
+            var context = new ServerContext(gs, pm, Options.Create(set), rm, perf, im, sp);
 
             Assert.That(context.GameState, Is.SameAs(gs));
             Assert.That(context.PlayerManager, Is.SameAs(pm));

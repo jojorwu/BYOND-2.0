@@ -1,49 +1,20 @@
+using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Services;
 using Shared.Interfaces;
-using Client.Graphics;
-using Client.Assets;
-using Client.UI;
+using Client.Services;
 
-namespace Client
+namespace Client;
+
+public static class ServiceCollectionExtensions
 {
-    public static class ServiceCollectionExtensions
+    public static IServiceCollection AddClientServices(this IServiceCollection services)
     {
-        /// <summary>
-        /// Registers all client-specific services, including the game engine, asset caches, and shaders.
-        /// </summary>
-        public static IServiceCollection AddClientServices(this IServiceCollection services)
-        {
-            return services
-                .AddSharedEngineServices()
-                .AddEngineModule<Core.CoreModule>()
-                .AddClientCoreServices()
-                .AddClientAssetServices();
-        }
+        services.AddSharedEngineServices();
+        services.AddSingleton<Game>();
+        services.AddSingleton<IClientObjectManager, ClientObjectManager>();
 
-        private static IServiceCollection AddClientCoreServices(this IServiceCollection services)
-        {
-            services.AddSingleton<Game>();
-            services.AddSingleton<IClient>(p => p.GetRequiredService<Game>());
-
-            services.AddSingleton<ClientApplication>();
-            services.AddSingleton<IEngine>(p => p.GetRequiredService<ClientApplication>());
-            services.AddHostedService(p => p.GetRequiredService<ClientApplication>());
-
-            return services;
-        }
-
-        private static IServiceCollection AddClientAssetServices(this IServiceCollection services)
-        {
-            services.AddEngineServicesFromAssembly(typeof(ServiceCollectionExtensions).Assembly);
-            services.AddSingleton<ISoundSystem, MockSoundSystem>();
-
-            return services;
-        }
-    }
-
-    public interface IClient
-    {
-        void Run();
+        return services;
     }
 }

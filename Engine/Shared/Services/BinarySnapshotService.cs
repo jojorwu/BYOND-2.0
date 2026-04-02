@@ -1,21 +1,23 @@
 using System;
 using System.IO;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Utils;
+using Shared.Models;
 
 namespace Shared.Services;
     public class BinarySnapshotService : EngineService, IShrinkable
     {
         private readonly StringInterner? _interner;
+        private readonly ISnapshotSerializer _serializer;
         private readonly ThreadLocal<Dictionary<long, (int BufferOffset, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (int BufferOffset, int Length, long Version)>(), trackAllValues: true);
         private readonly SnapshotBuffer _buffer = new();
         private long _bufferVersion = 1;
 
-        public BinarySnapshotService(StringInterner? interner = null)
+        public BinarySnapshotService(ISnapshotSerializer serializer, StringInterner? interner = null)
         {
+            _serializer = serializer;
             _interner = interner;
         }
 
@@ -39,7 +41,6 @@ namespace Shared.Services;
             int offset = 0;
             truncated = false;
 
-            // Fast-path: detect common collection types to avoid IEnumerable overhead
             if (objects is IReadOnlyList<IGameObject> list)
             {
                 int count = list.Count;
@@ -66,10 +67,15 @@ namespace Shared.Services;
 
             if (offset < destination.Length)
             {
-                offset += Utils.VarInt.Write(destination.Slice(offset), 0); // End of stream marker
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
             }
 
             return offset;
+        }
+
+        public void SerializeBitPackedDelta(ref BitWriter writer, IEnumerable<IGameObject> objects, IDictionary<long, long>? lastVersions)
+        {
+            _serializer.SerializeBitPackedDelta(ref writer, objects, lastVersions);
         }
 
         public int SerializeBatches(Span<byte> destination, IEnumerable<ReactiveStateSystem.DeltaBatch> batches, out bool truncated)
@@ -82,7 +88,7 @@ namespace Shared.Services;
                 if (offset + 128 > destination.Length) { truncated = true; break; }
 
                 offset += Utils.VarInt.Write(destination.Slice(offset), batch.EntityId);
-                offset += Utils.VarInt.Write(destination.Slice(offset), 0); // Placeholder for version (incremental batches don't need full version check)
+                offset += Utils.VarInt.Write(destination.Slice(offset), 0);
 
                 var changes = batch.Changes;
                 offset += Utils.VarInt.Write(destination.Slice(offset), changes.Count);
@@ -142,7 +148,6 @@ namespace Shared.Services;
                 return false;
             }
 
-            // Delta Caching: Check if we've already serialized this object state in the current tick
             var cache = _deltaCache.Value!;
             if (cache.TryGetValue(obj.Id, out var cached) && cached.Version == obj.Version)
             {
@@ -157,8 +162,6 @@ namespace Shared.Services;
                 return false;
             }
 
-            // High-performance path: Serialize into a temporary segment in the persistent slab first
-            // We use a safe estimate of 1024 bytes per object for the temporary write.
             int slabOffset;
             var slabSpan = _buffer.AcquireSegment(Math.Min(1024, _buffer.Capacity - _buffer.Position), out slabOffset);
 
@@ -184,8 +187,6 @@ namespace Shared.Services;
 
                     if (serializer.Truncated)
                     {
-                        // Slab segment too small, fall back to safe but slower path or handle properly
-                        // For now we assume 1024 is enough or the buffer throws on overflow
                         truncated = true;
                         return true;
                     }
@@ -197,10 +198,8 @@ namespace Shared.Services;
                 localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), 0);
             }
 
-            // Store in cache
             cache[obj.Id] = (slabOffset, localOffset, obj.Version);
 
-            // Copy to destination
             if (offset + localOffset > destination.Length)
             {
                 truncated = true;
@@ -311,7 +310,6 @@ namespace Shared.Services;
                 }
             }
 
-            // Second pass: Resolve references
             foreach (var (target, propIdx, refId) in unresolvedReferences)
             {
                 if (world.TryGetValue(refId, out var refObj))
@@ -323,5 +321,10 @@ namespace Shared.Services;
                     target.SetVariableDirect(propIdx, DreamValue.Null);
                 }
             }
+        }
+
+        public void DeserializeBitPacked(ref BitReader reader, IDictionary<long, GameObject> world, IObjectTypeManager typeManager, IObjectFactory factory)
+        {
+            _serializer.DeserializeBitPacked(ref reader, world, typeManager, factory);
         }
     }

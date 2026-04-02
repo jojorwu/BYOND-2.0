@@ -12,6 +12,8 @@ using Client.Assets;
 using Client.UI;
 using ImGuiNET;
 using Silk.NET.OpenGL.Extensions.ImGui;
+using Shared.Interfaces;
+using Shared.Messaging;
 using Shared;
 using Shared.Config;
 using Shared.Enums;
@@ -28,7 +30,7 @@ namespace Client
         InGame
     }
 
-    public class Game : IClient
+    public class Game
     {
         private readonly IObjectTypeManager _typeManager;
         private readonly IObjectFactory _objectFactory;
@@ -236,15 +238,29 @@ new MyShader()
                 if (_connectionPanel.IsConnectRequested)
                 {
                     _connectionPanel.IsConnectRequested = false;
-                    _logicThread = new LogicThread(_connectionPanel.ServerAddress, _typeManager, _objectFactory);
-                    _logicThread.SoundReceived += (sound) => _soundSystem.Play(sound);
-                    _logicThread.StopSoundReceived += (file, objId) => _soundSystem.Stop(file, objId);
-                    _logicThread.CVarSyncReceived += (key, val) =>
+
+                    var timeService = _serviceProvider.GetRequiredService<INetworkTimeService>();
+                    // Mock sync for now
+                    timeService.Synchronize(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0, 0.05);
+
+                    var eventBus = _serviceProvider.GetRequiredService<IEventBus>();
+                    eventBus.Subscribe<Shared.Events.SoundEvent>(e => _soundSystem.Play(e.Data));
+                    eventBus.Subscribe<Shared.Events.StopSoundEvent>(e => _soundSystem.Stop(e.File, e.ObjectId));
+                    eventBus.Subscribe<Shared.Events.CVarSyncEvent>(e =>
                     {
-                        if (_configManager is ConfigurationManager mgr) mgr.SetCVarDirect(key, val);
-                        else _configManager.SetCVar(key, val);
-                    };
-                    _previousState = _logicThread.PreviousState;
+                        if (_configManager is ConfigurationManager mgr) mgr.SetCVarDirect(e.Key, e.Value);
+                        else _configManager.SetCVar(e.Key, e.Value);
+                    });
+
+                    var gameState = new GameState();
+                    _logicThread = new LogicThread(
+                        _connectionPanel.ServerAddress,
+                        gameState,
+                        _serviceProvider.GetRequiredService<ISnapshotManager>(),
+                        _serviceProvider.GetRequiredService<IStateInterpolator>(),
+                        _serviceProvider.GetRequiredService<IPacketDispatcher>(),
+                        timeService,
+                        _serviceProvider.GetRequiredService<INetworkSender>());
                     _currentState = _logicThread.CurrentState;
                     _logicThread.Start();
                     _clientState = ClientState.InGame;
@@ -252,15 +268,14 @@ new MyShader()
             }
             else if (_clientState == ClientState.InGame)
             {
+                _logicThread.UpdateRenderState();
+                _currentState = _logicThread.GetStateForRender();
+
                 _accumulator += deltaTime;
 
                 while (_accumulator >= LogicThread.TimeStep)
                 {
-                    var states = _logicThread.GetStatesForRender();
-                    _previousState = states.Item1;
-                    _currentState = states.Item2;
                     _accumulator -= LogicThread.TimeStep;
-
                     UpdatePlayerObject();
                 }
 
@@ -326,7 +341,7 @@ new MyShader()
                 {
                     var renderContext = new RenderContext(
                         _gl!,
-                        _previousState,
+                        null,
                         _currentState,
                         _alpha,
                         GetCullRect(),

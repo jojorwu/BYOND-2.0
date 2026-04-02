@@ -2,6 +2,12 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 
 namespace Shared;
+
+    public interface IComponentVisitor
+    {
+        void Visit(IComponent component);
+    }
+
     /// <summary>
     /// Represents a primary entity within the game world.
     /// </summary>
@@ -98,6 +104,19 @@ namespace Shared;
         double CommittedPixelX { get; }
         double CommittedPixelY { get; }
 
+        double Alpha { get; set; }
+        string Color { get; set; }
+        double PixelX { get; set; }
+        double PixelY { get; set; }
+        double Layer { get; set; }
+
+        string Icon { get; set; }
+        string IconState { get; set; }
+
+        double RenderX { get; set; }
+        double RenderY { get; set; }
+        double RenderZ { get; set; }
+
         /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>
@@ -144,6 +163,11 @@ namespace Shared;
         IEnumerable<IComponent> GetComponents();
 
         /// <summary>
+        /// Visits all components attached to this object without allocation.
+        /// </summary>
+        void VisitComponents<T>(ref T visitor) where T : struct, IComponentVisitor, allows ref struct;
+
+        /// <summary>
         /// Gets a component of the specified type.
         /// </summary>
         T? GetComponent<T>() where T : class, IComponent;
@@ -187,4 +211,19 @@ namespace Shared;
         /// Subscribes a listener to all variable changes on this object.
         /// </summary>
         void SubscribeToVariables(IVariableChangeListener listener);
+
+        /// <summary>
+        /// Gets the mask of fields that have changed since the last clear.
+        /// </summary>
+        Shared.Enums.GameObjectFields GetChangeMask();
+
+        /// <summary>
+        /// Clears the field change tracking mask.
+        /// </summary>
+        void ClearChangeMask();
+
+        /// <summary>
+        /// Gets or sets the rotation of the object.
+        /// </summary>
+        float Rotation { get; set; }
     }

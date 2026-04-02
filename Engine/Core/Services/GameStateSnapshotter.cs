@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using Shared;
 using Shared.Services;
+using Shared.Utils;
 
 namespace Core
 {
@@ -59,9 +60,6 @@ namespace Core
         {
             using (gameState.ReadLock())
             {
-                // Optimization: only snapshot dirty objects if possible, but for a full world snapshot
-                // we usually need all currently active objects. sparse snapshotting is better handled
-                // at the connection level tracking.
                 var objects = gameState.GameObjects.Values;
                 int bufferSize = Math.Max(65536, objects.Count * 64);
                 while (true)
@@ -69,25 +67,30 @@ namespace Core
                     var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
-                        if (!truncated)
-                        {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
-                        }
+                        var writer = new BitWriter(buffer);
+                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+                        byte[] result = new byte[writer.BytesWritten];
+                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+                        return result;
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        bufferSize *= 2;
+                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
                     }
                     finally
                     {
                         ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bufferSize *= 2;
                 }
             }
         }
 
         public byte[] GetSparseBinarySnapshot(IGameState gameState)
         {
+            // If we have a reactive system, we should ideally use BitPacked as well
+            // But for now let's focus on the primary binary snapshot which is used for full/regional updates
+
             if (_reactiveSystem != null)
             {
                 var batches = _reactiveSystem.ConsumeBatches().ToList();
@@ -126,19 +129,21 @@ namespace Core
                     var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
-                        if (!truncated)
-                        {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
-                        }
+                        var writer = new BitWriter(buffer);
+                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+                        byte[] result = new byte[writer.BytesWritten];
+                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+                        return result;
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        bufferSize *= 2;
+                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
                     }
                     finally
                     {
                         ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bufferSize *= 2;
                 }
             }
         }
@@ -151,22 +156,24 @@ namespace Core
                 int bufferSize = Math.Max(65536, objects.Count * 64);
                 while (true)
                 {
-                    var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(bufferSize);
+                    var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
                     try
                     {
-                        int bytesWritten = _binarySnapshotService.SerializeTo(buffer, objects, null, out bool truncated);
-                        if (!truncated)
-                        {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
-                        }
+                        var writer = new BitWriter(buffer);
+                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
+                        byte[] result = new byte[writer.BytesWritten];
+                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
+                        return result;
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        bufferSize *= 2;
+                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
                     }
                     finally
                     {
-                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                        ArrayPool<byte>.Shared.Return(buffer);
                     }
-                    bufferSize *= 2;
                 }
             }
         }

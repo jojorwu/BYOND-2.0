@@ -2,16 +2,25 @@ using System;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
+using System.Collections.Generic;
+using System.Linq;
 using Core;
 using Shared;
 using Shared.Interfaces;
+using Shared.Utils;
+using Shared.Services;
 using LiteNetLib;
+using Client.Networking;
 
 namespace Client
 {
     public class LogicThread
     {
-        public GameState PreviousState { get; private set; }
+        private readonly ISnapshotManager _snapshotManager;
+        private readonly IStateInterpolator _stateInterpolator;
+        private readonly IPacketDispatcher _packetDispatcher;
+        private readonly INetworkTimeService _timeService;
+        private readonly INetworkSender _networkSender;
         public GameState CurrentState { get; private set; }
 
         private readonly object _lock = new object();
@@ -19,45 +28,47 @@ namespace Client
         private bool _isRunning;
         public const int TicksPerSecond = 30;
         public const float TimeStep = 1.0f / TicksPerSecond;
+        private const double InterpolationDelay = 0.1;
 
         private readonly NetManager _netManager;
         private readonly EventBasedNetListener _listener;
         private readonly string _serverAddress;
-        private readonly IObjectTypeManager _typeManager;
-        private readonly IObjectFactory _objectFactory;
-        private readonly Shared.Services.BinarySnapshotService _binaryService;
+        private readonly Stopwatch _gameTime = new();
+        private LiteNetNetworkPeer? _serverPeer;
 
-        public event Action<SoundData>? SoundReceived;
-        public event Action<string, long?>? StopSoundReceived;
-        public event Action<string, object>? CVarSyncReceived;
-
-        public LogicThread(string serverAddress, IObjectTypeManager typeManager, IObjectFactory objectFactory)
+        public LogicThread(string serverAddress, GameState gameState, ISnapshotManager snapshotManager, IStateInterpolator stateInterpolator, IPacketDispatcher packetDispatcher, INetworkTimeService timeService, INetworkSender networkSender)
         {
-            PreviousState = new GameState();
-            CurrentState = new GameState();
+            CurrentState = gameState;
+            _snapshotManager = snapshotManager;
+            _stateInterpolator = stateInterpolator;
+            _packetDispatcher = packetDispatcher;
+            _timeService = timeService;
+            _networkSender = networkSender;
+
+            _packetDispatcher.Initialize();
+
             _listener = new EventBasedNetListener();
             _netManager = new NetManager(_listener);
             _thread = new Thread(GameLoop);
             _serverAddress = serverAddress;
-            _typeManager = typeManager;
-            _objectFactory = objectFactory;
-            _binaryService = new Shared.Services.BinarySnapshotService();
 
             _listener.NetworkReceiveEvent += OnNetworkReceive;
+            _listener.PeerConnectedEvent += (peer) => _serverPeer = new LiteNetNetworkPeer(peer);
         }
 
         public void Start()
         {
             _isRunning = true;
             _netManager.Start();
+            _gameTime.Start();
 
             var parts = _serverAddress.Split(':');
             var host = parts[0];
-            var port = parts.Length > 1 ? int.Parse(parts[1]) : 9050; // Default port
+            var port = parts.Length > 1 ? int.Parse(parts[1]) : 9050;
 
             var writer = new LiteNetLib.Utils.NetDataWriter();
             writer.Put("BYOND2.0");
-            writer.Put("Player" + Random.Shared.Next(100, 999)); // Example nickname
+            writer.Put("Player" + Random.Shared.Next(100, 999));
             _netManager.Connect(host, port, writer);
             _thread.Start();
         }
@@ -71,127 +82,52 @@ namespace Client
 
         private void GameLoop()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
-            double lastTime = stopwatch.Elapsed.TotalSeconds;
-            double accumulator = 0;
-
             while (_isRunning)
             {
                 _netManager.PollEvents();
-
-                double currentTime = stopwatch.Elapsed.TotalSeconds;
-                double frameTime = currentTime - lastTime;
-                lastTime = currentTime;
-                accumulator += frameTime;
-
-                while (accumulator >= TimeStep)
-                {
-                    // Update logic is now driven by server responses
-                    accumulator -= TimeStep;
-                }
-
-                Thread.Sleep(15);
+                Thread.Sleep(5);
             }
         }
 
         public void SendCommand(string command)
         {
-            if (_netManager.FirstPeer != null && _netManager.FirstPeer.ConnectionState == ConnectionState.Connected)
-            {
-                var writer = new LiteNetLib.Utils.NetDataWriter();
-                writer.Put(command);
-                _netManager.FirstPeer.Send(writer, DeliveryMethod.ReliableOrdered);
-            }
+            if (_serverPeer == null) return;
+            _networkSender.SendAsync(_serverPeer, new Shared.Networking.Messages.ClientCommandMessage { Command = command });
         }
 
-        private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+        private async void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
-            // First byte is the message type. We may have other types later.
-            var messageType = (SnapshotMessageType)reader.GetByte();
+            if (_serverPeer == null) return;
 
-            if (messageType == SnapshotMessageType.Binary)
-            {
-                byte[] data = new byte[reader.AvailableBytes];
-                reader.GetBytes(data, reader.AvailableBytes);
+            int available = reader.AvailableBytes;
+            if (available == 0) { reader.Recycle(); return; }
 
-                lock (_lock)
-                {
-                    PreviousState = CurrentState; // This is a bit simplified for deltas
-                    _binaryService.Deserialize(data, CurrentState.GameObjects, _typeManager, _objectFactory);
-                }
-            }
-            else if (messageType == SnapshotMessageType.Sound)
-            {
-                var sound = new SoundData();
-                sound.File = reader.GetString();
-                sound.Volume = reader.GetFloat();
-                sound.Pitch = reader.GetFloat();
-                sound.Repeat = reader.GetBool();
+            // ReadOnlyMemory allocation from reader to avoid large byte[] copy
+            byte[] data = new byte[available];
+            reader.GetBytes(data, available);
 
-                if (reader.GetBool()) sound.X = reader.GetLong();
-                if (reader.GetBool()) sound.Y = reader.GetLong();
-                if (reader.GetBool()) sound.Z = reader.GetLong();
-                if (reader.GetBool()) sound.ObjectId = reader.GetLong();
-
-                sound.Falloff = reader.GetFloat();
-
-                SoundReceived?.Invoke(sound);
-            }
-            else if (messageType == SnapshotMessageType.StopSound)
-            {
-                var file = reader.GetString();
-                long? objectId = null;
-                if (reader.GetBool()) objectId = reader.GetLong();
-                StopSoundReceived?.Invoke(file, objectId);
-            }
-            else if (messageType == SnapshotMessageType.SyncCVars)
-            {
-                var json = reader.GetString();
-                var cvars = JsonSerializer.Deserialize<System.Collections.Generic.Dictionary<string, object>>(json);
-                if (cvars != null)
-                {
-                    foreach (var kvp in cvars)
-                    {
-                        CVarSyncReceived?.Invoke(kvp.Key, kvp.Value);
-                    }
-                }
-            }
-            else if (messageType == SnapshotMessageType.Full)
-            {
-                var json = reader.GetString();
-
-                // Deserialize outside of the lock to avoid blocking the render thread
-                var newGameState = JsonSerializer.Deserialize<GameState>(json);
-
-                if (newGameState != null) {
-                    lock (_lock)
-                    {
-                        PreviousState = CurrentState;
-                        CurrentState = newGameState;
-                    }
-                }
-            } else {
-                // We might receive other message types like commands responses, etc.
-                // For now, we just print them if they are not snapshots.
-                // Note: a robust implementation would have a proper message dispatcher.
-                try {
-                    var text = reader.GetString();
-                    Console.WriteLine($"Received non-snapshot message: {text}");
-                } catch {
-                     Console.WriteLine("Received unknown binary message.");
-                }
-            }
+            await _packetDispatcher.DispatchAsync(_serverPeer, new ReadOnlyMemory<byte>(data));
 
             reader.Recycle();
         }
 
-        public (GameState, GameState) GetStatesForRender()
+        public void UpdateRenderState()
         {
+            double renderTime = _timeService.RemoteToLocalTime(_timeService.ServerTime) - InterpolationDelay;
+
             lock (_lock)
             {
-                return (PreviousState, CurrentState);
+                var (from, to, t) = _snapshotManager.GetInterpolationData(renderTime);
+                if (from != null && to != null)
+                {
+                    _stateInterpolator.Interpolate(CurrentState, from, to, t);
+                }
             }
+        }
+
+        public GameState GetStateForRender()
+        {
+            return CurrentState;
         }
     }
 }

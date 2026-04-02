@@ -8,8 +8,10 @@ using Shared.Services;
 using Shared.Interfaces;
 using Core;
 using Shared.Config;
+using Shared.Utils;
 using System.Linq;
 using System.Buffers;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Server
 {
@@ -23,9 +25,10 @@ namespace Server
         private readonly IInterestManager _interestManager;
         private readonly IJobSystem _jobSystem;
         private readonly IConfigurationManager _configManager;
-        private readonly NetDataWriterPool _writerPool;
+        private readonly INetworkSender _networkSender;
+        private readonly IServiceProvider _serviceProvider;
 
-        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, NetDataWriterPool writerPool)
+        public UdpServer(INetworkService networkService, NetworkEventHandler networkEventHandler, IServerContext context, BinarySnapshotService binarySnapshotService, IInterestManager interestManager, IJobSystem jobSystem, IConfigurationManager configManager, INetworkSender networkSender, IServiceProvider serviceProvider)
         {
             _networkService = networkService;
             _networkEventHandler = networkEventHandler;
@@ -34,7 +37,8 @@ namespace Server
             _interestManager = interestManager;
             _jobSystem = jobSystem;
             _configManager = configManager;
-            _writerPool = writerPool;
+            _networkSender = networkSender;
+            _serviceProvider = serviceProvider;
         }
 
         protected override Task OnStartAsync(CancellationToken cancellationToken)
@@ -59,16 +63,14 @@ namespace Server
 
         public void BroadcastSnapshot(MergedRegion region, string snapshot)
         {
-            // We should ideally wrap this with a message type, but keeping it for compatibility
             foreach(var r in region.Regions)
                 _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(snapshot));
         }
 
         public void BroadcastSnapshot(MergedRegion region, byte[] snapshot)
         {
-            // Prefix with Binary message type
             byte[] message = new byte[snapshot.Length + 1];
-            message[0] = (byte)SnapshotMessageType.Binary;
+            message[0] = (byte)SnapshotMessageType.BitPackedDelta;
             Buffer.BlockCopy(snapshot, 0, message, 1, snapshot.Length);
 
             foreach(var r in region.Regions)
@@ -85,130 +87,65 @@ namespace Server
 
             if (players.Count == 0) return;
 
-            // Parallelize snapshot generation per player to utilize multiple cores for serialization
+            var serializer = _serviceProvider.GetRequiredService<ISnapshotSerializer>();
+
             await _jobSystem.ForEachAsync(players, peer =>
             {
-                // Filter objects by interest if the player has an AOI defined
                 var interestedObjects = _interestManager.GetInterestedObjects(peer);
-
-                // Use the modern SerializeTo API with a pooled buffer
                 var objectsToSend = interestedObjects.IsDefault ? objects : (IEnumerable<IGameObject>)interestedObjects;
-                int bufferSize = 65536;
-                while (true)
+
+                var message = new Shared.Networking.Messages.StateDeltaMessage(serializer)
                 {
-                    byte[] rented = ArrayPool<byte>.Shared.Rent(bufferSize);
-                    try
-                    {
-                        int written = _binarySnapshotService.SerializeTo(rented, objectsToSend, peer.LastSentVersions, out bool truncated);
-                        if (!truncated)
-                        {
-                            if (written > 0)
-                            {
-                                byte[] message = new byte[written + 1];
-                                message[0] = (byte)SnapshotMessageType.Binary;
-                                Buffer.BlockCopy(rented, 0, message, 1, written);
-                                _ = peer.SendAsync(message);
-                            }
-                            break;
-                        }
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(rented);
-                    }
-                    bufferSize *= 2;
-                    if (bufferSize > 1024 * 1024 * 10) break; // 10MB limit per player snapshot
-                }
+                    Objects = objectsToSend,
+                    LastSentVersions = peer.LastSentVersions
+                };
+
+                _ = _networkSender.SendAsync(peer, message);
             });
         }
 
         public void SendSound(INetworkPeer peer, SoundData sound)
         {
-            byte[] data = SerializeSound(sound);
-            _ = peer.SendAsync(data);
+            _ = _networkSender.SendAsync(peer, new Shared.Networking.Messages.SoundMessage { Data = sound });
         }
 
         public void BroadcastSound(SoundData sound)
         {
-            byte[] data = SerializeSound(sound);
-            _networkService.BroadcastSnapshot(data); // Using BroadcastSnapshot for general byte broadcast
+            var msg = new Shared.Networking.Messages.SoundMessage { Data = sound };
+            _context.PlayerManager.ForEachPlayer(peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void BroadcastSound(SoundData sound, Region region)
         {
-            byte[] data = SerializeSound(sound);
-            _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+            var msg = new Shared.Networking.Messages.SoundMessage { Data = sound };
+            _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void BroadcastSound(SoundData sound, MergedRegion mergedRegion)
         {
-            byte[] data = SerializeSound(sound);
+            var msg = new Shared.Networking.Messages.SoundMessage { Data = sound };
             foreach (var r in mergedRegion.Regions)
             {
-                _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = peer.SendAsync(data));
-            }
-        }
-
-        private byte[] SerializeSound(SoundData sound)
-        {
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put((byte)SnapshotMessageType.Sound);
-                writer.Put(sound.File);
-                writer.Put(sound.Volume);
-                writer.Put(sound.Pitch);
-                writer.Put(sound.Repeat);
-                writer.Put(sound.X.HasValue);
-                if (sound.X.HasValue) writer.Put(sound.X.Value);
-                writer.Put(sound.Y.HasValue);
-                if (sound.Y.HasValue) writer.Put(sound.Y.Value);
-                writer.Put(sound.Z.HasValue);
-                if (sound.Z.HasValue) writer.Put(sound.Z.Value);
-                writer.Put(sound.ObjectId.HasValue);
-                if (sound.ObjectId.HasValue) writer.Put(sound.ObjectId.Value);
-                writer.Put(sound.Falloff);
-                return writer.CopyData();
-            }
-            finally
-            {
-                _writerPool.Return(writer);
+                _context.PlayerManager.ForEachPlayerInRegion(r, peer => _ = _networkSender.SendAsync(peer, msg));
             }
         }
 
         public void StopSound(string file, Region? region = null)
         {
-            byte[] data = SerializeStopSound(file, null);
+            var msg = new Shared.Networking.Messages.StopSoundMessage { File = file };
             if (region != null)
-                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = _networkSender.SendAsync(peer, msg));
             else
-                _networkService.BroadcastSnapshot(data);
+                _context.PlayerManager.ForEachPlayer(peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void StopSoundOn(string file, long objectId, Region? region = null)
         {
-            byte[] data = SerializeStopSound(file, objectId);
+            var msg = new Shared.Networking.Messages.StopSoundMessage { File = file, ObjectId = objectId };
             if (region != null)
-                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = peer.SendAsync(data));
+                _context.PlayerManager.ForEachPlayerInRegion(region, peer => _ = _networkSender.SendAsync(peer, msg));
             else
-                _networkService.BroadcastSnapshot(data);
-        }
-
-        private byte[] SerializeStopSound(string file, long? objectId)
-        {
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put((byte)SnapshotMessageType.StopSound);
-                writer.Put(file);
-                writer.Put(objectId.HasValue);
-                if (objectId.HasValue) writer.Put(objectId.Value);
-                return writer.CopyData();
-            }
-            finally
-            {
-                _writerPool.Return(writer);
-            }
+                _context.PlayerManager.ForEachPlayer(peer => _ = _networkSender.SendAsync(peer, msg));
         }
 
         public void SendCVars(INetworkPeer peer)
@@ -219,18 +156,7 @@ namespace Server
 
             if (replicatedCVars.Count == 0) return;
 
-            var writer = _writerPool.Rent();
-            try
-            {
-                writer.Put((byte)SnapshotMessageType.SyncCVars);
-                string json = System.Text.Json.JsonSerializer.Serialize(replicatedCVars);
-                writer.Put(json);
-                _ = peer.SendAsync(writer.CopyData());
-            }
-            finally
-            {
-                _writerPool.Return(writer);
-            }
+            _ = _networkSender.SendAsync(peer, new Shared.Networking.Messages.CVarSyncMessage { CVars = replicatedCVars });
         }
     }
 }

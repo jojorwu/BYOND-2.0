@@ -172,6 +172,23 @@ namespace Core.VM.Utils
                     }
                 }
 
+                // Pattern: Call(GlobalProc, procId, ...) -> CallGlobalProc(procId, ...)
+                if (pc + 6 < bytecode.Length && bytecode[pc] == (byte)Opcode.Call && bytecode[pc + 1] == (byte)DMReference.Type.GlobalProc && !IsJumpTarget(pc, 1))
+                {
+                    int procId = BitConverter.ToInt32(bytecode, pc + 2);
+                    int callArgTypePc = pc + 6;
+                    if (callArgTypePc + 8 < bytecode.Length)
+                    {
+                        MarkPcMap(pc, callArgTypePc + 9, optimized.Count);
+                        optimized.Add((byte)Opcode.CallGlobalProc);
+                        optimized.AddRange(BitConverter.GetBytes(procId));
+                        optimized.Add(bytecode[callArgTypePc]); // argType
+                        optimized.AddRange(bytecode.AsSpan(callArgTypePc + 1, 4)); // argStackDelta
+                        pc = callArgTypePc + 9;
+                        continue;
+                    }
+                }
+
                 // Pattern: PushReferenceValue(ref), JumpIfFalse(label) -> JumpIfReferenceFalse(ref, label)
                 if (pc + OpcodeSize < bytecode.Length && bytecode[pc] == (byte)Opcode.PushReferenceValue && !IsJumpTarget(pc, OpcodeSize + GetReferenceSize(bytecode, pc + OpcodeSize)))
                 {

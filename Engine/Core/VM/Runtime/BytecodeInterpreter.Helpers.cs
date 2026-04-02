@@ -11,14 +11,14 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalFieldTransfer(ref InterpreterState state, int srcIdx, int nameId, int targetIdx, int pcForCache)
     {
-        var objValue = state.Locals[srcIdx];
+        var objValue = state.GetLocal(srcIdx);
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
             // Persistent Inline Cache: utilize opcode-relative addressing for fast property access
             ref var cache = ref state.Proc._inlineCache[pcForCache];
             if (cache.ObjectType == obj.ObjectType)
             {
-                state.Locals[targetIdx] = obj.GetVariableDirect(cache.VariableIndex);
+                state.GetLocal(targetIdx) = obj.GetVariableDirect(cache.VariableIndex);
             }
             else
             {
@@ -28,9 +28,9 @@ public unsafe partial class BytecodeInterpreter
                 {
                     cache.ObjectType = obj.ObjectType;
                     cache.VariableIndex = varIdx;
-                    state.Locals[targetIdx] = obj.GetVariableDirect(varIdx);
+                    state.GetLocal(targetIdx) = obj.GetVariableDirect(varIdx);
                 }
-                else state.Locals[targetIdx] = obj.GetVariable(name);
+                else state.GetLocal(targetIdx) = obj.GetVariable(name);
             }
         }
         else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, state.Thread);
@@ -39,17 +39,15 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformGlobalJumpIfFalse(ref InterpreterState state, int globalIdx, int address, int pcForError)
     {
-        if ((uint)globalIdx >= (uint)state.Globals.Count)
-            throw new ScriptRuntimeException($"Invalid global index: {globalIdx}", state.Proc, pcForError, state.Thread);
-
-        var val = state.Globals[globalIdx];
+        // Global access hardening will be done in a later step, using context methods for now
+        var val = state.Thread.Context!.GetGlobal(globalIdx);
         if (val.IsFalse()) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformBooleanAnd(ref InterpreterState state, int jumpAddress)
     {
-        var val = state.Stack[--state.StackPtr];
+        var val = state.Pop();
         if (val.IsFalse())
         {
             state.Push(val);
@@ -60,7 +58,7 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformBooleanOr(ref InterpreterState state, int jumpAddress)
     {
-        var val = state.Stack[--state.StackPtr];
+        var val = state.Pop();
         if (!val.IsFalse())
         {
             state.Push(val);
@@ -71,42 +69,36 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformBooleanNot(ref InterpreterState state)
     {
-        var val = state.Stack[state.StackPtr - 1];
-        state.Stack[state.StackPtr - 1] = val.IsFalse() ? DreamValue.True : DreamValue.False;
+        ref var val = ref state.Peek();
+        val = val.IsFalse() ? DreamValue.True : DreamValue.False;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformJumpIfFalse(ref InterpreterState state, int address)
     {
-        var val = state.Stack[--state.StackPtr];
+        var val = state.Pop();
         if (val.IsFalse()) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalJumpIfFalse(ref InterpreterState state, int idx, int address, int pcForError)
     {
-        if ((uint)idx >= (uint)state.Locals.Length)
-            throw new ScriptRuntimeException("Local index out of bounds", state.Proc, pcForError, state.Thread);
-
-        var val = state.Locals[idx];
+        var val = state.GetLocal(idx);
         if (val.IsFalse()) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalJumpIfTrue(ref InterpreterState state, int idx, int address, int pcForError)
     {
-        if ((uint)idx >= (uint)state.Locals.Length)
-            throw new ScriptRuntimeException("Local index out of bounds", state.Proc, pcForError, state.Thread);
-
-        var val = state.Locals[idx];
+        var val = state.GetLocal(idx);
         if (!val.IsFalse()) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformAdd(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
             a = new DreamValue(a.UnsafeRawLong + b.UnsafeRawLong);
         else if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
@@ -117,8 +109,8 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformSubtract(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
             a = new DreamValue(a.UnsafeRawLong - b.UnsafeRawLong);
         else if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
@@ -129,8 +121,8 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformMultiply(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
             a = new DreamValue(a.UnsafeRawLong * b.UnsafeRawLong);
         else if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
@@ -141,8 +133,8 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformDivide(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             double db = b.RawDouble;
@@ -154,24 +146,24 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformCompareEquals(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         a = (a == b) ? DreamValue.True : DreamValue.False;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformCompareNotEquals(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         a = (a != b) ? DreamValue.True : DreamValue.False;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformCompareLessThan(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer) a = (a.UnsafeRawLong < b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
@@ -183,8 +175,8 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformCompareGreaterThan(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer) a = (a.UnsafeRawLong > b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
@@ -196,8 +188,8 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformCompareLessThanOrEqual(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer) a = (a.UnsafeRawLong <= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
@@ -209,8 +201,8 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformCompareGreaterThanOrEqual(ref InterpreterState state)
     {
-        var b = state.Stack[--state.StackPtr];
-        ref var a = ref state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer) a = (a.UnsafeRawLong >= b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
@@ -222,31 +214,31 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalCompareLessThanFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
     {
-        if (!(state.Locals[idx] < val)) state.PC = address;
+        if (!(state.GetLocal(idx) < val)) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalCompareGreaterThanFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
     {
-        if (!(state.Locals[idx] > val)) state.PC = address;
+        if (!(state.GetLocal(idx) > val)) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalCompareLessThanOrEqualFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
     {
-        if (!(state.Locals[idx] <= val)) state.PC = address;
+        if (!(state.GetLocal(idx) <= val)) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalCompareGreaterThanOrEqualFloatJumpIfFalse(ref InterpreterState state, int idx, double val, int address)
     {
-        if (!(state.Locals[idx] >= val)) state.PC = address;
+        if (!(state.GetLocal(idx) >= val)) state.PC = address;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalJumpIfFieldFalse(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
     {
-        var objValue = state.Locals[idx];
+        var objValue = state.GetLocal(idx);
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
             var name = state.Strings[nameId];
@@ -259,7 +251,7 @@ public unsafe partial class BytecodeInterpreter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void PerformLocalJumpIfFieldTrue(ref InterpreterState state, int idx, int nameId, int address, int pcForError)
     {
-        var objValue = state.Locals[idx];
+        var objValue = state.GetLocal(idx);
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
             var name = state.Strings[nameId];
@@ -281,7 +273,7 @@ public unsafe partial class BytecodeInterpreter
                     state.PC += 4;
                     int address = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if (!state.Locals[idx].IsFalse()) state.PC = address;
+                    if (!state.GetLocal(idx).IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
@@ -290,7 +282,7 @@ public unsafe partial class BytecodeInterpreter
                     state.PC += 4;
                     int address = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if (!state.Arguments[idx].IsFalse()) state.PC = address;
+                    if (!state.GetArgument(idx).IsFalse()) state.PC = address;
                 }
                 break;
             default:
@@ -321,7 +313,7 @@ public unsafe partial class BytecodeInterpreter
                     state.PC += 4;
                     int address = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if (state.Locals[idx].IsFalse()) state.PC = address;
+                    if (state.GetLocal(idx).IsFalse()) state.PC = address;
                 }
                 break;
             case DMReference.Type.Argument:
@@ -330,7 +322,7 @@ public unsafe partial class BytecodeInterpreter
                     state.PC += 4;
                     int address = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if (state.Arguments[idx].IsFalse()) state.PC = address;
+                    if (state.GetArgument(idx).IsFalse()) state.PC = address;
                 }
                 break;
             default:

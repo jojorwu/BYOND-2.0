@@ -36,7 +36,7 @@ public unsafe partial class BytecodeInterpreter
                     }
                     else
                     {
-                        if (procId >= 0 && procId < state.Thread.Context.AllProcs.Count)
+                        if (procId >= 0 && procId < state.Thread.Context!.AllProcs.Count)
                         {
                             targetProc = state.Thread.Context.AllProcs[procId];
                             cache.CachedProc = targetProc;
@@ -58,9 +58,9 @@ public unsafe partial class BytecodeInterpreter
                         }
                         else
                         {
-                            var name = state.Thread.Context.Strings[nameId];
+                            var name = state.Strings[nameId];
                             targetProc = instance.ObjectType?.GetProc(name);
-                            if (targetProc == null) state.Thread.Context.Procs.TryGetValue(name, out targetProc);
+                            if (targetProc == null) state.Thread.Context!.Procs.TryGetValue(name, out targetProc);
 
                             if (targetProc != null)
                             {
@@ -75,7 +75,7 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Stack[state.LocalBase + idx];
+                    var val = state.GetLocal(idx);
                     val.TryGetValue(out targetProc);
                 }
                 break;
@@ -83,7 +83,7 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Stack[state.ArgumentBase + idx];
+                    var val = state.GetArgument(idx);
                     val.TryGetValue(out targetProc);
                 }
                 break;
@@ -91,7 +91,7 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    var val = state.Thread.Context.GetGlobal(idx);
+                    var val = state.Thread.Context!.GetGlobal(idx);
                     val.TryGetValue(out targetProc);
                 }
                 break;
@@ -125,7 +125,7 @@ public unsafe partial class BytecodeInterpreter
         {
             var argCount = argStackDelta;
             var stackBase = state.StackPtr - argStackDelta;
-            var arguments = state.Stack.Slice(state.StackPtr - argCount, argCount);
+            var arguments = state.StackSpan.Slice(state.StackPtr - argCount, argCount);
 
             state.StackPtr = stackBase;
             try
@@ -228,14 +228,14 @@ public unsafe partial class BytecodeInterpreter
     {
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleJumpIfNull(ref InterpreterState state)
     {
         if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfNull", state.Proc, state.PC, state.Thread);
-        var val = state.Stack[--state.StackPtr];
+        var val = state.Pop();
         var address = state.ReadInt32();
         if (val.Type == DreamValueType.Null) state.PC = address;
     }
@@ -243,7 +243,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleJumpIfNullNoPop(ref InterpreterState state)
     {
         if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during JumpIfNullNoPop", state.Proc, state.PC, state.Thread);
-        var val = state.Stack[state.StackPtr - 1];
+        var val = state.Peek();
         var address = state.ReadInt32();
         if (val.Type == DreamValueType.Null) state.PC = address;
     }
@@ -251,8 +251,8 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleSwitchCase(ref InterpreterState state)
     {
         if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during SwitchCase", state.Proc, state.PC, state.Thread);
-        var caseValue = state.Stack[--state.StackPtr];
-        var switchValue = state.Stack[state.StackPtr - 1];
+        var caseValue = state.Pop();
+        var switchValue = state.Peek();
         var jumpAddress = state.ReadInt32();
         if (switchValue == caseValue) state.PC = jumpAddress;
     }
@@ -260,9 +260,9 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleSwitchCaseRange(ref InterpreterState state)
     {
         if (state.StackPtr < 3) throw new ScriptRuntimeException("Stack underflow during SwitchCaseRange", state.Proc, state.PC, state.Thread);
-        var max = state.Stack[--state.StackPtr];
-        var min = state.Stack[--state.StackPtr];
-        var switchValue = state.Stack[state.StackPtr - 1];
+        var max = state.Pop();
+        var min = state.Pop();
+        var switchValue = state.Peek();
         var jumpAddress = state.ReadInt32();
         if (switchValue >= min && switchValue <= max) state.PC = jumpAddress;
     }
@@ -283,12 +283,12 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandleThrow(ref InterpreterState state)
     {
-        var value = state.Stack[--state.StackPtr];
+        var value = state.Pop();
         var e = new ScriptRuntimeException(value.ToString(), state.Proc, state.PC, thread: state.Thread) { ThrownValue = value };
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.HandleException(e);
-        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleTry(ref InterpreterState state)
@@ -314,7 +314,7 @@ public unsafe partial class BytecodeInterpreter
         if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during SwitchOnFloat", state.Proc, state.PC, state.Thread);
         var value = state.ReadDouble();
         var jumpAddress = state.ReadInt32();
-        var switchValue = state.Stack[state.StackPtr - 1];
+        var switchValue = state.Peek();
         if (switchValue.Type <= DreamValueType.Integer && switchValue.UnsafeRawDouble == value) state.PC = jumpAddress;
     }
 
@@ -323,8 +323,8 @@ public unsafe partial class BytecodeInterpreter
         if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during SwitchOnString", state.Proc, state.PC, state.Thread);
         var stringId = state.ReadInt32();
         var jumpAddress = state.ReadInt32();
-        var switchValue = state.Stack[state.StackPtr - 1];
-        if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == state.Thread.Context.Strings[stringId]) state.PC = jumpAddress;
+        var switchValue = state.Peek();
+        if (switchValue.Type == DreamValueType.String && switchValue.TryGetValue(out string? s) && s == state.Strings[stringId]) state.PC = jumpAddress;
     }
 
     private static void HandleJumpIfReferenceFalse(ref InterpreterState state)
@@ -337,8 +337,8 @@ public unsafe partial class BytecodeInterpreter
         state.Push(new DreamValue(state.ReadDouble()));
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleReturnReferenceValue(ref InterpreterState state)
@@ -349,8 +349,8 @@ public unsafe partial class BytecodeInterpreter
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         state.Thread.Push(val);
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleReturnNull(ref InterpreterState state)
@@ -358,8 +358,8 @@ public unsafe partial class BytecodeInterpreter
         state.Push(DreamValue.Null);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleReturnTrue(ref InterpreterState state)
@@ -367,8 +367,8 @@ public unsafe partial class BytecodeInterpreter
         state.Push(DreamValue.True);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleReturnFalse(ref InterpreterState state)
@@ -376,8 +376,8 @@ public unsafe partial class BytecodeInterpreter
         state.Push(DreamValue.False);
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.RefreshSpans();
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
 }

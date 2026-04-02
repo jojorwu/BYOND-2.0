@@ -230,6 +230,8 @@ public unsafe partial class BytecodeInterpreter
         table[(byte)Opcode.AssignLocal14] = &HandleAssignLocal14;
         table[(byte)Opcode.AssignLocal15] = &HandleAssignLocal15;
 
+        table[(byte)Opcode.CallGlobalProc] = &HandleCallGlobalProc;
+
         return table;
     }
 
@@ -245,7 +247,7 @@ public unsafe partial class BytecodeInterpreter
         DreamValue val = DreamValue.Null;
         if (instance != null)
         {
-            var name = state.Thread.Context.Strings[nameId];
+            var name = state.Strings[nameId];
             int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
             val = idx != -1 ? instance.GetVariableDirect(idx) : instance.GetVariable(name);
         }
@@ -255,10 +257,10 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleSetVariable(ref InterpreterState state)
     {
         var nameId = state.ReadInt32();
-        var val = state.Stack[--state.StackPtr];
+        var val = state.Pop();
         if (state.Frame.Instance != null)
         {
-            var name = state.Thread.Context.Strings[nameId];
+            var name = state.Strings[nameId];
             int idx = state.Frame.Instance.ObjectType?.GetVariableIndex(name) ?? -1;
             if (idx != -1) state.Frame.Instance.SetVariableDirect(idx, val);
             else state.Frame.Instance.SetVariable(name, val);
@@ -274,29 +276,28 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.Locals[idx]);
+                    state.Push(state.GetLocal(idx));
                 }
                 break;
             case DMReference.Type.Argument:
                 {
                     int idx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Push(state.Arguments[idx]);
+                    state.Push(state.GetArgument(idx));
                 }
                 break;
             case DMReference.Type.Global:
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    if ((uint)globalIdx >= (uint)state.Globals.Count) throw new ScriptRuntimeException($"Invalid global index: {globalIdx}", state.Proc, state.PC - 5, state.Thread);
-                    state.Push(state.Globals[globalIdx]);
+                    state.Push(state.Thread.Context!.GetGlobal(globalIdx));
                 }
                 break;
             case DMReference.Type.Src:
                 state.Push(state.Frame.Instance != null ? new DreamValue(state.Frame.Instance) : DreamValue.Null);
                 break;
             case DMReference.Type.World:
-                state.Push(state.Thread.Context.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
+                state.Push(state.Thread.Context!.World != null ? new DreamValue(state.Thread.Context.World) : DreamValue.Null);
                 break;
             case DMReference.Type.SrcField:
                 {
@@ -351,8 +352,8 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleAsType(ref InterpreterState state)
     {
         if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during AsType", state.Proc, state.PC, state.Thread);
-        var typeValue = state.Stack[--state.StackPtr];
-        var objValue = state.Stack[state.StackPtr - 1];
+        var typeValue = state.Pop();
+        ref var objValue = ref state.Peek();
         bool matches = false;
         if (objValue.Type == DreamValueType.DreamObject && typeValue.Type == DreamValueType.DreamType)
         {
@@ -360,7 +361,7 @@ public unsafe partial class BytecodeInterpreter
             typeValue.TryGetValue(out ObjectType? type);
             if (obj?.ObjectType != null && type != null) matches = obj.ObjectType.IsSubtypeOf(type);
         }
-        state.Stack[state.StackPtr - 1] = matches ? objValue : DreamValue.Null;
+        objValue = matches ? objValue : DreamValue.Null;
     }
 
     private static readonly ThreadLocal<System.Text.StringBuilder> _formatStringBuilder = new(() => new System.Text.StringBuilder(256));
@@ -369,7 +370,7 @@ public unsafe partial class BytecodeInterpreter
     {
         var reference = state.ReadReference();
         var fieldNameId = state.ReadInt32();
-        var fieldName = state.Thread.Context.Strings[fieldNameId];
+        var fieldName = state.Strings[fieldNameId];
         state.Thread._stackPtr = state.StackPtr;
         var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame);
         DreamValue val = DreamValue.Null;
@@ -382,50 +383,48 @@ public unsafe partial class BytecodeInterpreter
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
-        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
-        state.Push(state.Stack[state.LocalBase + idx]);
+        state.Push(state.GetLocal(idx));
     }
 
-    private static void HandlePushLocal0(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 0]);
-    private static void HandlePushLocal1(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 1]);
-    private static void HandlePushLocal2(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 2]);
-    private static void HandlePushLocal3(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 3]);
-    private static void HandlePushLocal4(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 4]);
-    private static void HandlePushLocal5(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 5]);
-    private static void HandlePushLocal6(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 6]);
-    private static void HandlePushLocal7(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 7]);
-    private static void HandlePushLocal8(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 8]);
-    private static void HandlePushLocal9(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 9]);
-    private static void HandlePushLocal10(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 10]);
-    private static void HandlePushLocal11(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 11]);
-    private static void HandlePushLocal12(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 12]);
-    private static void HandlePushLocal13(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 13]);
-    private static void HandlePushLocal14(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 14]);
-    private static void HandlePushLocal15(ref InterpreterState state) => state.Push(state.Stack[state.LocalBase + 15]);
+    private static void HandlePushLocal0(ref InterpreterState state) => state.Push(state.GetLocal(0));
+    private static void HandlePushLocal1(ref InterpreterState state) => state.Push(state.GetLocal(1));
+    private static void HandlePushLocal2(ref InterpreterState state) => state.Push(state.GetLocal(2));
+    private static void HandlePushLocal3(ref InterpreterState state) => state.Push(state.GetLocal(3));
+    private static void HandlePushLocal4(ref InterpreterState state) => state.Push(state.GetLocal(4));
+    private static void HandlePushLocal5(ref InterpreterState state) => state.Push(state.GetLocal(5));
+    private static void HandlePushLocal6(ref InterpreterState state) => state.Push(state.GetLocal(6));
+    private static void HandlePushLocal7(ref InterpreterState state) => state.Push(state.GetLocal(7));
+    private static void HandlePushLocal8(ref InterpreterState state) => state.Push(state.GetLocal(8));
+    private static void HandlePushLocal9(ref InterpreterState state) => state.Push(state.GetLocal(9));
+    private static void HandlePushLocal10(ref InterpreterState state) => state.Push(state.GetLocal(10));
+    private static void HandlePushLocal11(ref InterpreterState state) => state.Push(state.GetLocal(11));
+    private static void HandlePushLocal12(ref InterpreterState state) => state.Push(state.GetLocal(12));
+    private static void HandlePushLocal13(ref InterpreterState state) => state.Push(state.GetLocal(13));
+    private static void HandlePushLocal14(ref InterpreterState state) => state.Push(state.GetLocal(14));
+    private static void HandlePushLocal15(ref InterpreterState state) => state.Push(state.GetLocal(15));
 
-    private static void HandleAssignLocal0(ref InterpreterState state) => state.Stack[state.LocalBase + 0] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal1(ref InterpreterState state) => state.Stack[state.LocalBase + 1] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal2(ref InterpreterState state) => state.Stack[state.LocalBase + 2] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal3(ref InterpreterState state) => state.Stack[state.LocalBase + 3] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal4(ref InterpreterState state) => state.Stack[state.LocalBase + 4] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal5(ref InterpreterState state) => state.Stack[state.LocalBase + 5] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal6(ref InterpreterState state) => state.Stack[state.LocalBase + 6] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal7(ref InterpreterState state) => state.Stack[state.LocalBase + 7] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal8(ref InterpreterState state) => state.Stack[state.LocalBase + 8] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal9(ref InterpreterState state) => state.Stack[state.LocalBase + 9] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal10(ref InterpreterState state) => state.Stack[state.LocalBase + 10] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal11(ref InterpreterState state) => state.Stack[state.LocalBase + 11] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal12(ref InterpreterState state) => state.Stack[state.LocalBase + 12] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal13(ref InterpreterState state) => state.Stack[state.LocalBase + 13] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal14(ref InterpreterState state) => state.Stack[state.LocalBase + 14] = state.Stack[state.StackPtr - 1];
-    private static void HandleAssignLocal15(ref InterpreterState state) => state.Stack[state.LocalBase + 15] = state.Stack[state.StackPtr - 1];
+    private static void HandleAssignLocal0(ref InterpreterState state) => state.GetLocal(0) = state.Peek();
+    private static void HandleAssignLocal1(ref InterpreterState state) => state.GetLocal(1) = state.Peek();
+    private static void HandleAssignLocal2(ref InterpreterState state) => state.GetLocal(2) = state.Peek();
+    private static void HandleAssignLocal3(ref InterpreterState state) => state.GetLocal(3) = state.Peek();
+    private static void HandleAssignLocal4(ref InterpreterState state) => state.GetLocal(4) = state.Peek();
+    private static void HandleAssignLocal5(ref InterpreterState state) => state.GetLocal(5) = state.Peek();
+    private static void HandleAssignLocal6(ref InterpreterState state) => state.GetLocal(6) = state.Peek();
+    private static void HandleAssignLocal7(ref InterpreterState state) => state.GetLocal(7) = state.Peek();
+    private static void HandleAssignLocal8(ref InterpreterState state) => state.GetLocal(8) = state.Peek();
+    private static void HandleAssignLocal9(ref InterpreterState state) => state.GetLocal(9) = state.Peek();
+    private static void HandleAssignLocal10(ref InterpreterState state) => state.GetLocal(10) = state.Peek();
+    private static void HandleAssignLocal11(ref InterpreterState state) => state.GetLocal(11) = state.Peek();
+    private static void HandleAssignLocal12(ref InterpreterState state) => state.GetLocal(12) = state.Peek();
+    private static void HandleAssignLocal13(ref InterpreterState state) => state.GetLocal(13) = state.Peek();
+    private static void HandleAssignLocal14(ref InterpreterState state) => state.GetLocal(14) = state.Peek();
+    private static void HandleAssignLocal15(ref InterpreterState state) => state.GetLocal(15) = state.Peek();
 
     private static void HandlePushArgument(ref InterpreterState state)
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
-        if ((uint)idx >= (uint)state.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", state.Proc, state.PC, state.Thread);
-        state.Push(state.Stack[state.ArgumentBase + idx]);
+        state.Push(state.GetArgument(idx));
     }
 
     private static void HandleGetBuiltinVar(ref InterpreterState state)
@@ -456,7 +455,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleSetBuiltinVar(ref InterpreterState state)
     {
         var varType = (BuiltinVar)state.ReadByte();
-        var val = state.Stack[--state.StackPtr];
+        var val = state.Pop();
         var instance = state.Frame.Instance as GameObject;
         if (instance != null)
         {

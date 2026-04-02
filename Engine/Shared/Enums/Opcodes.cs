@@ -447,6 +447,8 @@ public enum Opcode : byte {
     [OpcodeMetadata(0)] AssignLocal13 = 0xF1,
     [OpcodeMetadata(0)] AssignLocal14 = 0xF2,
     [OpcodeMetadata(0)] AssignLocal15 = 0xF3,
+    [OpcodeMetadata(0, true, OpcodeArgType.ProcId, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    CallGlobalProc = 0xF4,
 }
 
 public enum OpcodeArgType {

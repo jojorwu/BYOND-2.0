@@ -107,7 +107,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleAssign(ref InterpreterState state)
     {
         var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
-        var value = state.Stack[state.StackPtr - 1]; // peek
+        var value = state.Peek();
         switch (refType)
         {
             case DMReference.Type.Local:
@@ -128,7 +128,7 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Thread.Context.SetGlobal(globalIdx, value);
+                    state.Thread.Context!.SetGlobal(globalIdx, value);
                 }
                 break;
             default:
@@ -231,7 +231,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleAssignInto(ref InterpreterState state)
     {
         var reference = state.ReadReference();
-        var value = state.Stack[--state.StackPtr];
+        var value = state.Pop();
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -278,23 +278,21 @@ public unsafe partial class BytecodeInterpreter
     {
         var reference = state.ReadReference();
         var stringId = state.ReadInt32();
-        var stringValue = new DreamValue(state.Thread.Context.Strings[stringId]);
+        var stringValue = new DreamValue(state.Strings[stringId]);
         state.Thread._stackPtr = state.StackPtr;
         var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         DreamValue result = DreamValue.Null;
         if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) result = list.GetValue(stringValue);
-        state.Push(result);
-        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
+        state.Push(result);
     }
 
     private static void HandleAssignLocal(ref InterpreterState state)
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
-        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
-        state.Stack[state.LocalBase + idx] = state.Stack[state.StackPtr - 1];
+        state.GetLocal(idx) = state.Peek();
     }
 
     private static void HandleLocalPushLocalPushAdd(ref InterpreterState state)
@@ -355,8 +353,8 @@ public unsafe partial class BytecodeInterpreter
         state.Push(state.GetLocal(idx));
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleLocalCompareEquals(ref InterpreterState state)

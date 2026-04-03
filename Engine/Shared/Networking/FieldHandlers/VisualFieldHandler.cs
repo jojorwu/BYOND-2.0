@@ -22,7 +22,7 @@ public class VisualFieldHandler : INetworkFieldHandler
         if ((currentMask & GameObjectFields.PixelY) != 0) writer.WriteDouble(obj.PixelY);
     }
 
-    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask)
+    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         if ((currentMask & GameObjectFields.Dir) != 0) obj.Dir = (int)reader.ReadVarInt();
         if ((currentMask & GameObjectFields.Alpha) != 0) obj.Alpha = reader.ReadDouble();

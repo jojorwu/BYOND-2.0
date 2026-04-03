@@ -99,26 +99,14 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
 
             if (gameObject != null && (gameObject.Version < version || (mask & GameObjectFields.NewObject) != 0))
             {
-                foreach (var handler in _fieldHandlers)
+                var handlers = _fieldHandlers;
+                int handlerCount = handlers.Count;
+                for (int i = 0; i < handlerCount; i++)
                 {
+                    var handler = handlers[i];
                     if ((mask & handler.FieldMask) != 0)
                     {
-                        // Handle Variables specially because of unresolvedReferences
-                        if (handler is Shared.Networking.FieldHandlers.VariablesFieldHandler)
-                        {
-                            int propertyCount = (int)reader.ReadVarInt();
-                            for (int i = 0; i < propertyCount; i++)
-                            {
-                                int propIdx = (int)reader.ReadVarInt();
-                                var val = DreamValue.BitReadFrom(ref reader);
-                                if (val.IsObjectIdReference) unresolvedReferences.Add((gameObject, propIdx, val.ObjectId));
-                                else gameObject.SetVariableDirect(propIdx, val);
-                            }
-                        }
-                        else
-                        {
-                            handler.Read(ref reader, gameObject, mask);
-                        }
+                        handler.Read(ref reader, gameObject, mask, unresolvedReferences);
                     }
                 }
                 gameObject.Version = version;

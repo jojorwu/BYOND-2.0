@@ -80,22 +80,19 @@ namespace Core
                     }
 
                     var segmentTasks = new byte[batches.Count][];
-                    Task.Run(async () =>
+                    _jobSystem.ForEachAsync(Enumerable.Range(0, batches.Count), i =>
                     {
-                        await _jobSystem.ForEachAsync(Enumerable.Range(0, batches.Count), i =>
+                        int bufferSize = batches[i].Count * 128;
+                        var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                        try
                         {
-                            int bufferSize = batches[i].Count * 128;
-                            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-                            try
-                            {
-                                var writer = new BitWriter(buffer);
-                                _binarySnapshotService.SerializeBitPackedDelta(ref writer, batches[i], null);
-                                var segment = new byte[writer.BytesWritten];
-                                buffer.AsSpan(0, writer.BytesWritten).CopyTo(segment);
-                                segmentTasks[i] = segment;
-                            }
-                            finally { ArrayPool<byte>.Shared.Return(buffer); }
-                        });
+                            var writer = new BitWriter(buffer);
+                            _binarySnapshotService.SerializeBitPackedDelta(ref writer, batches[i], null);
+                            var segment = new byte[writer.BytesWritten];
+                            buffer.AsSpan(0, writer.BytesWritten).CopyTo(segment);
+                            segmentTasks[i] = segment;
+                        }
+                        finally { ArrayPool<byte>.Shared.Return(buffer); }
                     }).GetAwaiter().GetResult();
 
                     int totalSize = segmentTasks.Sum(s => s.Length);

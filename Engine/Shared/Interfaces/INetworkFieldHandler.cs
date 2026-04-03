@@ -10,7 +10,7 @@ public interface INetworkFieldHandler
     int Priority { get; }
 
     void Write(ref BitWriter writer, IGameObject obj, GameObjectFields currentMask);
-    void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask);
+    void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved);
     void Skip(ref BitReader reader, GameObjectFields currentMask);
 
     int SnapshotStateSize { get; }

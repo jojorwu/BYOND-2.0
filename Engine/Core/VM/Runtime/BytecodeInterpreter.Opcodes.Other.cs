@@ -12,13 +12,27 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleGetVariable(ref InterpreterState state)
     {
         int id = state.ReadInt32();
-        int pcForCache = state.PC - 5;
         var instance = state.Frame.Instance;
         DreamValue val = DreamValue.Null;
         if (instance != null)
         {
-            // Persistent Inline Cache: utilize opcode-relative addressing for fast property access
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            var name = state.Strings[id];
+            int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+            if (idx != -1) val = instance.GetVariableDirect(idx);
+            else val = instance.GetVariable(name);
+        }
+        state.Push(val);
+    }
+
+    private static void HandleGetVariableCached(ref InterpreterState state)
+    {
+        int id = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        var instance = state.Frame.Instance;
+        DreamValue val = DreamValue.Null;
+        if (instance != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
             if (cache.ObjectType == instance.ObjectType)
             {
                 val = instance.GetVariableDirect(cache.VariableIndex);
@@ -42,12 +56,26 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleSetVariable(ref InterpreterState state)
     {
         int id = state.ReadInt32();
-        int pcForCache = state.PC - 5;
         var val = state.Pop();
         var instance = state.Frame.Instance;
         if (instance != null)
         {
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            var name = state.Strings[id];
+            int idx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+            if (idx != -1) instance.SetVariableDirect(idx, val);
+            else instance.SetVariable(name, val);
+        }
+    }
+
+    private static void HandleSetVariableCached(ref InterpreterState state)
+    {
+        int id = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        var val = state.Pop();
+        var instance = state.Frame.Instance;
+        if (instance != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
             if (cache.ObjectType == instance.ObjectType)
             {
                 instance.SetVariableDirect(cache.VariableIndex, val);
@@ -101,29 +129,14 @@ public unsafe partial class BytecodeInterpreter
                 break;
             case DMReference.Type.SrcField:
                 {
-                    int nameId = *(int*)(state.BytecodePtr + state.PC);
-                    int pcForCache = state.PC - 1;
-                    state.PC += 4;
+                    int nameId = state.ReadInt32();
                     var instance = state.Frame.Instance;
                     if (instance != null)
                     {
-                        ref var cache = ref state.Proc._inlineCache[pcForCache];
-                        if (cache.ObjectType == instance.ObjectType)
-                        {
-                            state.Push(instance.GetVariableDirect(cache.VariableIndex));
-                        }
-                        else
-                        {
-                            var name = state.Strings[nameId];
-                            int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
-                            if (varIdx != -1)
-                            {
-                                cache.ObjectType = instance.ObjectType;
-                                cache.VariableIndex = varIdx;
-                                state.Push(instance.GetVariableDirect(varIdx));
-                            }
-                            else state.Push(instance.GetVariable(name));
-                        }
+                        var name = state.Strings[nameId];
+                        int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                        if (varIdx != -1) state.Push(instance.GetVariableDirect(varIdx));
+                        else state.Push(instance.GetVariable(name));
                     }
                     else state.Push(DreamValue.Null);
                 }
@@ -211,9 +224,64 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandlePushLocal(ref InterpreterState state)
     {
-        int idx = *(int*)(state.BytecodePtr + state.PC);
-        state.PC += 4;
+        int idx = state.ReadInt32();
         state.Push(state.GetLocal(idx));
+    }
+
+    private static void HandlePushSrcFieldCached(ref InterpreterState state)
+    {
+        int nameId = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        var instance = state.Frame.Instance;
+        if (instance != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
+            if (cache.ObjectType == instance.ObjectType)
+            {
+                state.Push(instance.GetVariableDirect(cache.VariableIndex));
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = instance.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    state.Push(instance.GetVariableDirect(varIdx));
+                }
+                else state.Push(instance.GetVariable(name));
+            }
+        }
+        else state.Push(DreamValue.Null);
+    }
+
+    private static void HandleSetSrcFieldCached(ref InterpreterState state)
+    {
+        int nameId = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        var val = state.Pop();
+        var instance = state.Frame.Instance;
+        if (instance != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
+            if (cache.ObjectType == instance.ObjectType)
+            {
+                instance.SetVariableDirect(cache.VariableIndex, val);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = instance.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = instance.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    instance.SetVariableDirect(varIdx, val);
+                }
+                else instance.SetVariable(name, val);
+            }
+        }
     }
 
     private static void HandlePushLocal0(ref InterpreterState state) => state.Push(state.GetLocal(0));

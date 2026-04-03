@@ -9,31 +9,32 @@ namespace Core.VM.Runtime;
 public unsafe partial class BytecodeInterpreter
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void PerformLocalFieldTransfer(ref InterpreterState state, int srcIdx, int nameId, int targetIdx, int pcForCache)
+    private static void PerformLocalFieldTransfer(ref InterpreterState state, int srcIdx, int nameId, int targetIdx)
     {
         var objValue = state.GetLocal(srcIdx);
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
-            // Persistent Inline Cache: utilize opcode-relative addressing for fast property access
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
-            if (cache.ObjectType == obj.ObjectType)
-            {
-                state.GetLocal(targetIdx) = obj.GetVariableDirect(cache.VariableIndex);
-            }
-            else
-            {
-                var name = state.Strings[nameId];
-                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
-                if (varIdx != -1)
-                {
-                    cache.ObjectType = obj.ObjectType;
-                    cache.VariableIndex = varIdx;
-                    state.GetLocal(targetIdx) = obj.GetVariableDirect(varIdx);
-                }
-                else state.GetLocal(targetIdx) = obj.GetVariable(name);
-            }
+            var name = state.Strings[nameId];
+            int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+            if (varIdx != -1) state.GetLocal(targetIdx) = obj.GetVariableDirect(varIdx);
+            else state.GetLocal(targetIdx) = obj.GetVariable(name);
         }
-        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, pcForCache, state.Thread);
+        else throw new ScriptRuntimeException($"Field access on null object: {state.Strings[nameId]}", state.Proc, state.PC, state.Thread);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformLocalPushDereferenceField(ref InterpreterState state, int idx, int nameId)
+    {
+        var objValue = state.GetLocal(idx);
+        DreamValue val = DreamValue.Null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            var name = state.Strings[nameId];
+            int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+            if (varIdx != -1) val = obj.GetVariableDirect(varIdx);
+            else val = obj.GetVariable(name);
+        }
+        state.Push(val);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -378,13 +379,13 @@ public unsafe partial class BytecodeInterpreter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void PerformLocalPushDereferenceField(ref InterpreterState state, int idx, int nameId, int pcForCache)
+    private static void PerformLocalPushDereferenceFieldCached(ref InterpreterState state, int idx, int nameId, int cacheIdx)
     {
         var objValue = state.GetLocal(idx);
         DreamValue val = DreamValue.Null;
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
             if (cache.ObjectType == obj.ObjectType)
             {
                 val = obj.GetVariableDirect(cache.VariableIndex);
@@ -406,13 +407,43 @@ public unsafe partial class BytecodeInterpreter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void PerformLocalPushDereferenceCall(ref InterpreterState state, int idx, int nameId, int pcForCache, DMCallArgumentsType argType, int argStackDelta)
+    private static void PerformLocalPushDereferenceCall(ref InterpreterState state, int idx, int nameId, DMCallArgumentsType argType, int argStackDelta)
     {
         var objValue = state.GetLocal(idx);
         if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
         {
+            var procName = state.Strings[nameId];
+            var targetProc = obj.ObjectType?.GetProc(procName);
+            if (targetProc == null)
+            {
+                var varValue = obj.GetVariable(procName);
+                if (varValue.TryGetValue(out IDreamProc? procFromVar)) targetProc = procFromVar;
+            }
+
+            if (targetProc != null)
+            {
+                state.Thread.SavePC(state.PC);
+                int argCount = argStackDelta;
+                state.Thread._stackPtr = state.StackPtr;
+                state.Thread.PerformCall(targetProc, obj, argCount, argCount);
+                return;
+            }
+        }
+        state.StackPtr -= argStackDelta;
+        state.Push(DreamValue.Null);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void PerformDereferenceCallCached(ref InterpreterState state, int nameId, DMCallArgumentsType argType, int argStackDelta, int cacheIdx)
+    {
+        if (state.StackPtr < 1) throw new ScriptRuntimeException("Stack underflow during DereferenceCallCached", state.Proc, state.PC, state.Thread);
+        int stackBase = state.StackPtr - argStackDelta;
+        var objValue = state.GetStack(stackBase);
+
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
             IDreamProc? targetProc;
-            ref var cache = ref state.Proc._inlineCache[pcForCache];
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
             if (cache.ObjectType == obj.ObjectType && cache.CachedProc != null)
             {
                 targetProc = cache.CachedProc;
@@ -436,7 +467,12 @@ public unsafe partial class BytecodeInterpreter
             if (targetProc != null)
             {
                 state.Thread.SavePC(state.PC);
-                int argCount = argStackDelta;
+                int argCount = argStackDelta - 1;
+                if (argCount > 0)
+                {
+                    state.StackSpan.Slice(stackBase + 1, argCount).CopyTo(state.StackSpan.Slice(stackBase));
+                }
+                state.StackPtr--;
                 state.Thread._stackPtr = state.StackPtr;
                 state.Thread.PerformCall(targetProc, obj, argCount, argCount);
                 return;

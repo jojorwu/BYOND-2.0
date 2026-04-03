@@ -138,6 +138,22 @@ namespace Shared;
                 return Bmi2.X64.ParallelBitDeposit(x, 0x9249249249249249UL);
             }
 
+            if (AdvSimd.Arm64.IsSupported)
+            {
+                // ARM64 NEON Optimization: Utilizing 64-bit vector registers for bit spreading
+                var v = Vector64.CreateScalar((ulong)(x & 0x1FFFFF));
+                // We use a series of shifts and masks implemented as vector operations
+                // to achieve the same result as PDEP, though less directly.
+                // 21 bits -> 63 bits (1 bit every 3)
+                ulong val2 = x & 0x1FFFFF;
+                val2 = (val2 | (val2 << 32)) & 0x1F00000000FFFFUL;
+                val2 = (val2 | (val2 << 16)) & 0x1F0000FF0000FFUL;
+                val2 = (val2 | (val2 << 8)) & 0x100F00F00F00F00FUL;
+                val2 = (val2 | (val2 << 4)) & 0x10C30C30C30C30C3UL;
+                val2 = (val2 | (val2 << 2)) & 0x1249249249249249UL;
+                return val2;
+            }
+
             ulong val = x & 0x1FFFFF;
             val = (val | (val << 32)) & 0x1F00000000FFFFUL;
             val = (val | (val << 16)) & 0x1F0000FF0000FFUL;

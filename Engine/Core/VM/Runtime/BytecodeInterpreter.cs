@@ -247,6 +247,14 @@ public unsafe partial class BytecodeInterpreter : EngineService, IBytecodeInterp
         _dispatchTable[(byte)Opcode.LocalPushDereferenceFieldJumpIfFalse] = &HandleLocalPushDereferenceFieldJumpIfFalse;
         _dispatchTable[(byte)Opcode.LocalAddConst] = &HandleLocalAddConst;
         _dispatchTable[(byte)Opcode.LocalSubConst] = &HandleLocalSubConst;
+        _dispatchTable[(byte)Opcode.PushSrcFieldCached] = &HandlePushSrcFieldCached;
+        _dispatchTable[(byte)Opcode.SetSrcFieldCached] = &HandleSetSrcFieldCached;
+        _dispatchTable[(byte)Opcode.GetVariableCached] = &HandleGetVariableCached;
+        _dispatchTable[(byte)Opcode.SetVariableCached] = &HandleSetVariableCached;
+        _dispatchTable[(byte)Opcode.DereferenceFieldCached] = &HandleDereferenceFieldCached;
+        _dispatchTable[(byte)Opcode.DereferenceCallCached] = &HandleDereferenceCallCached;
+        _dispatchTable[(byte)Opcode.CallCached] = &HandleCallCached;
+        _dispatchTable[(byte)Opcode.LocalPushDereferenceFieldJumpIfFalseCached] = &HandleLocalPushDereferenceFieldJumpIfFalseCached;
 
         // Specialized opcodes
         _dispatchTable[(byte)Opcode.PushLocal0] = &HandlePushLocal0;

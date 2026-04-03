@@ -415,6 +415,22 @@ public enum Opcode : byte {
     LocalFieldTransfer = 0xD2,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
     GlobalJumpIfFalse = 0xD3,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.CacheIdx)]
+    PushSrcFieldCached = 0xF8,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.CacheIdx)]
+    SetSrcFieldCached = 0xF9,
+    [OpcodeMetadata(1, OpcodeArgType.String, OpcodeArgType.CacheIdx)]
+    GetVariableCached = 0xFA,
+    [OpcodeMetadata(0, OpcodeArgType.String, OpcodeArgType.CacheIdx)]
+    SetVariableCached = 0xFB,
+    [OpcodeMetadata(1, OpcodeArgType.String, OpcodeArgType.CacheIdx)]
+    DereferenceFieldCached = 0xFC,
+    [OpcodeMetadata(0, true, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.CacheIdx)]
+    DereferenceCallCached = 0xFD,
+    [OpcodeMetadata(0, true, OpcodeArgType.Reference, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.StackDelta, OpcodeArgType.CacheIdx)]
+    CallCached = 0xFE,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label, OpcodeArgType.CacheIdx)]
+    LocalPushDereferenceFieldJumpIfFalseCached = 0xFF,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label)]
     LocalPushDereferenceFieldJumpIfFalse = 0xF5,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
@@ -474,6 +490,7 @@ public enum OpcodeArgType {
     FormatCount,
     PickCount,
     ConcatCount,
+    CacheIdx,
 }
 
 public enum DMCallArgumentsType {

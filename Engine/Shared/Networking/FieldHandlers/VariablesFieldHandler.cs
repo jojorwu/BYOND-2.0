@@ -24,12 +24,16 @@ public class VariablesFieldHandler : INetworkFieldHandler
         }
     }
 
-    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask)
+    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         int propertyCount = (int)reader.ReadVarInt();
-        // Since we don't have unresolvedReferences here easily, this logic stays in serializer for now
-        // OR we pass the unresolved list.
-        // Let's keep variables and components in the serializer for now as they have complex dependencies.
+        for (int i = 0; i < propertyCount; i++)
+        {
+            int propIdx = (int)reader.ReadVarInt();
+            var val = DreamValue.BitReadFrom(ref reader);
+            if (val.IsObjectIdReference) unresolved.Add((obj, propIdx, val.ObjectId));
+            else obj.SetVariableDirect(propIdx, val);
+        }
     }
 
     public void Skip(ref BitReader reader, GameObjectFields currentMask)

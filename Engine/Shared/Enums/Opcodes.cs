@@ -301,7 +301,7 @@ public enum Opcode : byte {
     IndexRefWithString = 0x99,
     [OpcodeMetadata(2, OpcodeArgType.Float, OpcodeArgType.Reference)]
     PushFloatAssign = 0x9A,
-    [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
+    [OpcodeMetadata(true, 0, OpcodeArgType.Int, OpcodeArgType.Float)]
     NPushFloatAssign = 0x9B,
     [OpcodeMetadata(1, OpcodeArgType.Int)]
     PushLocal = 0x9C,
@@ -393,7 +393,7 @@ public enum Opcode : byte {
     LocalCompareGreaterThanOrEqualJumpIfFalse = 0xC3,
     [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.String)]
     LocalPushDereferenceField = 0xC4,
-    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    [OpcodeMetadata(1, true, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
     LocalPushDereferenceCall = 0xCA,
     [OpcodeMetadata(1, OpcodeArgType.Int)]
     LocalPushDereferenceIndex = 0xCB,
@@ -415,6 +415,28 @@ public enum Opcode : byte {
     LocalFieldTransfer = 0xD2,
     [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Label)]
     GlobalJumpIfFalse = 0xD3,
+    [OpcodeMetadata(1, OpcodeArgType.Int, OpcodeArgType.CacheIdx)]
+    PushSrcFieldCached = 0xF8,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.CacheIdx)]
+    SetSrcFieldCached = 0xF9,
+    [OpcodeMetadata(1, OpcodeArgType.String, OpcodeArgType.CacheIdx)]
+    GetVariableCached = 0xFA,
+    [OpcodeMetadata(0, OpcodeArgType.String, OpcodeArgType.CacheIdx)]
+    SetVariableCached = 0xFB,
+    [OpcodeMetadata(1, OpcodeArgType.String, OpcodeArgType.CacheIdx)]
+    DereferenceFieldCached = 0xFC,
+    [OpcodeMetadata(0, true, OpcodeArgType.String, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.CacheIdx)]
+    DereferenceCallCached = 0xFD,
+    [OpcodeMetadata(0, true, OpcodeArgType.Reference, OpcodeArgType.ArgType, OpcodeArgType.StackDelta, OpcodeArgType.StackDelta, OpcodeArgType.CacheIdx)]
+    CallCached = 0xFE,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label, OpcodeArgType.CacheIdx)]
+    LocalPushDereferenceFieldJumpIfFalseCached = 0xFF,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.String, OpcodeArgType.Label)]
+    LocalPushDereferenceFieldJumpIfFalse = 0xF5,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalAddConst = 0xF6,
+    [OpcodeMetadata(0, OpcodeArgType.Int, OpcodeArgType.Float)]
+    LocalSubConst = 0xF7,
     [OpcodeMetadata(1)] PushLocal0 = 0xD4,
     [OpcodeMetadata(1)] PushLocal1 = 0xD5,
     [OpcodeMetadata(1)] PushLocal2 = 0xD6,
@@ -447,6 +469,8 @@ public enum Opcode : byte {
     [OpcodeMetadata(0)] AssignLocal13 = 0xF1,
     [OpcodeMetadata(0)] AssignLocal14 = 0xF2,
     [OpcodeMetadata(0)] AssignLocal15 = 0xF3,
+    [OpcodeMetadata(0, true, OpcodeArgType.ProcId, OpcodeArgType.ArgType, OpcodeArgType.StackDelta)]
+    CallGlobalProc = 0xF4,
 }
 
 public enum OpcodeArgType {
@@ -466,6 +490,7 @@ public enum OpcodeArgType {
     FormatCount,
     PickCount,
     ConcatCount,
+    CacheIdx,
 }
 
 public enum DMCallArgumentsType {
@@ -563,6 +588,7 @@ public static class OpcodeMetadataCache {
                 Opcode.LocalCompareGreaterThanJumpIfFalse => true,
                 Opcode.LocalCompareLessThanOrEqualJumpIfFalse => true,
                 Opcode.LocalCompareGreaterThanOrEqualJumpIfFalse => true,
+                Opcode.LocalPushDereferenceFieldJumpIfFalse => true,
                 Opcode.BooleanAnd => true,
                 Opcode.BooleanOr => true,
                 Opcode.Enumerate => true,

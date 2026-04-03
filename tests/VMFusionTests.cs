@@ -35,7 +35,7 @@ namespace tests
                 (byte)Opcode.ReturnNull
             };
 
-            var proc = new DreamProc("test", bytecode, Array.Empty<string>(), 2, context.Strings);
+            var proc = new DreamProc("test", bytecode, Array.Empty<string>(), 2, context.Strings, 0, 0);
             var thread = new DreamThread(proc, context, 1000);
 
             // Set local[0] to the object
@@ -63,7 +63,7 @@ namespace tests
                 (byte)Opcode.ReturnTrue  // Offset 10
             };
 
-            var proc = new DreamProc("test", bytecode, Array.Empty<string>(), 0, context.Strings);
+            var proc = new DreamProc("test", bytecode, Array.Empty<string>(), 0, context.Strings, 0, 0);
             var thread = new DreamThread(proc, context, 1000);
 
             thread.Run(100);

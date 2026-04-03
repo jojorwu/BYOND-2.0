@@ -72,7 +72,9 @@ namespace Core
                         bytecode,
                         arguments,
                         localCount,
-                        dreamVM.Strings
+                        dreamVM.Strings,
+                        json.Procs?.Length ?? 0,
+                        json.Types?.Length ?? 0
                     );
 
                     dreamVM.AllProcs.Add(newProc);

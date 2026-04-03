@@ -113,30 +113,27 @@ namespace Shared.Services;
             return offset;
         }
 
-        private struct ChangeCounter : GameObject.IChangeVisitor
+        private ref struct SinglePassSerializer : GameObject.IChangeVisitor
         {
-            public int Count;
-            public void Visit(int index, in DreamValue value) => Count++;
-        }
-
-        private ref struct ChangeSerializer : GameObject.IChangeVisitor
-        {
-            public Span<byte> Destination;
+            public Span<byte> PropertyBuffer;
             public int Offset;
+            public int Count;
             public bool Truncated;
 
             public void Visit(int propIdx, in DreamValue val)
             {
                 if (Truncated) return;
                 int valueSize = val.GetWriteSize();
-                if (Offset + 5 + valueSize > Destination.Length)
+                // 5 bytes for index (worst case varint) + value size
+                if (Offset + 5 + valueSize > PropertyBuffer.Length)
                 {
                     Truncated = true;
                     return;
                 }
 
-                Offset += Utils.VarInt.Write(Destination.Slice(Offset), propIdx);
-                Offset += val.WriteTo(Destination.Slice(Offset));
+                Offset += Utils.VarInt.Write(PropertyBuffer.Slice(Offset), propIdx);
+                Offset += val.WriteTo(PropertyBuffer.Slice(Offset));
+                Count++;
             }
         }
 
@@ -163,7 +160,7 @@ namespace Shared.Services;
             }
 
             int slabOffset;
-            var slabSpan = _buffer.AcquireSegment(Math.Min(1024, _buffer.Capacity - _buffer.Position), out slabOffset);
+            var slabSpan = _buffer.AcquireSegment(Math.Min(2048, _buffer.Capacity - _buffer.Position), out slabOffset);
 
             int localOffset = 0;
             localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.Id);
@@ -175,22 +172,30 @@ namespace Shared.Services;
 
             if (obj.ObjectType != null && obj is GameObject g)
             {
-                var counter = new ChangeCounter();
-                g.VisitChanges(ref counter);
+                // Single-pass property serialization using stack buffer for small property sets
+                Span<byte> propBuffer = stackalloc byte[1024];
+                var serializer = new SinglePassSerializer { PropertyBuffer = propBuffer };
+                g.VisitChanges(ref serializer);
 
-                localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), counter.Count);
-
-                if (counter.Count > 0)
+                if (serializer.Truncated)
                 {
-                    var serializer = new ChangeSerializer { Destination = slabSpan, Offset = localOffset };
-                    g.VisitChanges(ref serializer);
-
-                    if (serializer.Truncated)
-                    {
-                        truncated = true;
-                        return true;
+                    // Fallback for very large property sets (rare)
+                    byte[] largeBuffer = ArrayPool<byte>.Shared.Rent(4096);
+                    try {
+                        serializer = new SinglePassSerializer { PropertyBuffer = largeBuffer };
+                        g.VisitChanges(ref serializer);
+                        localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), serializer.Count);
+                        serializer.PropertyBuffer.Slice(0, serializer.Offset).CopyTo(slabSpan.Slice(localOffset));
+                        localOffset += serializer.Offset;
+                    } finally {
+                        ArrayPool<byte>.Shared.Return(largeBuffer);
                     }
-                    localOffset = serializer.Offset;
+                }
+                else
+                {
+                    localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), serializer.Count);
+                    serializer.PropertyBuffer.Slice(0, serializer.Offset).CopyTo(slabSpan.Slice(localOffset));
+                    localOffset += serializer.Offset;
                 }
             }
             else

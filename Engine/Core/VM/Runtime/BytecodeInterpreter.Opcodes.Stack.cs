@@ -12,9 +12,9 @@ public unsafe partial class BytecodeInterpreter
     private static void HandlePushString(ref InterpreterState state)
     {
         var stringId = state.ReadInt32();
-        if (stringId < 0 || stringId >= state.Thread.Context.Strings.Count)
+        if (stringId < 0 || stringId >= state.Strings.Length)
             throw new ScriptRuntimeException($"Invalid string ID: {stringId}", state.Proc, state.PC, state.Thread);
-        state.Push(new DreamValue(state.Thread.Context.Strings[stringId]));
+        state.Push(new DreamValue(state.Strings[stringId]));
     }
 
     private static void HandlePushFloat(ref InterpreterState state)
@@ -29,14 +29,14 @@ public unsafe partial class BytecodeInterpreter
 
     private static void HandlePop(ref InterpreterState state)
     {
-        state.StackPtr--;
+        state.Pop();
     }
 
     private static void HandlePushProc(ref InterpreterState state)
     {
         var procId = state.ReadInt32();
         DreamValue val;
-        if (procId >= 0 && procId < state.Thread.Context.AllProcs.Count)
+        if (procId >= 0 && procId < state.Thread.Context!.AllProcs.Count)
             val = new DreamValue((IDreamProc)state.Thread.Context.AllProcs[procId]);
         else
             val = DreamValue.Null;
@@ -54,7 +54,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandlePushType(ref InterpreterState state)
     {
         var typeId = state.ReadInt32();
-        var type = state.Thread.Context.ObjectTypeManager?.GetObjectType(typeId);
+        var type = state.Thread.Context!.ObjectTypeManager?.GetObjectType(typeId);
         state.Push(type != null ? new DreamValue(type) : DreamValue.Null);
     }
 
@@ -68,14 +68,14 @@ public unsafe partial class BytecodeInterpreter
     {
         var stringId = state.ReadInt32();
         var value = state.ReadDouble();
-        state.Push(new DreamValue(state.Thread.Context.Strings[stringId]));
+        state.Push(new DreamValue(state.Strings[stringId]));
         state.Push(new DreamValue(value));
     }
 
     private static void HandlePushResource(ref InterpreterState state)
     {
         var pathId = state.ReadInt32();
-        state.Push(new DreamValue(new DreamResource("resource", state.Thread.Context.Strings[pathId])));
+        state.Push(new DreamValue(new DreamResource("resource", state.Strings[pathId])));
     }
 
     private static void HandleNPushFloatAssign(ref InterpreterState state)
@@ -91,19 +91,19 @@ public unsafe partial class BytecodeInterpreter
             {
                 int idx = *(int*)(state.BytecodePtr + state.PC);
                 state.PC += 4;
-                state.Stack[state.LocalBase + idx] = dv;
+                state.GetLocal(idx) = dv;
             }
             else if (refType == DMReference.Type.Argument)
             {
                 int idx = *(int*)(state.BytecodePtr + state.PC);
                 state.PC += 4;
-                state.Stack[state.ArgumentBase + idx] = dv;
+                state.GetArgument(idx) = dv;
             }
             else if (refType == DMReference.Type.Global)
             {
                 int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                 state.PC += 4;
-                state.Thread.Context.SetGlobal(globalIdx, dv);
+                state.Thread.Context!.SetGlobal(globalIdx, dv);
             }
             else
             {
@@ -126,15 +126,16 @@ public unsafe partial class BytecodeInterpreter
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, dv, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
-        state.Thread.Push(dv);
-        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
+        state.Push(dv);
     }
 
     private static void HandlePopN(ref InterpreterState state)
     {
         int count = state.ReadInt32();
-        state.StackPtr -= count;
+        if (count < 0 || count > state.StackPtr)
+            throw new ScriptRuntimeException($"Stack underflow during PopN: {count}", state.Proc, state.PC, state.Thread);
+        for (int i = 0; i < count; i++) state.Pop();
     }
 
 }

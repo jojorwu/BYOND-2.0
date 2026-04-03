@@ -18,9 +18,14 @@ namespace Shared;
             // Get the full path of the user-provided file relative to the project root
             var fullUserPath = System.IO.Path.GetFullPath(project.GetFullPath(userProvidedPath));
 
-            if (!fullUserPath.StartsWith(rootWithSeparator) && fullUserPath != fullRootPath)
+            var relativePath = System.IO.Path.GetRelativePath(fullRootPath, fullUserPath);
+            if (relativePath.StartsWith("..") || System.IO.Path.IsPathRooted(relativePath))
             {
-                throw new System.Security.SecurityException("Access to path is denied.");
+                // Edge case: exactly the root path is allowed
+                if (fullUserPath != fullRootPath)
+                {
+                    throw new System.Security.SecurityException("Access to path is denied.");
+                }
             }
             return fullUserPath;
         }

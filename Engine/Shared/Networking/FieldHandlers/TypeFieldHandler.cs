@@ -15,7 +15,7 @@ public class TypeFieldHandler : INetworkFieldHandler
         writer.WriteVarInt(obj.ObjectType?.Id ?? -1);
     }
 
-    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask)
+    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         // Type was already consumed for object creation/matching in DeserializeBitPacked
     }

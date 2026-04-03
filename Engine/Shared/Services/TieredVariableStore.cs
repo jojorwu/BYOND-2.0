@@ -13,9 +13,13 @@ namespace Shared.Services;
 /// </summary>
 public class TieredVariableStore : IObservableVariableStore
 {
+    private const int SparseThreshold = 16;
     private DreamValue[]? _defaults;
     private DreamValue[] _overrides = Array.Empty<DreamValue>();
     private ulong[] _modifiedMask = Array.Empty<ulong>();
+    private int[]? _sparseIndices;
+    private DreamValue[]? _sparseValues;
+    private int _sparseCount;
     private int _length;
     private IVariableChangeListener[] _listeners = Array.Empty<IVariableChangeListener>();
     private readonly System.Threading.Lock _listenerLock = new();
@@ -51,9 +55,19 @@ public class TieredVariableStore : IObservableVariableStore
 
     public void VisitModified(IVariableStore.Visitor visitor)
     {
-        for (int i = 0; i < _modifiedMask.Length; i++)
+        if (_sparseIndices != null)
         {
-            ulong mask = _modifiedMask[i];
+            var indices = _sparseIndices;
+            var values = _sparseValues!;
+            for (int i = 0; i < _sparseCount; i++) visitor(indices[i], values[i]);
+            return;
+        }
+
+        var maskSpan = _modifiedMask.AsSpan();
+        var overrides = _overrides;
+        for (int i = 0; i < maskSpan.Length; i++)
+        {
+            ulong mask = maskSpan[i];
             if (mask == 0) continue;
 
             int baseIdx = i << 6;
@@ -61,9 +75,9 @@ public class TieredVariableStore : IObservableVariableStore
             {
                 int bit = System.Numerics.BitOperations.TrailingZeroCount(mask);
                 int index = baseIdx + bit;
-                if (index < _length)
+                if ((uint)index < (uint)_length)
                 {
-                    visitor(index, _overrides[index]);
+                    visitor(index, overrides[index]);
                 }
                 mask &= mask - 1;
             }
@@ -72,9 +86,19 @@ public class TieredVariableStore : IObservableVariableStore
 
     public void VisitModified<T>(ref T visitor) where T : struct, IVariableVisitor, allows ref struct
     {
-        for (int i = 0; i < _modifiedMask.Length; i++)
+        if (_sparseIndices != null)
         {
-            ulong mask = _modifiedMask[i];
+            var indices = _sparseIndices;
+            var values = _sparseValues!;
+            for (int i = 0; i < _sparseCount; i++) visitor.Visit(indices[i], values[i]);
+            return;
+        }
+
+        var maskSpan = _modifiedMask.AsSpan();
+        var overrides = _overrides;
+        for (int i = 0; i < maskSpan.Length; i++)
+        {
+            ulong mask = maskSpan[i];
             if (mask == 0) continue;
 
             int baseIdx = i << 6;
@@ -82,9 +106,9 @@ public class TieredVariableStore : IObservableVariableStore
             {
                 int bit = System.Numerics.BitOperations.TrailingZeroCount(mask);
                 int index = baseIdx + bit;
-                if (index < _length)
+                if ((uint)index < (uint)_length)
                 {
-                    visitor.Visit(index, _overrides[index]);
+                    visitor.Visit(index, overrides[index]);
                 }
                 mask &= mask - 1;
             }
@@ -121,7 +145,18 @@ public class TieredVariableStore : IObservableVariableStore
     {
         if ((uint)index >= (uint)_length) return DreamValue.Null;
 
-        if (IsModified(index)) return _overrides[index];
+        if (_sparseIndices != null)
+        {
+            for (int i = 0; i < _sparseCount; i++)
+            {
+                if (_sparseIndices[i] == index) return _sparseValues![i];
+            }
+        }
+        else if (IsModified(index))
+        {
+            return _overrides[index];
+        }
+
         if (_defaults != null && (uint)index < (uint)_defaults.Length) return _defaults[index];
 
         return DreamValue.Null;
@@ -153,15 +188,63 @@ public class TieredVariableStore : IObservableVariableStore
 
     public void Set(int index, DreamValue value)
     {
-        if ((uint)index >= (uint)_overrides.Length)
+        if (_modifiedMask.Length > 0)
         {
-            Expand(index + 1);
+            if ((uint)index >= (uint)_overrides.Length) Expand(index + 1);
+            _overrides[index] = value;
+            int word = index >> 6;
+            int bit = index & 63;
+            _modifiedMask[word] |= (1UL << bit);
+        }
+        else
+        {
+            // Sparse/Tiered logic
+            int idx = -1;
+            if (_sparseIndices != null)
+            {
+                for (int i = 0; i < _sparseCount; i++)
+                {
+                    if (_sparseIndices[i] == index) { idx = i; break; }
+                }
+            }
+
+            if (idx != -1)
+            {
+                _sparseValues![idx] = value;
+            }
+            else
+            {
+                if (_sparseCount < SparseThreshold)
+                {
+                    _sparseIndices ??= new int[SparseThreshold];
+                    _sparseValues ??= new DreamValue[SparseThreshold];
+                    _sparseIndices[_sparseCount] = index;
+                    _sparseValues[_sparseCount] = value;
+                    _sparseCount++;
+                }
+                else
+                {
+                    // Promote to dense
+                    var denseCapacity = Math.Max(index + 1, _length);
+                    Expand(denseCapacity);
+                    if (_sparseIndices != null)
+                    {
+                        for (int i = 0; i < _sparseCount; i++)
+                        {
+                            int sIdx = _sparseIndices[i];
+                            _overrides[sIdx] = _sparseValues![i];
+                            _modifiedMask[sIdx >> 6] |= (1UL << (sIdx & 63));
+                        }
+                        _sparseIndices = null;
+                        _sparseValues = null;
+                        _sparseCount = 0;
+                    }
+                    _overrides[index] = value;
+                    _modifiedMask[index >> 6] |= (1UL << (index & 63));
+                }
+            }
         }
 
-        _overrides[index] = value;
-        int word = index >> 6;
-        int bit = index & 63;
-        _modifiedMask[word] |= (1UL << bit);
         if (index >= _length) _length = index + 1;
 
         var listeners = _listeners;
@@ -208,22 +291,30 @@ public class TieredVariableStore : IObservableVariableStore
 
     public void ClearModified()
     {
-        Array.Clear(_modifiedMask, 0, _modifiedMask.Length);
+        if (_modifiedMask.Length > 0) Array.Clear(_modifiedMask, 0, _modifiedMask.Length);
+        _sparseCount = 0;
     }
 
     public void Dispose()
     {
         if (_overrides.Length > 0)
         {
+            Array.Clear(_overrides, 0, _overrides.Length);
             ArrayPool<DreamValue>.Shared.Return(_overrides, true);
             _overrides = Array.Empty<DreamValue>();
         }
         if (_modifiedMask.Length > 0)
         {
+            Array.Clear(_modifiedMask, 0, _modifiedMask.Length);
             ArrayPool<ulong>.Shared.Return(_modifiedMask);
             _modifiedMask = Array.Empty<ulong>();
         }
+        _sparseIndices = null;
+        _sparseValues = null;
+        _sparseCount = 0;
         _defaults = null;
+        _owner = null;
+        _listeners = Array.Empty<IVariableChangeListener>();
         _length = 0;
     }
 }

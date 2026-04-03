@@ -48,45 +48,46 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleCompareEquivalent(ref InterpreterState state)
     {
         if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareEquivalent", state.Proc, state.PC, state.Thread);
-        var b = state.Stack[--state.StackPtr];
-        var a = state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
+                a = (a.UnsafeRawLong == b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 1e-5) ? DreamValue.True : DreamValue.False;
+                a = (a.UnsafeRawDouble == b.UnsafeRawDouble || Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) < 1e-5) ? DreamValue.True : DreamValue.False;
         }
         else
-            state.Stack[state.StackPtr - 1] = a.Equals(b) ? DreamValue.True : DreamValue.False;
+            a = a.Equals(b) ? DreamValue.True : DreamValue.False;
     }
 
     private static void HandleCompareNotEquivalent(ref InterpreterState state)
     {
         if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during CompareNotEquivalent", state.Proc, state.PC, state.Thread);
-        var b = state.Stack[--state.StackPtr];
-        var a = state.Stack[state.StackPtr - 1];
+        var b = state.Pop();
+        ref var a = ref state.Peek();
         if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
         {
             if (a.Type == DreamValueType.Integer && b.Type == DreamValueType.Integer)
-                state.Stack[state.StackPtr - 1] = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
+                a = (a.UnsafeRawLong != b.UnsafeRawLong) ? DreamValue.True : DreamValue.False;
             else
-                state.Stack[state.StackPtr - 1] = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 1e-5) ? DreamValue.True : DreamValue.False;
+                a = (a.UnsafeRawDouble != b.UnsafeRawDouble && Math.Abs(a.UnsafeRawDouble - b.UnsafeRawDouble) >= 1e-5) ? DreamValue.True : DreamValue.False;
         }
         else
-            state.Stack[state.StackPtr - 1] = !a.Equals(b) ? DreamValue.True : DreamValue.False;
+            a = !a.Equals(b) ? DreamValue.True : DreamValue.False;
     }
 
     private static void HandleIsNull(ref InterpreterState state)
     {
-        state.Stack[state.StackPtr - 1] = state.Stack[state.StackPtr - 1].IsNull ? DreamValue.True : DreamValue.False;
+        ref var a = ref state.Peek();
+        a = a.IsNull ? DreamValue.True : DreamValue.False;
     }
 
     private static void HandleIsType(ref InterpreterState state)
     {
         if (state.StackPtr < 2) throw new ScriptRuntimeException("Stack underflow during IsType", state.Proc, state.PC, state.Thread);
-        var typeValue = state.Stack[--state.StackPtr];
-        var objValue = state.Stack[state.StackPtr - 1];
+        var typeValue = state.Pop();
+        ref var objValue = ref state.Peek();
         bool result = false;
         if (objValue.Type == DreamValueType.DreamObject && typeValue.Type == DreamValueType.DreamType)
         {
@@ -94,15 +95,15 @@ public unsafe partial class BytecodeInterpreter
             typeValue.TryGetValue(out ObjectType? type);
             if (obj?.ObjectType != null && type != null) result = obj.ObjectType.IsSubtypeOf(type);
         }
-        state.Stack[state.StackPtr - 1] = result ? DreamValue.True : DreamValue.False;
+        objValue = result ? DreamValue.True : DreamValue.False;
     }
 
     private static void HandleIsInRange(ref InterpreterState state)
     {
         if (state.StackPtr < 3) throw new ScriptRuntimeException("Stack underflow during IsInRange", state.Proc, state.PC, state.Thread);
-        var max = state.Stack[--state.StackPtr];
-        var min = state.Stack[--state.StackPtr];
-        var val = state.Stack[--state.StackPtr];
+        var max = state.Pop();
+        var min = state.Pop();
+        var val = state.Pop();
 
         if (val.Type <= DreamValueType.Integer && min.Type <= DreamValueType.Integer && max.Type <= DreamValueType.Integer)
         {
@@ -118,14 +119,14 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleIsTypeDirect(ref InterpreterState state)
     {
         int typeId = state.ReadInt32();
-        var value = state.Stack[--state.StackPtr];
+        var value = state.Pop();
         bool result = false;
         if (value.Type == DreamValueType.DreamObject && value.TryGetValue(out DreamObject? obj) && obj != null)
         {
             var ot = obj.ObjectType;
             if (ot != null)
             {
-                var targetType = state.Thread.Context.ObjectTypeManager?.GetObjectType(typeId);
+                var targetType = state.Thread.Context!.ObjectTypeManager?.GetObjectType(typeId);
                 if (targetType != null) result = ot.IsSubtypeOf(targetType);
             }
         }

@@ -18,7 +18,7 @@ public class TransformFieldHandler : INetworkFieldHandler
         if ((currentMask & GameObjectFields.Rotation) != 0) writer.WriteDouble(obj.Rotation);
     }
 
-    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask)
+    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         if ((currentMask & GameObjectFields.PositionX) != 0) obj.X = reader.ReadZigZag();
         if ((currentMask & GameObjectFields.PositionY) != 0) obj.Y = reader.ReadZigZag();

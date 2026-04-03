@@ -48,7 +48,7 @@ namespace tests
                 else throw new ArgumentException($"Unsupported op type: {op.GetType()}");
             }
 
-            var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
             return thread.Peek();
@@ -188,7 +188,7 @@ namespace tests
             bytecode.Add((byte)Opcode.Pop);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc(string.Empty, bytecode.ToArray(), Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.Run(1000);
 

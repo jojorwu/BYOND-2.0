@@ -55,7 +55,7 @@ public class ComponentsFieldHandler : INetworkFieldHandler
         }
     }
 
-    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask)
+    public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         int compCount = (int)reader.ReadVarInt();
         for (int i = 0; i < compCount; i++)

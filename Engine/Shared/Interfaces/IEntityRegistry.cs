@@ -14,4 +14,5 @@ public interface IEntityRegistry
 
     IComponentManager ComponentManager { get; }
     IObjectPool<GameObject> EntityPool { get; }
+    int EntityCount { get; }
 }

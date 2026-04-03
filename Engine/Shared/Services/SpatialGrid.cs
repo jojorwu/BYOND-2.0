@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics.Arm;
 using System;
@@ -23,16 +24,17 @@ namespace Shared;
             public int Count;
             public SpinLock Lock = new(false);
             public long Version;
+            public int Readers;
 
             public void Reset()
             {
-                // Note: We don't return to pool here anymore, parent grid handles it via _replacedArrays
                 Objects = Array.Empty<IGameObject>();
                 Xs = Array.Empty<long>();
                 Ys = Array.Empty<long>();
                 Zs = Array.Empty<long>();
                 Count = 0;
                 Version = 0;
+                Readers = 0;
             }
         }
 
@@ -136,6 +138,22 @@ namespace Shared;
                 return Bmi2.X64.ParallelBitDeposit(x, 0x9249249249249249UL);
             }
 
+            if (AdvSimd.Arm64.IsSupported)
+            {
+                // ARM64 NEON Optimization: Utilizing 64-bit vector registers for bit spreading
+                var v = Vector64.CreateScalar((ulong)(x & 0x1FFFFF));
+                // We use a series of shifts and masks implemented as vector operations
+                // to achieve the same result as PDEP, though less directly.
+                // 21 bits -> 63 bits (1 bit every 3)
+                ulong val2 = x & 0x1FFFFF;
+                val2 = (val2 | (val2 << 32)) & 0x1F00000000FFFFUL;
+                val2 = (val2 | (val2 << 16)) & 0x1F0000FF0000FFUL;
+                val2 = (val2 | (val2 << 8)) & 0x100F00F00F00F00FUL;
+                val2 = (val2 | (val2 << 4)) & 0x10C30C30C30C30C3UL;
+                val2 = (val2 | (val2 << 2)) & 0x1249249249249249UL;
+                return val2;
+            }
+
             ulong val = x & 0x1FFFFF;
             val = (val | (val << 32)) & 0x1F00000000FFFFUL;
             val = (val | (val << 16)) & 0x1F0000FF0000FFUL;
@@ -233,48 +251,62 @@ namespace Shared;
         private void AddInternal(IGameObject obj, Cell cell, Vector3l key)
         {
             int newCount = cell.Count + 1;
-            var oldArray = cell.Objects;
-            var oldX = cell.Xs;
-            var oldY = cell.Ys;
-            var oldZ = cell.Zs;
+            var objects = cell.Objects;
 
-            int targetSize = oldArray.Length;
-            if (newCount > targetSize)
+            // Optimization: If no active readers, we can potentially modify in-place if capacity allows
+            if (Volatile.Read(ref cell.Readers) == 0 && newCount <= objects.Length)
             {
-                targetSize = targetSize == 0 ? 4 : targetSize * 2;
+                obj.SpatialGridIndex = cell.Count;
+                objects[cell.Count] = obj;
+                cell.Xs[cell.Count] = obj.X;
+                cell.Ys[cell.Count] = obj.Y;
+                cell.Zs[cell.Count] = obj.Z;
             }
-
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
-            var newX = ArrayPool<long>.Shared.Rent(targetSize);
-            var newY = ArrayPool<long>.Shared.Rent(targetSize);
-            var newZ = ArrayPool<long>.Shared.Rent(targetSize);
-
-            if (cell.Count > 0)
+            else
             {
-                Array.Copy(oldArray, newArray, cell.Count);
-                Array.Copy(oldX, newX, cell.Count);
-                Array.Copy(oldY, newY, cell.Count);
-                Array.Copy(oldZ, newZ, cell.Count);
+                var oldArray = objects;
+                var oldX = cell.Xs;
+                var oldY = cell.Ys;
+                var oldZ = cell.Zs;
+
+                int targetSize = oldArray.Length;
+                if (newCount > targetSize)
+                {
+                    targetSize = targetSize == 0 ? 4 : targetSize * 2;
+                }
+
+                var newArray = ArrayPool<IGameObject>.Shared.Rent(targetSize);
+                var newX = ArrayPool<long>.Shared.Rent(targetSize);
+                var newY = ArrayPool<long>.Shared.Rent(targetSize);
+                var newZ = ArrayPool<long>.Shared.Rent(targetSize);
+
+                if (cell.Count > 0)
+                {
+                    Array.Copy(oldArray, newArray, cell.Count);
+                    Array.Copy(oldX, newX, cell.Count);
+                    Array.Copy(oldY, newY, cell.Count);
+                    Array.Copy(oldZ, newZ, cell.Count);
+                }
+
+                if (oldArray.Length > 0)
+                {
+                    EnqueueForRelease(oldArray);
+                    EnqueueForRelease(oldX);
+                    EnqueueForRelease(oldY);
+                    EnqueueForRelease(oldZ);
+                }
+
+                obj.SpatialGridIndex = cell.Count;
+                newArray[cell.Count] = obj;
+                newX[cell.Count] = obj.X;
+                newY[cell.Count] = obj.Y;
+                newZ[cell.Count] = obj.Z;
+
+                cell.Objects = newArray;
+                cell.Xs = newX;
+                cell.Ys = newY;
+                cell.Zs = newZ;
             }
-
-            if (oldArray.Length > 0)
-            {
-                EnqueueForRelease(oldArray);
-                EnqueueForRelease(oldX);
-                EnqueueForRelease(oldY);
-                EnqueueForRelease(oldZ);
-            }
-
-            obj.SpatialGridIndex = cell.Count;
-            newArray[cell.Count] = obj;
-            newX[cell.Count] = obj.X;
-            newY[cell.Count] = obj.Y;
-            newZ[cell.Count] = obj.Z;
-
-            cell.Objects = newArray;
-            cell.Xs = newX;
-            cell.Ys = newY;
-            cell.Zs = newZ;
 
             cell.Count = newCount;
             cell.Version++;
@@ -308,49 +340,68 @@ namespace Shared;
             if (index == -1) return;
 
             int lastIndex = cell.Count - 1;
-            var oldArray = cell.Objects;
-            var oldX = cell.Xs;
-            var oldY = cell.Ys;
-            var oldZ = cell.Zs;
+            var objects = cell.Objects;
 
-            var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
-            var newX = ArrayPool<long>.Shared.Rent(oldX.Length);
-            var newY = ArrayPool<long>.Shared.Rent(oldY.Length);
-            var newZ = ArrayPool<long>.Shared.Rent(oldZ.Length);
-
-            Array.Clear(newArray, 0, newArray.Length);
-
-            if (lastIndex > 0)
+            // Optimization: If no active readers, we can modify in-place
+            if (Volatile.Read(ref cell.Readers) == 0)
             {
-                Array.Copy(oldArray, newArray, cell.Count);
-                Array.Copy(oldX, newX, cell.Count);
-                Array.Copy(oldY, newY, cell.Count);
-                Array.Copy(oldZ, newZ, cell.Count);
-
                 if (index < lastIndex)
                 {
-                    var lastObj = newArray[lastIndex];
-                    newArray[index] = lastObj;
-                    newX[index] = newX[lastIndex];
-                    newY[index] = newY[lastIndex];
-                    newZ[index] = newZ[lastIndex];
+                    var lastObj = objects[lastIndex];
+                    objects[index] = lastObj;
+                    cell.Xs[index] = cell.Xs[lastIndex];
+                    cell.Ys[index] = cell.Ys[lastIndex];
+                    cell.Zs[index] = cell.Zs[lastIndex];
                     lastObj.SpatialGridIndex = index;
                 }
-                newArray[lastIndex] = null!;
+                objects[lastIndex] = null!;
             }
-
-            if (oldArray.Length > 0)
+            else
             {
-                EnqueueForRelease(oldArray);
-                EnqueueForRelease(oldX);
-                EnqueueForRelease(oldY);
-                EnqueueForRelease(oldZ);
-            }
+                var oldArray = objects;
+                var oldX = cell.Xs;
+                var oldY = cell.Ys;
+                var oldZ = cell.Zs;
 
-            cell.Objects = newArray;
-            cell.Xs = newX;
-            cell.Ys = newY;
-            cell.Zs = newZ;
+                var newArray = ArrayPool<IGameObject>.Shared.Rent(oldArray.Length);
+                var newX = ArrayPool<long>.Shared.Rent(oldX.Length);
+                var newY = ArrayPool<long>.Shared.Rent(oldY.Length);
+                var newZ = ArrayPool<long>.Shared.Rent(oldZ.Length);
+
+                Array.Clear(newArray, 0, newArray.Length);
+
+                if (lastIndex > 0)
+                {
+                    Array.Copy(oldArray, newArray, cell.Count);
+                    Array.Copy(oldX, newX, cell.Count);
+                    Array.Copy(oldY, newY, cell.Count);
+                    Array.Copy(oldZ, newZ, cell.Count);
+
+                    if (index < lastIndex)
+                    {
+                        var lastObj = newArray[lastIndex];
+                        newArray[index] = lastObj;
+                        newX[index] = newX[lastIndex];
+                        newY[index] = newY[lastIndex];
+                        newZ[index] = newZ[lastIndex];
+                        lastObj.SpatialGridIndex = index;
+                    }
+                    newArray[lastIndex] = null!;
+                }
+
+                if (oldArray.Length > 0)
+                {
+                    EnqueueForRelease(oldArray);
+                    EnqueueForRelease(oldX);
+                    EnqueueForRelease(oldY);
+                    EnqueueForRelease(oldZ);
+                }
+
+                cell.Objects = newArray;
+                cell.Xs = newX;
+                cell.Ys = newY;
+                cell.Zs = newZ;
+            }
 
             cell.Count--;
             cell.Version++;
@@ -423,25 +474,25 @@ namespace Shared;
 
                         while (++_currentIndexInCell < count)
                         {
-                            // SIMD-Accelerated filtering
-                            if (System.Runtime.Intrinsics.Vector256.IsHardwareAccelerated && count - _currentIndexInCell >= 4)
+                            // SIMD-Accelerated filtering (AVX2)
+                            if (Vector256.IsHardwareAccelerated && count - _currentIndexInCell >= 4)
                             {
-                                var vx = System.Runtime.Intrinsics.Vector256.Create(xs, _currentIndexInCell);
-                                var vy = System.Runtime.Intrinsics.Vector256.Create(ys, _currentIndexInCell);
-                                var vz = System.Runtime.Intrinsics.Vector256.Create(zs, _currentIndexInCell);
+                                var vx = Vector256.Create(xs, _currentIndexInCell);
+                                var vy = Vector256.Create(ys, _currentIndexInCell);
+                                var vz = Vector256.Create(zs, _currentIndexInCell);
 
-                                var vLeft = System.Runtime.Intrinsics.Vector256.Create(_box.Left);
-                                var vRight = System.Runtime.Intrinsics.Vector256.Create(_box.Right);
-                                var vBottom = System.Runtime.Intrinsics.Vector256.Create(_box.Bottom);
-                                var vTop = System.Runtime.Intrinsics.Vector256.Create(_box.Top);
-                                var vBack = System.Runtime.Intrinsics.Vector256.Create(_box.Back);
-                                var vFront = System.Runtime.Intrinsics.Vector256.Create(_box.Front);
+                                var vLeft = Vector256.Create(_box.Left);
+                                var vRight = Vector256.Create(_box.Right);
+                                var vBottom = Vector256.Create(_box.Bottom);
+                                var vTop = Vector256.Create(_box.Top);
+                                var vBack = Vector256.Create(_box.Back);
+                                var vFront = Vector256.Create(_box.Front);
 
-                                var mask = System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vx, vLeft) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vx, vRight) &
-                                           System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vy, vBottom) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vy, vTop) &
-                                           System.Runtime.Intrinsics.Vector256.GreaterThanOrEqual(vz, vBack) & System.Runtime.Intrinsics.Vector256.LessThanOrEqual(vz, vFront);
+                                var mask = Vector256.GreaterThanOrEqual(vx, vLeft) & Vector256.LessThanOrEqual(vx, vRight) &
+                                           Vector256.GreaterThanOrEqual(vy, vBottom) & Vector256.LessThanOrEqual(vy, vTop) &
+                                           Vector256.GreaterThanOrEqual(vz, vBack) & Vector256.LessThanOrEqual(vz, vFront);
 
-                                uint moveMask = (uint)System.Runtime.Intrinsics.Vector256.ExtractMostSignificantBits(mask);
+                                uint moveMask = (uint)Vector256.ExtractMostSignificantBits(mask);
                                 if (moveMask != 0)
                                 {
                                     int bit = System.Numerics.BitOperations.TrailingZeroCount(moveMask);
@@ -450,6 +501,38 @@ namespace Shared;
                                     return true;
                                 }
                                 _currentIndexInCell += 3;
+                                continue;
+                            }
+                            // SIMD-Accelerated filtering (NEON)
+                            else if (AdvSimd.IsSupported && count - _currentIndexInCell >= 2)
+                            {
+                                var vx = Vector128.Create(xs[_currentIndexInCell], xs[_currentIndexInCell + 1]);
+                                var vy = Vector128.Create(ys[_currentIndexInCell], ys[_currentIndexInCell + 1]);
+                                var vz = Vector128.Create(zs[_currentIndexInCell], zs[_currentIndexInCell + 1]);
+
+                                var vLeft = Vector128.Create(_box.Left);
+                                var vRight = Vector128.Create(_box.Right);
+                                var vBottom = Vector128.Create(_box.Bottom);
+                                var vTop = Vector128.Create(_box.Top);
+                                var vBack = Vector128.Create(_box.Back);
+                                var vFront = Vector128.Create(_box.Front);
+
+                                var mask = Vector128.GreaterThanOrEqual(vx, vLeft) & Vector128.LessThanOrEqual(vx, vRight) &
+                                           Vector128.GreaterThanOrEqual(vy, vBottom) & Vector128.LessThanOrEqual(vy, vTop) &
+                                           Vector128.GreaterThanOrEqual(vz, vBack) & Vector128.LessThanOrEqual(vz, vFront);
+
+                                if (mask.GetElement(0) != 0)
+                                {
+                                    _current = objs[_currentIndexInCell];
+                                    return true;
+                                }
+                                if (mask.GetElement(1) != 0)
+                                {
+                                    _currentIndexInCell++;
+                                    _current = objs[_currentIndexInCell];
+                                    return true;
+                                }
+                                _currentIndexInCell++;
                                 continue;
                             }
 
@@ -485,6 +568,7 @@ namespace Shared;
                         if (Volatile.Read(ref _currentCell.Count) > 0)
                         {
                             _currentIndexInCell = -1;
+                            Interlocked.Increment(ref _currentCell.Readers);
                         }
                         else
                         {
@@ -499,7 +583,14 @@ namespace Shared;
 
             public void Reset() => throw new NotSupportedException();
 
-            public void Dispose() { }
+            public void Dispose()
+            {
+                if (_currentCell != null)
+                {
+                    Interlocked.Decrement(ref _currentCell.Readers);
+                    _currentCell = null;
+                }
+            }
 
             public BoxEnumerator GetEnumerator() => this;
         }

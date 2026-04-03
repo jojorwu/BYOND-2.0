@@ -35,7 +35,7 @@ public partial class DreamThread
             int stepX = Math.Sign(dx);
             int stepY = Math.Sign(dy);
 
-            var turf = Context.GameState?.Map?.GetTurf(src.X + stepX, src.Y + stepY, src.Z);
+            var turf = Context!.GameState?.Map?.GetTurf(src.X + stepX, src.Y + stepY, src.Z);
             Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
         }
         else
@@ -74,7 +74,7 @@ public partial class DreamThread
         switch (reference.RefType)
         {
             case DMReference.Type.GlobalProc:
-                if (reference.Index >= 0 && reference.Index < Context.AllProcs.Count)
+                if (reference.Index >= 0 && reference.Index < Context!.AllProcs.Count)
                     newProc = Context.AllProcs[reference.Index];
                 break;
             case DMReference.Type.SrcProc:
@@ -85,7 +85,7 @@ public partial class DreamThread
                     newProc = instance.ObjectType?.GetProc(reference.Name);
                     if (newProc == null)
                     {
-                        Context.Procs.TryGetValue(reference.Name, out newProc);
+                        Context!.Procs.TryGetValue(reference.Name, out newProc);
                     }
                 }
                 break;
@@ -159,7 +159,7 @@ public partial class DreamThread
     private GlobalVarsObject? _globalVars;
     internal void Opcode_PushGlobalVars()
     {
-        _globalVars ??= new GlobalVarsObject(Context);
+        _globalVars ??= new GlobalVarsObject(Context!);
         Push(new DreamValue(_globalVars));
     }
 
@@ -178,7 +178,7 @@ public partial class DreamThread
             if ((dir & 4) != 0) dx++; // EAST
             if ((dir & 8) != 0) dx--; // WEST
 
-            var turf = Context.GameState?.Map?.GetTurf(gameObject.X + dx, gameObject.Y + dy, gameObject.Z);
+            var turf = Context!.GameState?.Map?.GetTurf(gameObject.X + dx, gameObject.Y + dy, gameObject.Z);
             Push(turf != null ? new DreamValue((GameObject)turf) : DreamValue.Null);
         }
         else
@@ -280,7 +280,7 @@ public partial class DreamThread
         if (size < 0 || size > _stackPtr)
             throw new ScriptRuntimeException($"Stack underflow during CreateList: {size}", proc, pc, this);
 
-        var list = new DreamList(Context.ListType!, 0);
+        var list = new DreamList(Context!.ListType!, 0);
         if (size > 0)
         {
             list.Populate(_stack.AsSpan(_stackPtr - size, size));
@@ -294,7 +294,7 @@ public partial class DreamThread
         var size = ReadInt32(proc, ref pc);
         if (size < 0 || size * 2 > _stackPtr)
             throw new ScriptRuntimeException($"Stack underflow during CreateAssociativeList: {size}", proc, pc, this);
-        var list = new DreamList(Context.ListType!);
+        var list = new DreamList(Context!.ListType!);
         if (size > 0)
         {
             int baseIdx = _stackPtr - size * 2;
@@ -335,7 +335,7 @@ public partial class DreamThread
             if (localCount > 0)
             {
                 _stack.EnsureCapacity(localCount, MaxStackSize);
-                _stack.Array.AsSpan(_stack.Pointer, localCount).Fill(DreamValue.Null);
+                _stack.FastFillNull(_stack.Pointer, localCount);
                 _stack.Pointer += localCount;
             }
         }
@@ -520,7 +520,7 @@ public partial class DreamThread
     {
         var stringId = ReadInt32(proc, ref pc);
         var formatCount = ReadInt32(proc, ref pc);
-        if (stringId < 0 || stringId >= Context.Strings.Count)
+        if (stringId < 0 || stringId >= Context!.Strings.Count)
             throw new ScriptRuntimeException($"Invalid string ID: {stringId}", proc, pc, this);
         if (formatCount < 0 || formatCount > _stackPtr)
             throw new ScriptRuntimeException($"Invalid format count: {formatCount}", proc, pc, this);
@@ -576,7 +576,7 @@ public partial class DreamThread
         if (typeValue.Type == DreamValueType.DreamType && typeValue.TryGetValue(out ObjectType? type) && type != null)
         {
             GameObject newObj;
-            if (Context.ObjectFactory != null)
+            if (Context!.ObjectFactory != null)
             {
                 newObj = Context.ObjectFactory.Create(type);
             }
@@ -631,7 +631,7 @@ public partial class DreamThread
 
         if (xValue.TryGetValue(out double x) && yValue.TryGetValue(out double y) && zValue.TryGetValue(out double z))
         {
-            var turf = Context.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
+            var turf = Context!.GameState?.Map?.GetTurf((int)x, (int)y, (int)z);
             if (turf != null)
             {
                 // Turf is ITurf, but the implementation inherits from GameObject which is a DreamObject
@@ -676,7 +676,7 @@ public partial class DreamThread
             }
             else if (containerValue.IsNull)
             {
-                if (Context.GameState != null)
+                if (Context!.GameState != null)
                 {
                     using (Context.GameState.ReadLock())
                     {
@@ -728,7 +728,8 @@ public partial class DreamThread
         }
         finally
         {
-            System.Buffers.ArrayPool<(string? Name, double? Value)>.Shared.Return(rented, true);
+            System.Array.Clear(rented, 0, argCount);
+            System.Buffers.ArrayPool<(string? Name, double? Value)>.Shared.Return(rented);
         }
     }
 

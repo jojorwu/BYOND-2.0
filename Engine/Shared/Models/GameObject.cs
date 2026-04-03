@@ -54,6 +54,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public object? Archetype { get; set; }
     public int ArchetypeIndex { get; set; }
     public List<IScriptThread>? ActiveThreads { get; set; }
+    public object? LastDeltaBatch { get; set; }
+    public long LastDeltaBatchTick { get; set; }
 
     private IEngineUpdateListener? _updateListener;
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;
@@ -148,6 +150,15 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public long X { get => Position.X; set => SetPosition(value, Y, Z); }
     public long Y { get => Position.Y; set => SetPosition(X, value, Z); }
     public long Z { get => Position.Z; set => SetPosition(X, Y, value); }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal long GetXUnsafe() => _transform.Position.X;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal long GetYUnsafe() => _transform.Position.Y;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal long GetZUnsafe() => _transform.Position.Z;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal IGameObject? GetLocUnsafe() => _loc;
 
     public long CommittedX => _committedState.Transform.Position.X;
     public long CommittedY => _committedState.Transform.Position.Y;
@@ -402,14 +413,84 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         base.SetVariable(name, value);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public override DreamValue GetVariableDirect(int index)
+    {
+        var type = ObjectType;
+        if (type != null)
+        {
+            if (index == type.XIndex) return new DreamValue(X);
+            if (index == type.YIndex) return new DreamValue(Y);
+            if (index == type.ZIndex) return new DreamValue(Z);
+            if (index == type.LocIndex) { _lock.EnterReadLock(); try { return _loc != null ? new DreamValue((DreamObject)_loc) : DreamValue.Null; } finally { _lock.ExitReadLock(); } }
+        }
+
+        _lock.EnterReadLock();
+        try
+        {
+            return _variableStore.Get(index);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
     public override void SetVariableDirect(int index, DreamValue value, bool suppressVersion = false)
     {
         if ((uint)index >= 1000000) return;
         _lock.EnterWriteLock();
         try
         {
+            // Fast-path for built-in variables to bypass dictionary lookups in OnVariableChanged
+            // and eliminate recursive calls to SetPosition (which would re-acquire the lock)
+            var type = ObjectType;
+            if (type != null)
+            {
+                if (index == type.XIndex)
+                {
+                    long val = value.RawLong;
+                    if (GetXUnsafe() == val) return;
+                    SetPositionInternal(val, GetYUnsafe(), GetZUnsafe(), out long oldX, out _, out _);
+                    _variableStore.Set(index, value);
+                    if (!suppressVersion) IncrementVersion();
+                    _updateListener?.OnPositionChanged(this, oldX, GetYUnsafe(), GetZUnsafe());
+                    return;
+                }
+                if (index == type.YIndex)
+                {
+                    long val = value.RawLong;
+                    if (GetYUnsafe() == val) return;
+                    SetPositionInternal(GetXUnsafe(), val, GetZUnsafe(), out _, out long oldY, out _);
+                    _variableStore.Set(index, value);
+                    if (!suppressVersion) IncrementVersion();
+                    _updateListener?.OnPositionChanged(this, GetXUnsafe(), oldY, GetZUnsafe());
+                    return;
+                }
+                if (index == type.ZIndex)
+                {
+                    long val = value.RawLong;
+                    if (GetZUnsafe() == val) return;
+                    SetPositionInternal(GetXUnsafe(), GetYUnsafe(), val, out _, out _, out long oldZ);
+                    _variableStore.Set(index, value);
+                    if (!suppressVersion) IncrementVersion();
+                    _updateListener?.OnPositionChanged(this, GetXUnsafe(), GetYUnsafe(), oldZ);
+                    return;
+                }
+                if (index == type.LocIndex)
+                {
+                    var loc = (value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject l) ? l : null;
+                    if (GetLocUnsafe() == loc) return;
+                    SetLocInternal(loc, false);
+                    _variableStore.Set(index, value);
+                    if (!suppressVersion) IncrementVersion();
+                    return;
+                }
+            }
+
             var current = _variableStore.Get(index);
             if (current.Equals(value)) return;
+
             _variableStore.Set(index, value);
             if (!suppressVersion) IncrementVersion();
             OnVariableChanged(index, value);
@@ -445,23 +526,30 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public void Initialize(ObjectType objectType, long x, long y, long z) { base.Initialize(objectType); _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z); Id = AllocateNextId(); }
     [JsonConstructor] public GameObject() : base(null!) { }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetPositionInternal(long x, long y, long z, out long oldX, out long oldY, out long oldZ)
+    {
+        oldX = _transform.Position.X;
+        oldY = _transform.Position.Y;
+        oldZ = _transform.Position.Z;
+
+        if (oldX == x && oldY == y && oldZ == z) return;
+        if (oldX != x) MarkFieldDirty(GameObjectFields.PositionX);
+        if (oldY != y) MarkFieldDirty(GameObjectFields.PositionY);
+        if (oldZ != z) MarkFieldDirty(GameObjectFields.PositionZ);
+        _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
+        IncrementVersion();
+    }
+
     public void SetPosition(long x, long y, long z)
     {
         long oldX, oldY, oldZ;
         _lock.EnterWriteLock();
         try {
-            oldX = _transform.Position.X;
-            oldY = _transform.Position.Y;
-            oldZ = _transform.Position.Z;
-
-            if (oldX == x && oldY == y && oldZ == z) return;
-            if (oldX != x) MarkFieldDirty(GameObjectFields.PositionX);
-            if (oldY != y) MarkFieldDirty(GameObjectFields.PositionY);
-            if (oldZ != z) MarkFieldDirty(GameObjectFields.PositionZ);
-            _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
-            IncrementVersion();
+            SetPositionInternal(x, y, z, out oldX, out oldY, out oldZ);
         } finally { _lock.ExitWriteLock(); }
-        _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
+        if (oldX != x || oldY != y || oldZ != z)
+            _updateListener?.OnPositionChanged(this, oldX, oldY, oldZ);
     }
 
     public void AddComponent(IComponent component) { _componentManager?.AddComponent(this, component); IncrementVersion(); }
@@ -560,9 +648,25 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         StateMachine = null;
         SetLocInternal(null, false);
         _lock.EnterWriteLock();
-        try { _transform = default; _committedState = default; _densityVal = 1; _isDirty = 0; _changeMask = 0; _variableStore.Dispose(); _committedStore.Dispose(); }
+        try
+        {
+            _transform = default;
+            _committedState = default;
+            _densityVal = 1;
+            _isDirty = 0;
+            _changeMask = 0;
+            _variableStore.Dispose();
+            _committedStore.Dispose();
+        }
         finally { _lock.ExitWriteLock(); }
-        Version = 0; Archetype = null; ArchetypeIndex = -1; ActiveThreads = null; SpatialGridIndex = -1; CurrentGridCellKey = null; _updateListener = null;
+        Version = 0;
+        Archetype = null;
+        ArchetypeIndex = -1;
+        ActiveThreads = null;
+        SpatialGridIndex = -1;
+        CurrentGridCellKey = null;
+        _updateListener = null;
+        ObjectType = null;
     }
 
     public IVariableStore Variables => _variableStore;

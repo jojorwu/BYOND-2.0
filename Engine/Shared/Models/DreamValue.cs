@@ -594,22 +594,19 @@ namespace Shared;
         public bool Equals(DreamValue other)
         {
             if (Type != other.Type) return false;
-
             if (Type <= DreamValueType.Integer)
-                return _longValue == other._longValue;
-
-            return ReferenceEquals(_objectValue, other._objectValue) || (_objectValue != null && _objectValue.Equals(other._objectValue));
+                return Math.Abs(RawDouble - other.RawDouble) < 1e-10; // High precision strict check
+            if (Type == DreamValueType.String)
+                return (string)_objectValue! == (string)other._objectValue!;
+            return ReferenceEquals(_objectValue, other._objectValue) && _longValue == other._longValue;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
-            // Use bit-level representation for both numeric types (they share the same offset).
-            // This is safe because DreamValueType ensures we don't alias across types.
-            if (Type <= DreamValueType.Integer) return _longValue.GetHashCode();
-            if (Type == DreamValueType.Null) return 0;
-
-            return HashCode.Combine(Type, _objectValue);
+            if (Type <= DreamValueType.Integer) return RawDouble.GetHashCode();
+            if (Type == DreamValueType.String) return _objectValue!.GetHashCode();
+            return HashCode.Combine(Type, _objectValue, _longValue);
         }
 
         [ThreadStatic]
@@ -619,44 +616,35 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(DreamValue a, DreamValue b)
         {
-            // Hot path: identical memory layout (same type and data/reference)
-            if (a.Type == b.Type)
+            // 1. Full bitwise identity (Type, Value, and Object pointer)
+            ref long aRef = ref Unsafe.As<DreamValue, long>(ref Unsafe.AsRef(in a));
+            ref long bRef = ref Unsafe.As<DreamValue, long>(ref Unsafe.AsRef(in b));
+            if (aRef == bRef &&
+                Unsafe.Add(ref aRef, 1) == Unsafe.Add(ref bRef, 1) &&
+                Unsafe.Add(ref aRef, 2) == Unsafe.Add(ref bRef, 2))
+                return true;
+
+            // 2. Mixed numeric equality and DM null parity (0 == null)
+            if (a.Type <= DreamValueType.Integer)
             {
-                if (a.Type <= DreamValueType.Integer)
-                {
-                    // Integers must match exactly, floats use an epsilon for DM parity
-                    if (a.Type == DreamValueType.Integer) return a._longValue == b._longValue;
-                    return a._floatValue == b._floatValue || Math.Abs(a._floatValue - b._floatValue) < 1e-5;
-                }
-                return ReferenceEquals(a._objectValue, b._objectValue);
+                if (b.Type <= DreamValueType.Integer)
+                    return Math.Abs(a.RawDouble - b.RawDouble) < 1e-5;
+                if (b.Type == DreamValueType.Null)
+                    return Math.Abs(a.RawDouble) < 1e-5;
+                return false;
             }
 
-            // Mixed numeric equality (Integer <-> Float)
-            if (a.Type <= DreamValueType.Integer && b.Type <= DreamValueType.Integer)
-            {
-                double da = a.Type == DreamValueType.Float ? a._floatValue : (double)a._longValue;
-                double db = b.Type == DreamValueType.Float ? b._floatValue : (double)b._longValue;
-                return da == db || Math.Abs(da - db) < 1e-5;
-            }
-
-            // DM Parity: null == 0
             if (a.Type == DreamValueType.Null)
             {
                 if (b.Type <= DreamValueType.Integer)
-                {
-                    if (b.Type == DreamValueType.Integer) return b._longValue == 0;
-                    return b._floatValue == 0 || Math.Abs(b._floatValue) < 1e-5;
-                }
+                    return Math.Abs(b.RawDouble) < 1e-5;
                 return false;
             }
-            if (b.Type == DreamValueType.Null)
+
+            // 3. String value equality
+            if (a.Type == DreamValueType.String && b.Type == DreamValueType.String)
             {
-                if (a.Type <= DreamValueType.Integer)
-                {
-                    if (a.Type == DreamValueType.Integer) return a._longValue == 0;
-                    return a._floatValue == 0 || Math.Abs(a._floatValue) < 1e-5;
-                }
-                return false;
+                return (string)a._objectValue! == (string)b._objectValue!;
             }
 
             return false;
@@ -711,6 +699,7 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static DreamValue operator -(DreamValue a)
         {
+            if (a.Type == DreamValueType.Integer) return new DreamValue(-a._longValue);
             return new DreamValue(-a.GetValueAsDouble());
         }
 

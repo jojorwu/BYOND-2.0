@@ -66,7 +66,7 @@ namespace tests
             bytecode.Add((byte)Opcode.Divide);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -92,7 +92,7 @@ namespace tests
             bytecode.Add((byte)Opcode.Add);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -122,7 +122,7 @@ namespace tests
             bytecode.Add((byte)Opcode.BitOr);
             bytecode.Add((byte)Opcode.Return);
 
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);
@@ -162,7 +162,7 @@ namespace tests
             bytecode.Add((byte)Opcode.Return);
 
             _vm.Context.ListType = new ObjectType(0, "/list");
-            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0);
+            var proc = new DreamProc("test", bytecode.ToArray(), Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
 
             thread.Run(1000);

@@ -91,6 +91,8 @@ namespace Shared.Services;
             return objectType;
         }
 
+        public int TypeCount => _objectTypes.Count;
+
         public IEnumerable<ObjectType> GetAllObjectTypes()
         {
             return _objectTypes.Values;

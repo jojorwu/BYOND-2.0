@@ -11,11 +11,10 @@ public unsafe partial class BytecodeInterpreter
 {
     private static void HandleLocalFieldTransfer(ref InterpreterState state)
     {
-        int pcForCache = state.PC - 1;
         int srcIdx = state.ReadInt32();
         int nameId = state.ReadInt32();
         int targetIdx = state.ReadInt32();
-        PerformLocalFieldTransfer(ref state, srcIdx, nameId, targetIdx, pcForCache);
+        PerformLocalFieldTransfer(ref state, srcIdx, nameId, targetIdx);
     }
 
     private static void HandleGlobalJumpIfFalse(ref InterpreterState state)
@@ -80,10 +79,18 @@ public unsafe partial class BytecodeInterpreter
     {
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
-        int pcForCache = state.PC - 5;
         var argType = (DMCallArgumentsType)state.ReadByte();
         int argStackDelta = state.ReadInt32();
-        PerformLocalPushDereferenceCall(ref state, idx, nameId, pcForCache, argType, argStackDelta);
+        PerformLocalPushDereferenceCall(ref state, idx, nameId, argType, argStackDelta);
+    }
+
+    private static void HandleDereferenceCallCached(ref InterpreterState state)
+    {
+        int nameId = state.ReadInt32();
+        var argType = (DMCallArgumentsType)state.ReadByte();
+        int argStackDelta = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        PerformDereferenceCallCached(ref state, nameId, argType, argStackDelta, cacheIdx);
     }
 
     private static void HandleLocalPushDereferenceIndex(ref InterpreterState state)
@@ -107,7 +114,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleAssign(ref InterpreterState state)
     {
         var refType = (DMReference.Type)state.BytecodePtr[state.PC++];
-        var value = state.Stack[state.StackPtr - 1]; // peek
+        var value = state.Peek();
         switch (refType)
         {
             case DMReference.Type.Local:
@@ -128,7 +135,7 @@ public unsafe partial class BytecodeInterpreter
                 {
                     int globalIdx = *(int*)(state.BytecodePtr + state.PC);
                     state.PC += 4;
-                    state.Thread.Context.SetGlobal(globalIdx, value);
+                    state.Thread.Context!.SetGlobal(globalIdx, value);
                 }
                 break;
             default:
@@ -231,7 +238,7 @@ public unsafe partial class BytecodeInterpreter
     private static void HandleAssignInto(ref InterpreterState state)
     {
         var reference = state.ReadReference();
-        var value = state.Stack[--state.StackPtr];
+        var value = state.Pop();
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.SetReferenceValue(reference, ref state.Frame, value, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
@@ -278,23 +285,21 @@ public unsafe partial class BytecodeInterpreter
     {
         var reference = state.ReadReference();
         var stringId = state.ReadInt32();
-        var stringValue = new DreamValue(state.Thread.Context.Strings[stringId]);
+        var stringValue = new DreamValue(state.Strings[stringId]);
         state.Thread._stackPtr = state.StackPtr;
         var objValue = state.Thread.GetReferenceValue(reference, ref state.Frame, 0);
         state.Thread.PopCount(state.Thread.GetReferenceStackSize(reference));
         DreamValue result = DreamValue.Null;
         if (objValue.Type == DreamValueType.DreamObject && objValue.TryGetValue(out DreamObject? obj) && obj is DreamList list) result = list.GetValue(stringValue);
-        state.Push(result);
-        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
+        state.Push(result);
     }
 
     private static void HandleAssignLocal(ref InterpreterState state)
     {
         int idx = *(int*)(state.BytecodePtr + state.PC);
         state.PC += 4;
-        if ((uint)idx >= (uint)state.Proc.LocalVariableCount) throw new ScriptRuntimeException("Local index out of bounds", state.Proc, state.PC, state.Thread);
-        state.Stack[state.LocalBase + idx] = state.Stack[state.StackPtr - 1];
+        state.GetLocal(idx) = state.Peek();
     }
 
     private static void HandleLocalPushLocalPushAdd(ref InterpreterState state)
@@ -355,8 +360,8 @@ public unsafe partial class BytecodeInterpreter
         state.Push(state.GetLocal(idx));
         state.Thread._stackPtr = state.StackPtr;
         state.Thread.Opcode_Return(ref state.Proc, ref state.PC);
-        state.Stack = state.Thread._stack.Array;
         state.StackPtr = state.Thread._stackPtr;
+        state.RefreshSpans();
     }
 
     private static void HandleLocalCompareEquals(ref InterpreterState state)
@@ -512,8 +517,55 @@ public unsafe partial class BytecodeInterpreter
     {
         int idx = state.ReadInt32();
         int nameId = state.ReadInt32();
-        int pcForCache = state.PC - 5;
-        PerformLocalPushDereferenceField(ref state, idx, nameId, pcForCache);
+        PerformLocalPushDereferenceField(ref state, idx, nameId);
+    }
+
+    private static void HandleDereferenceFieldCached(ref InterpreterState state)
+    {
+        int nameId = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        var objValue = state.Pop();
+        DreamValue val = DreamValue.Null;
+        if (objValue.TryGetValue(out DreamObject? obj) && obj != null)
+        {
+            ref var cache = ref state.Proc._inlineCache[cacheIdx];
+            if (cache.ObjectType == obj.ObjectType)
+            {
+                val = obj.GetVariableDirect(cache.VariableIndex);
+            }
+            else
+            {
+                var name = state.Strings[nameId];
+                int varIdx = obj.ObjectType?.GetVariableIndex(name) ?? -1;
+                if (varIdx != -1)
+                {
+                    cache.ObjectType = obj.ObjectType;
+                    cache.VariableIndex = varIdx;
+                    val = obj.GetVariableDirect(varIdx);
+                }
+                else val = obj.GetVariable(name);
+            }
+        }
+        state.Push(val);
+    }
+
+    private static void HandleLocalPushDereferenceFieldJumpIfFalse(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int address = state.ReadInt32();
+        PerformLocalPushDereferenceField(ref state, idx, nameId);
+        PerformJumpIfFalse(ref state, address);
+    }
+
+    private static void HandleLocalPushDereferenceFieldJumpIfFalseCached(ref InterpreterState state)
+    {
+        int idx = state.ReadInt32();
+        int nameId = state.ReadInt32();
+        int address = state.ReadInt32();
+        int cacheIdx = state.ReadInt32();
+        PerformLocalPushDereferenceFieldCached(ref state, idx, nameId, cacheIdx);
+        PerformJumpIfFalse(ref state, address);
     }
 
     private static void HandleLocalMulLocalAssign(ref InterpreterState state)

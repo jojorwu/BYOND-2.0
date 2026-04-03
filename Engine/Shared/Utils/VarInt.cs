@@ -29,13 +29,27 @@ public static class VarInt
         int count = 0;
         while (v >= 0x80)
         {
-            if (count >= span.Length) throw new IndexOutOfRangeException("Span too small for VarInt");
             span[count++] = (byte)(v | 0x80);
             v >>= 7;
         }
-        if (count >= span.Length) throw new IndexOutOfRangeException("Span too small for VarInt");
         span[count++] = (byte)v;
         return count;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool TryWrite(Span<byte> span, long value, out int bytesWritten)
+    {
+        ulong v = (ulong)value;
+        bytesWritten = 0;
+        while (v >= 0x80)
+        {
+            if ((uint)bytesWritten >= (uint)span.Length) return false;
+            span[bytesWritten++] = (byte)(v | 0x80);
+            v >>= 7;
+        }
+        if ((uint)bytesWritten >= (uint)span.Length) return false;
+        span[bytesWritten++] = (byte)v;
+        return true;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

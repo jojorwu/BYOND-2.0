@@ -152,13 +152,16 @@ public partial class DreamThread : IScriptThread, IDisposable, IPoolable
 
         PushCallFrame(new CallFrame(proc, 0, 0, associatedObject as DreamObject));
 
-        // Initialize locals for the entry-point frame
+        // Initialize locals for the entry-point frame using optimized fast-fill
         int localCount = proc.LocalVariableCount;
         if (localCount > 0)
         {
-            _stack.Array.AsSpan(0, localCount).Fill(DreamValue.Null);
             _stack.Pointer = localCount;
+            _stack.FastFillNull(0, localCount);
         }
+
+        // Restore execution context if necessary when being initialized for a new logical task
+        if (Usr == null && associatedObject is DreamObject obj) Usr = obj;
     }
 
     public DreamThread(DreamThread other, int pc)
@@ -319,13 +322,13 @@ public partial class DreamThread : IScriptThread, IDisposable, IPoolable
     {
         if (_callStack != null)
         {
-            Array.Clear(_callStack, 0, _callStackPtr);
+            Array.Clear(_callStack, 0, _callStack.Length);
             _callStackPtr = 0;
         }
 
         if (_tryStack != null)
         {
-            Array.Clear(_tryStack, 0, _tryStackPtr);
+            Array.Clear(_tryStack, 0, _tryStack.Length);
             _tryStackPtr = 0;
         }
 
@@ -336,12 +339,18 @@ public partial class DreamThread : IScriptThread, IDisposable, IPoolable
                 _enumerators[i].Enumerator?.Dispose();
                 _enumerators[i] = default;
             }
+            Array.Clear(_enumerators, 0, _enumerators.Length);
             _maxEnumeratorId = -1;
         }
 
         Usr = null;
         _associatedObject = null;
-        if (_stack.Array != null) _stack.Reset();
+        Context = null;
+        if (_stack.Array != null)
+        {
+            Array.Clear(_stack.Array, 0, _stack.Array.Length);
+            _stack.Pointer = 0;
+        }
 
         _totalInstructionsExecuted = 0;
         _maxCallStackReached = 0;

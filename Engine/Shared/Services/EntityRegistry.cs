@@ -10,6 +10,9 @@ public class EntityRegistry : IEntityRegistry
     public IComponentManager ComponentManager { get; }
     public IObjectPool<GameObject> EntityPool { get; }
     private readonly IVariableChangeListener? _reactiveSystem;
+    private int _entityCount;
+
+    public int EntityCount => _entityCount;
 
     public EntityRegistry(IObjectPool<GameObject> entityPool, IComponentManager componentManager, IVariableChangeListener? reactiveSystem = null)
     {
@@ -24,6 +27,7 @@ public class EntityRegistry : IEntityRegistry
         entity.SetComponentManager(ComponentManager);
         entity.Initialize(objectType, x, y, z);
         if (_reactiveSystem != null) entity.SubscribeToVariables(_reactiveSystem);
+        Interlocked.Increment(ref _entityCount);
         return entity;
     }
 
@@ -31,6 +35,7 @@ public class EntityRegistry : IEntityRegistry
     {
         ResetEntity(entity);
         EntityPool.Return(entity);
+        Interlocked.Decrement(ref _entityCount);
     }
 
     public void ResetEntity(GameObject entity)

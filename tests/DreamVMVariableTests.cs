@@ -38,7 +38,7 @@ namespace tests
 
         private DreamValue RunTest(byte[] bytecode, DreamObject instance)
         {
-            var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0);
+            var proc = new DreamProc(string.Empty, bytecode, Array.Empty<string>(), 0, null, 0, 0);
             var thread = new DreamThread(proc, _vm.Context, 1000);
             thread.PopCallFrame();
             thread.PushCallFrame(new CallFrame(proc, 0, 0, instance));

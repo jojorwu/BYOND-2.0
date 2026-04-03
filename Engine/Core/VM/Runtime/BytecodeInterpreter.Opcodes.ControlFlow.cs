@@ -76,6 +76,9 @@ public unsafe partial class BytecodeInterpreter
         var argStackDelta = state.ReadInt32();
         var unusedStackDelta = state.ReadInt32();
 
+        if (argStackDelta < 0 || state.StackPtr < argStackDelta)
+            throw new ScriptRuntimeException($"Stack underflow during call: {argStackDelta}", state.Proc, state.PC, state.Thread);
+
         PerformCallInternal(ref state, targetProc, instance, argStackDelta);
     }
 
@@ -107,6 +110,10 @@ public unsafe partial class BytecodeInterpreter
                             cache.CachedProc = targetProc;
                         }
                     }
+
+                    if (argStackDelta < 0 || state.StackPtr < argStackDelta)
+                        throw new ScriptRuntimeException($"Stack underflow during cached call: {argStackDelta}", state.Proc, state.PC, state.Thread);
+
                     PerformCallInternal(ref state, targetProc, null, argStackDelta);
                 }
                 break;
@@ -135,6 +142,10 @@ public unsafe partial class BytecodeInterpreter
                             }
                         }
                     }
+
+                    if (argStackDelta < 0 || state.StackPtr < argStackDelta)
+                        throw new ScriptRuntimeException($"Stack underflow during cached call: {argStackDelta}", state.Proc, state.PC, state.Thread);
+
                     PerformCallInternal(ref state, targetProc, instance, argStackDelta);
                 }
                 break;

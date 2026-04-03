@@ -133,6 +133,8 @@ public unsafe partial class BytecodeInterpreter
     private static void HandlePopN(ref InterpreterState state)
     {
         int count = state.ReadInt32();
+        if (count < 0 || count > state.StackPtr)
+            throw new ScriptRuntimeException($"Stack underflow during PopN: {count}", state.Proc, state.PC, state.Thread);
         for (int i = 0; i < count; i++) state.Pop();
     }
 

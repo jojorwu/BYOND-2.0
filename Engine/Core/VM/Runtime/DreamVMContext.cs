@@ -10,6 +10,7 @@ namespace Core.VM.Runtime
     public class DreamVMContext : IDisposable
     {
         private const int MaxGlobals = 100000000;
+        public int MaxObjectCount { get; set; } = 1000000;
         private const int ShardCount = 64;
         private readonly System.Threading.Lock _contextLock = new();
         private readonly System.Threading.Lock[] _globalShards;

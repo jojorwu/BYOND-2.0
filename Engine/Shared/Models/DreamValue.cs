@@ -593,20 +593,20 @@ namespace Shared;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool Equals(DreamValue other)
         {
-            // Bitwise strict equality for collection stability (used by Dictionary/HashSet)
-            ref long aRef = ref Unsafe.As<DreamValue, long>(ref Unsafe.AsRef(in this));
-            ref long bRef = ref Unsafe.As<DreamValue, long>(ref Unsafe.AsRef(in other));
-            return aRef == bRef &&
-                   Unsafe.Add(ref aRef, 1) == Unsafe.Add(ref bRef, 1) &&
-                   Unsafe.Add(ref aRef, 2) == Unsafe.Add(ref bRef, 2);
+            if (Type != other.Type) return false;
+            if (Type <= DreamValueType.Integer)
+                return Math.Abs(RawDouble - other.RawDouble) < 1e-10; // High precision strict check
+            if (Type == DreamValueType.String)
+                return (string)_objectValue! == (string)other._objectValue!;
+            return ReferenceEquals(_objectValue, other._objectValue) && _longValue == other._longValue;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode()
         {
-            // Bit-level hash for absolute consistency with bitwise Equals
-            ref long aRef = ref Unsafe.As<DreamValue, long>(ref Unsafe.AsRef(in this));
-            return HashCode.Combine(aRef, Unsafe.Add(ref aRef, 1), Unsafe.Add(ref aRef, 2));
+            if (Type <= DreamValueType.Integer) return RawDouble.GetHashCode();
+            if (Type == DreamValueType.String) return _objectValue!.GetHashCode();
+            return HashCode.Combine(Type, _objectValue, _longValue);
         }
 
         [ThreadStatic]

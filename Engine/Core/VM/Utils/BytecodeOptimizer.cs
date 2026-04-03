@@ -78,7 +78,7 @@ namespace Core.VM.Utils
 
                 if (pc < bytecode.Length && bytecode[pc] == (byte)Opcode.Call)
                 {
-                    int pcForCache = currentOriginalPc;
+                    int pcForCache = optimized.Count;
                     var metadataCall = OpcodeMetadataCache.GetMetadata(Opcode.Call);
                     int callSize = 1;
                     if (metadataCall.RequiredArgs != null)
@@ -99,10 +99,11 @@ namespace Core.VM.Utils
                 // Pattern: Increment(Local, idx), Pop -> LocalIncrement(idx)
             if (IsAssignSrcField(bytecode, pc, out int nameIdAssign))
             {
+                int pcForCache = optimized.Count;
                 MarkPcMap(pc, pc + 6, optimized.Count);
                 optimized.Add((byte)Opcode.SetSrcFieldCached);
                 optimized.AddRange(BitConverter.GetBytes(nameIdAssign));
-                optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                optimized.AddRange(BitConverter.GetBytes(pcForCache));
                 pc += 6;
                 continue;
             }
@@ -190,10 +191,11 @@ namespace Core.VM.Utils
                         }
                     }
 
+                    int pcForCache = optimized.Count;
                     MarkPcMap(pc, pc + 5, optimized.Count);
                     optimized.Add((byte)Opcode.GetVariableCached);
                     optimized.AddRange(bytecode.AsSpan(pc + 1, 4));
-                    optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                    optimized.AddRange(BitConverter.GetBytes(pcForCache));
                     pc += 5;
                     continue;
                 }
@@ -215,10 +217,11 @@ namespace Core.VM.Utils
                         }
                     }
 
+                    int pcForCache = optimized.Count;
                     MarkPcMap(pc, pc + 5, optimized.Count);
                     optimized.Add((byte)Opcode.SetVariableCached);
                     optimized.AddRange(bytecode.AsSpan(pc + 1, 4));
-                    optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                    optimized.AddRange(BitConverter.GetBytes(pcForCache));
                     pc += 5;
                     continue;
                 }
@@ -246,10 +249,11 @@ namespace Core.VM.Utils
                     if (bytecode[pc + OpcodeSize] == (byte)DMReference.Type.SrcField)
                     {
                         int nameId = BitConverter.ToInt32(bytecode, pc + 2);
+                        int pcForCache = optimized.Count;
                         MarkPcMap(pc, pc + 6, optimized.Count);
                         optimized.Add((byte)Opcode.PushSrcFieldCached);
                         optimized.AddRange(bytecode.AsSpan(pc + 2, 4));
-                        optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                        optimized.AddRange(BitConverter.GetBytes(pcForCache));
                         pc += 6;
                         continue;
                     }
@@ -374,13 +378,14 @@ namespace Core.VM.Utils
                         int branchPc2 = nextPc + 5;
                         if (branchPc2 + 4 < bytecode.Length && bytecode[branchPc2] == (byte)Opcode.JumpIfFalse && !IsJumpTarget(branchPc2, 5))
                         {
+                            int pcForCache = optimized.Count;
                             MarkPcMap(pc, branchPc2 + 5, optimized.Count);
                             optimized.Add((byte)Opcode.LocalPushDereferenceFieldJumpIfFalseCached);
                             optimized.AddRange(BitConverter.GetBytes(idx));
                             optimized.AddRange(BitConverter.GetBytes(nameId));
                             labels.Add(optimized.Count);
                             optimized.AddRange(bytecode.AsSpan(branchPc2 + 1, 4));
-                            optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                            optimized.AddRange(BitConverter.GetBytes(pcForCache));
                             pc = branchPc2 + 5;
                             return true;
                         }
@@ -744,12 +749,12 @@ namespace Core.VM.Utils
                     int derefPc = nextPc;
                     int nameId = BitConverter.ToInt32(bytecode, derefPc + 1);
 
-                    int pcForCache = currentOriginalPc;
+                    int pcForCache = optimized.Count;
 
                     MarkPcMap(pc, pc + 5, optimized.Count);
                     optimized.Add((byte)Opcode.DereferenceFieldCached);
                     optimized.AddRange(bytecode.AsSpan(pc + 1, 4));
-                    optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                    optimized.AddRange(BitConverter.GetBytes(pcForCache));
                     pc += 5;
                     return true;
 
@@ -806,11 +811,12 @@ namespace Core.VM.Utils
                     int callPc = derefPc + 5;
                     if (callPc + 8 < bytecode.Length && bytecode[callPc] == (byte)Opcode.DereferenceCall && !IsJumpTarget(callPc, 10))
                     {
+                        int pcForCacheCall = optimized.Count;
                         MarkPcMap(pc, callPc + 10, optimized.Count);
                         optimized.Add((byte)Opcode.DereferenceCallCached);
                         optimized.AddRange(BitConverter.GetBytes(nameId));
                         optimized.AddRange(bytecode.AsSpan(callPc + 5, 5)); // argType, argStackDelta
-                        optimized.AddRange(BitConverter.GetBytes(currentOriginalPc));
+                        optimized.AddRange(BitConverter.GetBytes(pcForCacheCall));
                         pc = callPc + 10;
                         return true;
                     }

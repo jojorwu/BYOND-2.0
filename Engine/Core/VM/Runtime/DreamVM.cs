@@ -47,6 +47,8 @@ namespace Core.VM.Runtime
             _objectFactory = objectFactory;
             _interpreter = interpreter ?? new BytecodeInterpreter(_diagnosticBus, this);
             Context.ObjectFactory = objectFactory;
+            Context.MaxObjectCount = config.Value.MaxObjectCount;
+            if (_objectFactory != null) _objectFactory.MaxObjectCount = config.Value.MaxObjectCount;
         }
 
         public void Initialize()

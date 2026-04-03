@@ -63,7 +63,7 @@ namespace tests
             var nativeProcs = new SpatialNativeProcProvider().GetNativeProcs();
             var stepProc = (NativeProc)nativeProcs["step"];
 
-            var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0), _vm.Context, 1000);
+            var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0, null, 0, 0), _vm.Context, 1000);
 
             // step(mob, NORTH)
             var result = stepProc.Call(thread, null, new[] { new DreamValue(mob), new DreamValue(1f) });
@@ -83,7 +83,7 @@ namespace tests
             var nativeProcs = new SpatialNativeProcProvider().GetNativeProcs();
             var stepToProc = (NativeProc)nativeProcs["step_to"];
 
-            var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0), _vm.Context, 1000);
+            var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0, null, 0, 0), _vm.Context, 1000);
 
             // step_to(mob, target)
             var result = stepToProc.Call(thread, null, new[] { new DreamValue(mob), new DreamValue(target) });
@@ -111,7 +111,7 @@ namespace tests
 
             var nativeProcs = new SpatialNativeProcProvider().GetNativeProcs();
             var stepProc = (NativeProc)nativeProcs["step"];
-            var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0), _vm.Context, 1000);
+            var thread = new DreamThread(new DreamProc("test", Array.Empty<byte>(), Array.Empty<string>(), 0, null, 0, 0), _vm.Context, 1000);
 
             // step(mob, NORTH) -> should be blocked by null turf
             var result = stepProc.Call(thread, null, new[] { new DreamValue(mob), new DreamValue(1f) });

@@ -301,7 +301,7 @@ public enum Opcode : byte {
     IndexRefWithString = 0x99,
     [OpcodeMetadata(2, OpcodeArgType.Float, OpcodeArgType.Reference)]
     PushFloatAssign = 0x9A,
-    [OpcodeMetadata(true, 0, OpcodeArgType.Int)]
+    [OpcodeMetadata(true, 0, OpcodeArgType.Int, OpcodeArgType.Float)]
     NPushFloatAssign = 0x9B,
     [OpcodeMetadata(1, OpcodeArgType.Int)]
     PushLocal = 0x9C,

@@ -9,9 +9,13 @@ public static class OpcodeVerifier {
     /// Calculates a hash of all the <c>Opcode</c>s for warning on incompatibilities.
     /// </summary>
     /// <returns>A string representation of the hash</returns>
-    public static string GetOpcodeHash() {
+    public static string GetOpcodeHash(string? projectSalt = null) {
         Array allOpcodes = Enum.GetValues(typeof(Opcode));
         StringBuilder inputBuilder = new StringBuilder();
+
+        if (!string.IsNullOrEmpty(projectSalt)) {
+            inputBuilder.Append(projectSalt);
+        }
 
         foreach (var opcode in allOpcodes) {
             inputBuilder.Append(opcode.ToString());

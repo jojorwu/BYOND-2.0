@@ -38,13 +38,15 @@ namespace Core.VM.Procs
 
         internal InlineCacheEntry[] _inlineCache;
 
-        public DreamProc(string name, byte[] bytecode, string[] arguments, int localVariableCount, System.Collections.Generic.IReadOnlyList<string>? strings = null)
+        public DreamProc(string name, byte[] bytecode, string[] arguments, int localVariableCount, System.Collections.Generic.IReadOnlyList<string>? strings = null, int totalProcs = 0, int totalTypes = 0)
         {
             Name = name;
             Bytecode = Utils.BytecodeOptimizer.Optimize(bytecode, strings);
+            Utils.BytecodeVerifier.Verify(Bytecode, strings, totalProcs, totalTypes);
             Arguments = arguments;
             LocalVariableCount = localVariableCount;
-            _inlineCache = new InlineCacheEntry[Bytecode.Length];
+            // The cache size must be at least as large as the bytecode to allow per-instruction caching safely.
+            _inlineCache = new InlineCacheEntry[Bytecode.Length + 1];
         }
     }
 }

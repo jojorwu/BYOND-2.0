@@ -22,6 +22,11 @@ namespace Shared;
         ObjectType? GetObjectType(int id);
 
         /// <summary>
+        /// Returns the number of registered object types.
+        /// </summary>
+        int TypeCount { get; }
+
+        /// <summary>
         /// Returns all registered object types.
         /// </summary>
         IEnumerable<ObjectType> GetAllObjectTypes();

@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -22,9 +23,19 @@ public ref struct BitWriter
     public int BytesWritten => (_bitOffset + 7) / 8;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureCapacity(int bitsNeeded)
+    {
+        if (_bitOffset + bitsNeeded > _destination.Length * 8)
+        {
+            throw new IndexOutOfRangeException($"BitWriter overflow. Offset: {_bitOffset}, Needed: {bitsNeeded}, Capacity: {_destination.Length * 8}");
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBits(ulong value, int bitCount)
     {
         if (bitCount == 0) return;
+        EnsureCapacity(bitCount);
 
         while (bitCount > 0)
         {
@@ -36,6 +47,10 @@ public ref struct BitWriter
             ulong bits = (value >> (bitCount - bitsToWriteInByte)) & mask;
 
             if (bitInByteIdx == 0) _destination[byteIdx] = 0;
+
+            // Clear the bits we are about to write to handle dirty pooled buffers
+            byte clearMask = (byte)~(((1 << bitsToWriteInByte) - 1) << (8 - bitInByteIdx - bitsToWriteInByte));
+            _destination[byteIdx] &= clearMask;
             _destination[byteIdx] |= (byte)(bits << (8 - bitInByteIdx - bitsToWriteInByte));
 
             _bitOffset += bitsToWriteInByte;
@@ -46,6 +61,11 @@ public ref struct BitWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void PatchBits(int bitOffset, ulong value, int bitCount)
     {
+        if (bitOffset < 0 || bitOffset + bitCount > _bitOffset)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bitOffset), "Cannot patch bits beyond current write offset or before 0.");
+        }
+
         int savedOffset = _bitOffset;
         _bitOffset = bitOffset;
 
@@ -72,13 +92,41 @@ public ref struct BitWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBool(bool value)
     {
-        WriteBits(value ? 1UL : 0UL, 1);
+        EnsureCapacity(1);
+        int byteIdx = _bitOffset / 8;
+        int bitInByteIdx = _bitOffset % 8;
+        if (bitInByteIdx == 0) _destination[byteIdx] = 0;
+
+        // Explicitly clear the bit first to handle dirty pooled buffers
+        byte bitMask = (byte)(1 << (7 - bitInByteIdx));
+        if (value) _destination[byteIdx] |= bitMask;
+        else _destination[byteIdx] &= (byte)~bitMask;
+
+        _bitOffset++;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteByte(byte value)
     {
         WriteBits(value, 8);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteBytes(ReadOnlySpan<byte> bytes)
+    {
+        int bitLen = bytes.Length * 8;
+        EnsureCapacity(bitLen);
+
+        int bitInByteIdx = _bitOffset % 8;
+        if (bitInByteIdx == 0)
+        {
+            bytes.CopyTo(_destination.Slice(_bitOffset / 8));
+            _bitOffset += bitLen;
+        }
+        else
+        {
+            for (int i = 0; i < bytes.Length; i++) WriteBits(bytes[i], 8);
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -135,22 +183,30 @@ public ref struct BitWriter
         }
         else
         {
-            byte[] bytes = Encoding.UTF8.GetBytes(s);
-            WriteVarInt(bytes.Length);
+            int byteCount = Encoding.UTF8.GetByteCount(s);
+            WriteVarInt(byteCount);
 
-            int byteOffset = _bitOffset / 8;
             int bitInByteIdx = _bitOffset % 8;
-
             if (bitInByteIdx == 0)
             {
-                // Fast path: bit aligned
-                bytes.CopyTo(_destination.Slice(byteOffset));
-                _bitOffset += bytes.Length * 8;
+                int byteOffset = _bitOffset / 8;
+                EnsureCapacity(byteCount * 8);
+                Encoding.UTF8.GetBytes(s, _destination.Slice(byteOffset));
+                _bitOffset += byteCount * 8;
             }
             else
             {
-                // Slow path: bit-by-bit
-                foreach (var b in bytes) WriteBits(b, 8);
+                // To avoid multiple allocations, rent a temporary buffer
+                byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
+                try
+                {
+                    Encoding.UTF8.GetBytes(s, temp);
+                    for (int i = 0; i < byteCount; i++) WriteBits(temp[i], 8);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(temp);
+                }
             }
         }
     }

@@ -274,6 +274,37 @@ namespace Shared.Services;
         }
 
         private static readonly SharedPool<ActionJob> _actionJobPool = new(() => new ActionJob());
+        private static readonly SharedPool<StateActionJobInstance> _stateActionJobPool = new(() => new StateActionJobInstance());
+
+        private class StateActionJobInstance : IJob, IPoolable
+        {
+            private Action<object?>? _action;
+            private object? _state;
+            public JobPriority Priority { get; private set; }
+            public int Weight { get; private set; }
+
+            public void Initialize(Action<object?> action, object? state, JobPriority priority, int weight)
+            {
+                _action = action;
+                _state = state;
+                Priority = priority;
+                Weight = weight;
+            }
+
+            public Task ExecuteAsync()
+            {
+                _action?.Invoke(_state);
+                return Task.CompletedTask;
+            }
+
+            public void Reset()
+            {
+                _action = null;
+                _state = null;
+                Priority = JobPriority.Normal;
+                Weight = 1;
+            }
+        }
 
         public JobHandle Schedule(Action action, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
@@ -291,7 +322,11 @@ namespace Shared.Services;
 
         public JobHandle Schedule<TState>(Action<TState> action, TState state, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
-            return Schedule(new StateActionJob<TState>(action, state, priority, weight), dependency, track, priority);
+            var job = _stateActionJobPool.Rent();
+            job.Initialize(s => action((TState)s!), state, priority, weight);
+            var handle = Schedule(job, dependency, track, priority);
+            handle.Task!.ContinueWith(_ => _stateActionJobPool.Return(job));
+            return handle;
         }
 
         public JobHandle CombineDependencies(params ReadOnlySpan<JobHandle> dependencies)
@@ -335,8 +370,6 @@ namespace Shared.Services;
             if (count == 1) { action(list[0]); return; }
 
             int workerCount = _workers.Length;
-            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead,
-            // while still splitting work across all available workers for large collections.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             int taskCount = (count + batchSize - 1) / batchSize;
             var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
@@ -348,10 +381,13 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + batchSize, count);
-                    handles[handleIdx++] = Schedule(() =>
+                    // Use a pooled state job to avoid closure allocation
+                    var state = (list, start, end, action);
+                    handles[handleIdx++] = Schedule(s =>
                     {
-                        for (int j = start; j < end; j++) action(list[j]);
-                    }, priority: priority, track: false).Task!;
+                        var (l, st, en, act) = ((IReadOnlyList<T>, int, int, Action<T>))s!;
+                        for (int j = st; j < en; j++) act(l[j]);
+                    }, state, priority: priority, track: false).Task!;
                 }
 
                 for (int i = 0; i < taskCount; i++)
@@ -494,7 +530,6 @@ namespace Shared.Services;
             if (count == 1) { action(list[0], 0); return; }
 
             int workerCount = _workers.Length;
-            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             int taskCount = (count + batchSize - 1) / batchSize;
             var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
@@ -506,10 +541,12 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + batchSize, count);
-                    handles[handleIdx++] = Schedule(() =>
+                    var state = (list, start, end, action);
+                    handles[handleIdx++] = Schedule(s =>
                     {
-                        for (int j = start; j < end; j++) action(list[j], j);
-                    }, priority: priority, track: false).Task!;
+                        var (l, st, en, act) = ((IReadOnlyList<T>, int, int, Action<T, int>))s!;
+                        for (int j = st; j < en; j++) act(l[j], j);
+                    }, state, priority: priority, track: false).Task!;
                 }
 
                 for (int i = 0; i < taskCount; i++)
@@ -531,7 +568,6 @@ namespace Shared.Services;
             if (count == 1) { await action(list[0]); return; }
 
             int workerCount = _workers.Length;
-            // Adaptive batching: Ensure a minimum batch size of 128 to reduce task allocation overhead.
             int batchSize = Math.Max(128, (count + workerCount - 1) / workerCount);
             int taskCount = (count + batchSize - 1) / batchSize;
             var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);

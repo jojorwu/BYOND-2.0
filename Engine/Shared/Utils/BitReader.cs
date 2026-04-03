@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -12,6 +13,13 @@ public ref struct BitReader
     private ReadOnlySpan<byte> _source;
     private int _bitOffset;
 
+    public BitReader(ReadOnlySpan<ReadOnlyMemory<byte>> segments)
+    {
+        // For simplicity, we currently flatten segments or use a single span.
+        // A multi-segment reader would be more complex and require tracking segment transitions.
+        throw new NotSupportedException("Multi-segment reader is not yet implemented.");
+    }
+
     public BitReader(ReadOnlySpan<byte> source)
     {
         _source = source;
@@ -21,9 +29,19 @@ public ref struct BitReader
     public int BitsRead => _bitOffset;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void EnsureCapacity(int bitsNeeded)
+    {
+        if (_bitOffset + bitsNeeded > _source.Length * 8)
+        {
+            throw new IndexOutOfRangeException($"BitReader overflow. Offset: {_bitOffset}, Needed: {bitsNeeded}, Capacity: {_source.Length * 8}");
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong ReadBits(int bitCount)
     {
         if (bitCount == 0) return 0;
+        EnsureCapacity(bitCount);
 
         ulong result = 0;
         while (bitCount > 0)
@@ -64,7 +82,12 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ReadBool()
     {
-        return ReadBits(1) == 1;
+        EnsureCapacity(1);
+        int byteIdx = _bitOffset / 8;
+        int bitInByteIdx = _bitOffset % 8;
+        bool result = (_source[byteIdx] & (1 << (7 - bitInByteIdx))) != 0;
+        _bitOffset++;
+        return result;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -109,25 +132,30 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public string ReadString()
     {
-        int len = (int)ReadVarInt();
-        if (len == 0) return string.Empty;
+        int byteCount = (int)ReadVarInt();
+        if (byteCount == 0) return string.Empty;
 
-        int byteOffset = _bitOffset / 8;
         int bitInByteIdx = _bitOffset % 8;
-
         if (bitInByteIdx == 0)
         {
-            // Fast path: bit aligned
-            var result = Encoding.UTF8.GetString(_source.Slice(byteOffset, len));
-            _bitOffset += len * 8;
+            int byteOffset = _bitOffset / 8;
+            EnsureCapacity(byteCount * 8);
+            var result = Encoding.UTF8.GetString(_source.Slice(byteOffset, byteCount));
+            _bitOffset += byteCount * 8;
             return result;
         }
         else
         {
-            // Slow path: bit-by-bit
-            byte[] bytes = new byte[len];
-            for (int i = 0; i < len; i++) bytes[i] = (byte)ReadBits(8);
-            return Encoding.UTF8.GetString(bytes);
+            byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
+            try
+            {
+                for (int i = 0; i < byteCount; i++) temp[i] = (byte)ReadBits(8);
+                return Encoding.UTF8.GetString(temp, 0, byteCount);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(temp);
+            }
         }
     }
 }

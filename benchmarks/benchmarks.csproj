@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.ComplexOpsBenchmark</StartupObject>
+    <StartupObject>Benchmarks.LargeObjectUpdateBenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>

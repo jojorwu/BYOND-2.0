@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Shared.Models;
 
 namespace Shared;
 
@@ -104,6 +105,12 @@ namespace Shared;
         /// Gets a component of the specified type.
         /// </summary>
         T? GetComponent<T>() where T : class, IComponent;
+
+        /// <summary>
+        /// Gets a component of the specified type from the provided chunk.
+        /// Optimized for use within systems.
+        /// </summary>
+        T? GetComponent<T>(ArchetypeChunk<T> chunk) where T : class, IComponent;
 
         /// <summary>
         /// Adds a component to this object.

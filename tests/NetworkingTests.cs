@@ -203,7 +203,7 @@ public class NetworkingTests
         var reader = new BitReader(buffer);
         reader.ReadVarInt(); // Id
         reader.ReadVarInt(); // Version
-        GameObjectFields mask = (GameObjectFields)reader.ReadBits(16);
+        GameObjectFields mask = (GameObjectFields)reader.ReadBits(32);
 
         Assert.That((mask & GameObjectFields.PositionX), Is.Not.EqualTo(GameObjectFields.None));
         Assert.That((mask & GameObjectFields.PositionY), Is.EqualTo(GameObjectFields.None));
@@ -270,9 +270,11 @@ public class NetworkingTests
 
     private class SyncableComponent : BaseComponent
     {
-        public int Value { get; set; }
+        private int _value;
+        public int Value { get => _value; set { _value = value; IsDirty = true; } }
         public override void WriteState(ref BitWriter writer) { Console.WriteLine($"Writing Value: {Value}"); writer.WriteVarInt(Value); }
-        public override void ReadState(ref BitReader reader) { Value = (int)reader.ReadVarInt(); Console.WriteLine($"Read Value: {Value}"); }
+        public override void ReadState(ref BitReader reader) { _value = (int)reader.ReadVarInt(); Console.WriteLine($"Read Value: {_value}"); }
+        public override void Reset() { base.Reset(); _value = 0; }
     }
 
     [Test]
@@ -287,6 +289,7 @@ public class NetworkingTests
         obj.SetComponentManager(componentManager);
         var comp = new SyncableComponent { Value = 42 };
         obj.AddComponent(comp);
+        comp.IsDirty = true; // Ensure it's marked as dirty
 
         var objects = new List<IGameObject> { obj };
         byte[] buffer = new byte[1024];
@@ -305,6 +308,14 @@ public class NetworkingTests
 
         var reader = new BitReader(data);
         Console.WriteLine($"Starting deserialization of {data.Length} bytes");
+
+        // Print mask for debugging
+        var debugReader = new BitReader(data);
+        debugReader.ReadVarInt(); // ID
+        debugReader.ReadVarInt(); // Version
+        var mask = (GameObjectFields)debugReader.ReadBits(16);
+        Console.WriteLine($"Mask: {mask}");
+
         _snapshotService.DeserializeBitPacked(ref reader, world, _typeManagerMock.Object, _factoryMock.Object);
 
         Assert.That(targetComp.Value, Is.EqualTo(42));

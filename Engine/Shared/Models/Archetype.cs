@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using Shared.Interfaces;
 using Shared.Enums;
 
@@ -19,10 +20,25 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     public readonly long[] Xs;
     public readonly long[] Ys;
     public readonly long[] Zs;
+    public readonly int[] Dirs;
+    public readonly double[] Alphas;
+    public readonly double[] Layers;
+    public readonly double[] PixelXs;
+    public readonly double[] PixelYs;
+    public readonly string[] Colors;
+    public readonly string[] Icons;
+    public readonly string[] IconStates;
+    public readonly float[] Rotations;
+    public readonly double[] Opacities;
+
     public readonly int Offset;
     public readonly int Count;
 
-    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities, long[] xs, long[] ys, long[] zs, int offset, int count)
+    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities,
+        long[] xs, long[] ys, long[] zs, int[] dirs, double[] alphas, double[] layers,
+        double[] pixelXs, double[] pixelYs, string[] colors, string[] icons, string[] iconStates, float[] rotations,
+        double[] opacities,
+        int offset, int count)
     {
         Components = components;
         EntityIds = entityIds;
@@ -30,6 +46,16 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
         Xs = xs;
         Ys = ys;
         Zs = zs;
+        Dirs = dirs;
+        Alphas = alphas;
+        Layers = layers;
+        PixelXs = pixelXs;
+        PixelYs = pixelYs;
+        Colors = colors;
+        Icons = icons;
+        IconStates = iconStates;
+        Rotations = rotations;
+        Opacities = opacities;
         Offset = offset;
         Count = count;
     }
@@ -41,6 +67,16 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     public ReadOnlySpan<long> XsSpan => Xs.AsSpan(Offset, Count);
     public ReadOnlySpan<long> YsSpan => Ys.AsSpan(Offset, Count);
     public ReadOnlySpan<long> ZsSpan => Zs.AsSpan(Offset, Count);
+    public ReadOnlySpan<int> DirsSpan => Dirs.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> AlphasSpan => Alphas.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> LayersSpan => Layers.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> PixelXsSpan => PixelXs.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> PixelYsSpan => PixelYs.AsSpan(Offset, Count);
+    public ReadOnlySpan<string> ColorsSpan => Colors.AsSpan(Offset, Count);
+    public ReadOnlySpan<string> IconsSpan => Icons.AsSpan(Offset, Count);
+    public ReadOnlySpan<string> IconStatesSpan => IconStates.AsSpan(Offset, Count);
+    public ReadOnlySpan<float> RotationsSpan => Rotations.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> OpacitiesSpan => Opacities.AsSpan(Offset, Count);
 }
 
 /// <summary>
@@ -53,6 +89,17 @@ public class Archetype
     private long[] _xs = Array.Empty<long>();
     private long[] _ys = Array.Empty<long>();
     private long[] _zs = Array.Empty<long>();
+    private int[] _dirs = Array.Empty<int>();
+    private double[] _alphas = Array.Empty<double>();
+    private double[] _layers = Array.Empty<double>();
+    private double[] _pixelXs = Array.Empty<double>();
+    private double[] _pixelYs = Array.Empty<double>();
+    private string[] _colors = Array.Empty<string>();
+    private string[] _icons = Array.Empty<string>();
+    private string[] _iconStates = Array.Empty<string>();
+    private float[] _rotations = Array.Empty<float>();
+    private double[] _opacities = Array.Empty<double>();
+
     private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly IComponentArray?[] _componentArrays;
     private IComponentArray[] _activeArrays = Array.Empty<IComponentArray>();
@@ -98,6 +145,16 @@ public class Archetype
         Array.Resize(ref _xs, _capacity);
         Array.Resize(ref _ys, _capacity);
         Array.Resize(ref _zs, _capacity);
+        Array.Resize(ref _dirs, _capacity);
+        Array.Resize(ref _alphas, _capacity);
+        Array.Resize(ref _layers, _capacity);
+        Array.Resize(ref _pixelXs, _capacity);
+        Array.Resize(ref _pixelYs, _capacity);
+        Array.Resize(ref _colors, _capacity);
+        Array.Resize(ref _icons, _capacity);
+        Array.Resize(ref _iconStates, _capacity);
+        Array.Resize(ref _rotations, _capacity);
+        Array.Resize(ref _opacities, _capacity);
 
         // Pre-size dictionary to avoid rehashing during bursts of additions
         _entityIdToIndex.EnsureCapacity(_capacity);
@@ -125,6 +182,16 @@ public class Archetype
             _xs[index] = entity.X;
             _ys[index] = entity.Y;
             _zs[index] = entity.Z;
+            _dirs[index] = entity.Dir;
+            _alphas[index] = entity.Alpha;
+            _layers[index] = entity.Layer;
+            _pixelXs[index] = entity.PixelX;
+            _pixelYs[index] = entity.PixelY;
+            _colors[index] = entity.Color;
+            _icons[index] = entity.Icon;
+            _iconStates[index] = entity.IconState;
+            _rotations[index] = entity.Rotation;
+            _opacities[index] = entity is GameObject g ? g.Opacity : 0;
 
             _entityIdToIndex[entity.Id] = index;
 
@@ -159,6 +226,16 @@ public class Archetype
             _xs[index] = entity.X;
             _ys[index] = entity.Y;
             _zs[index] = entity.Z;
+            _dirs[index] = entity.Dir;
+            _alphas[index] = entity.Alpha;
+            _layers[index] = entity.Layer;
+            _pixelXs[index] = entity.PixelX;
+            _pixelYs[index] = entity.PixelY;
+            _colors[index] = entity.Color;
+            _icons[index] = entity.Icon;
+            _iconStates[index] = entity.IconState;
+            _rotations[index] = entity.Rotation;
+            _opacities[index] = entity is GameObject g ? g.Opacity : 0;
 
             _entityIdToIndex[entity.Id] = index;
 
@@ -219,6 +296,16 @@ public class Archetype
                 _xs[index] = _xs[lastIndex];
                 _ys[index] = _ys[lastIndex];
                 _zs[index] = _zs[lastIndex];
+                _dirs[index] = _dirs[lastIndex];
+                _alphas[index] = _alphas[lastIndex];
+                _layers[index] = _layers[lastIndex];
+                _pixelXs[index] = _pixelXs[lastIndex];
+                _pixelYs[index] = _pixelYs[lastIndex];
+                _colors[index] = _colors[lastIndex];
+                _icons[index] = _icons[lastIndex];
+                _iconStates[index] = _iconStates[lastIndex];
+                _rotations[index] = _rotations[lastIndex];
+                _opacities[index] = _opacities[lastIndex];
 
                 _entityIdToIndex[lastEntityId] = index;
 
@@ -253,6 +340,11 @@ public class Archetype
         long[] entityIds;
         IGameObject[] entities;
         long[] xs, ys, zs;
+        int[] dirs;
+        double[] alphas, layers, pixelXs, pixelYs;
+        string[] colors, icons, iconStates;
+        float[] rotations;
+        double[] opacities;
         int totalCount;
 
         using (_lock.EnterScope())
@@ -263,10 +355,20 @@ public class Archetype
             xs = _xs;
             ys = _ys;
             zs = _zs;
+            dirs = _dirs;
+            alphas = _alphas;
+            layers = _layers;
+            pixelXs = _pixelXs;
+            pixelYs = _pixelYs;
+            colors = _colors;
+            icons = _icons;
+            iconStates = _iconStates;
+            rotations = _rotations;
+            opacities = _opacities;
             totalCount = _count;
         }
 
-        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, xs, ys, zs, totalCount, chunkSize);
+        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, xs, ys, zs, dirs, alphas, layers, pixelXs, pixelYs, colors, icons, iconStates, rotations, opacities, totalCount, chunkSize);
     }
 
     public readonly struct ArchetypeChunkEnumerable<T> : IEnumerable<ArchetypeChunk<T>> where T : class, IComponent
@@ -274,25 +376,37 @@ public class Archetype
         private readonly T[] _data;
         private readonly long[] _entityIds;
         private readonly IGameObject[] _entities;
-        private readonly long[] _xs;
-        private readonly long[] _ys;
-        private readonly long[] _zs;
+        private readonly long[] _xs, _ys, _zs;
+        private readonly int[] _dirs;
+        private readonly double[] _alphas, _layers, _pixelXs, _pixelYs;
+        private readonly string[] _colors, _icons, _iconStates;
+        private readonly float[] _rotations;
+        private readonly double[] _opacities;
         private readonly int _totalCount;
         private readonly int _chunkSize;
 
-        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities, long[] xs, long[] ys, long[] zs, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities,
+            long[] xs, long[] ys, long[] zs, int[] dirs, double[] alphas, double[] layers,
+            double[] pixelXs, double[] pixelYs, string[] colors, string[] icons, string[] iconStates, float[] rotations,
+            double[] opacities,
+            int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
             _entities = entities;
-            _xs = xs;
-            _ys = ys;
-            _zs = zs;
+            _xs = xs; _ys = ys; _zs = zs;
+            _dirs = dirs;
+            _alphas = alphas; _layers = layers; _pixelXs = pixelXs; _pixelYs = pixelYs;
+            _colors = colors; _icons = icons; _iconStates = iconStates;
+            _rotations = rotations;
+            _opacities = opacities;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
         }
 
-        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities, _xs, _ys, _zs, _totalCount, _chunkSize);
+        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities,
+            _xs, _ys, _zs, _dirs, _alphas, _layers, _pixelXs, _pixelYs, _colors, _icons, _iconStates, _rotations, _opacities,
+            _totalCount, _chunkSize);
         IEnumerator<ArchetypeChunk<T>> IEnumerable<ArchetypeChunk<T>>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
@@ -302,22 +416,32 @@ public class Archetype
         private readonly T[] _data;
         private readonly long[] _entityIds;
         private readonly IGameObject[] _entities;
-        private readonly long[] _xs;
-        private readonly long[] _ys;
-        private readonly long[] _zs;
+        private readonly long[] _xs, _ys, _zs;
+        private readonly int[] _dirs;
+        private readonly double[] _alphas, _layers, _pixelXs, _pixelYs;
+        private readonly string[] _colors, _icons, _iconStates;
+        private readonly float[] _rotations;
+        private readonly double[] _opacities;
         private readonly int _totalCount;
         private readonly int _chunkSize;
         private int _currentOffset;
         private ArchetypeChunk<T> _current;
 
-        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities, long[] xs, long[] ys, long[] zs, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities,
+            long[] xs, long[] ys, long[] zs, int[] dirs, double[] alphas, double[] layers,
+            double[] pixelXs, double[] pixelYs, string[] colors, string[] icons, string[] iconStates, float[] rotations,
+            double[] opacities,
+            int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
             _entities = entities;
-            _xs = xs;
-            _ys = ys;
-            _zs = zs;
+            _xs = xs; _ys = ys; _zs = zs;
+            _dirs = dirs;
+            _alphas = alphas; _layers = layers; _pixelXs = pixelXs; _pixelYs = pixelYs;
+            _colors = colors; _icons = icons; _iconStates = iconStates;
+            _rotations = rotations;
+            _opacities = opacities;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
             _currentOffset = -chunkSize;
@@ -330,7 +454,9 @@ public class Archetype
             if (_currentOffset >= _totalCount) return false;
 
             int count = Math.Min(_chunkSize, _totalCount - _currentOffset);
-            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities, _xs, _ys, _zs, _currentOffset, count);
+            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities,
+                _xs, _ys, _zs, _dirs, _alphas, _layers, _pixelXs, _pixelYs, _colors, _icons, _iconStates, _rotations, _opacities,
+                _currentOffset, count);
             return true;
         }
 
@@ -650,6 +776,78 @@ public class Archetype
     public void SetX(int index, long x) => _xs[index] = x;
     public void SetY(int index, long y) => _ys[index] = y;
     public void SetZ(int index, long z) => _zs[index] = z;
+    public void SetDir(int index, int dir) => _dirs[index] = dir;
+    public void SetAlpha(int index, double alpha) => _alphas[index] = alpha;
+    public void SetLayer(int index, double layer) => _layers[index] = layer;
+    public void SetPixelX(int index, double x) => _pixelXs[index] = x;
+    public void SetPixelY(int index, double y) => _pixelYs[index] = y;
+    public void SetColor(int index, string color) => _colors[index] = color;
+    public void SetIcon(int index, string icon) => _icons[index] = icon;
+    public void SetIconState(int index, string state) => _iconStates[index] = state;
+    public void SetRotation(int index, float rotation) => _rotations[index] = rotation;
+    public void SetOpacity(int index, double opacity) => _opacities[index] = opacity;
+
+    /// <summary>
+    /// Translates all entity coordinates in this archetype using SIMD acceleration.
+    /// </summary>
+    public void TranslateCoordsSIMD(long dx, long dy, long dz)
+    {
+        int count = _count;
+        if (count == 0) return;
+
+        using (_lock.EnterScope())
+        {
+            int i = 0;
+            if (Vector256.IsHardwareAccelerated && count >= 4)
+            {
+                var vdx = Vector256.Create(dx);
+                var vdy = Vector256.Create(dy);
+                var vdz = Vector256.Create(dz);
+
+                for (; i <= count - 4; i += 4)
+                {
+                    var vx = Vector256.Create(_xs, i);
+                    var vy = Vector256.Create(_ys, i);
+                    var vz = Vector256.Create(_zs, i);
+
+                    (vx + vdx).CopyTo(_xs, i);
+                    (vy + vdy).CopyTo(_ys, i);
+                    (vz + vdz).CopyTo(_zs, i);
+                }
+            }
+
+            for (; i < count; i++)
+            {
+                _xs[i] += dx;
+                _ys[i] += dy;
+                _zs[i] += dz;
+            }
+
+            // Sync back to GameObjects if they are currently simulation-active
+            for (int j = 0; j < count; j++)
+            {
+                if (_entities[j] is GameObject g)
+                {
+                    // Internal update to avoid recursive SoA sync
+                    g.SetPositionInternal(_xs[j], _ys[j], _zs[j], out _, out _, out _);
+                }
+            }
+        }
+    }
+
+    public long GetX(int index) => _xs[index];
+    public long GetY(int index) => _ys[index];
+    public long GetZ(int index) => _zs[index];
+    public int GetDir(int index) => _dirs[index];
+    public double GetAlpha(int index) => _alphas[index];
+    public double GetLayer(int index) => _layers[index];
+    public double GetPixelX(int index) => _pixelXs[index];
+    public double GetPixelY(int index) => _pixelYs[index];
+    public string GetColor(int index) => _colors[index];
+    public string GetIcon(int index) => _icons[index];
+    public string GetIconState(int index) => _iconStates[index];
+    public float GetRotation(int index) => _rotations[index];
+    public double GetOpacity(int index) => _opacities[index];
 
     public void Compact()
     {
@@ -663,6 +861,16 @@ public class Archetype
                 Array.Resize(ref _xs, _capacity);
                 Array.Resize(ref _ys, _capacity);
                 Array.Resize(ref _zs, _capacity);
+                Array.Resize(ref _dirs, _capacity);
+                Array.Resize(ref _alphas, _capacity);
+                Array.Resize(ref _layers, _capacity);
+                Array.Resize(ref _pixelXs, _capacity);
+                Array.Resize(ref _pixelYs, _capacity);
+                Array.Resize(ref _colors, _capacity);
+                Array.Resize(ref _icons, _capacity);
+                Array.Resize(ref _iconStates, _capacity);
+                Array.Resize(ref _rotations, _capacity);
+                Array.Resize(ref _opacities, _capacity);
 
                 var arrays = _activeArrays;
                 for (int i = 0; i < arrays.Length; i++)

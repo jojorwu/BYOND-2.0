@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,11 @@ public interface ISystemManager
 [EngineService(typeof(ISystemManager))]
 public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDisposable
 {
-    private record SystemExecutionInfo(ISystem System, IEntityQuery[] Queries);
+    private record SystemExecutionInfo(ISystem System, IEntityQuery[] Queries)
+    {
+        public readonly Dictionary<int, Func<object, object, IEntityCommandBuffer, ValueTask>> ChunkTickers = new();
+        public readonly Dictionary<int, Func<object, int, System.Collections.IEnumerable>> ChunkProviders = new();
+    }
 
     private static readonly ExecutionPhase[] Phases = Enum.GetValues<ExecutionPhase>();
     private readonly ISystemRegistry _registry;
@@ -82,6 +87,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
     private SystemExecutionInfo InitializeSystem(ISystem system)
     {
         var queries = new List<IEntityQuery>();
+        var info = new SystemExecutionInfo(system, Array.Empty<IEntityQuery>());
         var type = system.GetType();
 
         var fields = type.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -127,7 +133,56 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         }
 
         system.Initialize();
-        return new SystemExecutionInfo(system, queries.ToArray());
+
+        // Cache chunk tickers for high-performance execution
+        foreach (var query in queries)
+        {
+            var queryType = query.GetType();
+            if (queryType.IsGenericType && queryType.GetGenericTypeDefinition() == typeof(EntityQuery<>))
+            {
+                var componentType = queryType.GetGenericArguments()[0];
+                var chunkType = typeof(ArchetypeChunk<>).MakeGenericType(componentType);
+                var tickMethod = system.GetType().GetMethod("TickAsync", [chunkType, typeof(IEntityCommandBuffer)]);
+
+                if (tickMethod != null && tickMethod.DeclaringType != typeof(ISystem))
+                {
+                    // Create a delegate to avoid reflection in the hot path
+                    // We use a helper to avoid generic issues with Action/Func
+                    info.ChunkTickers[query.GetHashCode()] = CreateChunkTicker(tickMethod, chunkType);
+
+                    var getChunksMethod = queryType.GetMethod("GetChunks");
+                    if (getChunksMethod != null)
+                    {
+                        info.ChunkProviders[query.GetHashCode()] = CreateChunkProvider(getChunksMethod, queryType);
+                    }
+                }
+            }
+        }
+
+        return info with { Queries = queries.ToArray() };
+    }
+
+    private Func<object, object, IEntityCommandBuffer, ValueTask> CreateChunkTicker(MethodInfo method, Type chunkType)
+    {
+        var systemParam = Expression.Parameter(typeof(object), "system");
+        var chunkParam = Expression.Parameter(typeof(object), "chunk");
+        var ecbParam = Expression.Parameter(typeof(IEntityCommandBuffer), "ecb");
+
+        var castSystem = Expression.Convert(systemParam, method.DeclaringType!);
+        var castChunk = Expression.Convert(chunkParam, chunkType);
+
+        var call = Expression.Call(castSystem, method, castChunk, ecbParam);
+        return Expression.Lambda<Func<object, object, IEntityCommandBuffer, ValueTask>>(call, systemParam, chunkParam, ecbParam).Compile();
+    }
+
+    private Func<object, int, System.Collections.IEnumerable> CreateChunkProvider(MethodInfo method, Type queryType)
+    {
+        var queryParam = Expression.Parameter(typeof(object), "query");
+        var sizeParam = Expression.Parameter(typeof(int), "size");
+        var castQuery = Expression.Convert(queryParam, queryType);
+        var call = Expression.Call(castQuery, method, sizeParam);
+        var castResult = Expression.Convert(call, typeof(System.Collections.IEnumerable));
+        return Expression.Lambda<Func<object, int, System.Collections.IEnumerable>>(castResult, queryParam, sizeParam).Compile();
     }
 
     private EntityQuery CreateEntityQuery(Type queryType)
@@ -296,30 +351,53 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
 
             if (queries.Length > 0)
             {
-                if (system.ParallelArchetypes)
+                // New high-performance chunked processing path
+                bool handledByChunks = false;
+                for (int i = 0; i < queries.Length; i++)
                 {
-                    var allMatching = new List<Archetype>();
-                    for (int i = 0; i < queries.Length; i++)
+                    var query = queries[i];
+                    int qHash = query.GetHashCode();
+                    if (info.ChunkTickers.TryGetValue(qHash, out var ticker) &&
+                        info.ChunkProviders.TryGetValue(qHash, out var provider))
                     {
-                        allMatching.AddRange(queries[i].GetMatchingArchetypes());
-                    }
-
-                    if (allMatching.Count > 0)
-                    {
-                        await _jobSystem.ForEachAsync(allMatching, arch => system.TickAsync(arch, ecb));
-                        batchHandled = true;
+                        var chunks = provider(query, 1024);
+                        foreach (var chunk in chunks)
+                        {
+                            var vt = ticker(system, chunk, ecb);
+                            if (!vt.IsCompleted) await vt;
+                            handledByChunks = true;
+                            batchHandled = true;
+                        }
                     }
                 }
-                else
+
+                if (!handledByChunks)
                 {
-                    // Sequential processing of archetypes
-                    for (int i = 0; i < queries.Length; i++)
+                    if (system.ParallelArchetypes)
                     {
-                        var query = queries[i];
-                        foreach (var archetype in query.GetMatchingArchetypes())
+                        var allMatching = new List<Archetype>();
+                        for (int i = 0; i < queries.Length; i++)
                         {
-                            await system.TickAsync(archetype, ecb);
+                            allMatching.AddRange(queries[i].GetMatchingArchetypes());
+                        }
+
+                        if (allMatching.Count > 0)
+                        {
+                            await _jobSystem.ForEachAsync(allMatching, arch => system.TickAsync(arch, ecb));
                             batchHandled = true;
+                        }
+                    }
+                    else
+                    {
+                        // Sequential processing of archetypes
+                        for (int i = 0; i < queries.Length; i++)
+                        {
+                            var query = queries[i];
+                            foreach (var archetype in query.GetMatchingArchetypes())
+                            {
+                                await system.TickAsync(archetype, ecb);
+                                batchHandled = true;
+                            }
                         }
                     }
                 }

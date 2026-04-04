@@ -18,6 +18,14 @@ public class TransformFieldHandler : INetworkFieldHandler
         if ((currentMask & GameObjectFields.Rotation) != 0) writer.WriteDouble(obj.Rotation);
     }
 
+    public void Write<T>(ref BitWriter writer, ArchetypeChunk<T> chunk, int indexInChunk, GameObjectFields currentMask) where T : class, IComponent
+    {
+        int idx = chunk.Offset + indexInChunk;
+        if ((currentMask & GameObjectFields.PositionX) != 0) writer.WriteZigZag(chunk.Xs[idx]);
+        if ((currentMask & GameObjectFields.PositionY) != 0) writer.WriteZigZag(chunk.Ys[idx]);
+        if ((currentMask & GameObjectFields.PositionZ) != 0) writer.WriteZigZag(chunk.Zs[idx]);
+    }
+
     public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         if ((currentMask & GameObjectFields.PositionX) != 0) obj.X = reader.ReadZigZag();

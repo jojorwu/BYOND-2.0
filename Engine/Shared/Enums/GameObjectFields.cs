@@ -18,11 +18,12 @@ public enum GameObjectFields : uint
     PixelX = 1 << 9,
     PixelY = 1 << 10,
     Rotation = 1 << 11,
-    Variables = 1 << 12,
-    Type = 1 << 13,
-    NewObject = 1 << 14,
-    Components = 1 << 15,
+    Opacity = 1 << 12,
+    Variables = 1 << 13,
+    Type = 1 << 14,
+    NewObject = 1 << 15,
+    Components = 1 << 16,
 
     Position = PositionX | PositionY | PositionZ,
-    Visuals = Dir | Alpha | Color | Layer | Icon | IconState | PixelX | PixelY
+    Visuals = Dir | Alpha | Color | Layer | Icon | IconState | PixelX | PixelY | Opacity
 }

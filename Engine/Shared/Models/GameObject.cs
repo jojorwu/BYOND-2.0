@@ -139,8 +139,21 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public float Rotation
     {
-        get => _transform.Rotation;
-        set { if (_transform.Rotation != value) { _transform.Rotation = value; MarkFieldDirty(GameObjectFields.Rotation); IncrementVersion(); } }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetRotation(ArchetypeIndex);
+            return _transform.Rotation;
+        }
+        set
+        {
+            if (_transform.Rotation != value)
+            {
+                _transform.Rotation = value;
+                if (Archetype is Archetype arch && ArchetypeIndex != -1) arch.SetRotation(ArchetypeIndex, value);
+                MarkFieldDirty(GameObjectFields.Rotation);
+                IncrementVersion();
+            }
+        }
     }
 
     public double RenderX { get => RenderState.X; set => RenderState.X = value; }
@@ -175,56 +188,137 @@ public class GameObject : DreamObject, IGameObject, IPoolable
 
     public string Icon
     {
-        get { var idx = ObjectType?.IconIndex ?? -1; return idx != -1 ? GetVariable(idx).StringValue : string.Empty; }
-        set { var idx = ObjectType?.IconIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetIcon(ArchetypeIndex);
+            var idx = ObjectType?.IconIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).StringValue : string.Empty;
+        }
+        set
+        {
+            var idx = ObjectType?.IconIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public string IconState
     {
-        get { var idx = ObjectType?.IconStateIndex ?? -1; return idx != -1 ? GetVariable(idx).StringValue : string.Empty; }
-        set { var idx = ObjectType?.IconStateIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetIconState(ArchetypeIndex);
+            var idx = ObjectType?.IconStateIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).StringValue : string.Empty;
+        }
+        set
+        {
+            var idx = ObjectType?.IconStateIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public int Dir
     {
-        get { var idx = ObjectType?.DirIndex ?? -1; return idx != -1 ? (int)GetVariable(idx).GetValueAsDouble() : 2; }
-        set { var idx = ObjectType?.DirIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetDir(ArchetypeIndex);
+            var idx = ObjectType?.DirIndex ?? -1;
+            return idx != -1 ? (int)GetVariable(idx).GetValueAsDouble() : 2;
+        }
+        set
+        {
+            var idx = ObjectType?.DirIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue((double)value));
+        }
     }
 
     public double Alpha
     {
-        get { var idx = ObjectType?.AlphaIndex ?? -1; return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 255.0; }
-        set { var idx = ObjectType?.AlphaIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetAlpha(ArchetypeIndex);
+            var idx = ObjectType?.AlphaIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 255.0;
+        }
+        set
+        {
+            var idx = ObjectType?.AlphaIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public string Color
     {
-        get { var idx = ObjectType?.ColorIndex ?? -1; return idx != -1 ? GetVariable(idx).StringValue : "#ffffff"; }
-        set { var idx = ObjectType?.ColorIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetColor(ArchetypeIndex);
+            var idx = ObjectType?.ColorIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).StringValue : "#ffffff";
+        }
+        set
+        {
+            var idx = ObjectType?.ColorIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public double Layer
     {
-        get { var idx = ObjectType?.LayerIndex ?? -1; return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 2.0; }
-        set { var idx = ObjectType?.LayerIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetLayer(ArchetypeIndex);
+            var idx = ObjectType?.LayerIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 2.0;
+        }
+        set
+        {
+            var idx = ObjectType?.LayerIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public double PixelX
     {
-        get { var idx = ObjectType?.PixelXIndex ?? -1; return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 0.0; }
-        set { var idx = ObjectType?.PixelXIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetPixelX(ArchetypeIndex);
+            var idx = ObjectType?.PixelXIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 0.0;
+        }
+        set
+        {
+            var idx = ObjectType?.PixelXIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public double PixelY
     {
-        get { var idx = ObjectType?.PixelYIndex ?? -1; return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 0.0; }
-        set { var idx = ObjectType?.PixelYIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetPixelY(ArchetypeIndex);
+            var idx = ObjectType?.PixelYIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 0.0;
+        }
+        set
+        {
+            var idx = ObjectType?.PixelYIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     public double Opacity
     {
-        get { var idx = ObjectType?.OpacityIndex ?? -1; return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 0.0; }
-        set { var idx = ObjectType?.OpacityIndex ?? -1; if (idx != -1) SetVariableDirect(idx, new DreamValue(value)); }
+        get
+        {
+            if (Archetype is Archetype arch && ArchetypeIndex != -1) return arch.GetOpacity(ArchetypeIndex);
+            var idx = ObjectType?.OpacityIndex ?? -1;
+            return idx != -1 ? GetVariable(idx).GetValueAsDouble() : 0.0;
+        }
+        set
+        {
+            var idx = ObjectType?.OpacityIndex ?? -1;
+            if (idx != -1) SetVariableDirect(idx, new DreamValue(value));
+        }
     }
 
     private int _densityVal = 1;
@@ -503,6 +597,9 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         var builtinMap = ObjectType?.VariableToBuiltin;
         if (builtinMap == null || (uint)index >= (uint)builtinMap.Length) return;
         var builtin = builtinMap[index];
+        var arch = Archetype as Archetype;
+        int archIdx = ArchetypeIndex;
+
         switch (builtin)
         {
             case BuiltinVar.X: Position = new Robust.Shared.Maths.Vector3l(value.RawLong, Y, Z); MarkFieldDirty(GameObjectFields.PositionX); break;
@@ -510,14 +607,51 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             case BuiltinVar.Z: Position = new Robust.Shared.Maths.Vector3l(X, Y, value.RawLong); MarkFieldDirty(GameObjectFields.PositionZ); break;
             case BuiltinVar.Loc: SetLocInternal((value.TryGetValue(out DreamObject? locObj) && locObj is IGameObject loc) ? loc : null, false); break;
             case BuiltinVar.Density: Interlocked.Exchange(ref _densityVal, value.IsFalse() ? 0 : 1); break;
-            case BuiltinVar.Dir: MarkFieldDirty(GameObjectFields.Dir); break;
-            case BuiltinVar.Alpha: MarkFieldDirty(GameObjectFields.Alpha); break;
-            case BuiltinVar.Color: MarkFieldDirty(GameObjectFields.Color); break;
-            case BuiltinVar.Layer: MarkFieldDirty(GameObjectFields.Layer); break;
-            case BuiltinVar.Icon: MarkFieldDirty(GameObjectFields.Icon); break;
-            case BuiltinVar.IconState: MarkFieldDirty(GameObjectFields.IconState); break;
-            case BuiltinVar.PixelX: MarkFieldDirty(GameObjectFields.PixelX); break;
-            case BuiltinVar.PixelY: MarkFieldDirty(GameObjectFields.PixelY); break;
+            case BuiltinVar.Dir:
+                int dir = (int)value.GetValueAsDouble();
+                if (arch != null && archIdx != -1) arch.SetDir(archIdx, dir);
+                MarkFieldDirty(GameObjectFields.Dir);
+                break;
+            case BuiltinVar.Alpha:
+                double alpha = value.GetValueAsDouble();
+                if (arch != null && archIdx != -1) arch.SetAlpha(archIdx, alpha);
+                MarkFieldDirty(GameObjectFields.Alpha);
+                break;
+            case BuiltinVar.Color:
+                string color = value.StringValue;
+                if (arch != null && archIdx != -1) arch.SetColor(archIdx, color);
+                MarkFieldDirty(GameObjectFields.Color);
+                break;
+            case BuiltinVar.Layer:
+                double layer = value.GetValueAsDouble();
+                if (arch != null && archIdx != -1) arch.SetLayer(archIdx, layer);
+                MarkFieldDirty(GameObjectFields.Layer);
+                break;
+            case BuiltinVar.Icon:
+                string icon = value.StringValue;
+                if (arch != null && archIdx != -1) arch.SetIcon(archIdx, icon);
+                MarkFieldDirty(GameObjectFields.Icon);
+                break;
+            case BuiltinVar.IconState:
+                string state = value.StringValue;
+                if (arch != null && archIdx != -1) arch.SetIconState(archIdx, state);
+                MarkFieldDirty(GameObjectFields.IconState);
+                break;
+            case BuiltinVar.PixelX:
+                double px = value.GetValueAsDouble();
+                if (arch != null && archIdx != -1) arch.SetPixelX(archIdx, px);
+                MarkFieldDirty(GameObjectFields.PixelX);
+                break;
+            case BuiltinVar.PixelY:
+                double py = value.GetValueAsDouble();
+                if (arch != null && archIdx != -1) arch.SetPixelY(archIdx, py);
+                MarkFieldDirty(GameObjectFields.PixelY);
+                break;
+            case BuiltinVar.Opacity:
+                double opacity = value.GetValueAsDouble();
+                if (arch != null && archIdx != -1) arch.SetOpacity(archIdx, opacity);
+                MarkFieldDirty(GameObjectFields.Opacity);
+                break;
         }
     }
 
@@ -573,6 +707,12 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return _componentManager?.GetComponent<T>(this);
     }
 
+    public T? GetComponent<T>(ArchetypeChunk<T> chunk) where T : class, IComponent
+    {
+        if (ArchetypeIndex < chunk.Offset || ArchetypeIndex >= chunk.Offset + chunk.Count) return null;
+        return chunk.Components[ArchetypeIndex];
+    }
+
     public IEnumerable<IComponent> GetComponents() {
         if (Archetype is Archetype arch) {
             var arrays = arch._componentArrays;
@@ -590,7 +730,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     }
 
     public void VisitComponents<T>(ref T visitor) where T : struct, IComponentVisitor, allows ref struct {
-        if (Archetype is Archetype arch) {
+        if (Archetype is Archetype arch && ArchetypeIndex != -1) {
             var arrays = arch._componentArrays;
             for (int i = 0; i < arrays.Length; i++) {
                 var array = arrays[i];

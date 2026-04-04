@@ -9,6 +9,7 @@ public interface IVisuals
     double PixelX { get; set; }
     double PixelY { get; set; }
     double Layer { get; set; }
+    double Opacity { get; set; }
     float Rotation { get; set; }
 
     string CommittedIcon { get; }

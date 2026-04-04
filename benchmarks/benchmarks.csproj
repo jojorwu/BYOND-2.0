@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.ArchetypeSoABenchmark</StartupObject>
+    <StartupObject>Benchmarks.ChunkedQueryBenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <Compile Remove="MathBenchmark.cs" />
+    <Compile Remove="ArchetypeSoABenchmark.cs" />
   </ItemGroup>
 
   <ItemGroup>

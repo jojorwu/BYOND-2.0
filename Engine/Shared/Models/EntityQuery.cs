@@ -37,6 +37,17 @@ public class EntityQuery : IEntityQuery
 public class EntityQuery<T1> : EntityQuery where T1 : class, IComponent
 {
     public EntityQuery(IComponentQueryService queryService) : base(queryService, typeof(T1)) { }
+
+    public IEnumerable<ArchetypeChunk<T1>> GetChunks(int chunkSize = 1024)
+    {
+        foreach (var arch in GetMatchingArchetypes())
+        {
+            foreach (var chunk in arch.GetChunks<T1>(chunkSize))
+            {
+                yield return chunk;
+            }
+        }
+    }
 }
 
 public class EntityQuery<T1, T2> : EntityQuery

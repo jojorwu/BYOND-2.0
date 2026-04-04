@@ -10,6 +10,12 @@ public interface INetworkFieldHandler
     int Priority { get; }
 
     void Write(ref BitWriter writer, IGameObject obj, GameObjectFields currentMask);
+
+    /// <summary>
+    /// Bulk write version using SoA data.
+    /// </summary>
+    void Write<T>(ref BitWriter writer, ArchetypeChunk<T> chunk, int indexInChunk, GameObjectFields currentMask) where T : class, IComponent => Write(ref writer, chunk.Entities[chunk.Offset + indexInChunk], currentMask);
+
     void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved);
     void Skip(ref BitReader reader, GameObjectFields currentMask);
 

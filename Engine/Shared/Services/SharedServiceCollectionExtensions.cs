@@ -98,6 +98,7 @@ public static class SharedServiceCollectionExtensions
         services.AddSingleton<IEntityRegistry, EntityRegistry>();
         services.AddSingleton<IObjectFactory, ObjectFactory>();
         services.AddSingleton<IArenaAllocator, ArenaProxy>();
+        services.AddEngineService<PathfindingService>(typeof(IPathfindingService));
         return services;
     }
     public static IServiceCollection AddEcsServices(this IServiceCollection services)

@@ -196,12 +196,11 @@ public ref struct BitWriter
             }
             else
             {
-                // To avoid multiple allocations, rent a temporary buffer
                 byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
                 try
                 {
                     Encoding.UTF8.GetBytes(s, temp);
-                    for (int i = 0; i < byteCount; i++) WriteBits(temp[i], 8);
+                    WriteBytes(temp.AsSpan(0, byteCount));
                 }
                 finally
                 {

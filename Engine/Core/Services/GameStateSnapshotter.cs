@@ -65,77 +65,86 @@ namespace Core
         {
             using (gameState.ReadLock())
             {
-                var objects = gameState.GameObjects.Values.ToList();
-                if (objects.Count == 0) return Array.Empty<byte>();
+                int objectCount = gameState.GameObjects.Count;
+                if (objectCount == 0) return Array.Empty<byte>();
 
-                if (_jobSystem != null && objects.Count > 1024)
+                var objects = ArrayPool<GameObject>.Shared.Rent(objectCount);
+                try
                 {
-                    // Parallel serialization for large snapshots
-                    int workerCount = Math.Max(1, Environment.ProcessorCount);
-                    int batchSize = (objects.Count + workerCount - 1) / workerCount;
-                    var batches = new List<List<GameObject>>();
-                    for (int i = 0; i < objects.Count; i += batchSize)
+                    int actualCount = 0;
+                    foreach (var kvp in gameState.GameObjects)
                     {
-                        batches.Add(objects.GetRange(i, Math.Min(batchSize, objects.Count - i)));
+                        objects[actualCount++] = kvp.Value;
+                        if (actualCount >= objectCount) break;
                     }
 
-                    var segmentTasks = new byte[batches.Count][];
-                    _jobSystem.ForEachAsync(Enumerable.Range(0, batches.Count), i =>
+                    if (_jobSystem != null && actualCount > 1024)
                     {
-                        int bufferSize = batches[i].Count * 128;
-                        var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                        int workerCount = Math.Max(1, Environment.ProcessorCount);
+                        int batchSize = (actualCount + workerCount - 1) / workerCount;
+                        int numBatches = (actualCount + batchSize - 1) / batchSize;
+
+                        var segmentTasks = new byte[numBatches][];
+                        var finalObjects = objects; // Capture for lambda
+
+                        _jobSystem.ForEachAsync(Enumerable.Range(0, numBatches), b =>
+                        {
+                            int start = b * batchSize;
+                            int length = Math.Min(batchSize, actualCount - start);
+                            if (length <= 0) return;
+
+                            var batch = new GameObject[length];
+                            Array.Copy(finalObjects, start, batch, 0, length);
+
+                            int bufferSize = length * 128;
+                            var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+                            try
+                            {
+                                var writer = new BitWriter(buffer);
+                                _binarySnapshotService.SerializeBitPackedDelta(ref writer, batch, null);
+                                segmentTasks[b] = buffer.AsSpan(0, writer.BytesWritten).ToArray();
+                            }
+                            finally { ArrayPool<byte>.Shared.Return(buffer); }
+                        }).GetAwaiter().GetResult();
+
+                        int totalSize = segmentTasks.Where(s => s != null).Sum(s => s.Length);
+                        byte[] result = new byte[totalSize];
+                        int offset = 0;
+                        foreach (var segment in segmentTasks)
+                        {
+                            if (segment == null) continue;
+                            segment.CopyTo(result, offset);
+                            offset += segment.Length;
+                        }
+                        return result;
+                    }
+
+                    int bufSize = Math.Max(65536, actualCount * 64);
+                    while (true)
+                    {
+                        var buffer = ArrayPool<byte>.Shared.Rent(bufSize);
                         try
                         {
                             var writer = new BitWriter(buffer);
-                            _binarySnapshotService.SerializeBitPackedDelta(ref writer, batches[i], null);
-                            var segment = new byte[writer.BytesWritten];
-                            buffer.AsSpan(0, writer.BytesWritten).CopyTo(segment);
-                            segmentTasks[i] = segment;
+                            var array = new GameObject[actualCount];
+                            Array.Copy(objects, 0, array, 0, actualCount);
+                            _binarySnapshotService.SerializeBitPackedDelta(ref writer, array, null);
+                            return buffer.AsSpan(0, writer.BytesWritten).ToArray();
+                        }
+                        catch (IndexOutOfRangeException)
+                        {
+                            bufSize *= 2;
+                            if (bufSize > 100 * 1024 * 1024) throw;
                         }
                         finally { ArrayPool<byte>.Shared.Return(buffer); }
-                    }).GetAwaiter().GetResult();
-
-                    int totalSize = segmentTasks.Sum(s => s.Length);
-                    byte[] result = new byte[totalSize];
-                    int offset = 0;
-                    foreach (var segment in segmentTasks)
-                    {
-                        segment.CopyTo(result, offset);
-                        offset += segment.Length;
-                    }
-                    return result;
-                }
-
-                int bufferSize = Math.Max(65536, objects.Count * 64);
-                while (true)
-                {
-                    var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-                    try
-                    {
-                        var writer = new BitWriter(buffer);
-                        _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
-                        byte[] result = new byte[writer.BytesWritten];
-                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-                        return result;
-                    }
-                    catch (IndexOutOfRangeException)
-                    {
-                        bufferSize *= 2;
-                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(buffer);
                     }
                 }
+                finally { ArrayPool<GameObject>.Shared.Return(objects); }
             }
         }
 
         public byte[] GetSparseBinarySnapshot(IGameState gameState)
         {
-            // If we have a reactive system, we should ideally use BitPacked as well
-            // But for now let's focus on the primary binary snapshot which is used for full/regional updates
-
             if (_reactiveSystem != null)
             {
                 int count = _reactiveSystem.BatchCount;
@@ -153,9 +162,7 @@ namespace Core
                         int bytesWritten = _binarySnapshotService.SerializeBatches(buffer, batches, out bool truncated);
                         if (!truncated)
                         {
-                            byte[] result = new byte[bytesWritten];
-                            buffer.AsSpan(0, bytesWritten).CopyTo(result);
-                            return result;
+                            return buffer.AsSpan(0, bytesWritten).ToArray();
                         }
                     }
                     finally
@@ -179,14 +186,12 @@ namespace Core
                     {
                         var writer = new BitWriter(buffer);
                         _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
-                        byte[] result = new byte[writer.BytesWritten];
-                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-                        return result;
+                        return buffer.AsSpan(0, writer.BytesWritten).ToArray();
                     }
                     catch (IndexOutOfRangeException)
                     {
                         bufferSize *= 2;
-                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
+                        if (bufferSize > 100 * 1024 * 1024) throw;
                     }
                     finally
                     {
@@ -209,14 +214,12 @@ namespace Core
                     {
                         var writer = new BitWriter(buffer);
                         _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
-                        byte[] result = new byte[writer.BytesWritten];
-                        buffer.AsSpan(0, writer.BytesWritten).CopyTo(result);
-                        return result;
+                        return buffer.AsSpan(0, writer.BytesWritten).ToArray();
                     }
                     catch (IndexOutOfRangeException)
                     {
                         bufferSize *= 2;
-                        if (bufferSize > 10 * 1024 * 1024) throw; // Max 10MB
+                        if (bufferSize > 100 * 1024 * 1024) throw;
                     }
                     finally
                     {

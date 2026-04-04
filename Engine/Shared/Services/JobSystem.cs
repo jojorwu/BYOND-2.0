@@ -29,9 +29,6 @@ namespace Shared.Services;
             int count = currentWorkers.Length;
             if (count <= 1) return null;
 
-            // Improved Victim Selection (Power of Four Choices):
-            // By picking 4 candidates, we significantly increase the probability of finding a high-load worker
-            // even in large clusters, further reducing load imbalance without scanning all workers.
             int bestIdx = -1;
             int maxWeight = -1;
 
@@ -68,7 +65,7 @@ namespace Shared.Services;
                 var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 dependency.Task!.ContinueWith(_ =>
                 {
-                    var handle = ScheduleInternal(job, track);
+                    var handle = ScheduleInternal(job, track, priority);
                     handle.Task!.ContinueWith(t =>
                     {
                         if (t.IsFaulted) tcs.TrySetException(t.Exception!);
@@ -79,25 +76,23 @@ namespace Shared.Services;
                 return new JobHandle(tcs.Task);
             }
 
-            return ScheduleInternal(job, track);
+            return ScheduleInternal(job, track, priority);
         }
 
-        public JobHandle Schedule(IJob job, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
+        public JobHandle Schedule(IJob job, JobHandle dependency, bool track, JobPriority priority, int weight)
         {
-            // Weight is now handled via IJob.Weight, but we can wrap it if needed or use the provided one
-            return ScheduleInternal(job, track);
+            return Schedule(job, dependency, track, priority);
         }
 
         private static readonly SharedPool<TrackingJob> _trackingJobPool = new(() => new TrackingJob());
 
-        private JobHandle ScheduleInternal(IJob job, bool track)
+        private JobHandle ScheduleInternal(IJob job, bool track, JobPriority priority)
         {
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             if (track)
             {
                 if (_pendingJobTrackers.Count > MaxTrackedJobs)
                 {
-                    // Emergency purge: something is scheduling tracked jobs without awaiting them
                     while (_pendingJobTrackers.TryTake(out _)) { }
                 }
                 _pendingJobTrackers.Add(tcs);
@@ -107,7 +102,7 @@ namespace Shared.Services;
             finalJob.Initialize(job, tcs, track, _logger);
             tcs.Task.ContinueWith(_ => _trackingJobPool.Return(finalJob));
 
-            if (job.Priority == JobPriority.Critical)
+            if (priority == JobPriority.Critical)
             {
                 _criticalQueue.Push(finalJob);
                 foreach (var worker in _workers) worker.Wake();
@@ -125,11 +120,9 @@ namespace Shared.Services;
             }
             else if (count > 1)
             {
-                // Heuristic: Prefer current worker if it's not overloaded, to improve cache locality
                 var currentWorker = WorkerThread.Current;
                 if (currentWorker != null && currentWorker.ApproximateJobCount < 10)
                 {
-                    // Find index of current worker
                     for (int i = 0; i < count; i++)
                     {
                         if (currentWorkers[i] == currentWorker)
@@ -140,7 +133,6 @@ namespace Shared.Services;
                     }
                 }
 
-                // Power of Two Choices for better load balancing using Total Weight
                 int i1 = Random.Shared.Next(count);
                 int i2 = Random.Shared.Next(count);
                 if (i1 == i2) i2 = (i1 + 1) % count;
@@ -192,10 +184,8 @@ namespace Shared.Services;
                 totalPending += worker.JobCount;
             }
 
-            // Scaling rules: more aggressive upward scaling based on backlog ratio
             if (totalPending > currentWorkers.Length * 20 && currentWorkers.Length < _maxWorkers)
             {
-                // Jump directly to a larger number of workers for large bursts
                 int target = Math.Min(_maxWorkers, currentWorkers.Length + (totalPending / 20));
                 AdjustWorkerCount(target);
             }
@@ -205,7 +195,6 @@ namespace Shared.Services;
             }
             else if (currentWorkers.Length > _minWorkers)
             {
-                // Scaling down logic: find if multiple workers have been idle for a while
                 int idleLongEnoughCount = 0;
                 foreach (var worker in currentWorkers)
                 {
@@ -217,7 +206,6 @@ namespace Shared.Services;
 
                 if (idleLongEnoughCount > 0)
                 {
-                    // Scale down by more than one if there's a large pool of idle workers
                     AdjustWorkerCount(Math.Max(_minWorkers, currentWorkers.Length - Math.Max(1, idleLongEnoughCount / 2)));
                 }
             }
@@ -242,7 +230,6 @@ namespace Shared.Services;
 
                 if (targetCount > currentCount)
                 {
-                    // Add workers
                     var newWorkers = new WorkerThread[targetCount];
                     Array.Copy(_workers, newWorkers, currentCount);
                     for (int i = currentCount; i < targetCount; i++)
@@ -254,7 +241,6 @@ namespace Shared.Services;
                 }
                 else
                 {
-                    // Remove workers (allowing multiple removals at once)
                     int toRemoveCount = currentCount - targetCount;
                     var newWorkers = new WorkerThread[targetCount];
                     Array.Copy(_workers, newWorkers, targetCount);
@@ -264,7 +250,6 @@ namespace Shared.Services;
 
                     _workers = newWorkers;
 
-                    // Parallelize disposal of idle workers to avoid blocking the maintenance cycle
                     foreach (var worker in toRemoveList)
                     {
                         Task.Run(() => worker.Dispose());
@@ -278,29 +263,22 @@ namespace Shared.Services;
 
         private class StateActionJobInstance : IJob, IPoolable
         {
-            private Action<object?>? _action;
-            private object? _state;
-            public JobPriority Priority { get; private set; }
-            public int Weight { get; private set; }
-
-            public void Initialize(Action<object?> action, object? state, JobPriority priority, int weight)
-            {
-                _action = action;
-                _state = state;
-                Priority = priority;
-                Weight = weight;
-            }
+            public Action<object?>? Action;
+            public object? State;
+            public JobPriority Priority { get; set; }
+            public int Weight { get; set; }
+            public int PreferredWorkerId => -1;
 
             public Task ExecuteAsync()
             {
-                _action?.Invoke(_state);
+                Action?.Invoke(State);
                 return Task.CompletedTask;
             }
 
             public void Reset()
             {
-                _action = null;
-                _state = null;
+                Action = null;
+                State = null;
                 Priority = JobPriority.Normal;
                 Weight = 1;
             }
@@ -323,7 +301,10 @@ namespace Shared.Services;
         public JobHandle Schedule<TState>(Action<TState> action, TState state, JobHandle dependency = default, bool track = true, JobPriority priority = JobPriority.Normal, int weight = 1)
         {
             var job = _stateActionJobPool.Rent();
-            job.Initialize(s => action((TState)s!), state, priority, weight);
+            job.Action = s => action((TState)s!);
+            job.State = state;
+            job.Priority = priority;
+            job.Weight = weight;
             var handle = Schedule(job, dependency, track, priority);
             handle.Task!.ContinueWith(_ => _stateActionJobPool.Return(job));
             return handle;
@@ -362,6 +343,27 @@ namespace Shared.Services;
             }
         }
 
+        private static readonly ConcurrentDictionary<Type, object> _forEachActionJobPools = new();
+
+        private class ForEachActionJob<T> : IJob, IPoolable
+        {
+            public IReadOnlyList<T>? List;
+            public int Start;
+            public int End;
+            public Action<T>? Action;
+            public JobPriority Priority { get; set; }
+            public int Weight => End - Start;
+            public int PreferredWorkerId => -1;
+
+            public Task ExecuteAsync()
+            {
+                for (int i = Start; i < End; i++) Action!(List![i]);
+                return Task.CompletedTask;
+            }
+
+            public void Reset() { List = null; Action = null; }
+        }
+
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T> action, JobPriority priority = JobPriority.Normal)
         {
             var list = source as IReadOnlyList<T> ?? source.ToList();
@@ -374,6 +376,8 @@ namespace Shared.Services;
             int taskCount = (count + batchSize - 1) / batchSize;
             var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
 
+            var pool = (SharedPool<ForEachActionJob<T>>)_forEachActionJobPools.GetOrAdd(typeof(T), _ => new SharedPool<ForEachActionJob<T>>(() => new ForEachActionJob<T>()));
+
             try
             {
                 int handleIdx = 0;
@@ -381,19 +385,18 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + batchSize, count);
-                    // Use a pooled state job to avoid closure allocation
-                    var state = (list, start, end, action);
-                    handles[handleIdx++] = Schedule(s =>
-                    {
-                        var (l, st, en, act) = ((IReadOnlyList<T>, int, int, Action<T>))s!;
-                        for (int j = st; j < en; j++) act(l[j]);
-                    }, state, priority: priority, track: false).Task!;
+                    var job = pool.Rent();
+                    job.List = list;
+                    job.Start = start;
+                    job.End = end;
+                    job.Action = action;
+                    job.Priority = priority;
+                    var handle = Schedule(job, track: false, priority: priority);
+                    _ = handle.Task!.ContinueWith(_ => pool.Return(job));
+                    handles[handleIdx++] = handle.Task;
                 }
 
-                for (int i = 0; i < taskCount; i++)
-                {
-                    await handles[i];
-                }
+                for (int i = 0; i < taskCount; i++) await handles[i];
             }
             finally
             {
@@ -522,6 +525,25 @@ namespace Shared.Services;
             }
         }
 
+        private class ForEachIndexedActionJob<T> : IJob, IPoolable
+        {
+            public IReadOnlyList<T>? List;
+            public int Start;
+            public int End;
+            public Action<T, int>? Action;
+            public JobPriority Priority { get; set; }
+            public int Weight => End - Start;
+            public int PreferredWorkerId => -1;
+
+            public Task ExecuteAsync()
+            {
+                for (int i = Start; i < End; i++) Action!(List![i], i);
+                return Task.CompletedTask;
+            }
+
+            public void Reset() { List = null; Action = null; }
+        }
+
         public async Task ForEachAsync<T>(IEnumerable<T> source, Action<T, int> action, JobPriority priority = JobPriority.Normal)
         {
             var list = source as IReadOnlyList<T> ?? source.ToList();
@@ -534,6 +556,8 @@ namespace Shared.Services;
             int taskCount = (count + batchSize - 1) / batchSize;
             var handles = System.Buffers.ArrayPool<Task>.Shared.Rent(taskCount);
 
+            var pool = (SharedPool<ForEachIndexedActionJob<T>>)_forEachActionJobPools.GetOrAdd(typeof(ForEachIndexedActionJob<T>), _ => new SharedPool<ForEachIndexedActionJob<T>>(() => new ForEachIndexedActionJob<T>()));
+
             try
             {
                 int handleIdx = 0;
@@ -541,18 +565,18 @@ namespace Shared.Services;
                 {
                     int start = i;
                     int end = Math.Min(i + batchSize, count);
-                    var state = (list, start, end, action);
-                    handles[handleIdx++] = Schedule(s =>
-                    {
-                        var (l, st, en, act) = ((IReadOnlyList<T>, int, int, Action<T, int>))s!;
-                        for (int j = st; j < en; j++) act(l[j], j);
-                    }, state, priority: priority, track: false).Task!;
+                    var job = pool.Rent();
+                    job.List = list;
+                    job.Start = start;
+                    job.End = end;
+                    job.Action = action;
+                    job.Priority = priority;
+                    var handle = Schedule(job, track: false, priority: priority);
+                    _ = handle.Task!.ContinueWith(_ => pool.Return(job));
+                    handles[handleIdx++] = handle.Task;
                 }
 
-                for (int i = 0; i < taskCount; i++)
-                {
-                    await handles[i];
-                }
+                for (int i = 0; i < taskCount; i++) await handles[i];
             }
             finally
             {
@@ -623,10 +647,8 @@ namespace Shared.Services;
             _maintenanceTimer.Dispose();
             foreach (var worker in _workers)
             {
-                // Each worker disposal involves joining its thread, so we can do this in parallel
                 _ = Task.Run(() => worker.Dispose());
             }
-            // Wait a bit for workers to finish current jobs if any
             await Task.Delay(100);
             GC.SuppressFinalize(this);
         }
@@ -679,7 +701,6 @@ namespace Shared.Services;
                 }
                 catch (Exception ex)
                 {
-                    // Enrich exception with job metadata for easier troubleshooting
                     ex.Data["JobType"] = _inner!.GetType().Name;
                     ex.Data["JobPriority"] = Priority.ToString();
                     ex.Data["JobWeight"] = Weight;
@@ -707,6 +728,7 @@ namespace Shared.Services;
             private Action? _action;
             public JobPriority Priority { get; private set; }
             public int Weight { get; private set; }
+            public int PreferredWorkerId => -1;
 
             public void Initialize(Action action, JobPriority priority, int weight)
             {
@@ -734,6 +756,7 @@ namespace Shared.Services;
             private readonly Func<Task> _action;
             public JobPriority Priority { get; }
             public int Weight { get; }
+            public int PreferredWorkerId => -1;
 
             public AsyncActionJob(Func<Task> action, JobPriority priority = JobPriority.Normal, int weight = 1)
             {
@@ -751,6 +774,7 @@ namespace Shared.Services;
             private readonly TState _state;
             public JobPriority Priority { get; }
             public int Weight { get; }
+            public int PreferredWorkerId => -1;
 
             public StateActionJob(Action<TState> action, TState state, JobPriority priority = JobPriority.Normal, int weight = 1)
             {

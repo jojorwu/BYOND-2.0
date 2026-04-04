@@ -474,7 +474,7 @@ namespace Shared;
 
                         while (++_currentIndexInCell < count)
                         {
-                            // SIMD-Accelerated filtering (AVX2)
+                            // Hardware-Accelerated filtering using SIMD (Vector256 / Vector128)
                             if (Vector256.IsHardwareAccelerated && count - _currentIndexInCell >= 4)
                             {
                                 var vx = Vector256.Create(xs, _currentIndexInCell);
@@ -503,8 +503,7 @@ namespace Shared;
                                 _currentIndexInCell += 3;
                                 continue;
                             }
-                            // SIMD-Accelerated filtering (NEON)
-                            else if (AdvSimd.IsSupported && count - _currentIndexInCell >= 2)
+                            else if (Vector128.IsHardwareAccelerated && count - _currentIndexInCell >= 2)
                             {
                                 var vx = Vector128.Create(xs[_currentIndexInCell], xs[_currentIndexInCell + 1]);
                                 var vy = Vector128.Create(ys[_currentIndexInCell], ys[_currentIndexInCell + 1]);
@@ -521,14 +520,11 @@ namespace Shared;
                                            Vector128.GreaterThanOrEqual(vy, vBottom) & Vector128.LessThanOrEqual(vy, vTop) &
                                            Vector128.GreaterThanOrEqual(vz, vBack) & Vector128.LessThanOrEqual(vz, vFront);
 
-                                if (mask.GetElement(0) != 0)
+                                uint moveMask = (uint)Vector128.ExtractMostSignificantBits(mask);
+                                if (moveMask != 0)
                                 {
-                                    _current = objs[_currentIndexInCell];
-                                    return true;
-                                }
-                                if (mask.GetElement(1) != 0)
-                                {
-                                    _currentIndexInCell++;
+                                    int bit = System.Numerics.BitOperations.TrailingZeroCount(moveMask);
+                                    _currentIndexInCell += bit;
                                     _current = objs[_currentIndexInCell];
                                     return true;
                                 }

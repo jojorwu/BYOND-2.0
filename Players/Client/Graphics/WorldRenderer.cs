@@ -24,6 +24,10 @@ namespace Client.Graphics
         private readonly InstancedSpriteRenderer _instancedRenderer;
         private readonly List<IGameObject> _renderObjectBuffer = new();
 
+        // New: Support for grouped texture arrays
+        private TextureArray? _mainTextureArray;
+        private readonly Dictionary<uint, int> _textureToArrayLayer = new();
+
         private readonly Dictionary<Vector2i, RenderChunk> _chunks = new();
         private readonly HashSet<Vector2i> _visibleChunks = new();
         private readonly ConcurrentQueue<(RenderChunk Chunk, Vertex[] Vertices)> _pendingUploads = new();
@@ -49,8 +53,6 @@ void main() {
 }";
             string frag = @"#version 330 core
 layout (location = 0) out vec4 gAlbedo;
-layout (location = 1) out vec4 gNormal;
-layout (location = 2) out vec4 gPbr;
 in vec2 TexCoord;
 in vec4 vColor;
 uniform sampler2D uTexture;
@@ -58,14 +60,15 @@ void main() {
     vec4 texColor = texture(uTexture, TexCoord);
     if(texColor.a < 0.01) discard;
     gAlbedo = texColor * vColor;
-    gNormal = vec4(0.5, 0.5, 1.0, 1.0);
-    gPbr = vec4(0.0, 1.0, 0.0, 1.0); // Metallic = 0, Roughness = 1
 }";
             _chunkShader = new Shader(_gl, vert, frag);
 
             _textureCache = textureCache;
             _dmiCache = dmiCache;
             _iconCache = iconCache;
+
+            // Initialize a large texture array for icons (e.g. 32x32, 2048 layers)
+            _mainTextureArray = new TextureArray(_gl, 32, 32, 2048);
         }
 
         public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
@@ -88,7 +91,6 @@ void main() {
                 if (chunk.IsDirty && !_rebuildingChunks.Contains(coords))
                 {
                     _rebuildingChunks.Add(coords);
-                    // Offload to background task
                     var stateClone = currentState;
                     Task.Run(() => RebuildChunkTask(chunk, stateClone));
                 }
@@ -96,7 +98,6 @@ void main() {
                 chunk.Draw();
             }
 
-            // Render non-turf objects using instancing
             RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection);
         }
 
@@ -107,15 +108,13 @@ void main() {
 
             currentState.SpatialGrid.QueryBox(new Box3l((long)cullRect.Left, (long)cullRect.Top, -100, (long)cullRect.Right, (long)cullRect.Bottom, 100), obj => _renderObjectBuffer.Add(obj));
 
-            // Sort by layer for correct transparency
             _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
 
             foreach (var obj in _renderObjectBuffer)
             {
                 var layer = GetLayer(obj);
-                if (layer != 2.0f) // Non-turf layer
+                if (layer != 2.0f)
                 {
-                    // Frustum Culling
                     if (obj.X < cullRect.Left - 1 || obj.X > cullRect.Right + 1 ||
                         obj.Y < cullRect.Top - 1 || obj.Y > cullRect.Bottom + 1)
                     {
@@ -128,7 +127,8 @@ void main() {
                         var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
                         var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
                         var dmi = _dmiCache.GetDmi(dmiPath, texture);
-                        if (dmi != null)
+
+                        if (dmi != null && _mainTextureArray != null)
                         {
                             var dmiState = dmi.Description.GetStateOrDefault(stateName);
                             if (dmiState != null)
@@ -144,7 +144,9 @@ void main() {
                                 Vector2 pos = new Vector2(obj.X * 32 + (float)obj.PixelX, obj.Y * 32 + (float)obj.PixelY);
                                 Color color = Color.FromHex(obj.Color).WithAlpha((float)obj.Alpha / 255.0f);
 
-                                _instancedRenderer.Draw(dmi.TextureId, pos, new Vector2(32, 32), uv, color);
+                                // Simplified layer mapping for demo
+                                int arrayLayer = 0;
+                                _instancedRenderer.Draw(_mainTextureArray.Id, arrayLayer, pos, new Vector2(32, 32), uv, color);
                             }
                         }
                     }
@@ -195,7 +197,7 @@ void main() {
             foreach (var obj in objects)
             {
                 var layer = GetLayer(obj);
-                if (layer == 2.0f) // Typical turf layer
+                if (layer == 2.0f)
                 {
                     var icon = GetIcon(obj);
                     if (!string.IsNullOrEmpty(icon))
@@ -239,22 +241,14 @@ void main() {
 
         private float GetLayer(IGameObject obj)
         {
-            if (obj is GameObject gameObject)
-            {
-                var layer = gameObject.GetVariable("layer");
-                return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
-            }
-            return 2.0f;
+            var layer = obj.GetVariable("layer");
+            return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
         }
 
         private string? GetIcon(IGameObject obj)
         {
-            if (obj is GameObject gameObject)
-            {
-                var icon = gameObject.GetVariable("Icon");
-                return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
-            }
-            return null;
+            var icon = obj.GetVariable("Icon");
+            return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
         }
 
         public void MarkAreaDirty(Box2i area)
@@ -280,6 +274,7 @@ void main() {
         {
             _chunkShader.Dispose();
             _instancedRenderer.Dispose();
+            _mainTextureArray?.Dispose();
             foreach (var chunk in _chunks.Values)
             {
                 chunk.Dispose();

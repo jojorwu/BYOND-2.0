@@ -538,6 +538,14 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         if (oldY != y) MarkFieldDirty(GameObjectFields.PositionY);
         if (oldZ != z) MarkFieldDirty(GameObjectFields.PositionZ);
         _transform.Position = new Robust.Shared.Maths.Vector3l(x, y, z);
+
+        if (Archetype is Archetype arch && ArchetypeIndex != -1)
+        {
+            arch.SetX(ArchetypeIndex, x);
+            arch.SetY(ArchetypeIndex, y);
+            arch.SetZ(ArchetypeIndex, z);
+        }
+
         IncrementVersion();
     }
 

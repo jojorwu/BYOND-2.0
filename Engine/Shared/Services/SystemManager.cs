@@ -17,6 +17,7 @@ public interface ISystemManager
     Task TickAsync();
 }
 
+[EngineService(typeof(ISystemManager))]
 public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDisposable
 {
     private record SystemExecutionInfo(ISystem System, IEntityQuery[] Queries);

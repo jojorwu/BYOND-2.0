@@ -6,10 +6,12 @@ using Shared.Models;
 using Shared.Enums;
 using Shared.Networking.Messages;
 using System.Linq;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
-public class BitPackedSnapshotSerializer : ISnapshotSerializer
+[EngineService(typeof(ISnapshotSerializer))]
+public class BitPackedSnapshotSerializer : EngineService, ISnapshotSerializer
 {
     private readonly List<INetworkFieldHandler> _fieldHandlers;
 

@@ -4,9 +4,11 @@ using Shared.Interfaces;
 using Shared.Models;
 using Shared.Collections;
 using System.Linq;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(ISnapshotManager))]
 public class SnapshotManager : ISnapshotManager
 {
     private readonly RingBuffer<Snapshot> _snapshotQueue = new(20);

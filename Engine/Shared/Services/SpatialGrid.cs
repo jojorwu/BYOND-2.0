@@ -11,8 +11,10 @@ using System.Buffers;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
+using Shared.Attributes;
 
 namespace Shared;
+    [EngineService]
     public class SpatialGrid : EngineService, IDisposable, IShrinkable
     {
         private class Cell

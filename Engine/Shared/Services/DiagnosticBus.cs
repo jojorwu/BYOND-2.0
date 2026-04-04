@@ -5,9 +5,11 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IDiagnosticBus))]
 public class DiagnosticBus : EngineService, IDiagnosticBus
 {
     private volatile Action<DiagnosticEvent>[] _subscribers = Array.Empty<Action<DiagnosticEvent>>();
@@ -19,7 +21,6 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
     private readonly CancellationTokenSource _cts = new();
     private Task? _backgroundWorker;
 
-    // Pool of DiagnosticEvent objects to eliminate allocations on Publish
     private readonly ConcurrentStack<DiagnosticEvent> _pool = new();
     private volatile int _poolCount;
     private const int MaxPoolSize = 1024;
@@ -50,7 +51,6 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
         Interlocked.Increment(ref _totalPublished);
 
-        // Basic back-pressure: drop Info-level events if the channel is under extreme pressure
         if (severity < DiagnosticSeverity.Warning && _eventChannel.Reader.Count > 10000)
         {
             Interlocked.Increment(ref _eventsDropped);
@@ -86,7 +86,6 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
         Interlocked.Increment(ref _totalPublished);
 
-        // Basic back-pressure: drop Info-level events if the channel is under extreme pressure
         if (severity < DiagnosticSeverity.Warning && _eventChannel.Reader.Count > 10000)
         {
             Interlocked.Increment(ref _eventsDropped);
@@ -125,13 +124,9 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
 
         try
         {
-            // Use WaitToReadAsync for energy-efficient non-blocking wait
             while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 sw.Restart();
-                // Optimized Batched Dispatch:
-                // Draining multiple events into a local buffer before notifying subscribers
-                // reduces the frequency of volatile reads of the subscribers list and overhead.
                 int count = 0;
                 while (count < BatchSize && reader.TryRead(out var ev))
                 {
@@ -147,7 +142,6 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                         for (int j = 0; j < count; j++)
                         {
                             var ev = batch[j];
-                            // Check thresholds before dispatch
                             if (hasThresholds && ev.Metrics.Count > 0)
                             {
                                 foreach (var metric in ev.Metrics)
@@ -172,7 +166,7 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                                 {
                                     subscribers[i](ev);
                                 }
-                                catch { /* Diagnostics should never throw */ }
+                                catch { }
                             }
                             Interlocked.Increment(ref _totalDispatched);
                         }
@@ -188,16 +182,14 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
                 Volatile.Write(ref _lastProcessDurationMs, sw.ElapsedMilliseconds);
             }
         }
-        catch (OperationCanceledException) { /* Normal shutdown */ }
-        catch (ChannelClosedException) { /* Normal shutdown */ }
+        catch (OperationCanceledException) { }
+        catch (ChannelClosedException) { }
         catch (Exception ex)
         {
-            // Log unexpected worker errors but don't crash
             Console.WriteLine($"DiagnosticBus worker error: {ex}");
         }
         finally
         {
-            // Drain remaining events if any to ensure pool maintenance
             while (reader.TryRead(out var ev))
             {
                 ReturnToPool(ev);
@@ -263,10 +255,8 @@ public class DiagnosticBus : EngineService, IDiagnosticBus
         info["LastProcessDurationMs"] = Volatile.Read(ref _lastProcessDurationMs);
         info["SubscriberCount"] = _subscribers.Length;
 
-        // Report channel pressure
         if (_eventChannel != null)
         {
-            // Note: Channel.Reader.CanCount is usually true for unbounded channels
             info["PendingEvents"] = _eventChannel.Reader.Count;
         }
 

@@ -7,9 +7,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Utils;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IVfsManager))]
 public class VfsManager : EngineService, IVfsManager
 {
     private readonly List<IVfsSource> _sources = new();
@@ -58,7 +60,6 @@ public class VfsManager : EngineService, IVfsManager
 
     private void OnSourceFileChanged(string path)
     {
-        // For efficiency, only clear the path from cache, not the whole cache
         _cache.TryRemove(path, out _);
         FileChanged?.Invoke(path);
     }

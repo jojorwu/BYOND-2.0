@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using System.Threading.Tasks;
 using Shared.Interfaces;
+using Shared.Attributes;
 using Microsoft.Extensions.Logging;
 
 namespace Shared.Services;
@@ -42,6 +43,7 @@ public class PluginLoadContext : AssemblyLoadContext
     }
 }
 
+[EngineService(typeof(IPluginManager))]
 public class PluginManager : EngineService, IPluginManager
 {
     private readonly List<PluginEntry> _loadedPlugins = new();
@@ -61,8 +63,6 @@ public class PluginManager : EngineService, IPluginManager
     public async Task LoadPluginsAsync()
     {
         _logger.LogInformation("Scanning for plugins...");
-        // In a real implementation, this would look into a plugins folder
-        // For demonstration, we assume we load from current dir for now if any found
     }
 
     public async Task<IPlugin?> LoadPluginAsync(string path)
@@ -118,16 +118,9 @@ public class PluginManager : EngineService, IPluginManager
         try
         {
             await entry.Plugin.ShutdownAsync();
-
-            if (entry.Plugin is ISystem system)
-            {
-                // In a more complex engine, we'd need to properly remove systems from SystemManager
-            }
-
             _loadedPlugins.Remove(entry);
             entry.Context.Unload();
 
-            // Force GC to finalize assembly unloading
             for (int i = 0; i < 10 && entry.WeakReference.IsAlive; i++)
             {
                 GC.Collect();

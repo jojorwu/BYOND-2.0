@@ -1,7 +1,9 @@
 using Shared.Interfaces;
 using Shared.Models;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService(typeof(IObjectFactory))]
     public class ObjectFactory : IObjectFactory
     {
         private readonly IEntityRegistry _registry;

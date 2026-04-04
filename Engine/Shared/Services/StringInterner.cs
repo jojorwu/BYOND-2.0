@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService]
     public class StringInterner : EngineService, IShrinkable
     {
         private const int MaxStrings = 4194304;

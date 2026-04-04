@@ -16,14 +16,20 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     public readonly T[] Components;
     public readonly long[] EntityIds;
     public readonly IGameObject[] Entities;
+    public readonly long[] Xs;
+    public readonly long[] Ys;
+    public readonly long[] Zs;
     public readonly int Offset;
     public readonly int Count;
 
-    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities, int offset, int count)
+    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities, long[] xs, long[] ys, long[] zs, int offset, int count)
     {
         Components = components;
         EntityIds = entityIds;
         Entities = entities;
+        Xs = xs;
+        Ys = ys;
+        Zs = zs;
         Offset = offset;
         Count = count;
     }
@@ -32,6 +38,9 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     public Span<T> ComponentsMutableSpan => Components.AsSpan(Offset, Count);
     public ReadOnlySpan<long> EntityIdsSpan => EntityIds.AsSpan(Offset, Count);
     public ReadOnlySpan<IGameObject> EntitiesSpan => Entities.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> XsSpan => Xs.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> YsSpan => Ys.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> ZsSpan => Zs.AsSpan(Offset, Count);
 }
 
 /// <summary>
@@ -41,6 +50,9 @@ public class Archetype
 {
     private long[] _entityIds = System.Array.Empty<long>();
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
+    private long[] _xs = Array.Empty<long>();
+    private long[] _ys = Array.Empty<long>();
+    private long[] _zs = Array.Empty<long>();
     private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly IComponentArray?[] _componentArrays;
     private IComponentArray[] _activeArrays = Array.Empty<IComponentArray>();
@@ -83,6 +95,9 @@ public class Archetype
 
         System.Array.Resize(ref _entityIds, _capacity);
         System.Array.Resize(ref _entities, _capacity);
+        Array.Resize(ref _xs, _capacity);
+        Array.Resize(ref _ys, _capacity);
+        Array.Resize(ref _zs, _capacity);
 
         // Pre-size dictionary to avoid rehashing during bursts of additions
         _entityIdToIndex.EnsureCapacity(_capacity);
@@ -106,6 +121,10 @@ public class Archetype
 
             ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
             Unsafe.Add(ref entitiesRef, index) = entity;
+
+            _xs[index] = entity.X;
+            _ys[index] = entity.Y;
+            _zs[index] = entity.Z;
 
             _entityIdToIndex[entity.Id] = index;
 
@@ -136,6 +155,10 @@ public class Archetype
 
             ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
             Unsafe.Add(ref entitiesRef, index) = entity;
+
+            _xs[index] = entity.X;
+            _ys[index] = entity.Y;
+            _zs[index] = entity.Z;
 
             _entityIdToIndex[entity.Id] = index;
 
@@ -193,6 +216,10 @@ public class Archetype
 
                 Unsafe.Add(ref entityIdsRef, index) = lastEntityId;
                 Unsafe.Add(ref entitiesRef, index) = lastEntity;
+                _xs[index] = _xs[lastIndex];
+                _ys[index] = _ys[lastIndex];
+                _zs[index] = _zs[lastIndex];
+
                 _entityIdToIndex[lastEntityId] = index;
 
                 for (int i = 0; i < arrays.Length; i++)
@@ -225,6 +252,7 @@ public class Archetype
         T[] data;
         long[] entityIds;
         IGameObject[] entities;
+        long[] xs, ys, zs;
         int totalCount;
 
         using (_lock.EnterScope())
@@ -232,10 +260,13 @@ public class Archetype
             data = ((ComponentArray<T>)array).Data;
             entityIds = _entityIds;
             entities = _entities;
+            xs = _xs;
+            ys = _ys;
+            zs = _zs;
             totalCount = _count;
         }
 
-        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, totalCount, chunkSize);
+        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, xs, ys, zs, totalCount, chunkSize);
     }
 
     public readonly struct ArchetypeChunkEnumerable<T> : IEnumerable<ArchetypeChunk<T>> where T : class, IComponent
@@ -243,19 +274,25 @@ public class Archetype
         private readonly T[] _data;
         private readonly long[] _entityIds;
         private readonly IGameObject[] _entities;
+        private readonly long[] _xs;
+        private readonly long[] _ys;
+        private readonly long[] _zs;
         private readonly int _totalCount;
         private readonly int _chunkSize;
 
-        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities, long[] xs, long[] ys, long[] zs, int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
             _entities = entities;
+            _xs = xs;
+            _ys = ys;
+            _zs = zs;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
         }
 
-        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities, _totalCount, _chunkSize);
+        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities, _xs, _ys, _zs, _totalCount, _chunkSize);
         IEnumerator<ArchetypeChunk<T>> IEnumerable<ArchetypeChunk<T>>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
@@ -265,16 +302,22 @@ public class Archetype
         private readonly T[] _data;
         private readonly long[] _entityIds;
         private readonly IGameObject[] _entities;
+        private readonly long[] _xs;
+        private readonly long[] _ys;
+        private readonly long[] _zs;
         private readonly int _totalCount;
         private readonly int _chunkSize;
         private int _currentOffset;
         private ArchetypeChunk<T> _current;
 
-        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities, long[] xs, long[] ys, long[] zs, int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
             _entities = entities;
+            _xs = xs;
+            _ys = ys;
+            _zs = zs;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
             _currentOffset = -chunkSize;
@@ -287,7 +330,7 @@ public class Archetype
             if (_currentOffset >= _totalCount) return false;
 
             int count = Math.Min(_chunkSize, _totalCount - _currentOffset);
-            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities, _currentOffset, count);
+            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities, _xs, _ys, _zs, _currentOffset, count);
             return true;
         }
 
@@ -604,6 +647,10 @@ public class Archetype
     }
 
 
+    public void SetX(int index, long x) => _xs[index] = x;
+    public void SetY(int index, long y) => _ys[index] = y;
+    public void SetZ(int index, long z) => _zs[index] = z;
+
     public void Compact()
     {
         using (_lock.EnterScope())
@@ -612,6 +659,11 @@ public class Archetype
             {
                 _capacity = Math.Max(_count, 8);
                 System.Array.Resize(ref _entityIds, _capacity);
+                Array.Resize(ref _entities, _capacity);
+                Array.Resize(ref _xs, _capacity);
+                Array.Resize(ref _ys, _capacity);
+                Array.Resize(ref _zs, _capacity);
+
                 var arrays = _activeArrays;
                 for (int i = 0; i < arrays.Length; i++)
                 {

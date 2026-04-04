@@ -9,6 +9,8 @@ using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 using Shared.Models;
 
+using Shared.Attributes;
+
 namespace Shared.Services;
 
 public interface IArchetypeManager
@@ -35,6 +37,7 @@ public interface IArchetypeManager
     void CommitUpdate();
 }
 
+[EngineService(typeof(IArchetypeManager))]
 public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
 {
     public event EventHandler<Archetype>? ArchetypeCreated;

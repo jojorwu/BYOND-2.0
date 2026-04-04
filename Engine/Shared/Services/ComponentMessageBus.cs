@@ -4,8 +4,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Models;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService(typeof(IComponentMessageBus))]
     public class ComponentMessageBus : EngineService, IComponentMessageBus
     {
         private readonly IComponentManager _componentManager;

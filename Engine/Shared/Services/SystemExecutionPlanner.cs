@@ -4,9 +4,11 @@ using System.Linq;
 using Shared.Interfaces;
 using Shared.Models;
 using Shared.Enums;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(ISystemExecutionPlanner))]
 public class SystemExecutionPlanner : ISystemExecutionPlanner
 {
     public List<List<ISystem>>[] PlanExecution(IEnumerable<ISystem> systems, ExecutionPhase[] phases)

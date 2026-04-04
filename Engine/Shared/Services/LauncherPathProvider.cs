@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
 using Shared.Services;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
@@ -13,6 +14,7 @@ public interface ILauncherPathProvider
     bool IsComponentInstalled(EngineComponent component, string basePath);
 }
 
+[EngineService(typeof(ILauncherPathProvider))]
 public class LauncherPathProvider : EngineService, ILauncherPathProvider
 {
     private readonly ILogger<LauncherPathProvider> _logger;
@@ -38,20 +40,16 @@ public class LauncherPathProvider : EngineService, ILauncherPathProvider
             name += ".exe";
         }
 
-        // Check for direct executable
         string path = Path.Combine(basePath, name);
         if (File.Exists(path)) return path;
 
-        // Check for dll (cross-platform)
         string dllName = name.Replace(".exe", "") + ".dll";
         string dllPath = Path.Combine(basePath, dllName);
         if (File.Exists(dllPath)) return dllPath;
 
-        // Check bin/ executable
         path = Path.Combine(basePath, "bin", name);
         if (File.Exists(path)) return path;
 
-        // Check bin/ dll
         dllPath = Path.Combine(basePath, "bin", dllName);
         if (File.Exists(dllPath)) return dllPath;
 

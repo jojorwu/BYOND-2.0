@@ -3,9 +3,11 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Networking;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(INetworkSender))]
 public class NetworkSender : INetworkSender
 {
     private readonly INetworkBufferPool _bufferPool;

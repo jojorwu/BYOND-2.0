@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.AsyncApiBenchmark</StartupObject>
+    <StartupObject>Benchmarks.ArchetypeSoABenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,9 +16,7 @@
     <PackageReference Include="Moq" Version="4.20.72" />
   </ItemGroup>
 
-
   <ItemGroup>
-    <Compile Remove="BenchmarkTool.cs" />
     <Compile Remove="MathBenchmark.cs" />
   </ItemGroup>
 

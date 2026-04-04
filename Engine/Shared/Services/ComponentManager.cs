@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
+[EngineService(typeof(IComponentManager))]
 public class ComponentManager : EngineService, IComponentManager, IEngineLifecycle
     {
         private readonly IArchetypeManager _archetypeManager;

@@ -4,9 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Robust.Shared.Maths;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IPathfindingService))]
 public class PathfindingService : EngineService, IPathfindingService
 {
     private readonly IJobSystem _jobSystem;

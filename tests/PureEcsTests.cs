@@ -51,30 +51,6 @@ public class PureEcsTests
     }
 
     [Test]
-    public void EntityCommandBuffer_WorksWithStreaming()
-    {
-        var diagnosticBus = new Shared.Services.MockDiagnosticBus();
-        var jobSystem = new Shared.Services.JobSystem(new Microsoft.Extensions.Logging.Abstractions.NullLogger<JobSystem>(), TimeProvider.System, diagnosticBus);
-        var componentManager = new Shared.Services.ComponentManager(_archetypeManager);
-        var factory = new Shared.Services.ObjectFactory(null!);
-        var ecb = new EntityCommandBuffer(factory, componentManager, jobSystem);
-
-        var obj = new GameObject();
-        obj.SetComponentManager(componentManager);
-        obj.Initialize(null!, 0, 0, 0);
-        _archetypeManager.AddEntity(obj);
-
-        // Ensure IDs are registered
-        ComponentIdRegistry.Register<TestDataComponent>();
-
-        ecb.SetDataComponent(obj, new TestDataComponent { Value = 100 });
-        ecb.Playback();
-
-        var val = obj.GetDataComponent<TestDataComponent>().Value;
-        Assert.That(val, Is.EqualTo(100));
-    }
-
-    [Test]
     public void SystemManager_CanProcessStructComponents()
     {
         var diagnosticBus = new Shared.Services.MockDiagnosticBus();

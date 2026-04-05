@@ -1,4 +1,5 @@
 using Shared.Enums;
+using Shared.Models;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -23,6 +24,20 @@ namespace Client.Graphics
         private readonly IconCache _iconCache;
         private readonly InstancedSpriteRenderer _instancedRenderer;
         private readonly List<IGameObject> _renderObjectBuffer = new();
+
+        private struct RenderItem
+        {
+            public Vector2 Position;
+            public Vector2 Size;
+            public Box2 Uv;
+            public Color Color;
+            public float Layer;
+            public int ArrayLayer;
+        }
+
+        // Layer buckets to avoid sorting on every frame
+        // 0-10 layers are most common in SS13-like games
+        private readonly List<RenderItem>[] _layerBuckets = Enumerable.Range(0, 32).Select(_ => new List<RenderItem>()).ToArray();
 
         // New: Support for grouped texture arrays
         private TextureArray? _mainTextureArray;
@@ -101,55 +116,81 @@ void main() {
             RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection);
         }
 
+        /// <summary>
+        /// Optimized rendering of dynamic objects using Hybrid Spatial-SoA approach and layer bucketing.
+        /// Uses SpatialGrid for fast culling and Archetype SoA for zero-allocation data access.
+        /// </summary>
         private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             _instancedRenderer.Begin();
+
+            // Clear buckets
+            for (int i = 0; i < _layerBuckets.Length; i++) _layerBuckets[i].Clear();
+
             _renderObjectBuffer.Clear();
-
             currentState.SpatialGrid.QueryBox(new Box3l((long)cullRect.Left, (long)cullRect.Top, -100, (long)cullRect.Right, (long)cullRect.Bottom, 100), obj => _renderObjectBuffer.Add(obj));
-
-            _renderObjectBuffer.Sort((a, b) => GetLayer(a).CompareTo(GetLayer(b)));
 
             foreach (var obj in _renderObjectBuffer)
             {
-                var layer = GetLayer(obj);
-                if (layer != 2.0f)
+                if (obj.Archetype is not Archetype arch) continue;
+                int idx = obj.ArchetypeIndex;
+
+                double layer = arch.GetLayer(idx);
+                // Skip layers handled by RenderChunks (e.g. static turf layer 2.0)
+                if (Math.Abs(layer - 2.0f) < 0.001f) continue;
+
+                // Basic culling (already mostly done by SpatialGrid, but adding safety margin)
+                if (obj.X < cullRect.Left - 1 || obj.X > cullRect.Right + 1 ||
+                    obj.Y < cullRect.Top - 1 || obj.Y > cullRect.Bottom + 1)
                 {
-                    if (obj.X < cullRect.Left - 1 || obj.X > cullRect.Right + 1 ||
-                        obj.Y < cullRect.Top - 1 || obj.Y > cullRect.Bottom + 1)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    var icon = GetIcon(obj);
-                    if (!string.IsNullOrEmpty(icon))
-                    {
-                        var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                        var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                        var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                string icon = arch.GetIcon(idx);
+                if (string.IsNullOrEmpty(icon)) continue;
 
-                        if (dmi != null && _mainTextureArray != null)
+                var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
+                var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                var dmi = _dmiCache.GetDmi(dmiPath, texture);
+
+                if (dmi != null && _mainTextureArray != null)
+                {
+                    var dmiState = dmi.Description.GetStateOrDefault(stateName);
+                    if (dmiState != null)
+                    {
+                        var frame = dmiState.GetFrames(AtomDirection.South)[0];
+                        var uv = new Box2(
+                            (float)frame.X / dmi.Width,
+                            (float)frame.Y / dmi.Height,
+                            (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                            (float)(frame.Y + dmi.Description.Height) / dmi.Height
+                        );
+
+                        Vector2 pos = new Vector2(arch.GetX(idx) * 32 + (float)arch.GetPixelX(idx), arch.GetY(idx) * 32 + (float)arch.GetPixelY(idx));
+                        Color color = Color.FromHex(arch.GetColor(idx)).WithAlpha((float)arch.GetAlpha(idx) / 255.0f);
+
+                        int bucketIdx = Math.Clamp((int)layer, 0, _layerBuckets.Length - 1);
+                        _layerBuckets[bucketIdx].Add(new RenderItem
                         {
-                            var dmiState = dmi.Description.GetStateOrDefault(stateName);
-                            if (dmiState != null)
-                            {
-                                var frame = dmiState.GetFrames(AtomDirection.South)[0];
-                                var uv = new Box2(
-                                    (float)frame.X / dmi.Width,
-                                    (float)frame.Y / dmi.Height,
-                                    (float)(frame.X + dmi.Description.Width) / dmi.Width,
-                                    (float)(frame.Y + dmi.Description.Height) / dmi.Height
-                                );
-
-                                Vector2 pos = new Vector2(obj.X * 32 + (float)obj.PixelX, obj.Y * 32 + (float)obj.PixelY);
-                                Color color = Color.FromHex(obj.Color).WithAlpha((float)obj.Alpha / 255.0f);
-
-                                // Simplified layer mapping for demo
-                                int arrayLayer = 0;
-                                _instancedRenderer.Draw(_mainTextureArray.Id, arrayLayer, pos, new Vector2(32, 32), uv, color);
-                            }
-                        }
+                            Position = pos,
+                            Size = new Vector2(32, 32),
+                            Uv = uv,
+                            Color = color,
+                            Layer = (float)layer,
+                            ArrayLayer = 0 // Fixed for demo
+                        });
                     }
+                }
+            }
+
+            // Draw buckets in order
+            for (int i = 0; i < _layerBuckets.Length; i++)
+            {
+                var bucket = _layerBuckets[i];
+                // Optional: sort within bucket if needed for sub-layering
+                foreach (var item in bucket)
+                {
+                    _instancedRenderer.Draw(_mainTextureArray!.Id, item.ArrayLayer, item.Position, item.Size, item.Uv, item.Color);
                 }
             }
 
@@ -182,45 +223,51 @@ void main() {
             }
         }
 
+        /// <summary>
+        /// Rebuilds static chunk geometry using Hybrid Spatial-SoA approach.
+        /// Runs on a background thread.
+        /// </summary>
         private void RebuildChunkTask(RenderChunk chunk, GameState state)
         {
             var vertices = new List<Vertex>();
-            var objects = new List<IGameObject>();
 
             long startX = (long)chunk.Coords.X * RenderChunk.ChunkSize;
             long startY = (long)chunk.Coords.Y * RenderChunk.ChunkSize;
             long endX = startX + RenderChunk.ChunkSize;
             long endY = startY + RenderChunk.ChunkSize;
 
+            var objects = new List<IGameObject>();
             state.SpatialGrid.QueryBox(new Box3l(startX, startY, -100, endX - 1, endY - 1, 100), obj => objects.Add(obj));
 
             foreach (var obj in objects)
             {
-                var layer = GetLayer(obj);
-                if (layer == 2.0f)
-                {
-                    var icon = GetIcon(obj);
-                    if (!string.IsNullOrEmpty(icon))
-                    {
-                        var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                        var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                        var dmi = _dmiCache.GetDmi(dmiPath, texture);
-                        if (dmi != null)
-                        {
-                            var dmiState = dmi.Description.GetStateOrDefault(stateName);
-                            if (dmiState != null)
-                            {
-                                var frame = dmiState.GetFrames(AtomDirection.South)[0];
-                                var uv = new Box2(
-                                    (float)frame.X / dmi.Width,
-                                    (float)frame.Y / dmi.Height,
-                                    (float)(frame.X + dmi.Description.Width) / dmi.Width,
-                                    (float)(frame.Y + dmi.Description.Height) / dmi.Height
-                                );
+                if (obj.Archetype is not Archetype arch) continue;
+                int idx = obj.ArchetypeIndex;
 
-                                AddQuad(vertices, new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), uv, Color.White);
-                            }
-                        }
+                double layer = arch.GetLayer(idx);
+                // Turfs/Static objects are usually on layer 2.0
+                if (Math.Abs(layer - 2.0f) > 0.001f) continue;
+
+                string icon = arch.GetIcon(idx);
+                if (string.IsNullOrEmpty(icon)) continue;
+
+                var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
+                var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                if (dmi != null)
+                {
+                    var dmiState = dmi.Description.GetStateOrDefault(stateName);
+                    if (dmiState != null)
+                    {
+                        var frame = dmiState.GetFrames(AtomDirection.South)[0];
+                        var uv = new Box2(
+                            (float)frame.X / dmi.Width,
+                            (float)frame.Y / dmi.Height,
+                            (float)(frame.X + dmi.Description.Width) / dmi.Width,
+                            (float)(frame.Y + dmi.Description.Height) / dmi.Height
+                        );
+
+                        AddQuad(vertices, new Vector2(arch.GetX(idx) * 32, arch.GetY(idx) * 32), new Vector2(32, 32), uv, Color.White);
                     }
                 }
             }
@@ -237,18 +284,6 @@ void main() {
             vertices.Add(new Vertex(pos + size, new Vector2(uv.Right, uv.Bottom), color));
             vertices.Add(new Vertex(pos + new Vector2(0, size.Y), new Vector2(uv.Left, uv.Bottom), color));
             vertices.Add(new Vertex(pos, new Vector2(uv.Left, uv.Top), color));
-        }
-
-        private float GetLayer(IGameObject obj)
-        {
-            var layer = obj.GetVariable("layer");
-            return layer.Type == DreamValueType.Float ? layer.AsFloat() : 2.0f;
-        }
-
-        private string? GetIcon(IGameObject obj)
-        {
-            var icon = obj.GetVariable("Icon");
-            return icon.Type == DreamValueType.String && icon.TryGetValue(out string? iconStr) ? iconStr : null;
         }
 
         public void MarkAreaDirty(Box2i area)

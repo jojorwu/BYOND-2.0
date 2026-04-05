@@ -101,11 +101,6 @@ public class ComponentManager : EngineService, IComponentManager, IEngineLifecyc
             ComponentAdded?.Invoke(this, new ComponentEventArgs(owner, component, component.GetType()));
         }
 
-        public void SetDataComponent<T>(IGameObject owner, T component) where T : struct, IDataComponent
-        {
-            _archetypeManager.SetDataComponent(owner, component);
-        }
-
         public void RemoveComponent<T>(IGameObject owner) where T : class, IComponent
         {
             RemoveComponent(owner, typeof(T));

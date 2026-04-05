@@ -15,7 +15,8 @@ namespace tests
         public void GameObject_Moving_UpdatesSpatialGrid()
         {
             var grid = new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, MockDiagnosticBus.Instance, 16);
-            var state = new GameState(grid);
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, MockDiagnosticBus.Instance);
+            var state = new GameState(grid, archetypeManager);
             var obj = new GameObject(new ObjectType(1, "/obj"), 5, 5, 0);
 
             state.AddGameObject(obj);

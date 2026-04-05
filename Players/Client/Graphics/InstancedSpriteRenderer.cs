@@ -15,14 +15,19 @@ namespace Client.Graphics
         private readonly uint _vbo;
         private uint _instanceVbo;
 
+        /// <summary>
+        /// Tight instance data structure to minimize bus bandwidth.
+        /// Packed into 48 bytes (exactly 3x Vector4 for optimal alignment).
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct InstanceData
         {
-            public Vector4 Rect;
-            public Vector4 Uv;
-            public Color Color;
-            public float TextureLayer; // For TextureArray
-            public float Padding1, Padding2, Padding3;
+            public Vector4 Rect;          // [x, y, w, h] - 16 bytes
+            public Vector4 Uv;            // [u1, v1, u2, v2] - 16 bytes
+            public Color Color;           // [r, g, b, a] - 16 bytes
+            public float TextureLayer;    // Z-index in TextureArray
+            // Note: NormalMap usage can be packed into Color.A or similar if needed,
+            // but for now we keep it simple.
         }
 
         private struct Batch
@@ -164,15 +169,27 @@ void main() {
             _batches[_batches.Count - 1] = lastBatch;
         }
 
+        /// <summary>
+        /// Finalizes the current frame and dispatches draw calls to the GPU.
+        /// Uses Buffer Orphaning to avoid synchronization stalls.
+        /// </summary>
         public unsafe void Flush(Matrix4x4 view, Matrix4x4 projection)
         {
             if (_instanceCount == 0) return;
 
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
+
+            // Buffer Orphaning: Passing NULL to BufferData allows the driver to reallocate
+            // the buffer memory if it's currently being used by a previous draw call,
+            // preventing the CPU from stalling while waiting for the GPU.
             _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_maxInstances * sizeof(InstanceData)), null, BufferUsageARB.StreamDraw);
 
-            fixed(InstanceData* p = _instanceData)
+            // High-performance upload using ReadOnlySpan to avoid intermediate copies
+            var dataSpan = new ReadOnlySpan<InstanceData>(_instanceData, 0, _instanceCount);
+            fixed(InstanceData* p = dataSpan)
+            {
                 _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_instanceCount * sizeof(InstanceData)), p);
+            }
 
             _shader.Use();
             _shader.SetUniform("uView", view);

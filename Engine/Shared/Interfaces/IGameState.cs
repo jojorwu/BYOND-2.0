@@ -19,6 +19,11 @@ namespace Shared;
         SpatialGrid SpatialGrid { get; }
 
         /// <summary>
+        /// ECS Archetype manager for optimized iteration.
+        /// </summary>
+        Shared.Services.IArchetypeManager ArchetypeManager { get; }
+
+        /// <summary>
         /// All active game objects indexed by their ID.
         /// </summary>
         IDictionary<long, GameObject> GameObjects { get; }

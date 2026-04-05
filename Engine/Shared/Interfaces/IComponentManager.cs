@@ -26,7 +26,6 @@ namespace Shared.Interfaces;
 
         void AddComponent<T>(IGameObject owner, T component) where T : class, IComponent;
         void AddComponent(IGameObject owner, IComponent component);
-        void SetDataComponent<T>(IGameObject owner, T component) where T : struct, IDataComponent;
         void RemoveComponent<T>(IGameObject owner) where T : class, IComponent;
         void RemoveComponent(IGameObject owner, Type componentType);
         T? GetComponent<T>(IGameObject owner) where T : class, IComponent;

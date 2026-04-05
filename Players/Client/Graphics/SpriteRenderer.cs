@@ -69,6 +69,10 @@ namespace Client.Graphics
         private readonly Vertex[] _vertices = new Vertex[MaxVertices];
         private int _vertexCount = 0;
 
+        /// <summary>
+        /// Command collection for multi-threaded draw calls.
+        /// Commands are merged and sorted by SortKey in End() to minimize state changes.
+        /// </summary>
         private readonly ThreadLocal<List<SpriteDrawCommand>> _threadLocalCommands = new(() => new List<SpriteDrawCommand>(), true);
         private SpriteDrawCommand[] _mergedCommands = new SpriteDrawCommand[MaxQuads];
         private int _mergedCommandCount = 0;
@@ -170,6 +174,10 @@ namespace Client.Graphics
             Draw(0, new Box2(0, 0, 1, 1), position, size, color, layer, plane);
         }
 
+        /// <summary>
+        /// Finalizes the draw frame, merging all multi-threaded commands.
+        /// Commands are sorted by Plane, Layer, and Texture to minimize GPU pipeline stalls.
+        /// </summary>
         public void End()
         {
             _mergedCommandCount = 0;
@@ -181,10 +189,10 @@ namespace Client.Graphics
                     Array.Resize(ref _mergedCommands, Math.Max(_mergedCommandCount + count, _mergedCommands.Length * 2));
                 }
 
-                for(int i = 0; i < count; i++)
-                {
-                    _mergedCommands[_mergedCommandCount++] = list[i];
-                }
+                // High-performance copy of command buffers
+                var sourceSpan = CollectionsMarshal.AsSpan(list);
+                sourceSpan.CopyTo(new Span<SpriteDrawCommand>(_mergedCommands, _mergedCommandCount, count));
+                _mergedCommandCount += count;
             }
 
             if (_mergedCommandCount == 0) return;
@@ -243,6 +251,10 @@ namespace Client.Graphics
             Flush();
         }
 
+        /// <summary>
+        /// Dispatches the collected vertices to the GPU.
+        /// Uses Buffer Orphaning and Triple-Buffering to ensure zero-wait CPU performance.
+        /// </summary>
         private unsafe void Flush()
         {
             if (_vertexCount == 0)

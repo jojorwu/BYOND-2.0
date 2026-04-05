@@ -5,11 +5,13 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.PureEcsBenchmark</StartupObject>
+    <StartupObject>Benchmarks.RendererBenchmark</StartupObject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Servers\Server\Server.csproj" />
+    <ProjectReference Include="..\Players\Client\Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

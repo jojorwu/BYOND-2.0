@@ -724,17 +724,13 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return default;
     }
 
-    public virtual void SetDataComponent<T>(T component) where T : struct, IDataComponent
+    public void SetDataComponent<T>(T component) where T : struct, IDataComponent
     {
-        if (Archetype is Archetype arch && ArchetypeIndex != -1)
+        if (Archetype is Archetype arch)
         {
-            int id = Services.ComponentIdRegistry.GetId(typeof(T));
+            int id = Services.ComponentId<T>.Value;
             arch.SetDataComponentInternal(ArchetypeIndex, id, component);
             IncrementVersion();
-        }
-        else if (_componentManager != null)
-        {
-            _componentManager.SetDataComponent(this, component);
         }
     }
 

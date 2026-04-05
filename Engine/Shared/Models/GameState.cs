@@ -10,7 +10,7 @@ using Shared.Interfaces;
 namespace Shared;
     public class GameState : Shared.Services.EngineService, IGameState, IEngineUpdateListener
     {
-        public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory) };
+        public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory), typeof(Shared.Services.IArchetypeManager) };
 
         private IMap? _map;
         private readonly ReaderWriterLockSlim _worldLock = new(LockRecursionPolicy.SupportsRecursion);
@@ -19,14 +19,17 @@ namespace Shared;
         public ConcurrentDictionary<long, GameObject> GameObjects { get; } = new ConcurrentDictionary<long, GameObject>();
         private readonly ConcurrentQueue<IGameObject> _dirtyObjects = new();
         private readonly IObjectFactory? _objectFactory;
+        public Shared.Services.IArchetypeManager ArchetypeManager { get; }
 
-        public GameState(SpatialGrid spatialGrid, IObjectFactory? objectFactory = null)
+        public GameState(SpatialGrid spatialGrid, Shared.Services.IArchetypeManager archetypeManager, IObjectFactory? objectFactory = null)
         {
             SpatialGrid = spatialGrid;
+            ArchetypeManager = archetypeManager;
             _objectFactory = objectFactory;
         }
 
-        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, new Shared.Services.MockDiagnosticBus())) { }
+        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, new Shared.Services.MockDiagnosticBus()),
+                                 new Shared.Services.ArchetypeManager(NullLogger<Shared.Services.ArchetypeManager>.Instance, new Shared.Services.MockDiagnosticBus())) { }
 
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 

@@ -10,7 +10,6 @@ namespace Shared.Interfaces;
         void CreateObject(ObjectType objectType, long x = 0, long y = 0, long z = 0);
         void DestroyObject(IGameObject obj);
         void AddComponent<T>(IGameObject obj, T component) where T : class, IComponent;
-        void SetDataComponent<T>(IGameObject obj, T component) where T : struct, IDataComponent;
         void RemoveComponent<T>(IGameObject obj) where T : class, IComponent;
 
         /// <summary>

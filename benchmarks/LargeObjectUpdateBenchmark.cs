@@ -82,7 +82,7 @@ public class LargeObjectUpdateBenchmark
                 long id = reader.ReadVarInt();
                 if (id == 0) break;
                 long version = reader.ReadVarInt();
-                long mask = (long)reader.ReadBits(16);
+                long mask = (long)reader.ReadBits(32); // Updated to 32-bit mask
                 count++;
             }
             Console.WriteLine($"Verified {count} objects in serialized stream.");

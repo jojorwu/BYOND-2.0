@@ -313,7 +313,7 @@ public class NetworkingTests
         var debugReader = new BitReader(data);
         debugReader.ReadVarInt(); // ID
         debugReader.ReadVarInt(); // Version
-        var mask = (GameObjectFields)debugReader.ReadBits(16);
+        var mask = (GameObjectFields)debugReader.ReadBits(32); // Updated to 32-bit
         Console.WriteLine($"Mask: {mask}");
 
         _snapshotService.DeserializeBitPacked(ref reader, world, _typeManagerMock.Object, _factoryMock.Object);

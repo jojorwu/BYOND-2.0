@@ -5,8 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.RendererBenchmark</StartupObject>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>Benchmarks.LargeObjectUpdateBenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>

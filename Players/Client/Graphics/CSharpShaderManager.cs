@@ -1,6 +1,7 @@
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Silk.NET.OpenGL;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -19,8 +20,14 @@ namespace Client.Graphics
 
     public class CSharpShaderManager : EngineService
     {
+        private readonly ILogger<CSharpShaderManager> _logger;
         private GL? _gl;
         private readonly Dictionary<string, ICSharpShader> _compiledShaders = new();
+
+        public CSharpShaderManager(ILogger<CSharpShaderManager> logger)
+        {
+            _logger = logger;
+        }
 
         public void SetGL(GL gl)
         {
@@ -41,7 +48,7 @@ namespace Client.Graphics
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error compiling C# shader: {e.Message}");
+                _logger.LogError(e, "Error compiling C# shader");
                 throw;
             }
         }

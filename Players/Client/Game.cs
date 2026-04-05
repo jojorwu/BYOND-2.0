@@ -51,10 +51,8 @@ namespace Client
         private Client.Graphics.Framebuffer _sceneFramebuffer = null!;
         private Client.Graphics.Framebuffer[] _bloomBuffers = new Client.Graphics.Framebuffer[2];
         private RenderPipeline _renderPipeline = null!;
-        private readonly TextureCache _textureCache;
+        private readonly GraphicsResourceManager _resourceManager;
         private readonly CSharpShaderManager _csharpShaderManager;
-        private readonly DmiCache _dmiCache;
-        private readonly IconCache _iconCache;
         private readonly IServiceProvider _serviceProvider;
         private ICSharpShader? _sampleCSharpShader;
         private Graphics.Shader? _sampleGlShader;
@@ -75,13 +73,11 @@ namespace Client
         private double _accumulator;
         private float _alpha;
 
-        public Game(TextureCache textureCache, CSharpShaderManager csharpShaderManager, DmiCache dmiCache, IconCache iconCache, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem, IConfigurationManager configManager, IServiceProvider serviceProvider, ClientLaunchOptions launchOptions)
+        public Game(GraphicsResourceManager resourceManager, CSharpShaderManager csharpShaderManager, IObjectTypeManager typeManager, IObjectFactory objectFactory, ISoundSystem soundSystem, IConfigurationManager configManager, IServiceProvider serviceProvider, ClientLaunchOptions launchOptions)
         {
-            _textureCache = textureCache;
+            _resourceManager = resourceManager;
             _soundSystem = soundSystem;
             _csharpShaderManager = csharpShaderManager;
-            _dmiCache = dmiCache;
-            _iconCache = iconCache;
             _typeManager = typeManager;
             _objectFactory = objectFactory;
             _configManager = configManager;
@@ -144,11 +140,11 @@ namespace Client
 
             UiTheme.Apply();
 
-            _textureCache.SetGL(_gl);
+            _resourceManager.Initialize(_gl);
             _csharpShaderManager.SetGL(_gl);
             _spriteRenderer = new SpriteRenderer(_gl);
             _modelRenderer = new ModelRenderer(_gl);
-            _worldRenderer = new WorldRenderer(_gl, _textureCache, _dmiCache, _iconCache);
+            _worldRenderer = new WorldRenderer(_gl, _resourceManager);
             _lightingRenderer = new LightingRenderer(_gl);
             _occluderMap = new OccluderMap(_gl, _window.Size.X, _window.Size.Y);
             _ssaoShader = new SSAOShader(_gl);
@@ -295,13 +291,13 @@ new MyShader()
                         var icon = GetIcon(currentObj);
                         if (!string.IsNullOrEmpty(icon))
                         {
-                            var (dmiPath, _) = _iconCache.ParseIconString(icon);
+                            var (dmiPath, _) = _resourceManager.IconCache.ParseIconString(icon);
                             if (!string.IsNullOrEmpty(dmiPath))
                             {
                                 try
                                 {
-                                    var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                                    _dmiCache.GetDmi(dmiPath, texture);
+                                    var texture = _resourceManager.TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                                    _resourceManager.DmiCache.GetDmi(dmiPath, texture);
                                 }
                                 catch (Exception)
                                 {
@@ -318,7 +314,7 @@ new MyShader()
 
         private void OnRender(double deltaTime)
         {
-            _textureCache.ProcessUploads();
+            _resourceManager.ProcessUploads();
 
             _time += (float)deltaTime;
 

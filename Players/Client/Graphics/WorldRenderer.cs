@@ -19,9 +19,7 @@ namespace Client.Graphics
     {
         private readonly GL _gl;
         private readonly Shader _chunkShader;
-        private readonly TextureCache _textureCache;
-        private readonly DmiCache _dmiCache;
-        private readonly IconCache _iconCache;
+        private readonly GraphicsResourceManager _resourceManager;
         private readonly InstancedSpriteRenderer _instancedRenderer;
         private readonly List<IGameObject> _renderObjectBuffer = new();
 
@@ -70,9 +68,10 @@ namespace Client.Graphics
         private readonly ConcurrentQueue<(RenderChunk Chunk, Vertex[] Vertices)> _pendingUploads = new();
         private readonly HashSet<Vector2i> _rebuildingChunks = new();
 
-        public WorldRenderer(GL gl, TextureCache textureCache, DmiCache dmiCache, IconCache iconCache)
+        public WorldRenderer(GL gl, GraphicsResourceManager resourceManager)
         {
             _gl = gl;
+            _resourceManager = resourceManager;
             _instancedRenderer = new InstancedSpriteRenderer(_gl);
 
             string vert = @"#version 330 core
@@ -99,10 +98,6 @@ void main() {
     gAlbedo = texColor * vColor;
 }";
             _chunkShader = new Shader(_gl, vert, frag);
-
-            _textureCache = textureCache;
-            _dmiCache = dmiCache;
-            _iconCache = iconCache;
 
             // Initialize a large texture array for icons (e.g. 32x32, 2048 layers)
             _mainTextureArray = new TextureArray(_gl, 32, 32, 2048);
@@ -142,13 +137,30 @@ void main() {
         /// Optimized rendering of dynamic objects using Hybrid Spatial-SoA approach and layer bucketing.
         /// Uses SpatialGrid for fast culling and Archetype SoA for zero-allocation data access.
         /// </summary>
+        /// <param name="previousState">The state from the previous tick.</param>
+        /// <param name="currentState">The current simulation state.</param>
+        /// <param name="alpha">Interpolation factor between frames.</param>
+        /// <param name="cullRect">The visible world bounds in tile coordinates.</param>
+        /// <param name="view">The view matrix.</param>
+        /// <param name="projection">The projection matrix.</param>
         private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             _instancedRenderer.Begin();
 
-            // Clear buckets without reallocation
-            for (int i = 0; i < _layerBuckets.Length; i++) _layerBuckets[i].Clear();
+            ClearBuckets();
+            PopulateBuckets(currentState, cullRect);
+            DrawBuckets();
 
+            _instancedRenderer.Flush(view, projection);
+        }
+
+        private void ClearBuckets()
+        {
+            for (int i = 0; i < _layerBuckets.Length; i++) _layerBuckets[i].Clear();
+        }
+
+        private void PopulateBuckets(GameState currentState, Box2 cullRect)
+        {
             _renderObjectBuffer.Clear();
             currentState.SpatialGrid.QueryBox(new Box3l((long)cullRect.Left, (long)cullRect.Top, -100, (long)cullRect.Right, (long)cullRect.Bottom, 100), obj => _renderObjectBuffer.Add(obj));
 
@@ -171,9 +183,9 @@ void main() {
                 string icon = arch.GetIcon(idx);
                 if (string.IsNullOrEmpty(icon)) continue;
 
-                var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                var (dmiPath, stateName) = _resourceManager.IconCache.ParseIconString(icon);
+                var texture = _resourceManager.TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                var dmi = _resourceManager.DmiCache.GetDmi(dmiPath, texture);
 
                 if (dmi != null && _mainTextureArray != null)
                 {
@@ -204,8 +216,10 @@ void main() {
                     }
                 }
             }
+        }
 
-            // Draw buckets in order
+        private void DrawBuckets()
+        {
             for (int i = 0; i < _layerBuckets.Length; i++)
             {
                 var bucket = _layerBuckets[i];
@@ -216,8 +230,6 @@ void main() {
                     _instancedRenderer.Draw(_mainTextureArray!.Id, item.ArrayLayer, item.Position, item.Size, item.Uv, item.Color);
                 }
             }
-
-            _instancedRenderer.Flush(view, projection);
         }
 
         private void ProcessPendingUploads()
@@ -274,9 +286,9 @@ void main() {
                 string icon = arch.GetIcon(idx);
                 if (string.IsNullOrEmpty(icon)) continue;
 
-                var (dmiPath, stateName) = _iconCache.ParseIconString(icon);
-                var texture = _textureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
-                var dmi = _dmiCache.GetDmi(dmiPath, texture);
+                var (dmiPath, stateName) = _resourceManager.IconCache.ParseIconString(icon);
+                var texture = _resourceManager.TextureCache.GetTexture(dmiPath.Replace(".dmi", ".png"));
+                var dmi = _resourceManager.DmiCache.GetDmi(dmiPath, texture);
                 if (dmi != null)
                 {
                     var dmiState = dmi.Description.GetStateOrDefault(stateName);

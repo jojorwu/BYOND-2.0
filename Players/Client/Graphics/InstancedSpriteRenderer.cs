@@ -7,13 +7,17 @@ using Robust.Shared.Maths;
 
 namespace Client.Graphics
 {
+    /// <summary>
+    /// Optimized renderer for sprites using hardware instancing and texture arrays.
+    /// Batches multiple sprites into a single draw call by utilizing depth layers and texture arrays.
+    /// </summary>
     public class InstancedSpriteRenderer : IDisposable
     {
         private readonly GL _gl;
         private readonly Shader _shader;
         private readonly uint _vao;
         private readonly uint _vbo;
-        private uint _instanceVbo;
+        private readonly uint _instanceVbo;
 
         /// <summary>
         /// Tight instance data structure to minimize bus bandwidth.

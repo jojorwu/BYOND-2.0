@@ -35,9 +35,31 @@ namespace Client.Graphics
             public int ArrayLayer;
         }
 
+        /// <summary>
+        /// A reusable bucket for RenderItems to eliminate per-frame allocations.
+        /// </summary>
+        private class RenderBucket
+        {
+            private RenderItem[] _items = new RenderItem[64];
+            private int _count = 0;
+
+            public int Count => _count;
+            public ReadOnlySpan<RenderItem> Items => _items.AsSpan(0, _count);
+
+            public void Add(RenderItem item)
+            {
+                if (_count >= _items.Length)
+                {
+                    Array.Resize(ref _items, _items.Length * 2);
+                }
+                _items[_count++] = item;
+            }
+
+            public void Clear() => _count = 0;
+        }
+
         // Layer buckets to avoid sorting on every frame
-        // 0-10 layers are most common in SS13-like games
-        private readonly List<RenderItem>[] _layerBuckets = Enumerable.Range(0, 32).Select(_ => new List<RenderItem>()).ToArray();
+        private readonly RenderBucket[] _layerBuckets = Enumerable.Range(0, 32).Select(_ => new RenderBucket()).ToArray();
 
         // New: Support for grouped texture arrays
         private TextureArray? _mainTextureArray;
@@ -124,7 +146,7 @@ void main() {
         {
             _instancedRenderer.Begin();
 
-            // Clear buckets
+            // Clear buckets without reallocation
             for (int i = 0; i < _layerBuckets.Length; i++) _layerBuckets[i].Clear();
 
             _renderObjectBuffer.Clear();
@@ -187,9 +209,10 @@ void main() {
             for (int i = 0; i < _layerBuckets.Length; i++)
             {
                 var bucket = _layerBuckets[i];
-                // Optional: sort within bucket if needed for sub-layering
-                foreach (var item in bucket)
+                var items = bucket.Items;
+                for (int j = 0; j < items.Length; j++)
                 {
+                    ref readonly var item = ref items[j];
                     _instancedRenderer.Draw(_mainTextureArray!.Id, item.ArrayLayer, item.Position, item.Size, item.Uv, item.Color);
                 }
             }
@@ -315,6 +338,22 @@ void main() {
                 chunk.Dispose();
             }
             _chunks.Clear();
+        }
+
+        public Dictionary<string, object> GetDiagnosticInfo()
+        {
+            int totalItems = 0;
+            for (int i = 0; i < _layerBuckets.Length; i++) totalItems += _layerBuckets[i].Count;
+
+            return new Dictionary<string, object>
+            {
+                ["ActiveChunks"] = _chunks.Count,
+                ["VisibleChunks"] = _visibleChunks.Count,
+                ["RebuildingChunks"] = _rebuildingChunks.Count,
+                ["PendingUploads"] = _pendingUploads.Count,
+                ["DynamicObjectsRendered"] = totalItems,
+                ["TextureArrayDepth"] = _mainTextureArray?.Depth ?? 0
+            };
         }
     }
 }

@@ -81,6 +81,7 @@ public readonly struct ArchetypeChunk<T>
 
 /// <summary>
 /// Stores entities with the exact same component composition in contiguous memory.
+/// Utilizes a Structure-of-Arrays (SoA) layout to maximize cache locality for simulation and rendering.
 /// </summary>
 public class Archetype
 {
@@ -1083,6 +1084,7 @@ public class Archetype
         IComponent Get(int index);
         void BeginUpdate(int count);
         void CommitUpdate(int count);
+        Array GetRawArray();
     }
 
     internal interface IDataComponentArray
@@ -1093,29 +1095,26 @@ public class Archetype
         void CopyTo(int sourceIndex, IDataComponentArray destination, int destinationIndex);
         void Clear(int index);
         object Get(int index);
+        Array GetRawArray();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private T[] GetArrayFromDataArray<T>(IDataComponentArray array)
     {
-        // Use reflection-based cast to bypass compiler constraints in this specific generic context
-        // This is safe because we check the type with typeof(T) before calling.
-        var type = typeof(T);
-        var arrayType = typeof(DataComponentArray<>).MakeGenericType(type);
-        return (T[])arrayType.GetField("Data")!.GetValue(array)!;
+        return Unsafe.As<T[]>(array.GetRawArray());
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private T[] GetArrayFromComponentArray<T>(IComponentArray array)
     {
-        var type = typeof(T);
-        var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
-        return (T[])arrayType.GetField("Data")!.GetValue(array)!;
+        return Unsafe.As<T[]>(array.GetRawArray());
     }
 
     private class DataComponentArray<T> : IDataComponentArray where T : struct, IDataComponent
     {
         public T[] Data = Array.Empty<T>();
+
+        public Array GetRawArray() => Data;
 
         public void Resize(int capacity) => Array.Resize(ref Data, capacity);
 
@@ -1143,6 +1142,8 @@ public class Archetype
         public T[] Data = System.Array.Empty<T>();
         public T[] NextData = System.Array.Empty<T>();
         private bool _isUpdating = false;
+
+        public Array GetRawArray() => Data;
 
         public void Resize(int capacity)
         {

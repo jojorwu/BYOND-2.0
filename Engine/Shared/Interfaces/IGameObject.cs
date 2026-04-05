@@ -110,7 +110,17 @@ namespace Shared;
         /// Gets a component of the specified type from the provided chunk.
         /// Optimized for use within systems.
         /// </summary>
-        T? GetComponent<T>(ArchetypeChunk<T> chunk) where T : class, IComponent;
+        T? GetComponent<T>(ArchetypeChunk<T> chunk);
+
+        /// <summary>
+        /// Gets a data (struct) component of the specified type.
+        /// </summary>
+        T GetDataComponent<T>() where T : struct, IDataComponent;
+
+        /// <summary>
+        /// Sets a data (struct) component of the specified type.
+        /// </summary>
+        void SetDataComponent<T>(T component) where T : struct, IDataComponent;
 
         /// <summary>
         /// Adds a component to this object.

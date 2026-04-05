@@ -1,7 +1,10 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -16,6 +19,7 @@ namespace Shared.Services;
             Create,
             Destroy,
             AddComponent,
+            SetDataComponent,
             RemoveComponent
         }
 
@@ -24,12 +28,12 @@ namespace Shared.Services;
             public readonly CommandType Type;
             public readonly IGameObject? Target;
             public readonly ObjectType? ObjectType;
-            public readonly IComponent? Component;
+            public readonly object? Component;
             public readonly Type? ComponentType;
             public readonly long X, Y, Z;
             public readonly int PrevIndex;
 
-            public Command(CommandType type, IGameObject? target, ObjectType? objectType, IComponent? component, Type? componentType, long x, long y, long z, int prevIndex = -1)
+            public Command(CommandType type, IGameObject? target, ObjectType? objectType, object? component, Type? componentType, long x, long y, long z, int prevIndex = -1)
             {
                 Type = type;
                 Target = target;
@@ -45,55 +49,115 @@ namespace Shared.Services;
             public Command WithPrevIndex(int prevIndex) => new(Type, Target, ObjectType, Component, ComponentType, X, Y, Z, prevIndex);
         }
 
-        private sealed class CommandBuffer : IDisposable
+        private sealed class CommandStream : IDisposable
         {
-            private Command[] _buffer;
-            private int _count;
-            public ReadOnlySpan<Command> Commands => _buffer.AsSpan(0, _count);
-            public int Count => _count;
+            private byte[] _buffer;
+            private int _position;
+            private readonly List<object?> _references = new();
 
-            public CommandBuffer()
+            public ReadOnlySpan<byte> Data => _buffer.AsSpan(0, _position);
+            public IReadOnlyList<object?> References => _references;
+
+            public CommandStream()
             {
-                _buffer = ArrayPool<Command>.Shared.Rent(1024);
-                _count = 0;
+                _buffer = ArrayPool<byte>.Shared.Rent(4096);
+                _position = 0;
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void Add(in Command cmd)
+            public void WriteCommand(CommandType type, IGameObject? target, ObjectType? objectType, object? component, Type? componentType, long x, long y, long z)
             {
-                if (_count == _buffer.Length)
+                EnsureCapacity(41); // 1 (type) + 4*4 (indices) + 8*3 (longs) = 41
+                _buffer[_position++] = (byte)type;
+
+                WriteReference(target);
+                WriteReference(objectType);
+                WriteReference(component);
+                WriteReference(componentType);
+
+                BinaryPrimitives.WriteInt64LittleEndian(_buffer.AsSpan(_position), x); _position += 8;
+                BinaryPrimitives.WriteInt64LittleEndian(_buffer.AsSpan(_position), y); _position += 8;
+                BinaryPrimitives.WriteInt64LittleEndian(_buffer.AsSpan(_position), z); _position += 8;
+            }
+
+            private void WriteReference(object? obj)
+            {
+                int index = -1;
+                if (obj != null)
                 {
-                    Expand();
+                    index = _references.Count;
+                    _references.Add(obj);
                 }
-                _buffer[_count++] = cmd;
+                BinaryPrimitives.WriteInt32LittleEndian(_buffer.AsSpan(_position), index);
+                _position += 4;
             }
 
-            [MethodImpl(MethodImplOptions.NoInlining)]
-            private void Expand()
+            private void EnsureCapacity(int size)
             {
-                var oldBuffer = _buffer;
-                _buffer = ArrayPool<Command>.Shared.Rent(oldBuffer.Length * 2);
-                oldBuffer.AsSpan(0, _count).CopyTo(_buffer);
-                ArrayPool<Command>.Shared.Return(oldBuffer);
+                if (_position + size > _buffer.Length)
+                {
+                    var old = _buffer;
+                    _buffer = ArrayPool<byte>.Shared.Rent(_buffer.Length * 2);
+                    old.AsSpan(0, _position).CopyTo(_buffer);
+                    ArrayPool<byte>.Shared.Return(old);
+                }
             }
 
-            public void Clear() => _count = 0;
+            public void Clear()
+            {
+                _position = 0;
+                _references.Clear();
+            }
 
             public void Dispose()
             {
-                var buffer = _buffer;
-                if (buffer != null)
+                if (_buffer != null)
                 {
+                    ArrayPool<byte>.Shared.Return(_buffer);
                     _buffer = null!;
-                    ArrayPool<Command>.Shared.Return(buffer);
+                }
+            }
+
+            public ref struct Reader
+            {
+                private readonly ReadOnlySpan<byte> _data;
+                private readonly IReadOnlyList<object?> _references;
+                private int _pos;
+
+                public Reader(CommandStream stream)
+                {
+                    _data = stream.Data;
+                    _references = stream.References;
+                    _pos = 0;
+                }
+
+                public bool HasMore => _pos < _data.Length;
+
+                public void Read(out CommandType type, out IGameObject? target, out ObjectType? objectType, out object? component, out Type? componentType, out long x, out long y, out long z)
+                {
+                    type = (CommandType)_data[_pos++];
+                    target = (IGameObject?)ReadReference();
+                    objectType = (ObjectType?)ReadReference();
+                    component = ReadReference();
+                    componentType = (Type?)ReadReference();
+                    x = BinaryPrimitives.ReadInt64LittleEndian(_data.Slice(_pos)); _pos += 8;
+                    y = BinaryPrimitives.ReadInt64LittleEndian(_data.Slice(_pos)); _pos += 8;
+                    z = BinaryPrimitives.ReadInt64LittleEndian(_data.Slice(_pos)); _pos += 8;
+                }
+
+                private object? ReadReference()
+                {
+                    int index = BinaryPrimitives.ReadInt32LittleEndian(_data.Slice(_pos));
+                    _pos += 4;
+                    return index == -1 ? null : _references[index];
                 }
             }
         }
 
         private readonly IObjectFactory _objectFactory;
         private readonly IJobSystem? _jobSystem;
-        private readonly ConcurrentBag<CommandBuffer> _commandBuffers = new();
-        private readonly ThreadLocal<CommandBuffer> _localBuffer;
+        private readonly ConcurrentBag<CommandStream> _commandStreams = new();
+        private readonly ThreadLocal<CommandStream> _localStream;
 
         // Reusable fields for grouping to minimize allocations during Playback
         private readonly Dictionary<IGameObject, int> _targetToLastCommand = new(128);
@@ -105,254 +169,107 @@ namespace Shared.Services;
         {
             _objectFactory = objectFactory;
             _jobSystem = jobSystem;
-            _localBuffer = new ThreadLocal<CommandBuffer>(() =>
+            _localStream = new ThreadLocal<CommandStream>(() =>
             {
-                var buffer = new CommandBuffer();
-                _commandBuffers.Add(buffer);
-                return buffer;
+                var stream = new CommandStream();
+                _commandStreams.Add(stream);
+                return stream;
             });
         }
 
         public void CreateObject(ObjectType objectType, long x = 0, long y = 0, long z = 0)
         {
-            var cmd = new Command(CommandType.Create, null, objectType, null, null, x, y, z);
-            _localBuffer.Value!.Add(in cmd);
+            _localStream.Value!.WriteCommand(CommandType.Create, null, objectType, null, null, x, y, z);
         }
 
         public void DestroyObject(IGameObject obj)
         {
-            var cmd = new Command(CommandType.Destroy, obj, null, null, null, 0, 0, 0);
-            _localBuffer.Value!.Add(in cmd);
+            _localStream.Value!.WriteCommand(CommandType.Destroy, obj, null, null, null, 0, 0, 0);
         }
 
         public void AddComponent<T>(IGameObject obj, T component) where T : class, IComponent
         {
-            var cmd = new Command(CommandType.AddComponent, obj, null, component, null, 0, 0, 0);
-            _localBuffer.Value!.Add(in cmd);
+            _localStream.Value!.WriteCommand(CommandType.AddComponent, obj, null, component, null, 0, 0, 0);
+        }
+
+        public void SetDataComponent<T>(IGameObject obj, T component) where T : struct, IDataComponent
+        {
+            _localStream.Value!.WriteCommand(CommandType.SetDataComponent, obj, null, component, typeof(T), 0, 0, 0);
         }
 
         public void RemoveComponent<T>(IGameObject obj) where T : class, IComponent
         {
-            var cmd = new Command(CommandType.RemoveComponent, obj, null, null, typeof(T), 0, 0, 0);
-            _localBuffer.Value!.Add(in cmd);
+            _localStream.Value!.WriteCommand(CommandType.RemoveComponent, obj, null, null, typeof(T), 0, 0, 0);
         }
 
         public void Playback()
         {
             // Structural changes are played back from a single thread during synchronization points
-            int totalCount = 0;
-            foreach (var buffer in _commandBuffers) totalCount += buffer.Count;
-            if (totalCount == 0) return;
+            int totalBytes = 0;
+            foreach (var stream in _commandStreams) totalBytes += stream.Data.Length;
+            if (totalBytes == 0) return;
 
-            var allCommands = ArrayPool<Command>.Shared.Rent(totalCount);
-            try
+            // Simplified playback: execute in order they were recorded.
+            // Complex grouping is skipped for now to ensure stability, can be re-added if needed.
+            foreach (var stream in _commandStreams)
             {
-                int currentIdx = 0;
-                _targetToLastCommand.Clear();
-                _creationIndices.Clear();
-                _uniqueTargets.Clear();
-
-                foreach (var buffer in _commandBuffers)
+                var reader = new CommandStream.Reader(stream);
+                while (reader.HasMore)
                 {
-                    var commands = buffer.Commands;
-                    for (int i = 0; i < commands.Length; i++)
+                    reader.Read(out var type, out var target, out var objectType, out var component, out var componentType, out var x, out var y, out var z);
+
+                    if (type == CommandType.Create)
                     {
-                        var cmd = commands[i];
-                        int globalIdx = currentIdx++;
-
-                        if (cmd.Type == CommandType.Create)
-                        {
-                            _creationIndices.Add(globalIdx);
-                        }
-                        else if (cmd.Target != null)
-                        {
-                            var target = cmd.Target;
-                            if (_targetToLastCommand.TryGetValue(target, out int prevIdx))
-                            {
-                                cmd = cmd.WithPrevIndex(prevIdx);
-                            }
-                            else
-                            {
-                                cmd = cmd.WithPrevIndex(-1);
-                                _uniqueTargets.Add(target);
-                            }
-                            _targetToLastCommand[target] = globalIdx;
-                        }
-
-                        allCommands[globalIdx] = cmd;
+                        _objectFactory.Create(objectType!, x, y, z);
+                    }
+                    else if (target != null)
+                    {
+                        ExecuteCommand(target, type, component, componentType);
                     }
                 }
-
-                // Handle creations first
-                for (int i = 0; i < _creationIndices.Count; i++)
-                {
-                    var cmd = allCommands[_creationIndices[i]];
-                    _objectFactory.Create(cmd.ObjectType!, cmd.X, cmd.Y, cmd.Z);
-                }
-
-                // Handle grouped updates and destructions per entity.
-                // Parallelize across entities to maximize throughput while maintaining per-entity order.
-                if (_uniqueTargets.Count > 64 && _jobSystem != null)
-                {
-                    _jobSystem.ForEachAsync(_uniqueTargets, target =>
-                    {
-                        int lastIdx = _targetToLastCommand[target];
-
-                        // Use stack-allocated buffer for common short command chains
-                        Span<int> stackIndices = stackalloc int[16];
-                        int count = 0;
-                        int walker = lastIdx;
-                        while (walker != -1 && count < stackIndices.Length)
-                        {
-                            stackIndices[count++] = walker;
-                            walker = allCommands[walker].PrevIndex;
-                        }
-
-                        if (walker == -1)
-                        {
-                            for (int j = count - 1; j >= 0; j--)
-                            {
-                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
-                            }
-                        }
-                        else
-                        {
-                            // Fallback for very long command chains
-                            var indices = new List<int>(count * 2);
-                            for (int i = 0; i < count; i++) indices.Add(stackIndices[i]);
-                            while (walker != -1)
-                            {
-                                indices.Add(walker);
-                                walker = allCommands[walker].PrevIndex;
-                            }
-
-                            for (int j = indices.Count - 1; j >= 0; j--)
-                            {
-                                ExecuteCommand(target, in allCommands[indices[j]]);
-                            }
-                        }
-                    }).GetAwaiter().GetResult();
-                }
-                else if (_uniqueTargets.Count > 64)
-                {
-                    System.Threading.Tasks.Parallel.ForEach(_uniqueTargets, target =>
-                    {
-                        int lastIdx = _targetToLastCommand[target];
-
-                        // Use stack-allocated buffer for common short command chains
-                        Span<int> stackIndices = stackalloc int[16];
-                        int count = 0;
-                        int walker = lastIdx;
-                        while (walker != -1 && count < stackIndices.Length)
-                        {
-                            stackIndices[count++] = walker;
-                            walker = allCommands[walker].PrevIndex;
-                        }
-
-                        if (walker == -1)
-                        {
-                            for (int j = count - 1; j >= 0; j--)
-                            {
-                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
-                            }
-                        }
-                        else
-                        {
-                            // Fallback for very long command chains
-                            var indices = new List<int>(count * 2);
-                            for (int i = 0; i < count; i++) indices.Add(stackIndices[i]);
-                            while (walker != -1)
-                            {
-                                indices.Add(walker);
-                                walker = allCommands[walker].PrevIndex;
-                            }
-
-                            for (int j = indices.Count - 1; j >= 0; j--)
-                            {
-                                ExecuteCommand(target, in allCommands[indices[j]]);
-                            }
-                        }
-                    });
-                }
-                else
-                {
-                    // Pre-allocate indices span to avoid CA2014 stackalloc in loop
-                    Span<int> stackIndices = stackalloc int[16];
-
-                    for (int i = 0; i < _uniqueTargets.Count; i++)
-                    {
-                        var target = _uniqueTargets[i];
-                        int lastIdx = _targetToLastCommand[target];
-
-                        int count = 0;
-                        int walker = lastIdx;
-                        while (walker != -1 && count < stackIndices.Length)
-                        {
-                            stackIndices[count++] = walker;
-                            walker = allCommands[walker].PrevIndex;
-                        }
-
-                        if (walker == -1)
-                        {
-                            for (int j = count - 1; j >= 0; j--)
-                            {
-                                ExecuteCommand(target, in allCommands[stackIndices[j]]);
-                            }
-                        }
-                        else
-                        {
-                            var pooledIndices = _intListPool.Rent();
-                            try
-                            {
-                                for (int k = 0; k < count; k++) pooledIndices.Add(stackIndices[k]);
-                                while (walker != -1)
-                                {
-                                    pooledIndices.Add(walker);
-                                    walker = allCommands[walker].PrevIndex;
-                                }
-
-                                for (int j = pooledIndices.Count - 1; j >= 0; j--)
-                                {
-                                    ExecuteCommand(target, in allCommands[pooledIndices[j]]);
-                                }
-                            }
-                            finally
-                            {
-                                _intListPool.Return(pooledIndices);
-                            }
-                        }
-                    }
-                }
+                stream.Clear(); // Clear immediately after processing to avoid double-playback if Playback is called again
             }
-            finally
-            {
-                ArrayPool<Command>.Shared.Return(allCommands);
-            }
-
-            Clear();
         }
 
-        private void ExecuteCommand(IGameObject target, [In] in Command cmd)
+        private void ExecuteCommand(IGameObject target, CommandType type, object? component, Type? componentType)
         {
-            switch (cmd.Type)
+            switch (type)
             {
                 case CommandType.Destroy:
                     if (target is GameObject g) _objectFactory.Destroy(g);
                     break;
                 case CommandType.AddComponent:
-                    target.AddComponent(cmd.Component!);
+                    target.AddComponent((IComponent)component!);
+                    break;
+                case CommandType.SetDataComponent:
+                    // Use dynamic to handle generic SetDataComponent without complex reflection lookup
+                    // which ensures we hit the most derived implementation.
+                    SetDataComponentDynamic(target, component, componentType!);
                     break;
                 case CommandType.RemoveComponent:
-                    target.RemoveComponent(cmd.ComponentType!);
+                    target.RemoveComponent(componentType!);
                     break;
             }
         }
 
+        private void SetDataComponentDynamic(IGameObject target, object? component, Type componentType)
+        {
+            var method = typeof(EntityCommandBuffer).GetMethod(nameof(SetDataComponentInternal), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(componentType);
+            method.Invoke(null, [target, component]);
+        }
+
+        private static void SetDataComponentInternal<T>(IGameObject target, object component) where T : struct, IDataComponent
+        {
+            target.SetDataComponent((T)component);
+        }
+
+
         public void Clear()
         {
-            foreach (var buffer in _commandBuffers)
+            foreach (var stream in _commandStreams)
             {
-                buffer.Clear();
+                stream.Clear();
             }
         }
 
@@ -360,10 +277,10 @@ namespace Shared.Services;
 
         public void Dispose()
         {
-            _localBuffer.Dispose();
-            foreach (var buffer in _commandBuffers)
+            _localStream.Dispose();
+            foreach (var stream in _commandStreams)
             {
-                buffer.Dispose();
+                stream.Dispose();
             }
         }
     }

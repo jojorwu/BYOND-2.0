@@ -138,11 +138,18 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
         foreach (var query in queries)
         {
             var queryType = query.GetType();
-            if (queryType.IsGenericType && queryType.GetGenericTypeDefinition() == typeof(EntityQuery<>))
+            if (queryType.IsGenericType && (queryType.GetGenericTypeDefinition() == typeof(EntityQuery<>) ||
+                                           queryType.BaseType?.IsGenericType == true && queryType.BaseType.GetGenericTypeDefinition() == typeof(EntityQuery<>)))
             {
-                var componentType = queryType.GetGenericArguments()[0];
+                var baseQueryType = queryType.IsGenericType && queryType.GetGenericTypeDefinition() == typeof(EntityQuery<>) ? queryType : queryType.BaseType!;
+                var componentType = baseQueryType.GetGenericArguments()[0];
                 var chunkType = typeof(ArchetypeChunk<>).MakeGenericType(componentType);
-                var tickMethod = system.GetType().GetMethod("TickAsync", [chunkType, typeof(IEntityCommandBuffer)]);
+
+                var tickMethod = system.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .FirstOrDefault(m => m.Name == "TickAsync" && m.IsGenericMethodDefinition);
+
+                if (tickMethod != null) tickMethod = tickMethod.MakeGenericMethod(componentType);
+                else tickMethod = system.GetType().GetMethod("TickAsync", [chunkType, typeof(IEntityCommandBuffer)]);
 
                 if (tickMethod != null && tickMethod.DeclaringType != typeof(ISystem))
                 {

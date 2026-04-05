@@ -29,6 +29,20 @@ public class MovementSystem : BaseSystem
             t.Position = new Vector3(10, 0, 0);
         });
     }
+
+    public override ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb)
+    {
+        Ran = true;
+        if (typeof(T) == typeof(TransformComponent))
+        {
+            var comps = ((ArchetypeChunk<TransformComponent>)(object)chunk).ComponentsSpan;
+            foreach (var t in comps)
+            {
+                t.Position = new Vector3(10, 0, 0);
+            }
+        }
+        return ValueTask.CompletedTask;
+    }
 }
 
 [TestFixture]

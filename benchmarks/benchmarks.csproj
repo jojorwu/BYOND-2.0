@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.ChunkedQueryBenchmark</StartupObject>
+    <StartupObject>Benchmarks.PureEcsBenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>

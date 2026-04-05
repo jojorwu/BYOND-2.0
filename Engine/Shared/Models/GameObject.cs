@@ -707,10 +707,35 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         return _componentManager?.GetComponent<T>(this);
     }
 
-    public T? GetComponent<T>(ArchetypeChunk<T> chunk) where T : class, IComponent
+    public T? GetComponent<T>(ArchetypeChunk<T> chunk)
     {
-        if (ArchetypeIndex < chunk.Offset || ArchetypeIndex >= chunk.Offset + chunk.Count) return null;
+        if (ArchetypeIndex < chunk.Offset || ArchetypeIndex >= chunk.Offset + chunk.Count) return default;
         return chunk.Components[ArchetypeIndex];
+    }
+
+    public T GetDataComponent<T>() where T : struct, IDataComponent
+    {
+        if (Archetype is Archetype arch)
+        {
+            int id = Services.ComponentId<T>.Value;
+            var array = arch.GetDataComponentsInternal(id);
+            if (array != null) return (T)array.Get(ArchetypeIndex);
+        }
+        return default;
+    }
+
+    public virtual void SetDataComponent<T>(T component) where T : struct, IDataComponent
+    {
+        if (Archetype is Archetype arch && ArchetypeIndex != -1)
+        {
+            int id = Services.ComponentIdRegistry.GetId(typeof(T));
+            arch.SetDataComponentInternal(ArchetypeIndex, id, component);
+            IncrementVersion();
+        }
+        else if (_componentManager != null)
+        {
+            _componentManager.SetDataComponent(this, component);
+        }
     }
 
     public IEnumerable<IComponent> GetComponents() {

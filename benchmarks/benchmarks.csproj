@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <StartupObject>Benchmarks.LargeObjectUpdateBenchmark</StartupObject>
+    <StartupObject>Benchmarks.RendererBenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>

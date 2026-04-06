@@ -2,6 +2,7 @@ using System;
 using Shared.Interfaces;
 using Shared.Attributes;
 
+using Shared.Buffers;
 namespace Shared.Services;
     [EngineService(typeof(IArenaAllocator))]
     public class ArenaProxy : IArenaAllocator

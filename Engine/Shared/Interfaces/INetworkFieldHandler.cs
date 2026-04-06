@@ -2,6 +2,7 @@ using Shared.Enums;
 using Shared.Utils;
 using Shared.Models;
 
+using Shared.Buffers;
 namespace Shared.Interfaces;
 
 public interface INetworkFieldHandler

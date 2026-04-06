@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Shared.Buffers;
 namespace Shared;
     /// <summary>
     /// The fundamental data type in the Dream VM.

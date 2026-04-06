@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Shared.Collections;
+namespace Shared.Buffers;
 
 public class RingBuffer<T> : IEnumerable<T>
 {

@@ -14,6 +14,7 @@ using Moq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Shared.Buffers;
 namespace Tests;
 
 [TestFixture]

@@ -2,6 +2,7 @@ using Shared.Enums;
 using Shared.Interfaces;
 using Shared.Utils;
 
+using Shared.Buffers;
 namespace Shared.Models;
 
 public abstract class BaseComponent : IComponent

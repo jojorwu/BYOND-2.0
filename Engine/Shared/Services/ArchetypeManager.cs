@@ -233,16 +233,16 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
                 if (currentArchetype.Signature.Mask.Get(id))
                 {
                     var component = currentArchetype.GetComponent(entity.Id, componentType);
-                    if (component != null)
+                    if (component is IComponent ic)
                     {
-                        component.Shutdown();
-                        component.Owner = null;
+                        ic.Shutdown();
+                        ic.Owner = null;
 
                         // Fast-path: check lock-free archetype transitions
                         if (currentArchetype.RemoveTransitions.TryGetValue(componentType, out var targetArchetype))
                         {
                             int oldIndex = entity.ArchetypeIndex;
-                            targetArchetype.AddEntity(entity, currentArchetype, oldIndex, (Type Type, object Component)?null, ignoreType: componentType);
+                            targetArchetype.AddEntity(entity, currentArchetype, oldIndex, ((Type Type, object Component)?)null, ignoreType: componentType);
                             int newIndex = entity.ArchetypeIndex;
                             currentArchetype.RemoveEntity(entity.Id);
                             entity.Archetype = targetArchetype;
@@ -252,7 +252,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
                         else
                         {
                             var oldArchetype = currentArchetype;
-                            MoveToArchetypeInternal(entity, componentType, (IDictionary<Type, IComponent>?)null, false);
+                            MoveToArchetypeInternal(entity, componentType, (IDictionary<Type, object>?)null, false);
                             // Populate lock-free transition map
                             if (_entityToArchetype.TryGetValue(entity.Id, out var newArchetype) && oldArchetype != null)
                             {
@@ -347,9 +347,9 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
             if (componentType != null)
             {
                 if (added && component != null)
-                    targetArchetype.AddEntity(entity, oldArchetype, oldIndex, (componentType, component));
+                    targetArchetype.AddEntity(entity, oldArchetype, oldIndex, (componentType, (object)component!));
                 else
-                    targetArchetype.AddEntity(entity, oldArchetype, oldIndex, (Type Type, object Component)?null, ignoreType: componentType);
+                    targetArchetype.AddEntity(entity, oldArchetype, oldIndex, ((Type Type, object Component)?)null, ignoreType: componentType);
             }
             else
             {
@@ -403,7 +403,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
     {
         if (_entityToArchetype.TryGetValue(entityId, out var archetype))
         {
-            return archetype.GetComponent(entityId, componentType);
+            return archetype.GetComponent(entityId, componentType) as IComponent;
         }
         return null;
     }

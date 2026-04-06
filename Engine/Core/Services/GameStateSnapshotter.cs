@@ -9,6 +9,7 @@ using Shared.Interfaces;
 using Shared.Services;
 using Shared.Utils;
 
+using Shared.Buffers;
 namespace Core
 {
     public class GameStateSnapshotter : EngineService, IGameStateSnapshotter

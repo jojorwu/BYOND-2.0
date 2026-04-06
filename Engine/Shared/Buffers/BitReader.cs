@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace Shared.Utils;
+namespace Shared.Buffers;
 
 /// <summary>
 /// A high-performance bit-level reader for compact serialization.

@@ -5,6 +5,7 @@ using System.Threading;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
 
+using Shared.Buffers;
 namespace Shared.Services;
     /// <summary>
     /// A dedicated background thread for executing jobs with minimal overhead.

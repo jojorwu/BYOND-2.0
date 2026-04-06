@@ -4,6 +4,7 @@ using Shared.Networking;
 using Shared.Networking.Messages;
 using Microsoft.Extensions.DependencyInjection;
 
+using Shared.Buffers;
 namespace Shared.Networking.Handlers;
 
 public class NetworkMessageHandler : IPacketHandler

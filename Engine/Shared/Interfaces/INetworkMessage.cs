@@ -1,5 +1,6 @@
 using Shared.Utils;
 
+using Shared.Buffers;
 namespace Shared.Interfaces;
 
 /// <summary>

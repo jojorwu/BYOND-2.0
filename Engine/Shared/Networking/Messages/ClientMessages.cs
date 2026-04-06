@@ -1,6 +1,7 @@
 using Shared.Interfaces;
 using Shared.Utils;
 
+using Shared.Buffers;
 namespace Shared.Networking.Messages;
 
 public enum ClientMessageType : byte

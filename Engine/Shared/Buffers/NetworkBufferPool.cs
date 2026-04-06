@@ -2,7 +2,7 @@ using System;
 using System.Buffers;
 using Shared.Attributes;
 
-namespace Shared.Services;
+namespace Shared.Buffers;
 
 public interface INetworkBufferPool
 {

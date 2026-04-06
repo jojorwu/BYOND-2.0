@@ -1,6 +1,6 @@
 using System;
 
-namespace Shared.Models;
+namespace Shared.Buffers;
     /// <summary>
     /// Managed double-buffer for thread-safe state reading and writing.
     /// </summary>

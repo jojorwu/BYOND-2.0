@@ -5,6 +5,7 @@ using Shared.Networking.Messages;
 using Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 
+using Shared.Buffers;
 namespace Shared.Networking.Handlers;
 
 public class SnapshotHandler : IPacketHandler

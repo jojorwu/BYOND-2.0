@@ -6,6 +6,7 @@ using Shared.Messaging;
 using Shared.Events;
 using Shared.Config;
 
+using Shared.Buffers;
 namespace Shared.Networking.Handlers;
 
 public class CVarSyncMessageHandler : IMessageHandler

@@ -8,6 +8,7 @@ using Shared.Models;
 using Shared.Services;
 using NUnit.Framework;
 
+using Shared.Buffers;
 namespace Tests;
 
 public class MovementSystem : BaseSystem
@@ -62,6 +63,7 @@ public class EcsDoubleBufferTests
         _serviceProvider = services.BuildServiceProvider();
 
         ComponentIdRegistry.RegisterAll(typeof(TransformComponent).Assembly);
+        ComponentIdRegistry.Freeze();
         await ((IEngineLifecycle)_serviceProvider.GetRequiredService<IComponentManager>()).PostInitializeAsync(default);
     }
 

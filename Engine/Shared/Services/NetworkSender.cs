@@ -5,6 +5,7 @@ using Shared.Utils;
 using Shared.Networking;
 using Shared.Attributes;
 
+using Shared.Buffers;
 namespace Shared.Services;
 
 [EngineService(typeof(INetworkSender))]

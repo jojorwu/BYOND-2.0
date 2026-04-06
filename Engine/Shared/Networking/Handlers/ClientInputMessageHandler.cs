@@ -4,6 +4,7 @@ using Shared.Networking;
 using Shared.Networking.Messages;
 using Microsoft.Extensions.Logging;
 
+using Shared.Buffers;
 namespace Shared.Networking.Handlers;
 
 public class ClientInputMessageHandler : IMessageHandler

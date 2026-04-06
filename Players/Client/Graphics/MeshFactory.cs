@@ -4,8 +4,14 @@ using Silk.NET.OpenGL;
 
 namespace Client.Graphics
 {
+    /// <summary>
+    /// Static factory for generating standard geometric meshes (cubes, planes, etc.).
+    /// </summary>
     public static class MeshFactory
     {
+        /// <summary>
+        /// Creates a standard unit cube mesh (1x1x1) centered at the origin.
+        /// </summary>
         public static Mesh CreateCube(GL gl)
         {
             MeshVertex[] vertices = new[]
@@ -60,6 +66,9 @@ namespace Client.Graphics
             return new Mesh(gl, vertices, indices);
         }
 
+        /// <summary>
+        /// Creates a standard unit plane mesh (1x1) on the XZ plane centered at the origin.
+        /// </summary>
         public static Mesh CreatePlane(GL gl)
         {
             MeshVertex[] vertices = new[]

@@ -37,18 +37,40 @@ namespace Client.Graphics
         void Execute(RenderContext context);
     }
 
-    public class RenderPipeline
+    /// <summary>
+    /// Orchestrates the execution of multiple render passes in a defined order.
+    /// Manages the lifecycle of render passes that implement IDisposable.
+    /// </summary>
+    public class RenderPipeline : IDisposable
     {
         private readonly List<IRenderPass> _passes = new();
 
+        /// <summary>
+        /// Adds a render pass to the end of the pipeline.
+        /// </summary>
         public void AddPass(IRenderPass pass) => _passes.Add(pass);
 
+        /// <summary>
+        /// Executes all registered render passes sequentially.
+        /// </summary>
         public void Execute(RenderContext context)
         {
             foreach (var pass in _passes)
             {
                 pass.Execute(context);
             }
+        }
+
+        public void Dispose()
+        {
+            foreach (var pass in _passes)
+            {
+                if (pass is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
+            _passes.Clear();
         }
     }
 }

@@ -158,11 +158,12 @@ namespace Client
             _cubeMesh = MeshFactory.CreateCube(_gl);
             _camera = new Camera(new Vector2(0, 0), 1.0f);
 
+            var postProcessPass = new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer, _configManager);
             _renderPipeline = new RenderPipeline();
             _renderPipeline.AddPass(new OccluderPass(_occluderMap, _spriteRenderer));
             _renderPipeline.AddPass(new GeometryPass(_gBuffer, _worldRenderer));
             _renderPipeline.AddPass(new LightingPass(_lightingRenderer, _gBuffer, _occluderMap, _sceneFramebuffer, _particleSystem));
-            _renderPipeline.AddPass(new PostProcessPass(_ssaoShader, _bloomShader, _postProcessShader, _occluderMap, _gBuffer, _sceneFramebuffer, _bloomBuffers, _spriteRenderer, _configManager));
+            _renderPipeline.AddPass(postProcessPass);
 
             _ = LoadCSharpShader();
 
@@ -443,6 +444,7 @@ new MyShader()
             _sceneFramebuffer.Dispose();
             _bloomBuffers[0].Dispose();
             _bloomBuffers[1].Dispose();
+            _renderPipeline.Dispose(); // Disposes registered passes
             _sampleGlShader?.Dispose();
             _cubeMesh.Dispose();
             _imGuiController.Dispose();

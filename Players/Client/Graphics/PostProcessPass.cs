@@ -4,7 +4,11 @@ using Robust.Shared.Maths;
 
 namespace Client.Graphics
 {
-    public class PostProcessPass : IRenderPass
+    /// <summary>
+    /// Executes the full post-processing pipeline including SSAO, Bloom, TAA, Tone Mapping, and Color Correction.
+    /// Manages intermediate framebuffers and ensures consistent multi-pass shader execution.
+    /// </summary>
+    public class PostProcessPass : IRenderPass, IDisposable
     {
         private readonly SSAOShader _ssaoShader;
         private readonly BloomShader _bloomShader;
@@ -101,6 +105,11 @@ namespace Client.Graphics
             _spriteRenderer.Begin(Matrix4x4.Identity, Matrix4x4.CreateOrthographicOffCenter(-1, 1, -1, 1, -1, 1));
             _spriteRenderer.Draw(0, new Box2(0, 0, 1, 1), new Vector2(-1, -1), new Vector2(2, 2), Color.White);
             _spriteRenderer.End();
+        }
+
+        public void Dispose()
+        {
+            _historyBuffer?.Dispose();
         }
     }
 }

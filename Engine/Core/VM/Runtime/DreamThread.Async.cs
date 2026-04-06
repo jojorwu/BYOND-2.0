@@ -32,25 +32,27 @@ namespace Core.VM.Runtime
                     return true;
                 }
 
-                var taskType = _suspendedTask.GetType();
-                if (taskType.IsGenericType && taskType.GetGenericTypeDefinition() == typeof(Task<>))
+                if (_suspendedTask is Task<DreamValue> dvTask)
                 {
-                    var resultProperty = taskType.GetProperty("Result");
-                    var result = resultProperty?.GetValue(_suspendedTask);
-
-                    if (result is List<Vector3l> path && Context?.ListType != null)
+                    Push(dvTask.Result);
+                }
+                else if (_suspendedTask is Task<List<Vector3l>> pathTask && Context?.ListType != null)
+                {
+                    var path = pathTask.Result;
+                    var list = new DreamList(Context.ListType, path.Count);
+                    foreach (var pos in path)
                     {
-                        var list = new DreamList(Context.ListType, path.Count);
-                        foreach (var pos in path)
-                        {
-                            // For now, represent positions as strings or special objects
-                            // In a real implementation, we'd probably have /datum/vector or /turf
-                            list.AddValue(new DreamValue($"{pos.X},{pos.Y},{pos.Z}"));
-                        }
-                        Push(new DreamValue(list));
+                        list.AddValue(new DreamValue($"{pos.X},{pos.Y},{pos.Z}"));
                     }
-                    else
+                    Push(new DreamValue(list));
+                }
+                else
+                {
+                    var taskType = _suspendedTask.GetType();
+                    if (taskType.IsGenericType && taskType.GetGenericTypeDefinition() == typeof(Task<>))
                     {
+                        var resultProperty = taskType.GetProperty("Result");
+                        var result = resultProperty?.GetValue(_suspendedTask);
                         Push(DreamValue.FromObject(result));
                     }
                 }

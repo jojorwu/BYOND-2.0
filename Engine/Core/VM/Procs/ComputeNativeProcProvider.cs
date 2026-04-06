@@ -36,7 +36,10 @@ namespace Core.VM.Procs
 
             var task = _pathfinding.FindPathAsync(start, end, maxDepth);
             thread.SuspendUntil(task);
-            return DreamValue.Null;
+
+            // Return a special internal value to indicate suspension
+            // The interpreter loop will skip pushing this value to the stack.
+            return DreamValue.Suspended;
         }
 
         private DreamValue RunJob(DreamThread thread, DreamObject? src, ReadOnlySpan<DreamValue> arguments)

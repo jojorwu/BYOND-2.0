@@ -178,7 +178,12 @@ public unsafe partial class BytecodeInterpreter
             try
             {
                 var result = nativeProc.Call(state.Thread, instance, arguments);
-                state.Push(result);
+                // If the native proc suspended the thread, do not push a return value yet.
+                // The return value will be pushed when the thread resumes in DreamThread.Async.cs
+                if (result.Type != DreamValueType.SuspendedMarker)
+                {
+                    state.Push(result);
+                }
             }
             catch (Exception e)
             {

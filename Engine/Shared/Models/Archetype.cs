@@ -195,34 +195,45 @@ public class Archetype
         }
     }
 
+    /// <summary>
+    /// Core method for adding an entity and its properties to the SoA layout.
+    /// </summary>
+    private int PrepareEntitySlot(IGameObject entity)
+    {
+        EnsureCapacity(_count + 1);
+        int index = _count++;
+
+        ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
+        Unsafe.Add(ref entityId, index) = entity.Id;
+
+        ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
+        Unsafe.Add(ref entitiesRef, index) = entity;
+
+        _xs[index] = entity.X;
+        _ys[index] = entity.Y;
+        _zs[index] = entity.Z;
+        _dirs[index] = entity.Dir;
+        _alphas[index] = entity.Alpha;
+        _layers[index] = entity.Layer;
+        _pixelXs[index] = entity.PixelX;
+        _pixelYs[index] = entity.PixelY;
+        _colors[index] = entity.Color;
+        _icons[index] = entity.Icon;
+        _iconStates[index] = entity.IconState;
+        _rotations[index] = entity.Rotation;
+        _opacities[index] = entity is GameObject g ? g.Opacity : 0;
+
+        _entityIdToIndex[entity.Id] = index;
+        entity.Archetype = this;
+        entity.ArchetypeIndex = index;
+        return index;
+    }
+
     public void AddEntity(IGameObject entity, IDictionary<Type, IComponent> components)
     {
         using (_lock.EnterScope())
         {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
-
-            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
-            Unsafe.Add(ref entityId, index) = entity.Id;
-
-            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
-            Unsafe.Add(ref entitiesRef, index) = entity;
-
-            _xs[index] = entity.X;
-            _ys[index] = entity.Y;
-            _zs[index] = entity.Z;
-            _dirs[index] = entity.Dir;
-            _alphas[index] = entity.Alpha;
-            _layers[index] = entity.Layer;
-            _pixelXs[index] = entity.PixelX;
-            _pixelYs[index] = entity.PixelY;
-            _colors[index] = entity.Color;
-            _icons[index] = entity.Icon;
-            _iconStates[index] = entity.IconState;
-            _rotations[index] = entity.Rotation;
-            _opacities[index] = entity is GameObject g ? g.Opacity : 0;
-
-            _entityIdToIndex[entity.Id] = index;
+            int index = PrepareEntitySlot(entity);
 
             var signatureTypes = Signature.Types;
             var signatureIds = Signature.ComponentIds;
@@ -235,8 +246,6 @@ public class Archetype
                     _componentArrays[id]?.Set(index, comp);
                 }
             }
-            entity.Archetype = this;
-            entity.ArchetypeIndex = index;
         }
     }
 
@@ -244,30 +253,7 @@ public class Archetype
     {
         using (_lock.EnterScope())
         {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
-
-            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
-            Unsafe.Add(ref entityId, index) = entity.Id;
-
-            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
-            Unsafe.Add(ref entitiesRef, index) = entity;
-
-            _xs[index] = entity.X;
-            _ys[index] = entity.Y;
-            _zs[index] = entity.Z;
-            _dirs[index] = entity.Dir;
-            _alphas[index] = entity.Alpha;
-            _layers[index] = entity.Layer;
-            _pixelXs[index] = entity.PixelX;
-            _pixelYs[index] = entity.PixelY;
-            _colors[index] = entity.Color;
-            _icons[index] = entity.Icon;
-            _iconStates[index] = entity.IconState;
-            _rotations[index] = entity.Rotation;
-            _opacities[index] = entity is GameObject g ? g.Opacity : 0;
-
-            _entityIdToIndex[entity.Id] = index;
+            int index = PrepareEntitySlot(entity);
 
             var signatureTypes = Signature.Types;
             var signatureIds = Signature.ComponentIds;
@@ -281,104 +267,19 @@ public class Archetype
                     else _dataComponentArrays[id]?.Set(index, comp);
                 }
             }
-            entity.Archetype = this;
-            entity.ArchetypeIndex = index;
         }
     }
 
     /// <summary>
     /// Optimized direct transfer between archetypes.
-    /// </summary>
-    public void AddEntity(IGameObject entity, Archetype? sourceArchetype, int sourceIndex, (Type Type, IComponent Component)? additional = null, Type? ignoreType = null)
-    {
-        using (_lock.EnterScope())
-        {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
-
-            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
-            Unsafe.Add(ref entityId, index) = entity.Id;
-
-            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
-            Unsafe.Add(ref entitiesRef, index) = entity;
-
-            _xs[index] = entity.X;
-            _ys[index] = entity.Y;
-            _zs[index] = entity.Z;
-            _dirs[index] = entity.Dir;
-            _alphas[index] = entity.Alpha;
-            _layers[index] = entity.Layer;
-            _pixelXs[index] = entity.PixelX;
-            _pixelYs[index] = entity.PixelY;
-            _colors[index] = entity.Color;
-            _icons[index] = entity.Icon;
-            _iconStates[index] = entity.IconState;
-            _rotations[index] = entity.Rotation;
-            _opacities[index] = entity is GameObject g ? g.Opacity : 0;
-
-            _entityIdToIndex[entity.Id] = index;
-
-            var targetArrays = _componentArrays;
-            var signatureTypes = Signature.Types;
-            var signatureIds = Signature.ComponentIds;
-
-            for (int i = 0; i < signatureTypes.Length; i++)
-            {
-                var type = signatureTypes[i];
-                int id = signatureIds[i];
-
-                if (additional.HasValue && additional.Value.Type == type)
-                {
-                    var comp = additional.Value.Component;
-                    _componentArrays[id]?.Set(index, comp);
-                }
-                else if (ignoreType != type && sourceArchetype != null)
-                {
-                    if (_componentArrays[id] != null)
-                        sourceArchetype.GetComponentsInternal(id)?.CopyTo(sourceIndex, _componentArrays[id]!, index);
-                    else
-                        sourceArchetype.GetDataComponentsInternal(id)?.CopyTo(sourceIndex, _dataComponentArrays[id]!, index);
-                }
-            }
-
-            entity.Archetype = this;
-            entity.ArchetypeIndex = index;
-        }
-    }
-
-    /// <summary>
-    /// Optimized direct transfer between archetypes.
+    /// Supports both class and struct components.
     /// </summary>
     public void AddEntity(IGameObject entity, Archetype? sourceArchetype, int sourceIndex, (Type Type, object Component)? additional = null, Type? ignoreType = null)
     {
         using (_lock.EnterScope())
         {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
+            int index = PrepareEntitySlot(entity);
 
-            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
-            Unsafe.Add(ref entityId, index) = entity.Id;
-
-            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
-            Unsafe.Add(ref entitiesRef, index) = entity;
-
-            _xs[index] = entity.X;
-            _ys[index] = entity.Y;
-            _zs[index] = entity.Z;
-            _dirs[index] = entity.Dir;
-            _alphas[index] = entity.Alpha;
-            _layers[index] = entity.Layer;
-            _pixelXs[index] = entity.PixelX;
-            _pixelYs[index] = entity.PixelY;
-            _colors[index] = entity.Color;
-            _icons[index] = entity.Icon;
-            _iconStates[index] = entity.IconState;
-            _rotations[index] = entity.Rotation;
-            _opacities[index] = entity is GameObject g ? g.Opacity : 0;
-
-            _entityIdToIndex[entity.Id] = index;
-
-            var targetArrays = _componentArrays;
             var signatureTypes = Signature.Types;
             var signatureIds = Signature.ComponentIds;
 
@@ -401,9 +302,6 @@ public class Archetype
                         sourceArchetype.GetDataComponentsInternal(id)?.CopyTo(sourceIndex, _dataComponentArrays[id]!, index);
                 }
             }
-
-            entity.Archetype = this;
-            entity.ArchetypeIndex = index;
         }
     }
 
@@ -892,7 +790,7 @@ public class Archetype
         }
     }
 
-    public IComponent? GetComponent(long entityId, Type type)
+    public object? GetComponent(long entityId, Type type)
     {
         using (_lock.EnterScope())
         {
@@ -904,7 +802,7 @@ public class Archetype
                     if (id < _dataComponentArrays.Length)
                     {
                         var array = _dataComponentArrays[id];
-                        if (array != null) return (IComponent)array.Get(index);
+                        if (array != null) return array.Get(index);
                     }
                 }
                 else if (typeof(IComponent).IsAssignableFrom(type))
@@ -912,7 +810,7 @@ public class Archetype
                     if (id < _componentArrays.Length)
                     {
                         var array = _componentArrays[id];
-                        if (array != null) return (IComponent)array.Get(index);
+                        if (array != null) return array.Get(index);
                     }
                 }
             }

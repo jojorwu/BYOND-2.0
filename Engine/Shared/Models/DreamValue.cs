@@ -45,6 +45,12 @@ namespace Shared;
         public static readonly DreamValue True = new DreamValue(1.0);
         public static readonly DreamValue False = new DreamValue(0.0);
 
+        /// <summary>
+        /// A special marker value used internally by the VM to indicate that a procedure
+        /// has been suspended and its return value will be provided later.
+        /// </summary>
+        public static readonly DreamValue Suspended = new DreamValue(DreamValueType.SuspendedMarker, 0, null);
+
         public bool IsNull
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]

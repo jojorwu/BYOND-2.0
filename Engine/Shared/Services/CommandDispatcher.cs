@@ -5,9 +5,11 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(ICommandDispatcher))]
 public class CommandDispatcher : EngineService, ICommandDispatcher, IDisposable
 {
     private readonly Channel<ICommand> _commandChannel;

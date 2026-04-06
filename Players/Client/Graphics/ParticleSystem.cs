@@ -6,12 +6,20 @@ using Robust.Shared.Maths;
 
 namespace Client.Graphics
 {
+    /// <summary>
+    /// High-performance particle system using hardware-accelerated point sprites.
+    /// Utilizes Triple-Buffering and Buffer Orphaning for zero-wait GPU synchronization.
+    /// </summary>
     public class ParticleSystem : IDisposable
     {
+        private const int MaxParticles = 16384;
+        private const int BufferCount = 3;
+
         private readonly GL _gl;
         private readonly Shader _shader;
         private readonly uint _vao;
-        private readonly uint _vbo;
+        private readonly uint[] _vbos = new uint[BufferCount];
+        private int _currentBufferIndex = 0;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct Particle
@@ -23,10 +31,8 @@ namespace Client.Graphics
             public float MaxLife;
         }
 
-        private const int MaxParticles = 10000;
         private readonly Particle[] _particles = new Particle[MaxParticles];
         private int _activeCount = 0;
-        private readonly Random _random = new();
 
         public ParticleSystem(GL gl)
         {
@@ -52,18 +58,26 @@ void main() {
             _shader = new Shader(_gl, vert, frag);
 
             _vao = _gl.GenVertexArray();
-            _vbo = _gl.GenBuffer();
-
             _gl.BindVertexArray(_vao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            unsafe {
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxParticles * sizeof(Particle)), null, BufferUsageARB.DynamicDraw);
 
-                _gl.EnableVertexAttribArray(0);
-                _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, (uint)sizeof(Particle), (void*)0);
+            for (int i = 0; i < BufferCount; i++)
+            {
+                _vbos[i] = _gl.GenBuffer();
+                _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbos[i]);
+                unsafe
+                {
+                    _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxParticles * sizeof(Particle)), null, BufferUsageARB.DynamicDraw);
+                }
+            }
 
-                _gl.EnableVertexAttribArray(1);
-                _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, (uint)sizeof(Particle), (void*)16);
+            unsafe
+            {
+                var size = (uint)sizeof(Particle);
+                _gl.EnableVertexAttribArray(0); // Position
+                _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, size, (void*)0);
+
+                _gl.EnableVertexAttribArray(1); // Color
+                _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, size, (void*)16);
             }
         }
 
@@ -81,34 +95,59 @@ void main() {
             }
         }
 
+        /// <summary>
+        /// Updates the simulation of all active particles.
+        /// Performs lifetime management and physics integration.
+        /// </summary>
         public void Update(float deltaTime)
         {
-            for (int i = 0; i < _activeCount; i++)
+            var particles = _particles.AsSpan(0, _activeCount);
+            for (int i = 0; i < particles.Length; i++)
             {
-                _particles[i].Position += _particles[i].Velocity * deltaTime;
-                _particles[i].Life -= deltaTime;
-                _particles[i].Color.W = _particles[i].Life / _particles[i].MaxLife;
+                ref var p = ref particles[i];
+                p.Position += p.Velocity * deltaTime;
+                p.Life -= deltaTime;
+                p.Color.W = p.Life / p.MaxLife;
 
-                if (_particles[i].Life <= 0)
+                if (p.Life <= 0)
                 {
-                    _particles[i] = _particles[--_activeCount];
+                    particles[i] = particles[particles.Length - 1];
+                    _activeCount--;
+                    particles = _particles.AsSpan(0, _activeCount);
                     i--;
                 }
             }
         }
 
+        /// <summary>
+        /// Renders all active particles to the screen.
+        /// Utilizes Buffer Orphaning to avoid driver synchronization stalls.
+        /// </summary>
         public unsafe void Render(Matrix4x4 view, Matrix4x4 projection)
         {
             if (_activeCount == 0) return;
 
             _shader.Use();
-            _shader.SetUniform("uProjection", projection);
-            _shader.SetUniform("uView", view);
+            _shader.SetCameraMatrices(view, projection);
 
             _gl.BindVertexArray(_vao);
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-            fixed(Particle* p = _particles)
+
+            // Cycle buffers for Triple-Buffering
+            _currentBufferIndex = (_currentBufferIndex + 1) % BufferCount;
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbos[_currentBufferIndex]);
+
+            // Buffer Orphaning: Reallocate current buffer to avoid stalling on previous frames
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(MaxParticles * sizeof(Particle)), null, BufferUsageARB.DynamicDraw);
+
+            fixed (Particle* p = &_particles[0])
+            {
                 _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_activeCount * sizeof(Particle)), p);
+            }
+
+            // Re-bind attributes for the new VBO
+            var size = (uint)sizeof(Particle);
+            _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, size, (void*)0);
+            _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, size, (void*)16);
 
             _gl.Enable(EnableCap.ProgramPointSize);
             _gl.DrawArrays(PrimitiveType.Points, 0, (uint)_activeCount);
@@ -118,7 +157,10 @@ void main() {
         {
             _shader.Dispose();
             _gl.DeleteVertexArray(_vao);
-            _gl.DeleteBuffer(_vbo);
+            for (int i = 0; i < BufferCount; i++)
+            {
+                _gl.DeleteBuffer(_vbos[i]);
+            }
         }
     }
 }

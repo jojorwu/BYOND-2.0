@@ -5,8 +5,10 @@ using System.Linq;
 using System.Threading;
 using Shared.Interfaces;
 using Robust.Shared.Maths;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService(typeof(IInterestManager))]
     public class InterestManager : EngineService, IInterestManager
     {
         private readonly SpatialGrid _spatialGrid;

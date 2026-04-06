@@ -71,7 +71,7 @@ public class ComponentsFieldHandler : INetworkFieldHandler
                 int startBits = reader.BitsRead;
                 finder.Found.ReadState(ref reader);
                 int actualRead = reader.BitsRead - startBits;
-                if (actualRead != payloadBits) reader.SkipBits(payloadBits - actualRead);
+                if (actualRead < payloadBits) reader.SkipBits(payloadBits - actualRead);
             }
             else
             {

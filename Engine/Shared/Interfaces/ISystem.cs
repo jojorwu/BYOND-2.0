@@ -64,6 +64,14 @@ namespace Shared.Interfaces;
         void Tick(Archetype archetype, IEntityCommandBuffer ecb) { }
 
         /// <summary>
+        /// Process an archetype chunk directly. Highly optimized for SoA data.
+        /// </summary>
+        ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        /// <summary>
         /// Executed after the main tick phase.
         /// </summary>
         void PostTick() { }

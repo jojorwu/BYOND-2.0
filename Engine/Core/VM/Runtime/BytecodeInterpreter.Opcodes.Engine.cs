@@ -619,7 +619,13 @@ public unsafe partial class BytecodeInterpreter
             var arguments = state.StackSpan.Slice(state.StackPtr - argCount, argCount);
 
             state.StackPtr = stackBase;
-            state.Push(nativeProc.Call(state.Thread, null, arguments));
+            var result = nativeProc.Call(state.Thread, null, arguments);
+            // If the native proc suspended the thread, do not push a return value yet.
+            // The return value will be pushed when the thread resumes.
+            if (result.Type != DreamValueType.SuspendedMarker)
+            {
+                state.Push(result);
+            }
             return;
         }
 

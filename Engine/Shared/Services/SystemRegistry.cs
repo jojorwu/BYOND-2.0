@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService(typeof(ISystemRegistry))]
     public class SystemRegistry : ISystemRegistry
     {
         public event Action? SystemsChanged;

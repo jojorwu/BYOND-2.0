@@ -5,9 +5,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IResourceSystem))]
 public class ResourceSystem : EngineService, IResourceSystem, IShrinkable
 {
     private readonly IVfsManager _vfs;

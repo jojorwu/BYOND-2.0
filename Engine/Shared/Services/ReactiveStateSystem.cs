@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Models;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
@@ -10,6 +11,7 @@ namespace Shared.Services;
 /// Core engine service that aggregates individual object changes into optimized batches.
 /// Transitions from a polling-based dirty object model to a reactive push-based one.
 /// </summary>
+[EngineService(typeof(IVariableChangeListener))]
 public class ReactiveStateSystem : EngineService, IVariableChangeListener, IShrinkable, ITickable
 {
     private readonly ConcurrentDictionary<long, DeltaBatch> _activeBatches = new();

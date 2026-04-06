@@ -5,6 +5,10 @@ using System.Numerics;
 
 namespace Client.Graphics
 {
+    /// <summary>
+    /// Encapsulates an OpenGL shader program and manages uniform access.
+    /// Caches uniform locations to minimize driver calls during rendering.
+    /// </summary>
     public class Shader : IDisposable
     {
         private readonly GL _gl;
@@ -50,6 +54,15 @@ namespace Client.Graphics
         {
             int location = GetUniformLocation(name);
             _gl.Uniform1(location, value);
+        }
+
+        /// <summary>
+        /// Binds common view and projection matrices to the shader.
+        /// </summary>
+        public void SetCameraMatrices(Matrix4x4 view, Matrix4x4 projection)
+        {
+            SetUniform("uView", view);
+            SetUniform("uProjection", projection);
         }
 
         public unsafe void SetUniform(string name, Matrix4x4 value)

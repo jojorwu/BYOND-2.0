@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
@@ -16,7 +17,8 @@ public interface ICommandHistoryService
     void Clear();
 }
 
-public class CommandHistoryService : ICommandHistoryService
+[EngineService(typeof(ICommandHistoryService))]
+public class CommandHistoryService : EngineService, ICommandHistoryService
 {
     private readonly Stack<IReversibleCommand> _undoStack = new();
     private readonly Stack<IReversibleCommand> _redoStack = new();

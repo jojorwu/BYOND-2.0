@@ -34,22 +34,28 @@ public class EntityQuery : IEntityQuery
     public long Version => Query.Version;
 }
 
-public class EntityQuery<T1> : EntityQuery where T1 : class, IComponent
+public class EntityQuery<T1> : EntityQuery
 {
     public EntityQuery(IComponentQueryService queryService) : base(queryService, typeof(T1)) { }
+
+    public virtual IEnumerable<ArchetypeChunk<T1>> GetChunks(int chunkSize = 1024)
+    {
+        foreach (var arch in GetMatchingArchetypes())
+        {
+            foreach (var chunk in arch.GetChunks<T1>(chunkSize))
+            {
+                yield return chunk;
+            }
+        }
+    }
 }
 
 public class EntityQuery<T1, T2> : EntityQuery
-    where T1 : class, IComponent
-    where T2 : class, IComponent
 {
     public EntityQuery(IComponentQueryService queryService) : base(queryService, typeof(T1), typeof(T2)) { }
 }
 
 public class EntityQuery<T1, T2, T3> : EntityQuery
-    where T1 : class, IComponent
-    where T2 : class, IComponent
-    where T3 : class, IComponent
 {
     public EntityQuery(IComponentQueryService queryService) : base(queryService, typeof(T1), typeof(T2), typeof(T3)) { }
 }

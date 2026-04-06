@@ -7,8 +7,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Microsoft.Extensions.Logging;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService(typeof(IEngineManager))]
     public class EngineManager : EngineService, IEngineManager
     {
         private string _basePath;

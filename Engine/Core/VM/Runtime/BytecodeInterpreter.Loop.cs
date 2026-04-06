@@ -37,8 +37,22 @@ public unsafe partial class BytecodeInterpreter
         long maxInstructions = thread._maxInstructions;
 
         var telemetry = _telemetry ??= new ThreadTelemetry { LastReportTime = System.Diagnostics.Stopwatch.GetTimestamp() };
-        while (thread.State == DreamThreadState.Running)
+        while (thread.State == DreamThreadState.Running || thread.State == DreamThreadState.Suspended)
         {
+            if (thread.State == DreamThreadState.Suspended)
+            {
+                if (thread.CheckSuspension())
+                {
+                    state.StackPtr = thread._stackPtr;
+                    state.RefreshSpans();
+                }
+                else
+                {
+                    // Still suspended, yield execution for now
+                    goto Done;
+                }
+            }
+
             ReportTelemetry();
             try
             {

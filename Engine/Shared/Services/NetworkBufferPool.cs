@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
@@ -9,6 +10,7 @@ public interface INetworkBufferPool
     void Return(byte[] buffer);
 }
 
+[EngineService(typeof(INetworkBufferPool))]
 public class NetworkBufferPool : INetworkBufferPool
 {
     private readonly ArrayPool<byte> _pool = ArrayPool<byte>.Shared;

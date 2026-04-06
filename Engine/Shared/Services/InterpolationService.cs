@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using Shared.Interfaces;
 using Shared.Models;
 using Shared.Enums;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IStateInterpolator))]
 public class InterpolationService : IStateInterpolator
 {
     private readonly List<INetworkFieldHandler> _fieldHandlers;

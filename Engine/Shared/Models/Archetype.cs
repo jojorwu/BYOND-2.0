@@ -6,24 +6,56 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using Shared.Interfaces;
 using Shared.Enums;
 
 namespace Shared.Models;
 
-public readonly struct ArchetypeChunk<T> where T : class, IComponent
+public readonly struct ArchetypeChunk<T>
 {
     public readonly T[] Components;
     public readonly long[] EntityIds;
     public readonly IGameObject[] Entities;
+    public readonly long[] Xs;
+    public readonly long[] Ys;
+    public readonly long[] Zs;
+    public readonly int[] Dirs;
+    public readonly double[] Alphas;
+    public readonly double[] Layers;
+    public readonly double[] PixelXs;
+    public readonly double[] PixelYs;
+    public readonly string[] Colors;
+    public readonly string[] Icons;
+    public readonly string[] IconStates;
+    public readonly float[] Rotations;
+    public readonly double[] Opacities;
+
     public readonly int Offset;
     public readonly int Count;
 
-    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities, int offset, int count)
+    public ArchetypeChunk(T[] components, long[] entityIds, IGameObject[] entities,
+        long[] xs, long[] ys, long[] zs, int[] dirs, double[] alphas, double[] layers,
+        double[] pixelXs, double[] pixelYs, string[] colors, string[] icons, string[] iconStates, float[] rotations,
+        double[] opacities,
+        int offset, int count)
     {
         Components = components;
         EntityIds = entityIds;
         Entities = entities;
+        Xs = xs;
+        Ys = ys;
+        Zs = zs;
+        Dirs = dirs;
+        Alphas = alphas;
+        Layers = layers;
+        PixelXs = pixelXs;
+        PixelYs = pixelYs;
+        Colors = colors;
+        Icons = icons;
+        IconStates = iconStates;
+        Rotations = rotations;
+        Opacities = opacities;
         Offset = offset;
         Count = count;
     }
@@ -32,18 +64,48 @@ public readonly struct ArchetypeChunk<T> where T : class, IComponent
     public Span<T> ComponentsMutableSpan => Components.AsSpan(Offset, Count);
     public ReadOnlySpan<long> EntityIdsSpan => EntityIds.AsSpan(Offset, Count);
     public ReadOnlySpan<IGameObject> EntitiesSpan => Entities.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> XsSpan => Xs.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> YsSpan => Ys.AsSpan(Offset, Count);
+    public ReadOnlySpan<long> ZsSpan => Zs.AsSpan(Offset, Count);
+    public ReadOnlySpan<int> DirsSpan => Dirs.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> AlphasSpan => Alphas.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> LayersSpan => Layers.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> PixelXsSpan => PixelXs.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> PixelYsSpan => PixelYs.AsSpan(Offset, Count);
+    public ReadOnlySpan<string> ColorsSpan => Colors.AsSpan(Offset, Count);
+    public ReadOnlySpan<string> IconsSpan => Icons.AsSpan(Offset, Count);
+    public ReadOnlySpan<string> IconStatesSpan => IconStates.AsSpan(Offset, Count);
+    public ReadOnlySpan<float> RotationsSpan => Rotations.AsSpan(Offset, Count);
+    public ReadOnlySpan<double> OpacitiesSpan => Opacities.AsSpan(Offset, Count);
 }
 
 /// <summary>
 /// Stores entities with the exact same component composition in contiguous memory.
+/// Utilizes a Structure-of-Arrays (SoA) layout to maximize cache locality for simulation and rendering.
 /// </summary>
 public class Archetype
 {
     private long[] _entityIds = System.Array.Empty<long>();
     private IGameObject[] _entities = System.Array.Empty<IGameObject>();
+    private long[] _xs = Array.Empty<long>();
+    private long[] _ys = Array.Empty<long>();
+    private long[] _zs = Array.Empty<long>();
+    private int[] _dirs = Array.Empty<int>();
+    private double[] _alphas = Array.Empty<double>();
+    private double[] _layers = Array.Empty<double>();
+    private double[] _pixelXs = Array.Empty<double>();
+    private double[] _pixelYs = Array.Empty<double>();
+    private string[] _colors = Array.Empty<string>();
+    private string[] _icons = Array.Empty<string>();
+    private string[] _iconStates = Array.Empty<string>();
+    private float[] _rotations = Array.Empty<float>();
+    private double[] _opacities = Array.Empty<double>();
+
     private readonly Dictionary<long, int> _entityIdToIndex = new();
     internal readonly IComponentArray?[] _componentArrays;
+    internal readonly IDataComponentArray?[] _dataComponentArrays;
     private IComponentArray[] _activeArrays = Array.Empty<IComponentArray>();
+    private IDataComponentArray[] _activeDataArrays = Array.Empty<IDataComponentArray>();
     internal readonly ConcurrentDictionary<Type, Archetype> AddTransitions = new();
     internal readonly ConcurrentDictionary<Type, Archetype> RemoveTransitions = new();
     private readonly System.Threading.Lock _lock = new();
@@ -58,18 +120,39 @@ public class Archetype
     public Archetype(ComponentSignature signature)
     {
         Signature = signature;
-        _componentArrays = new IComponentArray[Services.ComponentIdRegistry.Count + 32]; // Buffer for new types
+        int typeCount = Services.ComponentIdRegistry.Count + 32;
+        _componentArrays = new IComponentArray[typeCount];
+        _dataComponentArrays = new IDataComponentArray[typeCount];
+
         var active = new List<IComponentArray>();
+        var activeData = new List<IDataComponentArray>();
+
         foreach (var type in signature.Types)
         {
-            var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
             int id = Services.ComponentIdRegistry.GetId(type);
-            if (id >= _componentArrays.Length) Array.Resize(ref _componentArrays, id + 16);
-            var array = (IComponentArray)Activator.CreateInstance(arrayType)!;
-            _componentArrays[id] = array;
-            active.Add(array);
+            if (id >= _componentArrays.Length)
+            {
+                Array.Resize(ref _componentArrays, id + 16);
+                Array.Resize(ref _dataComponentArrays, id + 16);
+            }
+
+            if (typeof(IDataComponent).IsAssignableFrom(type))
+            {
+                var arrayType = typeof(DataComponentArray<>).MakeGenericType(type);
+                var array = (IDataComponentArray)Activator.CreateInstance(arrayType)!;
+                _dataComponentArrays[id] = array;
+                activeData.Add(array);
+            }
+            else if (typeof(IComponent).IsAssignableFrom(type))
+            {
+                var arrayType = typeof(ComponentArray<>).MakeGenericType(type);
+                var array = (IComponentArray)Activator.CreateInstance(arrayType)!;
+                _componentArrays[id] = array;
+                active.Add(array);
+            }
         }
         _activeArrays = active.ToArray();
+        _activeDataArrays = activeData.ToArray();
     }
 
     public int EntityCount => _count;
@@ -83,6 +166,19 @@ public class Archetype
 
         System.Array.Resize(ref _entityIds, _capacity);
         System.Array.Resize(ref _entities, _capacity);
+        Array.Resize(ref _xs, _capacity);
+        Array.Resize(ref _ys, _capacity);
+        Array.Resize(ref _zs, _capacity);
+        Array.Resize(ref _dirs, _capacity);
+        Array.Resize(ref _alphas, _capacity);
+        Array.Resize(ref _layers, _capacity);
+        Array.Resize(ref _pixelXs, _capacity);
+        Array.Resize(ref _pixelYs, _capacity);
+        Array.Resize(ref _colors, _capacity);
+        Array.Resize(ref _icons, _capacity);
+        Array.Resize(ref _iconStates, _capacity);
+        Array.Resize(ref _rotations, _capacity);
+        Array.Resize(ref _opacities, _capacity);
 
         // Pre-size dictionary to avoid rehashing during bursts of additions
         _entityIdToIndex.EnsureCapacity(_capacity);
@@ -92,54 +188,98 @@ public class Archetype
         {
             arrays[i].Resize(_capacity);
         }
+        var dataArrays = _activeDataArrays;
+        for (int i = 0; i < dataArrays.Length; i++)
+        {
+            dataArrays[i].Resize(_capacity);
+        }
+    }
+
+    /// <summary>
+    /// Core method for adding an entity and its properties to the SoA layout.
+    /// </summary>
+    private int PrepareEntitySlot(IGameObject entity)
+    {
+        EnsureCapacity(_count + 1);
+        int index = _count++;
+
+        ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
+        Unsafe.Add(ref entityId, index) = entity.Id;
+
+        ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
+        Unsafe.Add(ref entitiesRef, index) = entity;
+
+        _xs[index] = entity.X;
+        _ys[index] = entity.Y;
+        _zs[index] = entity.Z;
+        _dirs[index] = entity.Dir;
+        _alphas[index] = entity.Alpha;
+        _layers[index] = entity.Layer;
+        _pixelXs[index] = entity.PixelX;
+        _pixelYs[index] = entity.PixelY;
+        _colors[index] = entity.Color;
+        _icons[index] = entity.Icon;
+        _iconStates[index] = entity.IconState;
+        _rotations[index] = entity.Rotation;
+        _opacities[index] = entity is GameObject g ? g.Opacity : 0;
+
+        _entityIdToIndex[entity.Id] = index;
+        entity.Archetype = this;
+        entity.ArchetypeIndex = index;
+        return index;
     }
 
     public void AddEntity(IGameObject entity, IDictionary<Type, IComponent> components)
     {
         using (_lock.EnterScope())
         {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
-
-            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
-            Unsafe.Add(ref entityId, index) = entity.Id;
-
-            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
-            Unsafe.Add(ref entitiesRef, index) = entity;
-
-            _entityIdToIndex[entity.Id] = index;
+            int index = PrepareEntitySlot(entity);
 
             var signatureTypes = Signature.Types;
             var signatureIds = Signature.ComponentIds;
             for (int i = 0; i < signatureTypes.Length; i++)
             {
-                if (components.TryGetValue(signatureTypes[i], out var comp))
-                    _componentArrays[signatureIds[i]]!.Set(index, comp);
+                var type = signatureTypes[i];
+                int id = signatureIds[i];
+                if (components.TryGetValue(type, out var comp))
+                {
+                    _componentArrays[id]?.Set(index, comp);
+                }
             }
-            entity.Archetype = this;
-            entity.ArchetypeIndex = index;
+        }
+    }
+
+    public void AddEntity(IGameObject entity, IDictionary<Type, object> components)
+    {
+        using (_lock.EnterScope())
+        {
+            int index = PrepareEntitySlot(entity);
+
+            var signatureTypes = Signature.Types;
+            var signatureIds = Signature.ComponentIds;
+            for (int i = 0; i < signatureTypes.Length; i++)
+            {
+                var type = signatureTypes[i];
+                int id = signatureIds[i];
+                if (components.TryGetValue(type, out var comp))
+                {
+                    if (comp is IComponent ic) _componentArrays[id]?.Set(index, ic);
+                    else _dataComponentArrays[id]?.Set(index, comp);
+                }
+            }
         }
     }
 
     /// <summary>
     /// Optimized direct transfer between archetypes.
+    /// Supports both class and struct components.
     /// </summary>
-    public void AddEntity(IGameObject entity, Archetype? sourceArchetype, int sourceIndex, (Type Type, IComponent Component)? additional = null, Type? ignoreType = null)
+    public void AddEntity(IGameObject entity, Archetype? sourceArchetype, int sourceIndex, (Type Type, object Component)? additional = null, Type? ignoreType = null)
     {
         using (_lock.EnterScope())
         {
-            EnsureCapacity(_count + 1);
-            int index = _count++;
+            int index = PrepareEntitySlot(entity);
 
-            ref long entityId = ref MemoryMarshal.GetArrayDataReference(_entityIds);
-            Unsafe.Add(ref entityId, index) = entity.Id;
-
-            ref IGameObject entitiesRef = ref MemoryMarshal.GetArrayDataReference(_entities);
-            Unsafe.Add(ref entitiesRef, index) = entity;
-
-            _entityIdToIndex[entity.Id] = index;
-
-            var targetArrays = _componentArrays;
             var signatureTypes = Signature.Types;
             var signatureIds = Signature.ComponentIds;
 
@@ -150,17 +290,18 @@ public class Archetype
 
                 if (additional.HasValue && additional.Value.Type == type)
                 {
-                    targetArrays[id]!.Set(index, additional.Value.Component);
+                    var comp = additional.Value.Component;
+                    if (comp is IComponent ic) _componentArrays[id]?.Set(index, ic);
+                    else _dataComponentArrays[id]?.Set(index, comp);
                 }
                 else if (ignoreType != type && sourceArchetype != null)
                 {
-                    var sourceArray = sourceArchetype.GetComponentsInternal(id);
-                    sourceArray?.CopyTo(sourceIndex, targetArrays[id]!, index);
+                    if (_componentArrays[id] != null)
+                        sourceArchetype.GetComponentsInternal(id)?.CopyTo(sourceIndex, _componentArrays[id]!, index);
+                    else
+                        sourceArchetype.GetDataComponentsInternal(id)?.CopyTo(sourceIndex, _dataComponentArrays[id]!, index);
                 }
             }
-
-            entity.Archetype = this;
-            entity.ArchetypeIndex = index;
         }
     }
 
@@ -183,6 +324,7 @@ public class Archetype
 
             int lastIndex = _count - 1;
             var arrays = _activeArrays;
+            var dataArrays = _activeDataArrays;
 
             // Optimization: If the entity is already the last one, we skip the swap and copy
             if (index != lastIndex)
@@ -193,11 +335,29 @@ public class Archetype
 
                 Unsafe.Add(ref entityIdsRef, index) = lastEntityId;
                 Unsafe.Add(ref entitiesRef, index) = lastEntity;
+                _xs[index] = _xs[lastIndex];
+                _ys[index] = _ys[lastIndex];
+                _zs[index] = _zs[lastIndex];
+                _dirs[index] = _dirs[lastIndex];
+                _alphas[index] = _alphas[lastIndex];
+                _layers[index] = _layers[lastIndex];
+                _pixelXs[index] = _pixelXs[lastIndex];
+                _pixelYs[index] = _pixelYs[lastIndex];
+                _colors[index] = _colors[lastIndex];
+                _icons[index] = _icons[lastIndex];
+                _iconStates[index] = _iconStates[lastIndex];
+                _rotations[index] = _rotations[lastIndex];
+                _opacities[index] = _opacities[lastIndex];
+
                 _entityIdToIndex[lastEntityId] = index;
 
                 for (int i = 0; i < arrays.Length; i++)
                 {
                     arrays[i].Copy(lastIndex, index);
+                }
+                for (int i = 0; i < dataArrays.Length; i++)
+                {
+                    dataArrays[i].Copy(lastIndex, index);
                 }
 
                 lastEntity.ArchetypeIndex = index;
@@ -210,71 +370,138 @@ public class Archetype
             {
                 arrays[i].Clear(lastIndex);
             }
+            for (int i = 0; i < dataArrays.Length; i++)
+            {
+                dataArrays[i].Clear(lastIndex);
+            }
             _count--;
         }
     }
 
-    public ArchetypeChunkEnumerable<T> GetChunks<T>(int chunkSize = 1024) where T : class, IComponent
+    public ArchetypeChunkEnumerable<T> GetChunks<T>(int chunkSize = 1024)
     {
-        int id = Services.ComponentId<T>.Value;
-        if (id >= _componentArrays.Length) return default;
-
-        var array = _componentArrays[id];
-        if (array == null) return default;
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
 
         T[] data;
+        if (typeof(IDataComponent).IsAssignableFrom(typeof(T)))
+        {
+            if (id >= _dataComponentArrays.Length) return default;
+            var array = _dataComponentArrays[id];
+            if (array == null) return default;
+            data = GetArrayFromDataArray<T>(array);
+        }
+        else
+        {
+            if (id >= _componentArrays.Length) return default;
+            var array = _componentArrays[id];
+            if (array == null) return default;
+            data = GetArrayFromComponentArray<T>(array);
+        }
+
         long[] entityIds;
         IGameObject[] entities;
+        long[] xs, ys, zs;
+        int[] dirs;
+        double[] alphas, layers, pixelXs, pixelYs;
+        string[] colors, icons, iconStates;
+        float[] rotations;
+        double[] opacities;
         int totalCount;
 
         using (_lock.EnterScope())
         {
-            data = ((ComponentArray<T>)array).Data;
             entityIds = _entityIds;
             entities = _entities;
+            xs = _xs;
+            ys = _ys;
+            zs = _zs;
+            dirs = _dirs;
+            alphas = _alphas;
+            layers = _layers;
+            pixelXs = _pixelXs;
+            pixelYs = _pixelYs;
+            colors = _colors;
+            icons = _icons;
+            iconStates = _iconStates;
+            rotations = _rotations;
+            opacities = _opacities;
             totalCount = _count;
         }
 
-        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, totalCount, chunkSize);
+        return new ArchetypeChunkEnumerable<T>(data, entityIds, entities, xs, ys, zs, dirs, alphas, layers, pixelXs, pixelYs, colors, icons, iconStates, rotations, opacities, totalCount, chunkSize);
     }
 
-    public readonly struct ArchetypeChunkEnumerable<T> : IEnumerable<ArchetypeChunk<T>> where T : class, IComponent
+    public readonly struct ArchetypeChunkEnumerable<T> : IEnumerable<ArchetypeChunk<T>>
     {
         private readonly T[] _data;
         private readonly long[] _entityIds;
         private readonly IGameObject[] _entities;
+        private readonly long[] _xs, _ys, _zs;
+        private readonly int[] _dirs;
+        private readonly double[] _alphas, _layers, _pixelXs, _pixelYs;
+        private readonly string[] _colors, _icons, _iconStates;
+        private readonly float[] _rotations;
+        private readonly double[] _opacities;
         private readonly int _totalCount;
         private readonly int _chunkSize;
 
-        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerable(T[] data, long[] entityIds, IGameObject[] entities,
+            long[] xs, long[] ys, long[] zs, int[] dirs, double[] alphas, double[] layers,
+            double[] pixelXs, double[] pixelYs, string[] colors, string[] icons, string[] iconStates, float[] rotations,
+            double[] opacities,
+            int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
             _entities = entities;
+            _xs = xs; _ys = ys; _zs = zs;
+            _dirs = dirs;
+            _alphas = alphas; _layers = layers; _pixelXs = pixelXs; _pixelYs = pixelYs;
+            _colors = colors; _icons = icons; _iconStates = iconStates;
+            _rotations = rotations;
+            _opacities = opacities;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
         }
 
-        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities, _totalCount, _chunkSize);
+        public ArchetypeChunkEnumerator<T> GetEnumerator() => new(_data, _entityIds, _entities,
+            _xs, _ys, _zs, _dirs, _alphas, _layers, _pixelXs, _pixelYs, _colors, _icons, _iconStates, _rotations, _opacities,
+            _totalCount, _chunkSize);
         IEnumerator<ArchetypeChunk<T>> IEnumerable<ArchetypeChunk<T>>.GetEnumerator() => GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
-    public struct ArchetypeChunkEnumerator<T> : IEnumerator<ArchetypeChunk<T>> where T : class, IComponent
+    public struct ArchetypeChunkEnumerator<T> : IEnumerator<ArchetypeChunk<T>>
     {
         private readonly T[] _data;
         private readonly long[] _entityIds;
         private readonly IGameObject[] _entities;
+        private readonly long[] _xs, _ys, _zs;
+        private readonly int[] _dirs;
+        private readonly double[] _alphas, _layers, _pixelXs, _pixelYs;
+        private readonly string[] _colors, _icons, _iconStates;
+        private readonly float[] _rotations;
+        private readonly double[] _opacities;
         private readonly int _totalCount;
         private readonly int _chunkSize;
         private int _currentOffset;
         private ArchetypeChunk<T> _current;
 
-        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities, int totalCount, int chunkSize)
+        public ArchetypeChunkEnumerator(T[] data, long[] entityIds, IGameObject[] entities,
+            long[] xs, long[] ys, long[] zs, int[] dirs, double[] alphas, double[] layers,
+            double[] pixelXs, double[] pixelYs, string[] colors, string[] icons, string[] iconStates, float[] rotations,
+            double[] opacities,
+            int totalCount, int chunkSize)
         {
             _data = data;
             _entityIds = entityIds;
             _entities = entities;
+            _xs = xs; _ys = ys; _zs = zs;
+            _dirs = dirs;
+            _alphas = alphas; _layers = layers; _pixelXs = pixelXs; _pixelYs = pixelYs;
+            _colors = colors; _icons = icons; _iconStates = iconStates;
+            _rotations = rotations;
+            _opacities = opacities;
             _totalCount = totalCount;
             _chunkSize = chunkSize;
             _currentOffset = -chunkSize;
@@ -287,7 +514,9 @@ public class Archetype
             if (_currentOffset >= _totalCount) return false;
 
             int count = Math.Min(_chunkSize, _totalCount - _currentOffset);
-            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities, _currentOffset, count);
+            _current = new ArchetypeChunk<T>(_data, _entityIds, _entities,
+                _xs, _ys, _zs, _dirs, _alphas, _layers, _pixelXs, _pixelYs, _colors, _icons, _iconStates, _rotations, _opacities,
+                _currentOffset, count);
             return true;
         }
 
@@ -299,11 +528,11 @@ public class Archetype
 
     internal T[] GetComponentsInternal<T>() where T : class, IComponent
     {
-        int id = Services.ComponentId<T>.Value;
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
-            if (array != null) return ((ComponentArray<T>)array).Data;
+            if (array != null) return GetArrayFromComponentArray<T>(array);
         }
         return System.Array.Empty<T>();
     }
@@ -311,6 +540,11 @@ public class Archetype
     internal IComponentArray? GetComponentsInternal(int id)
     {
         return id < _componentArrays.Length ? _componentArrays[id] : null;
+    }
+
+    internal IDataComponentArray? GetDataComponentsInternal(int id)
+    {
+        return id < _dataComponentArrays.Length ? _dataComponentArrays[id] : null;
     }
 
     internal IComponentArray? GetComponentsInternal(Type type)
@@ -325,7 +559,7 @@ public class Archetype
     /// </summary>
     public void ForEach<T>(Action<T, long> action) where T : class, IComponent
     {
-        int id = Services.ComponentId<T>.Value;
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
@@ -333,15 +567,30 @@ public class Archetype
             {
                 using (_lock.EnterScope())
                 {
-                    var typed = (ComponentArray<T>)array;
+                    var data = GetArrayFromComponentArray<T>(array);
                     var entityIds = _entityIds;
                     int count = _count;
 
                     ref long idRef = ref MemoryMarshal.GetArrayDataReference(entityIds);
                     for (int i = 0; i < count; i++)
                     {
-                        action(typed.GetAsT(i), Unsafe.Add(ref idRef, i));
+                        action(data[i], Unsafe.Add(ref idRef, i));
                     }
+                }
+            }
+        }
+    }
+
+    internal void SetDataComponentInternal(int index, int id, object component)
+    {
+        if (id < _dataComponentArrays.Length)
+        {
+            var array = _dataComponentArrays[id];
+            if (array != null)
+            {
+                using (_lock.EnterScope())
+                {
+                    array.Set(index, component);
                 }
             }
         }
@@ -382,7 +631,7 @@ public class Archetype
     /// </summary>
     public void ForEach<T, TVisitor>(ref TVisitor visitor) where T : class, IComponent where TVisitor : struct, IComponentVisitor<T>
     {
-        int id = Services.ComponentId<T>.Value;
+        int id = Services.ComponentIdRegistry.GetId(typeof(T));
         if (id < _componentArrays.Length)
         {
             var array = _componentArrays[id];
@@ -390,7 +639,7 @@ public class Archetype
             {
                 using (_lock.EnterScope())
                 {
-                    var data = ((ComponentArray<T>)array).Data;
+                    var data = GetArrayFromComponentArray<T>(array);
                     var entityIds = _entityIds;
                     int count = _count;
 
@@ -541,17 +790,28 @@ public class Archetype
         }
     }
 
-    public IComponent? GetComponent(long entityId, Type type)
+    public object? GetComponent(long entityId, Type type)
     {
         using (_lock.EnterScope())
         {
             if (_entityIdToIndex.TryGetValue(entityId, out int index))
             {
                 int id = Services.ComponentIdRegistry.GetId(type);
-                if (id < _componentArrays.Length)
+                if (typeof(IDataComponent).IsAssignableFrom(type))
                 {
-                    var array = _componentArrays[id];
-                    return array?.Get(index);
+                    if (id < _dataComponentArrays.Length)
+                    {
+                        var array = _dataComponentArrays[id];
+                        if (array != null) return array.Get(index);
+                    }
+                }
+                else if (typeof(IComponent).IsAssignableFrom(type))
+                {
+                    if (id < _componentArrays.Length)
+                    {
+                        var array = _componentArrays[id];
+                        if (array != null) return array.Get(index);
+                    }
                 }
             }
         }
@@ -604,6 +864,82 @@ public class Archetype
     }
 
 
+    public void SetX(int index, long x) => _xs[index] = x;
+    public void SetY(int index, long y) => _ys[index] = y;
+    public void SetZ(int index, long z) => _zs[index] = z;
+    public void SetDir(int index, int dir) => _dirs[index] = dir;
+    public void SetAlpha(int index, double alpha) => _alphas[index] = alpha;
+    public void SetLayer(int index, double layer) => _layers[index] = layer;
+    public void SetPixelX(int index, double x) => _pixelXs[index] = x;
+    public void SetPixelY(int index, double y) => _pixelYs[index] = y;
+    public void SetColor(int index, string color) => _colors[index] = color;
+    public void SetIcon(int index, string icon) => _icons[index] = icon;
+    public void SetIconState(int index, string state) => _iconStates[index] = state;
+    public void SetRotation(int index, float rotation) => _rotations[index] = rotation;
+    public void SetOpacity(int index, double opacity) => _opacities[index] = opacity;
+
+    /// <summary>
+    /// Translates all entity coordinates in this archetype using SIMD acceleration.
+    /// </summary>
+    public void TranslateCoordsSIMD(long dx, long dy, long dz)
+    {
+        int count = _count;
+        if (count == 0) return;
+
+        using (_lock.EnterScope())
+        {
+            int i = 0;
+            if (Vector256.IsHardwareAccelerated && count >= 4)
+            {
+                var vdx = Vector256.Create(dx);
+                var vdy = Vector256.Create(dy);
+                var vdz = Vector256.Create(dz);
+
+                for (; i <= count - 4; i += 4)
+                {
+                    var vx = Vector256.Create(_xs, i);
+                    var vy = Vector256.Create(_ys, i);
+                    var vz = Vector256.Create(_zs, i);
+
+                    (vx + vdx).CopyTo(_xs, i);
+                    (vy + vdy).CopyTo(_ys, i);
+                    (vz + vdz).CopyTo(_zs, i);
+                }
+            }
+
+            for (; i < count; i++)
+            {
+                _xs[i] += dx;
+                _ys[i] += dy;
+                _zs[i] += dz;
+            }
+
+            // Sync back to GameObjects if they are currently simulation-active
+            for (int j = 0; j < count; j++)
+            {
+                if (_entities[j] is GameObject g)
+                {
+                    // Internal update to avoid recursive SoA sync
+                    g.SetPositionInternal(_xs[j], _ys[j], _zs[j], out _, out _, out _);
+                }
+            }
+        }
+    }
+
+    public long GetX(int index) => _xs[index];
+    public long GetY(int index) => _ys[index];
+    public long GetZ(int index) => _zs[index];
+    public int GetDir(int index) => _dirs[index];
+    public double GetAlpha(int index) => _alphas[index];
+    public double GetLayer(int index) => _layers[index];
+    public double GetPixelX(int index) => _pixelXs[index];
+    public double GetPixelY(int index) => _pixelYs[index];
+    public string GetColor(int index) => _colors[index];
+    public string GetIcon(int index) => _icons[index];
+    public string GetIconState(int index) => _iconStates[index];
+    public float GetRotation(int index) => _rotations[index];
+    public double GetOpacity(int index) => _opacities[index];
+
     public void Compact()
     {
         using (_lock.EnterScope())
@@ -612,6 +948,21 @@ public class Archetype
             {
                 _capacity = Math.Max(_count, 8);
                 System.Array.Resize(ref _entityIds, _capacity);
+                Array.Resize(ref _entities, _capacity);
+                Array.Resize(ref _xs, _capacity);
+                Array.Resize(ref _ys, _capacity);
+                Array.Resize(ref _zs, _capacity);
+                Array.Resize(ref _dirs, _capacity);
+                Array.Resize(ref _alphas, _capacity);
+                Array.Resize(ref _layers, _capacity);
+                Array.Resize(ref _pixelXs, _capacity);
+                Array.Resize(ref _pixelYs, _capacity);
+                Array.Resize(ref _colors, _capacity);
+                Array.Resize(ref _icons, _capacity);
+                Array.Resize(ref _iconStates, _capacity);
+                Array.Resize(ref _rotations, _capacity);
+                Array.Resize(ref _opacities, _capacity);
+
                 var arrays = _activeArrays;
                 for (int i = 0; i < arrays.Length; i++)
                 {
@@ -631,6 +982,57 @@ public class Archetype
         IComponent Get(int index);
         void BeginUpdate(int count);
         void CommitUpdate(int count);
+        Array GetRawArray();
+    }
+
+    internal interface IDataComponentArray
+    {
+        void Resize(int capacity);
+        void Set(int index, object component);
+        void Copy(int from, int to);
+        void CopyTo(int sourceIndex, IDataComponentArray destination, int destinationIndex);
+        void Clear(int index);
+        object Get(int index);
+        Array GetRawArray();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private T[] GetArrayFromDataArray<T>(IDataComponentArray array)
+    {
+        return Unsafe.As<T[]>(array.GetRawArray());
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private T[] GetArrayFromComponentArray<T>(IComponentArray array)
+    {
+        return Unsafe.As<T[]>(array.GetRawArray());
+    }
+
+    private class DataComponentArray<T> : IDataComponentArray where T : struct, IDataComponent
+    {
+        public T[] Data = Array.Empty<T>();
+
+        public Array GetRawArray() => Data;
+
+        public void Resize(int capacity) => Array.Resize(ref Data, capacity);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(int index, object component) => Data[index] = (T)component;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Copy(int from, int to) => Data[to] = Data[from];
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void CopyTo(int sourceIndex, IDataComponentArray destination, int destinationIndex)
+        {
+            destination.Set(destinationIndex, Data[sourceIndex]);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Clear(int index) => Data[index] = default;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object Get(int index) => Data[index];
     }
 
     private class ComponentArray<T> : IComponentArray where T : class, IComponent
@@ -638,6 +1040,8 @@ public class Archetype
         public T[] Data = System.Array.Empty<T>();
         public T[] NextData = System.Array.Empty<T>();
         private bool _isUpdating = false;
+
+        public Array GetRawArray() => Data;
 
         public void Resize(int capacity)
         {

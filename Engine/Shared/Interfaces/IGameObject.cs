@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Shared.Interfaces;
+using Shared.Models;
 
 namespace Shared;
 
@@ -11,7 +12,7 @@ namespace Shared;
     /// <summary>
     /// Represents a primary entity within the game world.
     /// </summary>
-    public interface IGameObject
+    public interface IGameObject : ITransform, IVisuals
     {
         void SetUpdateListener(IEngineUpdateListener listener);
 
@@ -19,36 +20,6 @@ namespace Shared;
         /// Unique identifier for this object.
         /// </summary>
         long Id { get; }
-
-        /// <summary>
-        /// The 3D position of the object in the world.
-        /// </summary>
-        Robust.Shared.Maths.Vector3l Position { get; set; }
-
-        /// <summary>
-        /// X-coordinate in the spatial grid.
-        /// </summary>
-        long X { get; set; }
-
-        /// <summary>
-        /// Y-coordinate in the spatial grid.
-        /// </summary>
-        long Y { get; set; }
-
-        /// <summary>
-        /// Z-coordinate (map level).
-        /// </summary>
-        long Z { get; set; }
-
-        /// <summary>
-        /// The direction the object is facing.
-        /// </summary>
-        int Dir { get; set; }
-
-        /// <summary>
-        /// The location of this object (container or turf).
-        /// </summary>
-        IGameObject? Loc { get; set; }
 
         /// <summary>
         /// The base type definition for this object.
@@ -86,38 +57,6 @@ namespace Shared;
         Robust.Shared.Maths.Vector3l? CurrentGridCellKey { get; set; }
 
         /// <summary>
-        /// Committed coordinates for thread-safe reading.
-        /// </summary>
-        long CommittedX { get; }
-        long CommittedY { get; }
-        long CommittedZ { get; }
-
-        /// <summary>
-        /// Committed visual properties for high-performance lock-free reading.
-        /// </summary>
-        string CommittedIcon { get; }
-        string CommittedIconState { get; }
-        int CommittedDir { get; }
-        double CommittedAlpha { get; }
-        string CommittedColor { get; }
-        double CommittedLayer { get; }
-        double CommittedPixelX { get; }
-        double CommittedPixelY { get; }
-
-        double Alpha { get; set; }
-        string Color { get; set; }
-        double PixelX { get; set; }
-        double PixelY { get; set; }
-        double Layer { get; set; }
-
-        string Icon { get; set; }
-        string IconState { get; set; }
-
-        double RenderX { get; set; }
-        double RenderY { get; set; }
-        double RenderZ { get; set; }
-
-        /// <summary>
         /// Commits the current state to the read-only buffer.
         /// </summary>
         void CommitState();
@@ -126,11 +65,6 @@ namespace Shared;
         /// Clears the dirty flag on this object.
         /// </summary>
         void ClearDirty();
-
-        /// <summary>
-        /// Updates the object's 3D position in the world.
-        /// </summary>
-        void SetPosition(long x, long y, long z);
 
         /// <summary>
         /// Retrieves a variable value by its string name.
@@ -171,6 +105,22 @@ namespace Shared;
         /// Gets a component of the specified type.
         /// </summary>
         T? GetComponent<T>() where T : class, IComponent;
+
+        /// <summary>
+        /// Gets a component of the specified type from the provided chunk.
+        /// Optimized for use within systems.
+        /// </summary>
+        T? GetComponent<T>(ArchetypeChunk<T> chunk);
+
+        /// <summary>
+        /// Gets a data (struct) component of the specified type.
+        /// </summary>
+        T GetDataComponent<T>() where T : struct, IDataComponent;
+
+        /// <summary>
+        /// Sets a data (struct) component of the specified type.
+        /// </summary>
+        void SetDataComponent<T>(T component) where T : struct, IDataComponent;
 
         /// <summary>
         /// Adds a component to this object.
@@ -222,10 +172,6 @@ namespace Shared;
         /// </summary>
         void ClearChangeMask();
 
-        /// <summary>
-        /// Gets or sets the rotation of the object.
-        /// </summary>
-        float Rotation { get; set; }
 
         /// <summary>
         /// Cache for the reactive state system to avoid dictionary lookups.

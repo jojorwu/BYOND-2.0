@@ -22,6 +22,21 @@ public class VisualFieldHandler : INetworkFieldHandler
         if ((currentMask & GameObjectFields.PixelY) != 0) writer.WriteDouble(obj.PixelY);
     }
 
+    public void Write<T>(ref BitWriter writer, ArchetypeChunk<T> chunk, int indexInChunk, GameObjectFields currentMask) where T : class, IComponent
+    {
+        int idx = chunk.Offset + indexInChunk;
+        if ((currentMask & GameObjectFields.Dir) != 0) writer.WriteVarInt(chunk.Dirs[idx]);
+        if ((currentMask & GameObjectFields.Alpha) != 0) writer.WriteDouble(chunk.Alphas[idx]);
+        if ((currentMask & GameObjectFields.Color) != 0) writer.WriteString(chunk.Colors[idx]);
+        if ((currentMask & GameObjectFields.Layer) != 0) writer.WriteDouble(chunk.Layers[idx]);
+        if ((currentMask & GameObjectFields.Icon) != 0) writer.WriteString(chunk.Icons[idx]);
+        if ((currentMask & GameObjectFields.IconState) != 0) writer.WriteString(chunk.IconStates[idx]);
+        if ((currentMask & GameObjectFields.PixelX) != 0) writer.WriteDouble(chunk.PixelXs[idx]);
+        if ((currentMask & GameObjectFields.PixelY) != 0) writer.WriteDouble(chunk.PixelYs[idx]);
+        if ((currentMask & GameObjectFields.Opacity) != 0) writer.WriteDouble(chunk.Opacities[idx]);
+        if ((currentMask & GameObjectFields.Rotation) != 0) writer.WriteDouble(chunk.Rotations[idx]);
+    }
+
     public void Read(ref BitReader reader, GameObject obj, GameObjectFields currentMask, List<(GameObject target, int propIdx, long refId)> unresolved)
     {
         if ((currentMask & GameObjectFields.Dir) != 0) obj.Dir = (int)reader.ReadVarInt();

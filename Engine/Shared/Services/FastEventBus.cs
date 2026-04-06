@@ -9,9 +9,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Messaging;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IEventBus))]
 public class FastEventBus : EngineService, IEventBus, IFreezable
 {
     private readonly IDiagnosticBus _diagnosticBus;

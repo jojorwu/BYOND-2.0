@@ -8,7 +8,7 @@ namespace Shared.Services;
 /// Utilizes generic static initialization to cache the ID for each component type.
 /// </summary>
 /// <typeparam name="T">The component type.</typeparam>
-public static class ComponentId<T> where T : class, IComponent
+public static class ComponentId<T>
 {
     /// <summary>
     /// The stable, unique identifier for the component type T.

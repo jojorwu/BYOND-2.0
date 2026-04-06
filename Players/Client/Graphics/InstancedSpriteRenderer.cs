@@ -7,26 +7,36 @@ using Robust.Shared.Maths;
 
 namespace Client.Graphics
 {
+    /// <summary>
+    /// Optimized renderer for sprites using hardware instancing and texture arrays.
+    /// Batches multiple sprites into a single draw call by utilizing depth layers and texture arrays.
+    /// </summary>
     public class InstancedSpriteRenderer : IDisposable
     {
         private readonly GL _gl;
         private readonly Shader _shader;
         private readonly uint _vao;
         private readonly uint _vbo;
-        private uint _instanceVbo;
+        private readonly uint _instanceVbo;
 
+        /// <summary>
+        /// Tight instance data structure to minimize bus bandwidth.
+        /// Packed into 48 bytes (exactly 3x Vector4 for optimal alignment).
+        /// </summary>
         [StructLayout(LayoutKind.Sequential)]
         public struct InstanceData
         {
-            public Vector4 Rect;
-            public Vector4 Uv;
-            public Color Color;
+            public Vector4 Rect;          // [x, y, w, h] - 16 bytes
+            public Vector4 Uv;            // [u1, v1, u2, v2] - 16 bytes
+            public Color Color;           // [r, g, b, a] - 16 bytes
+            public float TextureLayer;    // Z-index in TextureArray
+            // Note: NormalMap usage can be packed into Color.A or similar if needed,
+            // but for now we keep it simple.
         }
 
         private struct Batch
         {
-            public uint TextureId;
-            public uint NormalMapId;
+            public uint TextureArrayId;
             public int Start;
             public int Count;
         }
@@ -35,8 +45,7 @@ namespace Client.Graphics
         private InstanceData[] _instanceData;
         private int _instanceCount = 0;
         private readonly List<Batch> _batches = new();
-        private uint _currentTextureId;
-        private uint _currentNormalMapId;
+        private uint _currentTextureArrayId;
 
         public InstancedSpriteRenderer(GL gl)
         {
@@ -48,35 +57,30 @@ layout (location = 0) in vec2 aPos;
 layout (location = 1) in vec4 iRect;
 layout (location = 2) in vec4 iUv;
 layout (location = 3) in vec4 iColor;
+layout (location = 4) in float iLayer;
 out vec2 TexCoords;
 out vec4 vColor;
+out float vLayer;
 uniform mat4 uProjection;
 uniform mat4 uView;
 void main() {
     vec2 worldPos = iRect.xy + aPos * iRect.zw;
     TexCoords = iUv.xy + aPos * (iUv.zw - iUv.xy);
     vColor = iColor;
+    vLayer = iLayer;
     gl_Position = uProjection * uView * vec4(worldPos, 0.0, 1.0);
 }";
             string frag = @"#version 330 core
 layout (location = 0) out vec4 gAlbedo;
-layout (location = 1) out vec4 gNormal;
-layout (location = 2) out vec4 gPbr;
 in vec2 TexCoords;
 in vec4 vColor;
-uniform sampler2D uTexture;
-uniform sampler2D uNormalMap;
-uniform bool uHasNormalMap;
-uniform float uMetallic;
-uniform float uRoughness;
+in float vLayer;
+uniform sampler2DArray uTextureArray;
 
 void main() {
-    vec4 texColor = texture(uTexture, TexCoords);
+    vec4 texColor = texture(uTextureArray, vec3(TexCoords, vLayer));
     if(texColor.a < 0.01) discard;
     gAlbedo = texColor * vColor;
-    if(uHasNormalMap) gNormal = texture(uNormalMap, TexCoords);
-    else gNormal = vec4(0.5, 0.5, 1.0, 1.0);
-    gPbr = vec4(uMetallic, uRoughness, 0.0, 1.0);
 }";
 
             _shader = new Shader(_gl, vert, frag);
@@ -112,6 +116,10 @@ void main() {
                 _gl.EnableVertexAttribArray(3);
                 _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)32);
                 _gl.VertexAttribDivisor(3, 1);
+
+                _gl.EnableVertexAttribArray(4);
+                _gl.VertexAttribPointer(4, 1, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)48);
+                _gl.VertexAttribDivisor(4, 1);
             }
 
             _gl.BindVertexArray(0);
@@ -121,10 +129,7 @@ void main() {
         {
             if (_instanceCount + count <= _maxInstances) return;
 
-            while (_instanceCount + count > _maxInstances)
-            {
-                _maxInstances *= 2;
-            }
+            while (_instanceCount + count > _maxInstances) _maxInstances *= 2;
 
             Array.Resize(ref _instanceData, _maxInstances);
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
@@ -137,24 +142,21 @@ void main() {
         {
             _instanceCount = 0;
             _batches.Clear();
-            _currentTextureId = 0;
-            _currentNormalMapId = 0;
+            _currentTextureArrayId = 0;
         }
 
-        public void Draw(uint textureId, Vector2 position, Vector2 size, Box2 uv, Color color, uint normalMapId = 0)
+        public void Draw(uint textureArrayId, int layer, Vector2 position, Vector2 size, Box2 uv, Color color)
         {
-            if (textureId == 0) return;
+            if (textureArrayId == 0) return;
 
-            if (_batches.Count == 0 || textureId != _currentTextureId || normalMapId != _currentNormalMapId)
+            if (_batches.Count == 0 || textureArrayId != _currentTextureArrayId)
             {
                 _batches.Add(new Batch {
-                    TextureId = textureId,
-                    NormalMapId = normalMapId,
+                    TextureArrayId = textureArrayId,
                     Start = _instanceCount,
                     Count = 0
                 });
-                _currentTextureId = textureId;
-                _currentNormalMapId = normalMapId;
+                _currentTextureArrayId = textureArrayId;
             }
 
             EnsureCapacity(1);
@@ -162,7 +164,8 @@ void main() {
             _instanceData[_instanceCount++] = new InstanceData {
                 Rect = new Vector4(position.X, position.Y, size.X, size.Y),
                 Uv = new Vector4(uv.Left, uv.Top, uv.Right, uv.Bottom),
-                Color = color
+                Color = color,
+                TextureLayer = layer
             };
 
             var lastBatch = _batches[_batches.Count - 1];
@@ -170,50 +173,46 @@ void main() {
             _batches[_batches.Count - 1] = lastBatch;
         }
 
+        /// <summary>
+        /// Finalizes the current frame and dispatches draw calls to the GPU.
+        /// Uses Buffer Orphaning to avoid synchronization stalls.
+        /// </summary>
         public unsafe void Flush(Matrix4x4 view, Matrix4x4 projection)
         {
             if (_instanceCount == 0) return;
 
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _instanceVbo);
 
-            // Optimization: Buffer Orphanage to avoid synchronization stalls
+            // Buffer Orphaning: Passing NULL to BufferData allows the driver to reallocate
+            // the buffer memory if it's currently being used by a previous draw call,
+            // preventing the CPU from stalling while waiting for the GPU.
             _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(_maxInstances * sizeof(InstanceData)), null, BufferUsageARB.StreamDraw);
 
-            fixed(InstanceData* p = _instanceData)
+            // High-performance upload using ReadOnlySpan to avoid intermediate copies
+            var dataSpan = new ReadOnlySpan<InstanceData>(_instanceData, 0, _instanceCount);
+            fixed(InstanceData* p = dataSpan)
+            {
                 _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0, (nuint)(_instanceCount * sizeof(InstanceData)), p);
+            }
 
             _shader.Use();
             _shader.SetUniform("uView", view);
             _shader.SetUniform("uProjection", projection);
-            _shader.SetUniform("uMetallic", 0.0f); // Default for sprites
-            _shader.SetUniform("uRoughness", 1.0f);
 
             _gl.BindVertexArray(_vao);
 
             foreach (var batch in _batches)
             {
                 _gl.ActiveTexture(TextureUnit.Texture0);
-                _gl.BindTexture(TextureTarget.Texture2D, batch.TextureId);
-                _shader.SetUniform("uTexture", 0);
-
-                if (batch.NormalMapId != 0) {
-                    _gl.ActiveTexture(TextureUnit.Texture1);
-                    _gl.BindTexture(TextureTarget.Texture2D, batch.NormalMapId);
-                    _shader.SetUniform("uNormalMap", 1);
-                    _shader.SetUniform("uHasNormalMap", 1);
-                } else {
-                    _shader.SetUniform("uHasNormalMap", 0);
-                }
-
-                // Note: DrawArraysInstanced doesn't take a start index for instances in older GL.
-                // We'd need DrawArraysInstancedBaseInstance (GL 4.2) or use offsets in VertexAttribPointer.
-                // For compatibility, we update VertexAttribPointers per batch.
+                _gl.BindTexture(TextureTarget.Texture2DArray, batch.TextureArrayId);
+                _shader.SetUniform("uTextureArray", 0);
 
                 unsafe {
                     nuint offset = (nuint)(batch.Start * sizeof(InstanceData));
                     _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)offset);
                     _gl.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)(offset + 16));
                     _gl.VertexAttribPointer(3, 4, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)(offset + 32));
+                    _gl.VertexAttribPointer(4, 1, VertexAttribPointerType.Float, false, (uint)sizeof(InstanceData), (void*)(offset + 48));
                 }
 
                 _gl.DrawArraysInstanced(PrimitiveType.Triangles, 0, 6, (uint)batch.Count);

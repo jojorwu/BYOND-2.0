@@ -20,7 +20,7 @@ public static class ComponentIdRegistry
     private static volatile FrozenDictionary<Type, int> _frozenTypeToId = FrozenDictionary<Type, int>.Empty;
     private static readonly ConcurrentDictionary<Assembly, bool> _processedAssemblies = new();
 
-    public static int GetId<T>() where T : class, IComponent => GetId(typeof(T));
+    public static int GetId<T>() => GetId(typeof(T));
 
     public static int GetId(Type type)
     {
@@ -34,7 +34,7 @@ public static class ComponentIdRegistry
     /// <summary>
     /// Pre-registers a component type to ensure it has a stable ID.
     /// </summary>
-    public static void Register<T>() where T : class, IComponent => Register(typeof(T));
+    public static void Register<T>() => Register(typeof(T));
 
     /// <summary>
     /// Pre-registers a component type to ensure it has a stable ID.
@@ -46,13 +46,15 @@ public static class ComponentIdRegistry
 
     /// <summary>
     /// Registers all component types found in the specified assembly.
+    /// Supports both class-based (IComponent) and struct-based (IDataComponent) models.
     /// </summary>
     public static void RegisterAll(Assembly assembly)
     {
         if (!_processedAssemblies.TryAdd(assembly, true)) return;
 
         var componentTypes = assembly.GetTypes()
-            .Where(t => t.IsClass && !t.IsAbstract && typeof(IComponent).IsAssignableFrom(t))
+            .Where(t => (t.IsClass || t.IsValueType) && !t.IsAbstract &&
+                       (typeof(IComponent).IsAssignableFrom(t) || typeof(IDataComponent).IsAssignableFrom(t)))
             .OrderBy(t => t.FullName); // Sort by FullName for deterministic IDs if called in same order
 
         foreach (var type in componentTypes)

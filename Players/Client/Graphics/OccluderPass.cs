@@ -27,17 +27,22 @@ namespace Client.Graphics
             context.GL.Clear(ClearBufferMask.ColorBufferBit);
 
             _spriteRenderer.Begin(context.View, context.Projection);
-            var objList = context.CurrentState.GameObjects.Values.ToList();
-            var objSpan = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(objList);
-            for (int i = 0; i < objSpan.Length; i++)
+
+            var archetypes = context.CurrentState.ArchetypeManager.GetArchetypesWithComponents(ReadOnlySpan<Type>.Empty);
+            foreach (var arch in archetypes)
             {
-                var obj = objSpan[i];
-                var opacity = obj.GetVariable("opacity");
-                if (opacity.Type == DreamValueType.Float && opacity.AsFloat() > 0)
+                int count = arch.EntityCount;
+                if (count == 0) continue;
+
+                for (int i = 0; i < count; i++)
                 {
-                    _spriteRenderer.DrawQuad(new Vector2(obj.X * 32, obj.Y * 32), new Vector2(32, 32), Color.White);
+                    if (arch.GetOpacity(i) > 0)
+                    {
+                        _spriteRenderer.DrawQuad(new Vector2(arch.GetX(i) * 32, arch.GetY(i) * 32), new Vector2(32, 32), Color.White);
+                    }
                 }
             }
+
             _spriteRenderer.End();
             _occluderMap.Unbind();
         }

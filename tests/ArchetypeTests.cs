@@ -26,6 +26,18 @@ namespace tests
             mock.SetupGet(x => x.Id).Returns(id);
             mock.SetupProperty(x => x.Archetype);
             mock.SetupProperty(x => x.ArchetypeIndex);
+            mock.SetupGet(x => x.X).Returns(0);
+            mock.SetupGet(x => x.Y).Returns(0);
+            mock.SetupGet(x => x.Z).Returns(0);
+            mock.SetupGet(x => x.Dir).Returns(2);
+            mock.SetupGet(x => x.Alpha).Returns(255.0);
+            mock.SetupGet(x => x.Layer).Returns(2.0);
+            mock.SetupGet(x => x.PixelX).Returns(0.0);
+            mock.SetupGet(x => x.PixelY).Returns(0.0);
+            mock.SetupGet(x => x.Color).Returns("#ffffff");
+            mock.SetupGet(x => x.Icon).Returns("");
+            mock.SetupGet(x => x.IconState).Returns("");
+            mock.SetupGet(x => x.Rotation).Returns(0f);
             return mock;
         }
 

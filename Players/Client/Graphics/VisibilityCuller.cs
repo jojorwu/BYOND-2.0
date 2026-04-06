@@ -21,62 +21,55 @@ namespace Client.Graphics
             }
         }
 
-        private static unsafe void CalculateVisibilitySIMD(ReadOnlySpan<Vector2> positions, Box2 cullRect, Span<byte> visibilityMask)
+        private static void CalculateVisibilitySIMD(ReadOnlySpan<Vector2> positions, Box2 cullRect, Span<byte> visibilityMask)
         {
             int count = positions.Length;
             int vectorSize = Vector<float>.Count;
             int pointsPerVector = vectorSize / 2;
 
-            // Pre-calculate interleaved bounds on the stack
-            float* pLow = stackalloc float[vectorSize];
-            float* pHigh = stackalloc float[vectorSize];
+            // Efficiently initialize bounds vectors
+            float[] lowData = new float[vectorSize];
+            float[] highData = new float[vectorSize];
             for (int j = 0; j < vectorSize; j += 2)
             {
-                pLow[j] = cullRect.Left;
-                pLow[j + 1] = cullRect.Top;
-                pHigh[j] = cullRect.Right;
-                pHigh[j + 1] = cullRect.Bottom;
+                lowData[j] = cullRect.Left;
+                lowData[j + 1] = cullRect.Top;
+                highData[j] = cullRect.Right;
+                highData[j + 1] = cullRect.Bottom;
             }
 
-            Vector<float> lowBounds = Unsafe.Read<Vector<float>>(pLow);
-            Vector<float> highBounds = Unsafe.Read<Vector<float>>(pHigh);
+            Vector<float> lowBounds = new Vector<float>(lowData);
+            Vector<float> highBounds = new Vector<float>(highData);
 
-            fixed (Vector2* pPos = positions)
-            fixed (byte* pMask = visibilityMask)
+            // Cast positions to float span for vector processing
+            ReadOnlySpan<float> floatPositions = MemoryMarshal.Cast<Vector2, float>(positions);
+            int i = 0;
+            int pointIdx = 0;
+
+            for (; i <= floatPositions.Length - vectorSize; i += vectorSize, pointIdx += pointsPerVector)
             {
-                float* pF = (float*)pPos;
-                int i = 0;
-                // Process in steps of pointsPerVector
-                for (; i <= count - pointsPerVector; i += pointsPerVector)
+                Vector<float> vPos = new Vector<float>(floatPositions.Slice(i));
+
+                // Perform bounds check: (vPos >= low) AND (vPos <= high)
+                var geLow = Vector.GreaterThanOrEqual(vPos, lowBounds);
+                var leHigh = Vector.LessThanOrEqual(vPos, highBounds);
+                var res = Vector.AsVectorInt32(geLow & leHigh);
+
+                // Extract visibility for each point in the vector
+                for (int j = 0; j < pointsPerVector; j++)
                 {
-                    Vector<float> vPos = Unsafe.Read<Vector<float>>(pF + i * 2);
-
-                    // (Pos >= Low) & (Pos <= High)
-                    // Resulting Vector<int> has all 1s bits (-1) where true, all 0s where false
-                    var geLow = Vector.GreaterThanOrEqual(vPos, lowBounds);
-                    var leHigh = Vector.LessThanOrEqual(vPos, highBounds);
-                    Vector<int> res = Vector.AsVectorInt32(geLow & leHigh);
-
-                    for (int j = 0; j < pointsPerVector; j++)
-                    {
-                        // Each point has two floats (X and Y)
-                        // A point is visible if BOTH its floats passed the test
-
-                        int xRes = Vector.GetElement(res, j * 2);
-                        int yRes = Vector.GetElement(res, j * 2 + 1);
-
-                        // xRes and yRes will be -1 (all bits 1) if true
-                        pMask[i + j] = (xRes != 0 && yRes != 0) ? (byte)1 : (byte)0;
-                    }
+                    // A point is visible if BOTH its X and Y components are within bounds.
+                    // Vector comparison results in -1 (all bits set) for true, 0 for false.
+                    visibilityMask[pointIdx + j] = (res[j * 2] != 0 && res[j * 2 + 1] != 0) ? (byte)1 : (byte)0;
                 }
+            }
 
-                // Remainder
-                for (; i < count; i++)
-                {
-                    Vector2 pos = pPos[i];
-                    pMask[i] = (pos.X >= cullRect.Left && pos.X <= cullRect.Right &&
-                                 pos.Y >= cullRect.Top && pos.Y <= cullRect.Bottom) ? (byte)1 : (byte)0;
-                }
+            // Scalar remainder
+            for (; pointIdx < count; pointIdx++)
+            {
+                Vector2 pos = positions[pointIdx];
+                visibilityMask[pointIdx] = (pos.X >= cullRect.Left && pos.X <= cullRect.Right &&
+                                           pos.Y >= cullRect.Top && pos.Y <= cullRect.Bottom) ? (byte)1 : (byte)0;
             }
         }
 

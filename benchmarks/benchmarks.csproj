@@ -5,21 +5,22 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Benchmarks.ComplexOpsBenchmark</StartupObject>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <StartupObject>Benchmarks.RendererBenchmark</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Servers\Server\Server.csproj" />
+    <ProjectReference Include="..\Players\Client\Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Moq" Version="4.20.72" />
   </ItemGroup>
 
-
   <ItemGroup>
-    <Compile Remove="BenchmarkTool.cs" />
     <Compile Remove="MathBenchmark.cs" />
+    <Compile Remove="ArchetypeSoABenchmark.cs" />
   </ItemGroup>
 
   <ItemGroup>

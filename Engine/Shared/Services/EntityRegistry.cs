@@ -2,9 +2,11 @@ using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
 using Shared.Models;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IEntityRegistry))]
 public class EntityRegistry : IEntityRegistry
 {
     public IComponentManager ComponentManager { get; }

@@ -70,14 +70,14 @@ namespace Shared.Services;
 
         public void Reset()
         {
-            // If we have many blocks, prune them to reclaim memory
-            if (_blocks.Count > 1024)
+            // Prune to 64 blocks to prevent excessive memory retention while still handling bursts
+            if (_blocks.Count > 64)
             {
-                for (int i = 1024; i < _blocks.Count; i++)
+                for (int i = 64; i < _blocks.Count; i++)
                 {
                     _blocks[i].Return();
                 }
-                _blocks.RemoveRange(1024, _blocks.Count - 1024);
+                _blocks.RemoveRange(64, _blocks.Count - 64);
             }
 
             _currentBlockIndex = 0;

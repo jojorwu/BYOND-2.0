@@ -4,12 +4,14 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
 /// <summary>
 /// High-performance central registry and dispatcher for cross-language script calls.
 /// </summary>
+[EngineService(typeof(IScriptBridge))]
 public class ScriptBridge : EngineService, IScriptBridge
 {
     private readonly ConcurrentDictionary<string, IScriptFunction> _functions = new(StringComparer.OrdinalIgnoreCase);

@@ -2,9 +2,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(IApiRegistry))]
 public class ApiRegistry : IApiRegistry
 {
     private readonly ConcurrentDictionary<string, IApiProvider> _providers = new();

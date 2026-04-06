@@ -6,20 +6,29 @@ using Robust.Shared.Maths;
 
 namespace Client.Graphics
 {
+    /// <summary>
+    /// High-performance lighting system utilizing PBR shading and enhanced shadow raycasting.
+    /// Manages dynamic lights and executes the deferred lighting pass.
+    /// </summary>
     public class LightingRenderer : IDisposable
     {
         private readonly GL _gl;
         private readonly Shader _lightingShader;
         private readonly uint _vao;
         private readonly uint _vbo;
-        private readonly List<LightSource> _lights = new();
 
+        /// <summary>
+        /// Lightweight structure representing a dynamic light source.
+        /// </summary>
         public struct LightSource
         {
             public Vector2 Position;
             public float Radius;
             public Color Color;
         }
+
+        private LightSource[] _lightBuffer = new LightSource[64];
+        private int _lightCount = 0;
 
         public LightingRenderer(GL gl)
         {
@@ -138,18 +147,28 @@ void main() {
             }
         }
 
+        /// <summary>
+        /// Adds a dynamic light source to the current frame.
+        /// </summary>
         public void AddLight(Vector2 position, float radius, Color color)
         {
-            _lights.Add(new LightSource { Position = position, Radius = radius, Color = color });
+            if (_lightCount >= _lightBuffer.Length)
+            {
+                Array.Resize(ref _lightBuffer, _lightBuffer.Length * 2);
+            }
+            _lightBuffer[_lightCount++] = new LightSource { Position = position, Radius = radius, Color = color };
         }
 
+        /// <summary>
+        /// Executes the deferred lighting pass, rendering all buffered lights.
+        /// Performs frustum culling and PBR calculation for each source.
+        /// </summary>
         public void Render(Matrix4x4 view, Matrix4x4 projection, uint normalBuffer, uint occluderMap, uint albedoBuffer, uint pbrBuffer, Box2 screenBounds)
         {
-            if (_lights.Count == 0) return;
+            if (_lightCount == 0) return;
 
             _lightingShader.Use();
-            _lightingShader.SetUniform("uProjection", projection);
-            _lightingShader.SetUniform("uView", view);
+            _lightingShader.SetCameraMatrices(view, projection);
             _lightingShader.SetUniform("uNormalBuffer", 0);
             _lightingShader.SetUniform("uOccluderMap", 1);
             _lightingShader.SetUniform("uAlbedoBuffer", 2);
@@ -169,8 +188,11 @@ void main() {
             _gl.Enable(EnableCap.Blend);
             _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.One);
 
-            foreach (var light in _lights)
+            var lights = new ReadOnlySpan<LightSource>(_lightBuffer, 0, _lightCount);
+            for (int i = 0; i < lights.Length; i++)
             {
+                ref readonly var light = ref lights[i];
+
                 // Frustum Culling for Lights
                 if (light.Position.X + light.Radius < screenBounds.Left || light.Position.X - light.Radius > screenBounds.Right ||
                     light.Position.Y + light.Radius < screenBounds.Top || light.Position.Y - light.Radius > screenBounds.Bottom)
@@ -186,7 +208,7 @@ void main() {
                 _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
             }
 
-            _lights.Clear();
+            _lightCount = 0;
         }
 
         public void Dispose()

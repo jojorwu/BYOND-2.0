@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
     public interface IGameStateSnapshot
@@ -16,6 +17,7 @@ namespace Shared.Services;
         IGameStateSnapshot GetCurrentSnapshot();
     }
 
+    [EngineService(typeof(ISnapshotProvider))]
     public class SnapshotProvider : ISnapshotProvider
     {
         private IGameStateSnapshot _currentSnapshot = new EmptySnapshot();

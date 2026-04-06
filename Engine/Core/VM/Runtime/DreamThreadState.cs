@@ -4,6 +4,7 @@ namespace Core.VM.Runtime
     {
         Running,
         Sleeping,
+        Suspended,
         Finished,
         Error
     }

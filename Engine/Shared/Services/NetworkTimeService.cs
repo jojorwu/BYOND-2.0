@@ -1,8 +1,10 @@
 using System;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(INetworkTimeService))]
 public class NetworkTimeService : INetworkTimeService
 {
     private double _serverOffset;

@@ -3,12 +3,15 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Networking;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
+[EngineService(typeof(INetworkSender))]
 public class NetworkSender : INetworkSender
 {
     private readonly INetworkBufferPool _bufferPool;
+    private const int MaxBufferSize = 16 * 1024 * 1024; // Increased to 16MB
 
     public NetworkSender(INetworkBufferPool bufferPool)
     {
@@ -17,7 +20,7 @@ public class NetworkSender : INetworkSender
 
     public async ValueTask SendAsync(INetworkPeer peer, INetworkMessage message)
     {
-        int bufferSize = 2048;
+        int bufferSize = 4096; // Start slightly larger
         while (true)
         {
             byte[] buffer = _bufferPool.Rent(bufferSize);
@@ -33,8 +36,12 @@ public class NetworkSender : INetworkSender
             }
             catch (IndexOutOfRangeException)
             {
+                // Exponential growth
                 bufferSize *= 2;
-                if (bufferSize > 1024 * 1024) throw; // Max 1MB
+                if (bufferSize > MaxBufferSize)
+                {
+                    throw new InvalidOperationException($"Network message too large: {bufferSize} exceeds {MaxBufferSize}");
+                }
             }
             finally
             {

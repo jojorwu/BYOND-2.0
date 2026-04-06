@@ -1,7 +1,9 @@
 using System;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared.Services;
+    [EngineService(typeof(IArenaAllocator))]
     public class ArenaProxy : IArenaAllocator
     {
         private readonly IJobSystem _jobSystem;

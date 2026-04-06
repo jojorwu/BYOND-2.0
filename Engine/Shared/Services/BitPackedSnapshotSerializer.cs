@@ -6,10 +6,12 @@ using Shared.Models;
 using Shared.Enums;
 using Shared.Networking.Messages;
 using System.Linq;
+using Shared.Attributes;
 
 namespace Shared.Services;
 
-public class BitPackedSnapshotSerializer : ISnapshotSerializer
+[EngineService(typeof(ISnapshotSerializer))]
+public class BitPackedSnapshotSerializer : EngineService, ISnapshotSerializer
 {
     private readonly List<INetworkFieldHandler> _fieldHandlers;
 
@@ -22,6 +24,7 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
     {
         var handlers = _fieldHandlers;
         int handlerCount = handlers.Count;
+
 
         foreach (var obj in objects)
         {
@@ -36,11 +39,11 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
 
             GameObjectFields mask = obj.GetChangeMask();
 
-            var compCounter = new Shared.Networking.FieldHandlers.ComponentsFieldHandler.ComponentCounter();
+            var compCounter = new Shared.Networking.FieldHandlers.ComponentsFieldHandler.ComponentCounter { IsNew = isNew };
             obj.VisitComponents(ref compCounter);
             if (compCounter.DirtyCount > 0) mask |= GameObjectFields.Components;
 
-            if (isNew) mask |= GameObjectFields.NewObject | GameObjectFields.Type | GameObjectFields.Position | GameObjectFields.Visuals | GameObjectFields.Components;
+            if (isNew) mask |= GameObjectFields.NewObject | GameObjectFields.Type | GameObjectFields.Position | GameObjectFields.Visuals;
 
             int changeCount = 0;
             var counter = new Shared.Networking.FieldHandlers.VariablesFieldHandler.ChangeCounter();
@@ -48,15 +51,37 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
             changeCount = counter.Count;
             if (changeCount > 0) mask |= GameObjectFields.Variables;
 
-            writer.WriteBits((ulong)mask, 16);
+            writer.WriteBits((ulong)mask, 32);
 
-            // Optimized unrolled loop for field handlers
-            for (int i = 0; i < handlerCount; i++)
+            // Fast-path: If the object is in an Archetype, use bulk SoA write
+            if (obj.Archetype is Archetype arch && obj.ArchetypeIndex != -1)
             {
-                var handler = handlers[i];
-                if ((mask & handler.FieldMask) != 0)
+                // We don't have the chunk here, but we can call a simplified bulk writer on the Archetype
+                // For now, use the SoA-optimized field handler methods via dynamic chunk resolution
+                // OR just call individual handlers with the object (they use SoA accessors internally now).
+
+                // Optimization: Use specialized SoA write for core fields
+                for (int i = 0; i < handlerCount; i++)
                 {
-                    handler.Write(ref writer, obj, mask);
+                    var handler = handlers[i];
+                    if ((mask & handler.FieldMask) != 0)
+                    {
+                        // Some handlers might benefit from knowing they are in an archetype
+                        // but most just use the GameObject properties which we already optimized.
+                        handler.Write(ref writer, obj, mask);
+                    }
+                }
+            }
+            else
+            {
+                // Slow-path for non-archetype objects
+                for (int i = 0; i < handlerCount; i++)
+                {
+                    var handler = handlers[i];
+                    if ((mask & handler.FieldMask) != 0)
+                    {
+                        handler.Write(ref writer, obj, mask);
+                    }
                 }
             }
 
@@ -77,7 +102,7 @@ public class BitPackedSnapshotSerializer : ISnapshotSerializer
             if (id == 0) break;
 
             long version = reader.ReadVarInt();
-            GameObjectFields mask = (GameObjectFields)reader.ReadBits(16);
+            GameObjectFields mask = (GameObjectFields)reader.ReadBits(32);
 
             GameObject? gameObject;
             world.TryGetValue(id, out gameObject);

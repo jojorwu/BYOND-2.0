@@ -9,5 +9,6 @@ public enum DreamValueType {
     DreamObject,
     DreamType,
     DreamResource,
-    DreamProc
+    DreamProc,
+    SuspendedMarker
 }

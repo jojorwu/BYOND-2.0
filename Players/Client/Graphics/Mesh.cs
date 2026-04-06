@@ -20,6 +20,10 @@ namespace Client.Graphics
         }
     }
 
+    /// <summary>
+    /// Represents a 3D mesh consisting of vertices and indices.
+    /// Handles GPU buffer management for high-performance geometry rendering.
+    /// </summary>
     public class Mesh : IDisposable
     {
         private readonly GL _gl;
@@ -28,6 +32,9 @@ namespace Client.Graphics
         private readonly uint _ebo;
         private readonly uint _indexCount;
 
+        /// <summary>
+        /// Creates a new mesh and uploads vertex/index data to the GPU.
+        /// </summary>
         public Mesh(GL gl, MeshVertex[] vertices, uint[] indices)
         {
             _gl = gl;

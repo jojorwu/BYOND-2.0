@@ -25,9 +25,10 @@ public ref struct BitWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCapacity(int bitsNeeded)
     {
-        if (_bitOffset + bitsNeeded > _destination.Length * 8)
+        int availableBits = _destination.Length * 8;
+        if (_bitOffset + bitsNeeded > availableBits)
         {
-            throw new IndexOutOfRangeException($"BitWriter overflow. Offset: {_bitOffset}, Needed: {bitsNeeded}, Capacity: {_destination.Length * 8}");
+            throw new IndexOutOfRangeException($"BitWriter overflow. BitOffset: {_bitOffset}, Requested: {bitsNeeded}, Total Capacity: {availableBits} bits ({_destination.Length} bytes)");
         }
     }
 
@@ -180,31 +181,43 @@ public ref struct BitWriter
         if (string.IsNullOrEmpty(s))
         {
             WriteVarInt(0);
+            return;
+        }
+
+        int byteCount = Encoding.UTF8.GetByteCount(s);
+        WriteVarInt(byteCount);
+
+        int bitInByteIdx = _bitOffset % 8;
+        if (bitInByteIdx == 0)
+        {
+            int byteOffset = _bitOffset / 8;
+            EnsureCapacity(byteCount * 8);
+            Encoding.UTF8.GetBytes(s, _destination.Slice(byteOffset));
+            _bitOffset += byteCount * 8;
         }
         else
         {
-            int byteCount = Encoding.UTF8.GetByteCount(s);
-            WriteVarInt(byteCount);
+            // Use direct span access to Encoding.UTF8 to avoid byte[] allocation if possible
+            // We still need a temporary span if we are not byte-aligned
+            EnsureCapacity(byteCount * 8);
 
-            int bitInByteIdx = _bitOffset % 8;
-            if (bitInByteIdx == 0)
+            if (byteCount <= 512)
             {
-                int byteOffset = _bitOffset / 8;
-                EnsureCapacity(byteCount * 8);
-                Encoding.UTF8.GetBytes(s, _destination.Slice(byteOffset));
-                _bitOffset += byteCount * 8;
+                Span<byte> temp = stackalloc byte[byteCount];
+                Encoding.UTF8.GetBytes(s, temp);
+                for (int i = 0; i < temp.Length; i++) WriteBits(temp[i], 8);
             }
             else
             {
-                byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
+                byte[] poolArray = ArrayPool<byte>.Shared.Rent(byteCount);
                 try
                 {
-                    Encoding.UTF8.GetBytes(s, temp);
-                    WriteBytes(temp.AsSpan(0, byteCount));
+                    Encoding.UTF8.GetBytes(s, poolArray);
+                    WriteBytes(poolArray.AsSpan(0, byteCount));
                 }
                 finally
                 {
-                    ArrayPool<byte>.Shared.Return(temp);
+                    ArrayPool<byte>.Shared.Return(poolArray);
                 }
             }
         }

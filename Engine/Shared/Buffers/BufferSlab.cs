@@ -4,16 +4,61 @@ using System.Runtime.InteropServices;
 
 namespace Shared.Buffers;
 
+/// <summary>
+/// Represents a contiguous block of memory (slab) used by high-performance buffers.
+/// Supports both pooled and pinned memory to minimize GC pressure and enable zero-copy operations.
+/// </summary>
 internal sealed class BufferSlab : IDisposable
 {
+    /// <summary>
+    /// The underlying byte array for this slab.
+    /// </summary>
     public readonly byte[] Data;
+
+    /// <summary>
+    /// The total capacity of this slab in bytes.
+    /// </summary>
     public readonly int Capacity;
+
+    /// <summary>
+    /// Indicates whether the memory was rented from <see cref="ArrayPool{T}"/>.
+    /// </summary>
     public readonly bool IsFromPool;
+
+    /// <summary>
+    /// Indicates whether this slab was created to handle an oversized segment request.
+    /// </summary>
     public readonly bool IsOversized;
+
+    /// <summary>
+    /// The current write/allocation offset within this slab.
+    /// </summary>
     public int Offset;
+
     private GCHandle _handle;
+
+    /// <summary>
+    /// A pointer to the start of the pinned memory, or null if the memory is not pinned.
+    /// </summary>
     public readonly unsafe byte* Ptr;
 
+    /// <summary>
+    /// Returns a <see cref="Span{T}"/> over the entire slab.
+    /// </summary>
+    public Span<byte> Span => Data.AsSpan();
+
+    /// <summary>
+    /// Returns a <see cref="Memory{T}"/> over the entire slab.
+    /// </summary>
+    public Memory<byte> Memory => Data.AsMemory();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BufferSlab"/> class.
+    /// </summary>
+    /// <param name="size">The required capacity in bytes.</param>
+    /// <param name="fromPool">If true, memory is rented from <see cref="ArrayPool{T}.Shared"/>.</param>
+    /// <param name="pinned">If true, the memory is pinned in the GC heap.</param>
+    /// <param name="isOversized">If true, indicates an oversized segment.</param>
     public unsafe BufferSlab(int size, bool fromPool, bool pinned, bool isOversized = false)
     {
         Capacity = size;
@@ -41,6 +86,9 @@ internal sealed class BufferSlab : IDisposable
         }
     }
 
+    /// <summary>
+    /// Reclaims resources used by the slab, returning memory to the pool if applicable.
+    /// </summary>
     public void Dispose()
     {
         if (_handle.IsAllocated)

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Models;
@@ -52,8 +53,7 @@ public class BinarySnapshotService : EngineService, IShrinkable
         }
         else if (objects is IGameObject[] array)
         {
-            int length = array.Length;
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < array.Length; i++)
             {
                 if (SerializeObject(destination, array[i], lastVersions, ref offset, out truncated)) break;
             }
@@ -160,7 +160,7 @@ public class BinarySnapshotService : EngineService, IShrinkable
         }
 
         int slabOffset;
-        var slabSpan = _buffer.AcquireSegment(Math.Min(2048, 4096), out slabOffset); // Improved segment request
+        var slabSpan = _buffer.AcquireSegment(2048, out slabOffset);
 
         int localOffset = 0;
         localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), obj.Id);
@@ -182,18 +182,14 @@ public class BinarySnapshotService : EngineService, IShrinkable
                 try {
                     serializer = new SinglePassSerializer { PropertyBuffer = largeBuffer };
                     g.VisitChanges(ref serializer);
-                    localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), serializer.Count);
-                    serializer.PropertyBuffer.Slice(0, serializer.Offset).CopyTo(slabSpan.Slice(localOffset));
-                    localOffset += serializer.Offset;
+                    WriteProperties(ref localOffset, slabSpan, serializer);
                 } finally {
                     ArrayPool<byte>.Shared.Return(largeBuffer);
                 }
             }
             else
             {
-                localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), serializer.Count);
-                serializer.PropertyBuffer.Slice(0, serializer.Offset).CopyTo(slabSpan.Slice(localOffset));
-                localOffset += serializer.Offset;
+                WriteProperties(ref localOffset, slabSpan, serializer);
             }
         }
         else
@@ -213,6 +209,14 @@ public class BinarySnapshotService : EngineService, IShrinkable
 
         if (lastVersions != null) lastVersions[obj.Id] = obj.Version;
         return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void WriteProperties(ref int localOffset, Span<byte> slabSpan, in SinglePassSerializer serializer)
+    {
+        localOffset += Utils.VarInt.Write(slabSpan.Slice(localOffset), serializer.Count);
+        serializer.PropertyBuffer.Slice(0, serializer.Offset).CopyTo(slabSpan.Slice(localOffset));
+        localOffset += serializer.Offset;
     }
 
     public void Dispose()

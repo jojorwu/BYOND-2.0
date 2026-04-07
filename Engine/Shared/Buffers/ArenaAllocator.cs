@@ -49,13 +49,31 @@ public class ArenaAllocator : IArenaAllocator, IDisposable
 
     public void Reset()
     {
+        _currentBlockIndex = 0;
+
         if (_blocks.Count > 64)
         {
             for (int i = 64; i < _blocks.Count; i++) _blocks[i].Dispose();
             _blocks.RemoveRange(64, _blocks.Count - 64);
         }
-        _currentBlockIndex = 0;
-        foreach (var block in _blocks) block.Offset = 0;
+
+        for (int i = _blocks.Count - 1; i >= 0; i--)
+        {
+            if (_blocks[i].IsOversized)
+            {
+                _blocks[i].Dispose();
+                _blocks.RemoveAt(i);
+            }
+            else
+            {
+                _blocks[i].Offset = 0;
+            }
+        }
+
+        if (_blocks.Count == 0)
+        {
+            _blocks.Add(new BufferSlab(DefaultBlockSize, fromPool: true, pinned: false));
+        }
     }
 
     public void Dispose()

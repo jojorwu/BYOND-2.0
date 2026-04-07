@@ -151,7 +151,7 @@ public class SystemManager : EngineService, ISystemManager, ITickable, IAsyncDis
                 if (tickMethod != null) tickMethod = tickMethod.MakeGenericMethod(componentType);
                 else tickMethod = system.GetType().GetMethod("TickAsync", [chunkType, typeof(IEntityCommandBuffer)]);
 
-                if (tickMethod != null && tickMethod.DeclaringType != typeof(ISystem))
+                if (tickMethod != null && tickMethod.DeclaringType != typeof(ISystem) && tickMethod.DeclaringType != typeof(BaseSystem))
                 {
                     // Create a delegate to avoid reflection in the hot path
                     // We use a helper to avoid generic issues with Action/Func

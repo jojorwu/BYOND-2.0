@@ -31,9 +31,10 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCapacity(int bitsNeeded)
     {
-        if (_bitOffset + bitsNeeded > _source.Length * 8)
+        int availableBits = _source.Length * 8;
+        if (_bitOffset + bitsNeeded > availableBits)
         {
-            throw new IndexOutOfRangeException($"BitReader overflow. Offset: {_bitOffset}, Needed: {bitsNeeded}, Capacity: {_source.Length * 8}");
+            throw new IndexOutOfRangeException($"BitReader overflow. BitOffset: {_bitOffset}, Requested: {bitsNeeded}, Total Capacity: {availableBits} bits ({_source.Length} bytes)");
         }
     }
 

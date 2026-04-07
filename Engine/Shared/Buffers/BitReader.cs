@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -20,12 +21,19 @@ public ref struct BitReader
         throw new NotSupportedException("Multi-segment reader is not yet implemented.");
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitReader"/> struct with a source span.
+    /// </summary>
+    /// <param name="source">The read-only span to read bits from.</param>
     public BitReader(ReadOnlySpan<byte> source)
     {
         _source = source;
         _bitOffset = 0;
     }
 
+    /// <summary>
+    /// Gets the total number of bits read from the buffer.
+    /// </summary>
     public int BitsRead => _bitOffset;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -38,6 +46,11 @@ public ref struct BitReader
         }
     }
 
+    /// <summary>
+    /// Reads the specified number of bits and returns them as an unsigned 64-bit integer.
+    /// </summary>
+    /// <param name="bitCount">The number of bits to read (up to 64).</param>
+    /// <returns>An unsigned 64-bit integer containing the read bits.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong ReadBits(int bitCount)
     {
@@ -62,24 +75,69 @@ public ref struct BitReader
         return result;
     }
 
+    /// <summary>
+    /// Advances the read position by the specified number of bits.
+    /// </summary>
+    /// <param name="bitCount">The number of bits to skip.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SkipBits(int bitCount)
     {
         _bitOffset += bitCount;
     }
 
+    /// <summary>
+    /// Reads a single byte (8 bits) from the buffer.
+    /// </summary>
+    /// <returns>The read byte.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public byte ReadByte()
     {
         return (byte)ReadBits(8);
     }
 
+    /// <summary>
+    /// Reads a sequence of bytes from the buffer.
+    /// Optimizes for byte-aligned reads using bulk copying.
+    /// </summary>
+    /// <param name="destination">The span to read bytes into.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ReadBytes(Span<byte> destination)
+    {
+        int bitLen = destination.Length * 8;
+        EnsureCapacity(bitLen);
+
+        if ((_bitOffset & 7) == 0)
+        {
+            _source.Slice(_bitOffset / 8, destination.Length).CopyTo(destination);
+            _bitOffset += bitLen;
+        }
+        else
+        {
+            for (int i = 0; i < destination.Length; i++) destination[i] = ReadByte();
+        }
+    }
+
+    /// <summary>
+    /// Reads a 32-bit floating-point value in Big-Endian format.
+    /// </summary>
+    /// <returns>The read float value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float ReadFloat()
     {
+        if ((_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(32);
+            float result = BinaryPrimitives.ReadSingleBigEndian(_source.Slice(_bitOffset / 8));
+            _bitOffset += 32;
+            return result;
+        }
         return BitConverter.Int32BitsToSingle((int)ReadBits(32));
     }
 
+    /// <summary>
+    /// Reads a single boolean value from one bit.
+    /// </summary>
+    /// <returns>True if the bit is set; otherwise, false.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ReadBool()
     {
@@ -91,24 +149,63 @@ public ref struct BitReader
         return result;
     }
 
+    /// <summary>
+    /// Reads a signed 32-bit integer using the specified number of bits.
+    /// </summary>
+    /// <param name="bitCount">The number of bits to read.</param>
+    /// <returns>The read integer.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ReadInt(int bitCount)
     {
+        if (bitCount == 32 && (_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(32);
+            int result = BinaryPrimitives.ReadInt32BigEndian(_source.Slice(_bitOffset / 8));
+            _bitOffset += 32;
+            return result;
+        }
         return (int)ReadBits(bitCount);
     }
 
+    /// <summary>
+    /// Reads a signed 64-bit integer using the specified number of bits.
+    /// </summary>
+    /// <param name="bitCount">The number of bits to read.</param>
+    /// <returns>The read long integer.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public long ReadLong(int bitCount)
     {
+        if (bitCount == 64 && (_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(64);
+            long result = BinaryPrimitives.ReadInt64BigEndian(_source.Slice(_bitOffset / 8));
+            _bitOffset += 64;
+            return result;
+        }
         return (long)ReadBits(bitCount);
     }
 
+    /// <summary>
+    /// Reads a 64-bit floating-point value in Big-Endian format.
+    /// </summary>
+    /// <returns>The read double value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public double ReadDouble()
     {
+        if ((_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(64);
+            double result = BinaryPrimitives.ReadDoubleBigEndian(_source.Slice(_bitOffset / 8));
+            _bitOffset += 64;
+            return result;
+        }
         return BitConverter.UInt64BitsToDouble(ReadBits(64));
     }
 
+    /// <summary>
+    /// Reads a signed 64-bit integer using variable-length encoding (LEB128-like).
+    /// </summary>
+    /// <returns>The read value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public long ReadVarInt()
     {
@@ -123,6 +220,10 @@ public ref struct BitReader
         return result;
     }
 
+    /// <summary>
+    /// Reads a signed 64-bit integer using ZigZag and VarInt encoding.
+    /// </summary>
+    /// <returns>The read value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public long ReadZigZag()
     {
@@ -130,6 +231,10 @@ public ref struct BitReader
         return (long)(zigzag >> 1) ^ -(long)(zigzag & 1);
     }
 
+    /// <summary>
+    /// Reads a UTF-8 encoded string, prefixed by its byte length as a VarInt.
+    /// </summary>
+    /// <returns>The read string.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public string ReadString()
     {

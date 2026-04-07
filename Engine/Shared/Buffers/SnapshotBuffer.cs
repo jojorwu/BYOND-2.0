@@ -6,7 +6,11 @@ using System.Runtime.CompilerServices;
 
 namespace Shared.Buffers;
 
-public sealed class SnapshotBuffer : IDisposable
+/// <summary>
+/// A growable buffer designed for game state snapshot serialization.
+/// Utilizes multiple slabs of memory and supports efficient segment retrieval via binary search.
+/// </summary>
+public sealed class SnapshotBuffer : IBuffer, IDisposable
 {
     private readonly List<BufferSlab> _slabs = new();
     private readonly List<int> _slabBaseOffsets = new();
@@ -14,6 +18,10 @@ public sealed class SnapshotBuffer : IDisposable
     private readonly int _defaultSlabSize;
     private int _totalCapacity;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SnapshotBuffer"/> class with a default slab size.
+    /// </summary>
+    /// <param name="defaultSize">The default size for each slab in bytes. Defaults to 16MB.</param>
     public SnapshotBuffer(int defaultSize = 16 * 1024 * 1024)
     {
         _defaultSlabSize = defaultSize;
@@ -24,9 +32,19 @@ public sealed class SnapshotBuffer : IDisposable
         _totalCapacity = defaultSize;
     }
 
+    /// <inheritdoc />
     public int Capacity => _totalCapacity;
+
+    /// <inheritdoc />
     public int Position => _slabBaseOffsets[_currentSlabIndex] + _slabs[_currentSlabIndex].Offset;
 
+    /// <summary>
+    /// Acquires a contiguous segment of the specified length within the buffer.
+    /// If the current slab cannot accommodate the segment, a new slab is allocated or retrieved.
+    /// </summary>
+    /// <param name="length">The required segment length in bytes.</param>
+    /// <param name="segmentOffset">When this method returns, contains the global offset of the segment.</param>
+    /// <returns>A span pointing to the allocated memory segment.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public unsafe Span<byte> AcquireSegment(int length, out int segmentOffset)
     {
@@ -54,17 +72,6 @@ public sealed class SnapshotBuffer : IDisposable
                 _slabBaseOffsets.Add(_totalCapacity);
                 _totalCapacity += _defaultSlabSize;
             }
-            else if (_slabs[_currentSlabIndex].IsOversized)
-            {
-                // We hit an oversized slab that was from a previous use, skip it or insert a new normal one
-                var newSlab = new BufferSlab(_defaultSlabSize, fromPool: true, pinned: true);
-                _slabs.Insert(_currentSlabIndex, newSlab);
-                _slabBaseOffsets.Insert(_currentSlabIndex, _slabBaseOffsets[_currentSlabIndex]);
-                // Shift subsequent offsets
-                for (int i = _currentSlabIndex + 1; i < _slabBaseOffsets.Count; i++)
-                    _slabBaseOffsets[i] += _defaultSlabSize;
-                _totalCapacity += _defaultSlabSize;
-            }
 
             currentSlab = _slabs[_currentSlabIndex];
             currentSlab.Offset = 0;
@@ -76,6 +83,12 @@ public sealed class SnapshotBuffer : IDisposable
         return span;
     }
 
+    /// <summary>
+    /// Returns a <see cref="ReadOnlySpan{T}"/> over a previously acquired segment.
+    /// </summary>
+    /// <param name="offset">The global offset of the segment.</param>
+    /// <param name="length">The length of the segment.</param>
+    /// <returns>A read-only span covering the requested segment.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlySpan<byte> GetSegmentAsSpan(int offset, int length)
     {
@@ -88,6 +101,12 @@ public sealed class SnapshotBuffer : IDisposable
         throw new ArgumentOutOfRangeException(nameof(offset));
     }
 
+    /// <summary>
+    /// Returns a <see cref="ReadOnlyMemory{T}"/> over a previously acquired segment.
+    /// </summary>
+    /// <param name="offset">The global offset of the segment.</param>
+    /// <param name="length">The length of the segment.</param>
+    /// <returns>A read-only memory block covering the requested segment.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlyMemory<byte> GetSegmentAsMemory(int offset, int length)
     {
@@ -118,6 +137,7 @@ public sealed class SnapshotBuffer : IDisposable
         return -1;
     }
 
+    /// <inheritdoc />
     public void Reset()
     {
         _currentSlabIndex = 0;
@@ -162,6 +182,7 @@ public sealed class SnapshotBuffer : IDisposable
         }
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         foreach (var slab in _slabs) slab.Dispose();

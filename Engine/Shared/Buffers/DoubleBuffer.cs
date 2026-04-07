@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace Shared.Buffers;
     /// <summary>
@@ -10,8 +11,8 @@ namespace Shared.Buffers;
         private T _read;
         private T _write;
 
-        public T Read => _read;
-        public T Write => _write;
+        public T Read => Volatile.Read(ref _read);
+        public T Write => Volatile.Read(ref _write);
 
         public DoubleBuffer(T initialState)
         {
@@ -26,13 +27,16 @@ namespace Shared.Buffers;
         }
 
         /// <summary>
-        /// Swaps the read and write buffers.
+        /// Swaps the read and write buffers. This operation is thread-safe.
         /// </summary>
         public void Swap()
         {
-            var temp = _read;
-            _read = _write;
-            _write = temp;
+            lock (this)
+            {
+                var temp = _read;
+                _read = _write;
+                _write = temp;
+            }
         }
 
         /// <summary>

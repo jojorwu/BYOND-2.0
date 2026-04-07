@@ -1,6 +1,8 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Shared.Buffers;
@@ -13,13 +15,24 @@ public ref struct BitWriter
     private Span<byte> _destination;
     private int _bitOffset;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitWriter"/> struct with a destination span.
+    /// </summary>
+    /// <param name="destination">The span to write bits into.</param>
     public BitWriter(Span<byte> destination)
     {
         _destination = destination;
         _bitOffset = 0;
     }
 
+    /// <summary>
+    /// Gets the total number of bits written to the buffer.
+    /// </summary>
     public int BitsWritten => _bitOffset;
+
+    /// <summary>
+    /// Gets the total number of bytes written to the buffer, rounded up.
+    /// </summary>
     public int BytesWritten => (_bitOffset + 7) / 8;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -32,6 +45,11 @@ public ref struct BitWriter
         }
     }
 
+    /// <summary>
+    /// Writes the specified number of bits from an unsigned 64-bit value to the buffer.
+    /// </summary>
+    /// <param name="value">The value containing the bits to write.</param>
+    /// <param name="bitCount">The number of bits to write (up to 64).</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBits(ulong value, int bitCount)
     {
@@ -59,6 +77,12 @@ public ref struct BitWriter
         }
     }
 
+    /// <summary>
+    /// Overwrites a previously written sequence of bits at a specific offset.
+    /// </summary>
+    /// <param name="bitOffset">The bit offset where patching should begin.</param>
+    /// <param name="value">The new value containing the bits.</param>
+    /// <param name="bitCount">The number of bits to overwrite.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void PatchBits(int bitOffset, ulong value, int bitCount)
     {
@@ -90,6 +114,10 @@ public ref struct BitWriter
         _bitOffset = savedOffset;
     }
 
+    /// <summary>
+    /// Writes a single boolean value as one bit.
+    /// </summary>
+    /// <param name="value">The boolean value to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBool(bool value)
     {
@@ -106,12 +134,21 @@ public ref struct BitWriter
         _bitOffset++;
     }
 
+    /// <summary>
+    /// Writes a single byte (8 bits) to the buffer.
+    /// </summary>
+    /// <param name="value">The byte value to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteByte(byte value)
     {
         WriteBits(value, 8);
     }
 
+    /// <summary>
+    /// Writes a sequence of bytes to the buffer.
+    /// Optimizes for byte-aligned writes using bulk copying.
+    /// </summary>
+    /// <param name="bytes">The span of bytes to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteBytes(ReadOnlySpan<byte> bytes)
     {
@@ -130,30 +167,88 @@ public ref struct BitWriter
         }
     }
 
+    /// <summary>
+    /// Writes a 32-bit floating-point value in Big-Endian format.
+    /// </summary>
+    /// <param name="value">The float value to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteFloat(float value)
     {
-        WriteBits((uint)BitConverter.SingleToInt32Bits(value), 32);
+        if ((_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(32);
+            BinaryPrimitives.WriteSingleBigEndian(_destination.Slice(_bitOffset / 8), value);
+            _bitOffset += 32;
+        }
+        else
+        {
+            WriteBits((uint)BitConverter.SingleToInt32Bits(value), 32);
+        }
     }
 
+    /// <summary>
+    /// Writes a signed 32-bit integer using the specified number of bits.
+    /// </summary>
+    /// <param name="value">The integer value to write.</param>
+    /// <param name="bitCount">The number of bits to use.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteInt(int value, int bitCount)
     {
-        WriteBits((ulong)value, bitCount);
+        if (bitCount == 32 && (_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(32);
+            BinaryPrimitives.WriteInt32BigEndian(_destination.Slice(_bitOffset / 8), value);
+            _bitOffset += 32;
+        }
+        else
+        {
+            WriteBits((ulong)value, bitCount);
+        }
     }
 
+    /// <summary>
+    /// Writes a signed 64-bit integer using the specified number of bits.
+    /// </summary>
+    /// <param name="value">The long value to write.</param>
+    /// <param name="bitCount">The number of bits to use.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteLong(long value, int bitCount)
     {
-        WriteBits((ulong)value, bitCount);
+        if (bitCount == 64 && (_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(64);
+            BinaryPrimitives.WriteInt64BigEndian(_destination.Slice(_bitOffset / 8), value);
+            _bitOffset += 64;
+        }
+        else
+        {
+            WriteBits((ulong)value, bitCount);
+        }
     }
 
+    /// <summary>
+    /// Writes a 64-bit floating-point value in Big-Endian format.
+    /// </summary>
+    /// <param name="value">The double value to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteDouble(double value)
     {
-        WriteBits(BitConverter.DoubleToUInt64Bits(value), 64);
+        if ((_bitOffset & 7) == 0)
+        {
+            EnsureCapacity(64);
+            BinaryPrimitives.WriteDoubleBigEndian(_destination.Slice(_bitOffset / 8), value);
+            _bitOffset += 64;
+        }
+        else
+        {
+            WriteBits(BitConverter.DoubleToUInt64Bits(value), 64);
+        }
     }
 
+    /// <summary>
+    /// Writes a signed 64-bit integer using a variable-length encoding (LEB128-like).
+    /// </summary>
+    /// <param name="value">The value to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteVarInt(long value)
     {
@@ -168,6 +263,10 @@ public ref struct BitWriter
         WriteBits(v & 0x7F, 7);
     }
 
+    /// <summary>
+    /// Writes a signed 64-bit integer using ZigZag encoding to handle negative values efficiently with VarInt.
+    /// </summary>
+    /// <param name="value">The value to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteZigZag(long value)
     {
@@ -175,6 +274,10 @@ public ref struct BitWriter
         WriteVarInt((long)zigzag);
     }
 
+    /// <summary>
+    /// Writes a UTF-8 encoded string to the buffer, prefixed by its byte length as a VarInt.
+    /// </summary>
+    /// <param name="s">The string to write.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteString(string? s)
     {

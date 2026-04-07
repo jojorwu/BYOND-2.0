@@ -8,17 +8,76 @@ namespace Shared.Buffers;
 
 /// <summary>
 /// A high-performance bit-level reader for compact serialization.
+/// Supports both single-span and multi-segment sources via <see cref="ReadOnlySequence{T}"/>.
 /// </summary>
 public ref struct BitReader
 {
     private ReadOnlySpan<byte> _source;
     private int _bitOffset;
+    private ReadOnlySequence<byte> _sequence;
+    private long _totalBits;
+    private long _segmentBaseBitOffset;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitReader"/> struct with multiple memory segments.
+    /// </summary>
+    /// <param name="segments">A provider of memory segments to read from.</param>
+    public BitReader(SnapshotBuffer.SegmentProvider segments)
+    {
+        if (segments.Count == 0)
+        {
+            _source = ReadOnlySpan<byte>.Empty;
+            _sequence = default;
+            _totalBits = 0;
+        }
+        else if (segments.Count == 1)
+        {
+            _source = segments[0].Span;
+            _sequence = default;
+            _totalBits = (long)_source.Length * 8;
+        }
+        else
+        {
+            var builder = new SequenceBuilder();
+            foreach (var segment in segments) builder.Add(segment);
+            _sequence = builder.Build();
+            _source = _sequence.FirstSpan;
+            _totalBits = _sequence.Length * 8;
+        }
+
+        _bitOffset = 0;
+        _segmentBaseBitOffset = 0;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitReader"/> struct with multiple memory segments.
+    /// </summary>
+    /// <param name="segments">A span of memory segments to read from.</param>
     public BitReader(ReadOnlySpan<ReadOnlyMemory<byte>> segments)
     {
-        // For simplicity, we currently flatten segments or use a single span.
-        // A multi-segment reader would be more complex and require tracking segment transitions.
-        throw new NotSupportedException("Multi-segment reader is not yet implemented.");
+        if (segments.Length == 0)
+        {
+            _source = ReadOnlySpan<byte>.Empty;
+            _sequence = default;
+            _totalBits = 0;
+        }
+        else if (segments.Length == 1)
+        {
+            _source = segments[0].Span;
+            _sequence = default;
+            _totalBits = (long)_source.Length * 8;
+        }
+        else
+        {
+            var builder = new SequenceBuilder();
+            foreach (var segment in segments) builder.Add(segment);
+            _sequence = builder.Build();
+            _source = _sequence.FirstSpan;
+            _totalBits = _sequence.Length * 8;
+        }
+
+        _bitOffset = 0;
+        _segmentBaseBitOffset = 0;
     }
 
     /// <summary>
@@ -29,20 +88,45 @@ public ref struct BitReader
     {
         _source = source;
         _bitOffset = 0;
+        _sequence = default;
+        _totalBits = (long)source.Length * 8;
+        _segmentBaseBitOffset = 0;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitReader"/> struct with a sequence.
+    /// </summary>
+    /// <param name="sequence">The sequence to read from.</param>
+    public BitReader(ReadOnlySequence<byte> sequence)
+    {
+        _sequence = sequence;
+        _source = sequence.FirstSpan;
+        _bitOffset = 0;
+        _totalBits = sequence.Length * 8;
+        _segmentBaseBitOffset = 0;
     }
 
     /// <summary>
     /// Gets the total number of bits read from the buffer.
     /// </summary>
-    public int BitsRead => _bitOffset;
+    public long BitsRead => _segmentBaseBitOffset + _bitOffset;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCapacity(int bitsNeeded)
     {
-        int availableBits = _source.Length * 8;
-        if (_bitOffset + bitsNeeded > availableBits)
+        long currentBitPos = _segmentBaseBitOffset + _bitOffset;
+        if (currentBitPos + bitsNeeded > _totalBits)
         {
-            throw new IndexOutOfRangeException($"BitReader overflow. BitOffset: {_bitOffset}, Requested: {bitsNeeded}, Total Capacity: {availableBits} bits ({_source.Length} bytes)");
+            throw new IndexOutOfRangeException($"BitReader overflow. BitOffset: {currentBitPos}, Requested: {bitsNeeded}, Total Capacity: {_totalBits} bits");
+        }
+
+        // Move to next segment if current is exhausted
+        while (_bitOffset >= _source.Length * 8 && !_sequence.IsEmpty)
+        {
+            _segmentBaseBitOffset += (long)_source.Length * 8;
+            _bitOffset -= _source.Length * 8;
+            _sequence = _sequence.Slice(_source.Length);
+            _source = _sequence.FirstSpan;
         }
     }
 
@@ -60,6 +144,15 @@ public ref struct BitReader
         ulong result = 0;
         while (bitCount > 0)
         {
+            // Move to next segment if current bit offset is at the end of the current span
+            if (_bitOffset >= _source.Length * 8 && !_sequence.IsEmpty)
+            {
+                _segmentBaseBitOffset += (long)_source.Length * 8;
+                _bitOffset = 0;
+                _sequence = _sequence.Slice(_source.Length);
+                _source = _sequence.FirstSpan;
+            }
+
             int byteIdx = _bitOffset / 8;
             int bitInByteIdx = _bitOffset % 8;
             int bitsToReadInByte = Math.Min(bitCount, 8 - bitInByteIdx);
@@ -106,7 +199,8 @@ public ref struct BitReader
         int bitLen = destination.Length * 8;
         EnsureCapacity(bitLen);
 
-        if ((_bitOffset & 7) == 0)
+        // Fast path for aligned reads that fit within the current segment
+        if ((_bitOffset & 7) == 0 && (_bitOffset / 8) + destination.Length <= _source.Length)
         {
             _source.Slice(_bitOffset / 8, destination.Length).CopyTo(destination);
             _bitOffset += bitLen;
@@ -124,9 +218,8 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float ReadFloat()
     {
-        if ((_bitOffset & 7) == 0)
+        if ((_bitOffset & 7) == 0 && (_bitOffset / 8) + 4 <= _source.Length)
         {
-            EnsureCapacity(32);
             float result = BinaryPrimitives.ReadSingleBigEndian(_source.Slice(_bitOffset / 8));
             _bitOffset += 32;
             return result;
@@ -157,9 +250,8 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int ReadInt(int bitCount)
     {
-        if (bitCount == 32 && (_bitOffset & 7) == 0)
+        if (bitCount == 32 && (_bitOffset & 7) == 0 && (_bitOffset / 8) + 4 <= _source.Length)
         {
-            EnsureCapacity(32);
             int result = BinaryPrimitives.ReadInt32BigEndian(_source.Slice(_bitOffset / 8));
             _bitOffset += 32;
             return result;
@@ -175,9 +267,8 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public long ReadLong(int bitCount)
     {
-        if (bitCount == 64 && (_bitOffset & 7) == 0)
+        if (bitCount == 64 && (_bitOffset & 7) == 0 && (_bitOffset / 8) + 8 <= _source.Length)
         {
-            EnsureCapacity(64);
             long result = BinaryPrimitives.ReadInt64BigEndian(_source.Slice(_bitOffset / 8));
             _bitOffset += 64;
             return result;
@@ -192,9 +283,8 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public double ReadDouble()
     {
-        if ((_bitOffset & 7) == 0)
+        if ((_bitOffset & 7) == 0 && (_bitOffset / 8) + 8 <= _source.Length)
         {
-            EnsureCapacity(64);
             double result = BinaryPrimitives.ReadDoubleBigEndian(_source.Slice(_bitOffset / 8));
             _bitOffset += 64;
             return result;
@@ -208,7 +298,7 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadBits(int bitCount, out ulong result)
     {
-        if (_bitOffset + bitCount > _source.Length * 8)
+        if (BitsRead + bitCount > _totalBits)
         {
             result = 0;
             return false;
@@ -229,12 +319,12 @@ public ref struct BitReader
         {
             long result = 0;
             int shift = 0;
-            int byteIdx = _bitOffset / 8;
 
             while (true)
             {
-                if (byteIdx >= _source.Length) throw new IndexOutOfRangeException("BitReader overflow during VarInt");
-                byte b = _source[byteIdx++];
+                EnsureCapacity(8);
+                int byteIdx = _bitOffset / 8;
+                byte b = _source[byteIdx];
                 _bitOffset += 8;
                 result |= (long)(b & 0x7F) << shift;
                 if ((b & 0x80) == 0) return result;
@@ -278,10 +368,9 @@ public ref struct BitReader
         if (byteCount == 0) return string.Empty;
 
         int bitInByteIdx = _bitOffset % 8;
-        if (bitInByteIdx == 0)
+        if (bitInByteIdx == 0 && (_bitOffset / 8) + byteCount <= _source.Length)
         {
             int byteOffset = _bitOffset / 8;
-            EnsureCapacity(byteCount * 8);
             var result = Encoding.UTF8.GetString(_source.Slice(byteOffset, byteCount));
             _bitOffset += byteCount * 8;
             return result;
@@ -291,7 +380,7 @@ public ref struct BitReader
             byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
             try
             {
-                for (int i = 0; i < byteCount; i++) temp[i] = (byte)ReadBits(8);
+                ReadBytes(temp.AsSpan(0, byteCount));
                 return Encoding.UTF8.GetString(temp, 0, byteCount);
             }
             finally

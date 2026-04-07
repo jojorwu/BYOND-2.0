@@ -14,6 +14,8 @@ public ref struct BitWriter
 {
     private Span<byte> _destination;
     private int _bitOffset;
+    private readonly IBufferWriter<byte>? _writer;
+    private int _globalBaseBitOffset;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BitWriter"/> struct with a destination span.
@@ -23,25 +25,70 @@ public ref struct BitWriter
     {
         _destination = destination;
         _bitOffset = 0;
+        _writer = null;
+        _globalBaseBitOffset = 0;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitWriter"/> struct with a buffer writer.
+    /// </summary>
+    /// <param name="writer">The buffer writer to write bits into.</param>
+    public BitWriter(IBufferWriter<byte> writer)
+    {
+        _writer = writer;
+        _destination = writer.GetSpan();
+        _bitOffset = 0;
+        _globalBaseBitOffset = 0;
     }
 
     /// <summary>
     /// Gets the total number of bits written to the buffer.
     /// </summary>
-    public int BitsWritten => _bitOffset;
+    public int BitsWritten => _globalBaseBitOffset + _bitOffset;
 
     /// <summary>
     /// Gets the total number of bytes written to the buffer, rounded up.
     /// </summary>
-    public int BytesWritten => (_bitOffset + 7) / 8;
+    public int BytesWritten => (BitsWritten + 7) / 8;
+
+    /// <summary>
+    /// Flushes any pending written data to the underlying writer and advances its position.
+    /// </summary>
+    public void Flush()
+    {
+        if (_writer != null)
+        {
+            if (_bitOffset > 0)
+            {
+                int bytesToAdvance = (_bitOffset + 7) / 8;
+                _writer.Advance(bytesToAdvance);
+                _globalBaseBitOffset += bytesToAdvance * 8;
+                _bitOffset = 0;
+            }
+            _destination = Span<byte>.Empty;
+        }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCapacity(int bitsNeeded)
     {
-        int availableBits = _destination.Length * 8;
-        if (_bitOffset + bitsNeeded > availableBits)
+        int availableBits = (_destination.Length * 8) - _bitOffset;
+        if (bitsNeeded > availableBits)
         {
-            throw new IndexOutOfRangeException($"BitWriter overflow. BitOffset: {_bitOffset}, Requested: {bitsNeeded}, Total Capacity: {availableBits} bits ({_destination.Length} bytes)");
+            if (_writer != null)
+            {
+                Flush();
+                _destination = _writer.GetSpan((bitsNeeded + 7) / 8);
+                availableBits = _destination.Length * 8;
+                if (bitsNeeded > availableBits)
+                {
+                     throw new IndexOutOfRangeException($"BitWriter overflow. Even after flush, requested {bitsNeeded} bits exceeds available {availableBits} bits.");
+                }
+            }
+            else
+            {
+                throw new IndexOutOfRangeException($"BitWriter overflow. BitOffset: {_bitOffset}, Requested: {bitsNeeded}, Total Capacity: {_destination.Length * 8} bits ({_destination.Length} bytes)");
+            }
         }
     }
 
@@ -58,6 +105,12 @@ public ref struct BitWriter
 
         while (bitCount > 0)
         {
+            if (_bitOffset >= _destination.Length * 8 && _writer != null)
+            {
+                Flush();
+                _destination = _writer.GetSpan();
+            }
+
             int byteIdx = _bitOffset / 8;
             int bitInByteIdx = _bitOffset % 8;
             int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);

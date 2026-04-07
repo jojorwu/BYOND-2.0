@@ -101,6 +101,7 @@ public static class SharedServiceCollectionExtensions
     public static IServiceCollection AddCoreServices(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ISlabAllocator, DefaultSlabAllocator>();
         services.AddSingleton<IArenaAllocator, ArenaAllocator>();
         services.AddSingleton<ILifecycleOrchestrator, DefaultLifecycleOrchestrator>();
         return services;

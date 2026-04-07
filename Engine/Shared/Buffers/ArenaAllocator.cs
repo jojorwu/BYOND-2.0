@@ -14,14 +14,19 @@ namespace Shared.Buffers;
 public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
 {
     private const int DefaultBlockSize = 1024 * 1024; // 1MB
-    private readonly List<BufferSlab> _blocks = new();
+    private SlabList _blocks = new();
     private int _currentBlockIndex;
     private int _baseOffset;
     private int _totalCapacity;
+    private readonly ISlabAllocator _allocator;
+    private readonly IDiagnosticBus? _diagnosticBus;
 
-    public ArenaAllocator()
+    public ArenaAllocator(ISlabAllocator? allocator = null, IDiagnosticBus? diagnosticBus = null)
     {
-        _blocks.Add(new BufferSlab(DefaultBlockSize, fromPool: true, pinned: false));
+        _allocator = allocator ?? new DefaultSlabAllocator();
+        _diagnosticBus = diagnosticBus;
+        var firstBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);
+        _blocks.Add(firstBlock, 0);
         _totalCapacity = DefaultBlockSize;
     }
 
@@ -36,8 +41,14 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
     public int Position
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _baseOffset + _blocks[_currentBlockIndex].Offset;
+        get => _baseOffset + _blocks[_currentBlockIndex].Slab.Offset;
     }
+
+    /// <inheritdoc />
+    public int SlabCount => _blocks.Count;
+
+    /// <inheritdoc />
+    public long TotalAllocatedBytes => _totalCapacity;
 
     /// <summary>
     /// Allocates a contiguous block of memory of the specified size.
@@ -51,7 +62,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
     public Memory<byte> Allocate(int size, int alignment)
     {
         if (alignment < 1) alignment = 1;
-        var currentBlock = _blocks[_currentBlockIndex];
+        var currentBlock = _blocks[_currentBlockIndex].Slab;
         int alignedOffset = (currentBlock.Offset + alignment - 1) & ~(alignment - 1);
 
         if (alignedOffset + size > currentBlock.Capacity)
@@ -60,20 +71,20 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
             _currentBlockIndex++;
             if (_currentBlockIndex >= _blocks.Count)
             {
-                _blocks.Add(new BufferSlab(Math.Max(DefaultBlockSize, size + alignment), fromPool: true, pinned: false));
+                var newBlock = _allocator.Allocate(Math.Max(DefaultBlockSize, size + alignment), pinned: false);
+                _blocks.Add(newBlock, _baseOffset);
+                _totalCapacity += newBlock.Capacity;
             }
-            currentBlock = _blocks[_currentBlockIndex];
+            currentBlock = _blocks[_currentBlockIndex].Slab;
             alignedOffset = (currentBlock.Offset + alignment - 1) & ~(alignment - 1);
 
             if (alignedOffset + size > currentBlock.Capacity)
             {
-                 var oversized = new BufferSlab(size + alignment, fromPool: false, pinned: false, isOversized: true);
-                 _blocks.Insert(_currentBlockIndex, oversized);
+                 var oversized = _allocator.Allocate(size + alignment, pinned: false, isOversized: true);
+                 _blocks.Insert(_currentBlockIndex, oversized, _baseOffset);
                  _totalCapacity += oversized.Capacity;
                  currentBlock = oversized;
                  alignedOffset = 0;
-                 // Base offset does not change as the oversized slab starts at the current _baseOffset.
-                 // Subsequent blocks will have their base offsets pushed further.
             }
         }
         var memory = new Memory<byte>(currentBlock.Data, alignedOffset, size);
@@ -88,31 +99,34 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
         _currentBlockIndex = 0;
         _baseOffset = 0;
 
-        if (_blocks.Count > 64)
-        {
-            for (int i = 64; i < _blocks.Count; i++) _blocks[i].Dispose();
-            _blocks.RemoveRange(64, _blocks.Count - 64);
-        }
+        _blocks.Prune(64, _allocator);
 
         for (int i = _blocks.Count - 1; i >= 0; i--)
         {
-            if (_blocks[i].IsOversized)
+            if (_blocks[i].Slab.IsOversized)
             {
-                _blocks[i].Dispose();
+                _allocator.Return(_blocks[i].Slab);
                 _blocks.RemoveAt(i);
             }
             else
             {
-                _blocks[i].Offset = 0;
+                _blocks[i].Slab.Offset = 0;
             }
         }
 
         _totalCapacity = 0;
-        foreach (var block in _blocks) _totalCapacity += block.Capacity;
+        for (int i = 0; i < _blocks.Count; i++)
+        {
+            var entry = _blocks[i];
+            entry.BaseOffset = _totalCapacity;
+            _totalCapacity += entry.Slab.Capacity;
+            _blocks[i] = entry;
+        }
 
         if (_blocks.Count == 0)
         {
-            _blocks.Add(new BufferSlab(DefaultBlockSize, fromPool: true, pinned: false));
+            var firstBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);
+            _blocks.Add(firstBlock, 0);
             _totalCapacity = DefaultBlockSize;
         }
     }
@@ -121,7 +135,26 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        foreach (var block in _blocks) block.Dispose();
+        foreach (var entry in _blocks) _allocator.Return(entry.Slab);
         _blocks.Clear();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = new Dictionary<string, object>
+        {
+            ["Capacity"] = Capacity,
+            ["Position"] = Position,
+            ["SlabCount"] = SlabCount,
+            ["TotalAllocatedBytes"] = TotalAllocatedBytes
+        };
+
+        _diagnosticBus?.Publish("Buffer", "ArenaAllocator Stats", info, (m, state) =>
+        {
+            foreach (var kvp in state) m.Add(kvp.Key, kvp.Value.ToString() ?? string.Empty);
+        });
+
+        return info;
     }
 }

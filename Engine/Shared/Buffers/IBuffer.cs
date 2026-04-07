@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Shared.Buffers;
 
 /// <summary>
@@ -7,6 +9,12 @@ namespace Shared.Buffers;
 public interface IBuffer
 {
     /// <summary>
+    /// Returns diagnostic information about the buffer's current state.
+    /// </summary>
+    /// <returns>A dictionary containing metrics like allocation count, memory usage, etc.</returns>
+    IReadOnlyDictionary<string, object> GetDiagnosticInfo();
+
+    /// <summary>
     /// Gets the total capacity of the buffer in bytes.
     /// </summary>
     int Capacity { get; }
@@ -15,6 +23,16 @@ public interface IBuffer
     /// Gets the current write or read position within the buffer.
     /// </summary>
     int Position { get; }
+
+    /// <summary>
+    /// Gets the number of memory slabs currently allocated by the buffer.
+    /// </summary>
+    int SlabCount { get; }
+
+    /// <summary>
+    /// Gets the total number of bytes allocated across all slabs.
+    /// </summary>
+    long TotalAllocatedBytes { get; }
 
     /// <summary>
     /// Resets the buffer to its initial state, typically clearing the position and potentially reclaiming memory.

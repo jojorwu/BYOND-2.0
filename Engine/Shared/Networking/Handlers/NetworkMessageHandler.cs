@@ -32,7 +32,7 @@ public class NetworkMessageHandler : IPacketHandler
         if (_handlers.TryGetValue(messageTypeId, out var handler))
         {
             // Pass the remaining data to the specific handler
-            var payload = data.Slice(reader.BitsRead / 8);
+            var payload = data.Slice((int)(reader.BitsRead / 8));
             await handler.HandleAsync(peer, payload);
         }
     }

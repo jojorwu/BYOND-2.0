@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using Shared.Attributes;
+using Shared.Interfaces;
 
 namespace Shared.Buffers;
 
@@ -30,7 +31,25 @@ public interface INetworkBufferPool
 public class NetworkBufferPool : INetworkBufferPool
 {
     private readonly ArrayPool<byte> _pool = ArrayPool<byte>.Shared;
+    private readonly IDiagnosticBus? _diagnosticBus;
+    private long _rentCount;
+    private long _returnCount;
 
-    public byte[] Rent(int size) => _pool.Rent(size);
-    public void Return(byte[] buffer) => _pool.Return(buffer);
+    public NetworkBufferPool(IDiagnosticBus? diagnosticBus = null)
+    {
+        _diagnosticBus = diagnosticBus;
+    }
+
+    public byte[] Rent(int size)
+    {
+        System.Threading.Interlocked.Increment(ref _rentCount);
+        _diagnosticBus?.Publish("Network", "Buffer Rented", size, (m, s) => m.Add("Size", s));
+        return _pool.Rent(size);
+    }
+
+    public void Return(byte[] buffer)
+    {
+        System.Threading.Interlocked.Increment(ref _returnCount);
+        _pool.Return(buffer);
+    }
 }

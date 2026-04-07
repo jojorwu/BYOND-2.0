@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Shared.Interfaces;
 
 namespace Shared.Buffers;
 
@@ -8,20 +9,23 @@ namespace Shared.Buffers;
 /// A circular buffer implementation for efficient fixed-size storage and FIFO access.
 /// </summary>
 /// <typeparam name="T">The type of elements in the buffer.</typeparam>
-public class RingBuffer<T> : IEnumerable<T>
+public class RingBuffer<T> : IBuffer, IEnumerable<T>
 {
     private T[] _buffer;
     private int _head;
     private int _tail;
     private int _count;
+    private readonly IDiagnosticBus? _diagnosticBus;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RingBuffer{T}"/> class with the specified capacity.
     /// </summary>
     /// <param name="capacity">The maximum number of elements the buffer can hold.</param>
-    public RingBuffer(int capacity)
+    /// <param name="diagnosticBus">The diagnostic bus to publish metrics to.</param>
+    public RingBuffer(int capacity, IDiagnosticBus? diagnosticBus = null)
     {
         _buffer = new T[capacity];
+        _diagnosticBus = diagnosticBus;
     }
 
     /// <summary>
@@ -33,6 +37,15 @@ public class RingBuffer<T> : IEnumerable<T>
     /// Gets the maximum capacity of the buffer.
     /// </summary>
     public int Capacity => _buffer.Length;
+
+    /// <inheritdoc />
+    public int Position => _tail;
+
+    /// <inheritdoc />
+    public int SlabCount => 1;
+
+    /// <inheritdoc />
+    public long TotalAllocatedBytes => 0; // Managed objects
 
     /// <summary>
     /// Adds an item to the end of the buffer. If the buffer is full, the oldest item is overwritten.
@@ -128,4 +141,34 @@ public class RingBuffer<T> : IEnumerable<T>
 
     /// <inheritdoc />
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    /// <inheritdoc />
+    public void Reset()
+    {
+        lock (_buffer)
+        {
+            _head = 0;
+            _tail = 0;
+            _count = 0;
+            Array.Clear(_buffer);
+        }
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<string, object> GetDiagnosticInfo()
+    {
+        var info = new Dictionary<string, object>
+        {
+            ["Capacity"] = Capacity,
+            ["Count"] = Count,
+            ["Position"] = Position
+        };
+
+        _diagnosticBus?.Publish("Buffer", $"RingBuffer<{typeof(T).Name}> Stats", info, (m, state) =>
+        {
+            foreach (var kvp in state) m.Add(kvp.Key, kvp.Value.ToString() ?? string.Empty);
+        });
+
+        return info;
+    }
 }

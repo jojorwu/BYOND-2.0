@@ -8,7 +8,7 @@ namespace Shared.Buffers;
 /// Represents a contiguous block of memory (slab) used by high-performance buffers.
 /// Supports both pooled and pinned memory to minimize GC pressure and enable zero-copy operations.
 /// </summary>
-internal sealed class BufferSlab : IDisposable
+public sealed class BufferSlab : IDisposable
 {
     /// <summary>
     /// The underlying byte array for this slab.

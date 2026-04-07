@@ -246,6 +246,17 @@ public ref struct BitWriter
     }
 
     /// <summary>
+    /// Attempts to write the specified number of bits. Returns false if there is not enough capacity.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryWriteBits(ulong value, int bitCount)
+    {
+        if (_bitOffset + bitCount > _destination.Length * 8) return false;
+        WriteBits(value, bitCount);
+        return true;
+    }
+
+    /// <summary>
     /// Writes a signed 64-bit integer using a variable-length encoding (LEB128-like).
     /// </summary>
     /// <param name="value">The value to write.</param>
@@ -253,6 +264,24 @@ public ref struct BitWriter
     public void WriteVarInt(long value)
     {
         ulong v = (ulong)value;
+
+        // Fast path for byte-aligned VarInt
+        if ((_bitOffset & 7) == 0)
+        {
+            int byteIdx = _bitOffset / 8;
+            while (v >= 0x80)
+            {
+                if (byteIdx >= _destination.Length) throw new IndexOutOfRangeException("BitWriter overflow during VarInt");
+                _destination[byteIdx++] = (byte)((v & 0x7F) | 0x80);
+                v >>= 7;
+                _bitOffset += 8;
+            }
+            if (byteIdx >= _destination.Length) throw new IndexOutOfRangeException("BitWriter overflow during VarInt");
+            _destination[byteIdx] = (byte)(v & 0x7F);
+            _bitOffset += 8;
+            return;
+        }
+
         while (v >= 0x80)
         {
             WriteBool(true);

@@ -12,8 +12,13 @@ namespace Shared.Buffers;
 /// </summary>
 public sealed class SnapshotBuffer : IBuffer, IDisposable
 {
-    private readonly List<BufferSlab> _slabs = new();
-    private readonly List<int> _slabBaseOffsets = new();
+    private struct SlabEntry
+    {
+        public BufferSlab Slab;
+        public int BaseOffset;
+    }
+
+    private readonly List<SlabEntry> _slabs = new();
     private int _currentSlabIndex;
     private readonly int _defaultSlabSize;
     private int _totalCapacity;
@@ -26,8 +31,7 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
     {
         _defaultSlabSize = defaultSize;
         var firstSlab = new BufferSlab(defaultSize, fromPool: true, pinned: true);
-        _slabs.Add(firstSlab);
-        _slabBaseOffsets.Add(0);
+        _slabs.Add(new SlabEntry { Slab = firstSlab, BaseOffset = 0 });
         _currentSlabIndex = 0;
         _totalCapacity = defaultSize;
     }
@@ -36,7 +40,7 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
     public int Capacity => _totalCapacity;
 
     /// <inheritdoc />
-    public int Position => _slabBaseOffsets[_currentSlabIndex] + _slabs[_currentSlabIndex].Offset;
+    public int Position => _slabs[_currentSlabIndex].BaseOffset + _slabs[_currentSlabIndex].Slab.Offset;
 
     /// <summary>
     /// Acquires a contiguous segment of the specified length within the buffer.
@@ -51,35 +55,34 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
         if (length > _defaultSlabSize)
         {
             var giantSlab = new BufferSlab(length, fromPool: false, pinned: true, isOversized: true);
-            _slabs.Add(giantSlab);
-            _slabBaseOffsets.Add(_totalCapacity);
+            int baseOffset = _totalCapacity;
+            _slabs.Add(new SlabEntry { Slab = giantSlab, BaseOffset = baseOffset });
             _totalCapacity += length;
 
             _currentSlabIndex = _slabs.Count - 1;
             giantSlab.Offset = length;
-            segmentOffset = _slabBaseOffsets[_currentSlabIndex];
+            segmentOffset = baseOffset;
             return new Span<byte>(giantSlab.Ptr, length);
         }
 
-        var currentSlab = _slabs[_currentSlabIndex];
-        if (currentSlab.Offset + length > currentSlab.Capacity)
+        var entry = _slabs[_currentSlabIndex];
+        if (entry.Slab.Offset + length > entry.Slab.Capacity)
         {
             _currentSlabIndex++;
             if (_currentSlabIndex == _slabs.Count)
             {
                 var newSlab = new BufferSlab(_defaultSlabSize, fromPool: true, pinned: true);
-                _slabs.Add(newSlab);
-                _slabBaseOffsets.Add(_totalCapacity);
+                _slabs.Add(new SlabEntry { Slab = newSlab, BaseOffset = _totalCapacity });
                 _totalCapacity += _defaultSlabSize;
             }
 
-            currentSlab = _slabs[_currentSlabIndex];
-            currentSlab.Offset = 0;
+            entry = _slabs[_currentSlabIndex];
+            entry.Slab.Offset = 0;
         }
 
-        segmentOffset = _slabBaseOffsets[_currentSlabIndex] + currentSlab.Offset;
-        var span = new Span<byte>(currentSlab.Ptr + currentSlab.Offset, length);
-        currentSlab.Offset += length;
+        segmentOffset = entry.BaseOffset + entry.Slab.Offset;
+        var span = new Span<byte>(entry.Slab.Ptr + entry.Slab.Offset, length);
+        entry.Slab.Offset += length;
         return span;
     }
 
@@ -96,7 +99,8 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
         int index = FindSlabIndex(offset);
         if (index >= 0)
         {
-            return _slabs[index].Data.AsSpan(offset - _slabBaseOffsets[index], length);
+            var entry = _slabs[index];
+            return entry.Slab.Data.AsSpan(offset - entry.BaseOffset, length);
         }
         throw new ArgumentOutOfRangeException(nameof(offset));
     }
@@ -113,7 +117,8 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
         int index = FindSlabIndex(offset);
         if (index >= 0)
         {
-            return _slabs[index].Data.AsMemory(offset - _slabBaseOffsets[index], length);
+            var entry = _slabs[index];
+            return entry.Slab.Data.AsMemory(offset - entry.BaseOffset, length);
         }
         throw new ArgumentOutOfRangeException(nameof(offset));
     }
@@ -126,10 +131,10 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
         while (low <= high)
         {
             int mid = low + (high - low) / 2;
-            int baseOffset = _slabBaseOffsets[mid];
-            if (offset >= baseOffset && offset < baseOffset + _slabs[mid].Capacity)
+            var entry = _slabs[mid];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
                 return mid;
-            if (offset < baseOffset)
+            if (offset < entry.BaseOffset)
                 high = mid - 1;
             else
                 low = mid + 1;
@@ -145,23 +150,21 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
         // Prune excessive slabs
         if (_slabs.Count > 64)
         {
-            for (int i = 64; i < _slabs.Count; i++) _slabs[i].Dispose();
+            for (int i = 64; i < _slabs.Count; i++) _slabs[i].Slab.Dispose();
             _slabs.RemoveRange(64, _slabs.Count - 64);
-            _slabBaseOffsets.RemoveRange(64, _slabBaseOffsets.Count - 64);
         }
 
         // Handle oversized and clear offsets
         for (int i = _slabs.Count - 1; i >= 0; i--)
         {
-            if (_slabs[i].IsOversized)
+            if (_slabs[i].Slab.IsOversized)
             {
-                _slabs[i].Dispose();
+                _slabs[i].Slab.Dispose();
                 _slabs.RemoveAt(i);
-                _slabBaseOffsets.RemoveAt(i);
             }
             else
             {
-                _slabs[i].Offset = 0;
+                _slabs[i].Slab.Offset = 0;
             }
         }
 
@@ -169,15 +172,16 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
         _totalCapacity = 0;
         for (int i = 0; i < _slabs.Count; i++)
         {
-            _slabBaseOffsets[i] = _totalCapacity;
-            _totalCapacity += _slabs[i].Capacity;
+            var entry = _slabs[i];
+            entry.BaseOffset = _totalCapacity;
+            _totalCapacity += entry.Slab.Capacity;
+            _slabs[i] = entry;
         }
 
         if (_slabs.Count == 0)
         {
             var firstSlab = new BufferSlab(_defaultSlabSize, fromPool: true, pinned: true);
-            _slabs.Add(firstSlab);
-            _slabBaseOffsets.Add(0);
+            _slabs.Add(new SlabEntry { Slab = firstSlab, BaseOffset = 0 });
             _totalCapacity = _defaultSlabSize;
         }
     }
@@ -185,7 +189,7 @@ public sealed class SnapshotBuffer : IBuffer, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        foreach (var slab in _slabs) slab.Dispose();
+        foreach (var entry in _slabs) entry.Slab.Dispose();
         _slabs.Clear();
     }
 }

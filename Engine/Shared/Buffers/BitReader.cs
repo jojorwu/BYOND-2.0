@@ -203,21 +203,57 @@ public ref struct BitReader
     }
 
     /// <summary>
+    /// Attempts to read the specified number of bits. Returns false if there is not enough data.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadBits(int bitCount, out ulong result)
+    {
+        if (_bitOffset + bitCount > _source.Length * 8)
+        {
+            result = 0;
+            return false;
+        }
+        result = ReadBits(bitCount);
+        return true;
+    }
+
+    /// <summary>
     /// Reads a signed 64-bit integer using variable-length encoding (LEB128-like).
     /// </summary>
     /// <returns>The read value.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public long ReadVarInt()
     {
-        long result = 0;
-        int shift = 0;
-        while (ReadBool())
+        // Fast path for byte-aligned VarInt
+        if ((_bitOffset & 7) == 0)
         {
-            result |= (long)ReadBits(7) << shift;
-            shift += 7;
+            long result = 0;
+            int shift = 0;
+            int byteIdx = _bitOffset / 8;
+
+            while (true)
+            {
+                if (byteIdx >= _source.Length) throw new IndexOutOfRangeException("BitReader overflow during VarInt");
+                byte b = _source[byteIdx++];
+                _bitOffset += 8;
+                result |= (long)(b & 0x7F) << shift;
+                if ((b & 0x80) == 0) return result;
+                shift += 7;
+                if (shift >= 64) throw new FormatException("VarInt too long");
+            }
         }
-        result |= (long)ReadBits(7) << shift;
-        return result;
+
+        {
+            long result = 0;
+            int shift = 0;
+            while (ReadBool())
+            {
+                result |= (long)ReadBits(7) << shift;
+                shift += 7;
+            }
+            result |= (long)ReadBits(7) << shift;
+            return result;
+        }
     }
 
     /// <summary>

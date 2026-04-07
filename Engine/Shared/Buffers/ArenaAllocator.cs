@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Shared.Interfaces;
 
 namespace Shared.Buffers;
@@ -16,25 +17,37 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
     private readonly List<BufferSlab> _blocks = new();
     private int _currentBlockIndex;
     private int _baseOffset;
+    private int _totalCapacity;
 
     public ArenaAllocator()
     {
         _blocks.Add(new BufferSlab(DefaultBlockSize, fromPool: true, pinned: false));
+        _totalCapacity = DefaultBlockSize;
     }
 
     /// <inheritdoc />
-    public int Capacity => _blocks.Sum(b => b.Capacity);
+    public int Capacity
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _totalCapacity;
+    }
 
     /// <inheritdoc />
-    public int Position => _baseOffset + _blocks[_currentBlockIndex].Offset;
+    public int Position
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _baseOffset + _blocks[_currentBlockIndex].Offset;
+    }
 
     /// <summary>
     /// Allocates a contiguous block of memory of the specified size.
     /// </summary>
     /// <param name="size">The number of bytes to allocate.</param>
     /// <returns>A memory block of the requested size.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Memory<byte> Allocate(int size) => Allocate(size, 1);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Memory<byte> Allocate(int size, int alignment)
     {
         if (alignment < 1) alignment = 1;
@@ -56,6 +69,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
             {
                  var oversized = new BufferSlab(size + alignment, fromPool: false, pinned: false, isOversized: true);
                  _blocks.Insert(_currentBlockIndex, oversized);
+                 _totalCapacity += oversized.Capacity;
                  currentBlock = oversized;
                  alignedOffset = 0;
                  // Base offset does not change as the oversized slab starts at the current _baseOffset.
@@ -68,6 +82,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
     }
 
     /// <inheritdoc />
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Reset()
     {
         _currentBlockIndex = 0;
@@ -92,13 +107,18 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
             }
         }
 
+        _totalCapacity = 0;
+        foreach (var block in _blocks) _totalCapacity += block.Capacity;
+
         if (_blocks.Count == 0)
         {
             _blocks.Add(new BufferSlab(DefaultBlockSize, fromPool: true, pinned: false));
+            _totalCapacity = DefaultBlockSize;
         }
     }
 
     /// <inheritdoc />
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
         foreach (var block in _blocks) block.Dispose();

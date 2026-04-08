@@ -188,4 +188,28 @@ public class BufferArchitectureTests
         Assert.That(span0.Length, Is.EqualTo(1));
         Assert.That(span1.Length, Is.EqualTo(1));
     }
+
+    [Test]
+    public void SnapshotBuffer_CopyTo_Works()
+    {
+        using var buffer = new SnapshotBuffer(defaultSize: 8);
+        var writer = new BitWriter(buffer);
+        writer.WriteBits(0x1122334455667788, 64); // 8 bytes - Slab 0 full
+        writer.WriteBits(0xAABBCCDD, 32); // 4 bytes - Slab 1
+        writer.Flush();
+
+        using var ms = new System.IO.MemoryStream();
+        buffer.CopyTo(ms);
+
+        var data = ms.ToArray();
+        Assert.That(data.Length, Is.EqualTo(12));
+        Assert.That(data[0], Is.EqualTo(0x11));
+        Assert.That(data[7], Is.EqualTo(0x88));
+        Assert.That(data[8], Is.EqualTo(0xAA));
+        Assert.That(data[11], Is.EqualTo(0xDD));
+
+        byte[] destSpan = new byte[12];
+        buffer.CopyTo(destSpan.AsSpan());
+        Assert.That(destSpan, Is.EqualTo(data));
+    }
 }

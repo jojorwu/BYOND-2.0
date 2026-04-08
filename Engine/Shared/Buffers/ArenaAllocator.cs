@@ -16,6 +16,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     private const int DefaultBlockSize = 1024 * 1024; // 1MB
     private SlabList _blocks = new();
     private int _currentBlockIndex;
+    private int _lastLookupIndex;
     private long _baseOffset;
     private long _totalCapacity;
     private readonly ISlabAllocator _allocator;
@@ -163,11 +164,61 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => _blocks.GetSegmentAsSpan(offset, length);
+    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => GetSegmentInternal(offset, length);
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => _blocks.GetSegmentAsSpan(offset, length);
+    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => GetSegmentInternal(offset, length);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Span<byte> GetSegmentInternal(long offset, int length)
+    {
+        // Cache-optimized lookup for temporal locality
+        var spans = _blocks.AsSpan();
+        if (_lastLookupIndex >= 0 && _lastLookupIndex < spans.Length)
+        {
+            ref readonly var entry = ref spans[_lastLookupIndex];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
+            {
+                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                    throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+            }
+        }
+
+        int index = _blocks.FindSlabIndex(offset);
+        if (index >= 0)
+        {
+            _lastLookupIndex = index;
+            ref readonly var entry = ref spans[index];
+            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+    }
+
+    /// <inheritdoc />
+    public void CopyTo(System.IO.Stream destination)
+    {
+        for (int i = 0; i <= _currentBlockIndex; i++)
+        {
+            var entry = _blocks[i];
+            destination.Write(entry.Slab.Data.AsSpan(0, entry.Slab.Offset));
+        }
+    }
+
+    /// <inheritdoc />
+    public void CopyTo(Span<byte> destination)
+    {
+        int totalWritten = 0;
+        for (int i = 0; i <= _currentBlockIndex; i++)
+        {
+            var entry = _blocks[i];
+            entry.Slab.Data.AsSpan(0, entry.Slab.Offset).CopyTo(destination.Slice(totalWritten));
+            totalWritten += entry.Slab.Offset;
+        }
+    }
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

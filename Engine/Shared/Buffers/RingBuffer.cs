@@ -150,6 +150,23 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
     public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => throw new NotSupportedException();
 
     /// <inheritdoc />
+    public void CopyTo(System.IO.Stream destination)
+    {
+        lock (_buffer)
+        {
+            foreach (var item in this)
+            {
+                // This is only possible if T is byte, but IBuffer is generic-agnostic here.
+                // RingBuffer<T> usually holds objects.
+                throw new NotSupportedException("RingBuffer CopyTo is only supported for byte-specific implementations.");
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public void CopyTo(Span<byte> destination) => throw new NotSupportedException();
+
+    /// <inheritdoc />
     public void Reset()
     {
         lock (_buffer)

@@ -56,4 +56,16 @@ public interface IBuffer : IShrinkable
     /// <param name="length">The length of the segment.</param>
     /// <returns>A mutable span covering the requested segment.</returns>
     System.Span<byte> GetMutableSegmentAsSpan(long offset, int length);
+
+    /// <summary>
+    /// Copies the written portion of the buffer to the specified stream.
+    /// </summary>
+    /// <param name="destination">The stream to copy to.</param>
+    void CopyTo(System.IO.Stream destination);
+
+    /// <summary>
+    /// Copies the written portion of the buffer to the specified span.
+    /// </summary>
+    /// <param name="destination">The span to copy to.</param>
+    void CopyTo(System.Span<byte> destination);
 }

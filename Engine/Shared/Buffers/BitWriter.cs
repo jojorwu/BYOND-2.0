@@ -103,10 +103,40 @@ public ref struct BitWriter
         if (bitCount == 0) return;
         EnsureCapacity(bitCount);
 
+        // Fast path for aligned multi-bit writes (e.g. 8, 16, 32, 64 bits)
+        if ((_bitOffset & 7) == 0)
+        {
+            int byteIdx = _bitOffset >> 3;
+            if (bitCount == 8)
+            {
+                _destination[byteIdx] = (byte)value;
+                _bitOffset += 8;
+                return;
+            }
+            if (bitCount == 16)
+            {
+                BinaryPrimitives.WriteUInt16BigEndian(_destination.Slice(byteIdx), (ushort)value);
+                _bitOffset += 16;
+                return;
+            }
+            if (bitCount == 32)
+            {
+                BinaryPrimitives.WriteUInt32BigEndian(_destination.Slice(byteIdx), (uint)value);
+                _bitOffset += 32;
+                return;
+            }
+            if (bitCount == 64)
+            {
+                BinaryPrimitives.WriteUInt64BigEndian(_destination.Slice(byteIdx), value);
+                _bitOffset += 64;
+                return;
+            }
+        }
+
         while (bitCount > 0)
         {
-            int byteIdx = _bitOffset / 8;
-            int bitInByteIdx = _bitOffset % 8;
+            int byteIdx = _bitOffset >> 3;
+            int bitInByteIdx = _bitOffset & 7;
             int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
 
             ulong mask = (1UL << bitsToWriteInByte) - 1;
@@ -404,20 +434,18 @@ public ref struct BitWriter
         int byteCount = Encoding.UTF8.GetByteCount(s);
         WriteVarInt(byteCount);
 
-        int bitInByteIdx = (int)(BitsWritten % 8);
-        if (bitInByteIdx == 0)
+        EnsureCapacity(byteCount << 3);
+
+        // Fast path for aligned writes
+        if ((_bitOffset & 7) == 0)
         {
-            EnsureCapacity(byteCount * 8);
-            int byteOffset = _bitOffset / 8;
-            Encoding.UTF8.GetBytes(s, _destination.Slice(byteOffset));
-            _bitOffset += byteCount * 8;
+            int byteIdx = _bitOffset >> 3;
+            Encoding.UTF8.GetBytes(s, _destination.Slice(byteIdx));
+            _bitOffset += byteCount << 3;
         }
         else
         {
-            // Use direct span access to Encoding.UTF8 to avoid byte[] allocation if possible
-            // We still need a temporary span if we are not byte-aligned
-            EnsureCapacity(byteCount * 8);
-
+            // Unaligned write: we use a stack-allocated or pooled buffer and write bit-by-bit
             if (byteCount <= 512)
             {
                 Span<byte> temp = stackalloc byte[byteCount];

@@ -89,6 +89,16 @@ public sealed class BufferSlab : IDisposable
     }
 
     /// <summary>
+    /// Gets a <see cref="Span{T}"/> over a portion of the slab.
+    /// </summary>
+    public Span<byte> Slice(int offset, int length)
+    {
+        if ((uint)offset > (uint)Capacity || (uint)length > (uint)(Capacity - offset))
+            throw new ArgumentOutOfRangeException();
+        return Data.AsSpan(offset, length);
+    }
+
+    /// <summary>
     /// Finalizer to ensure resources are released if <see cref="Dispose"/> is not called.
     /// </summary>
     ~BufferSlab()

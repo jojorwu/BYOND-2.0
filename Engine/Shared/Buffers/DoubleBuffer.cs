@@ -69,6 +69,12 @@ namespace Shared.Buffers;
         public void Reset() { }
 
         /// <inheritdoc />
+        public void CopyTo(System.IO.Stream destination) => throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public void CopyTo(Span<byte> destination) => throw new NotSupportedException();
+
+        /// <inheritdoc />
         public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => throw new NotSupportedException();
 
         /// <inheritdoc />

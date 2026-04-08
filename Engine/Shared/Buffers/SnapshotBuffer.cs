@@ -15,6 +15,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
 {
     private SlabList _slabs = new();
     private int _currentSlabIndex;
+    private int _lastLookupIndex;
     private readonly int _defaultSlabSize;
     private long _totalCapacity;
     private readonly ISlabAllocator _allocator;
@@ -78,11 +79,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
         // The user must call GetSpan/GetMemory to trigger segment switching.
         if (entry.Slab.Offset + count > entry.Slab.Capacity)
         {
-            // If the user tries to advance past capacity, it's a bug in their code.
-            // But BitWriter might call Flush() with bits that cross slabs.
-            // Wait, BitWriter.WriteBits handles segment transitions.
-            // BitWriter.Flush() only flushes what's in the current _destination.
-            throw new InvalidOperationException($"Cannot advance past current slab capacity ({entry.Slab.Capacity}). Offset: {entry.Slab.Offset}, Count: {count}");
+            throw new InvalidOperationException($"Cannot advance past current slab capacity. Capacity: {entry.Slab.Capacity}, CurrentOffset: {entry.Slab.Offset}, RequestedAdvance: {count}");
         }
 
         entry.Slab.Offset += count;
@@ -150,11 +147,39 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => _slabs.GetSegmentAsSpan(offset, length);
+    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => GetSegmentInternal(offset, length);
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => _slabs.GetSegmentAsSpan(offset, length);
+    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => GetSegmentInternal(offset, length);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Span<byte> GetSegmentInternal(long offset, int length)
+    {
+        // Cache-optimized lookup for temporal locality
+        var spans = _slabs.AsSpan();
+        if (_lastLookupIndex >= 0 && _lastLookupIndex < spans.Length)
+        {
+            ref readonly var entry = ref spans[_lastLookupIndex];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
+            {
+                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                    throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+            }
+        }
+
+        int index = _slabs.FindSlabIndex(offset);
+        if (index >= 0)
+        {
+            _lastLookupIndex = index;
+            ref readonly var entry = ref spans[index];
+            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+    }
 
     /// <summary>
     /// Returns all written data as a collection of memory segments.
@@ -256,7 +281,31 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     /// <param name="length">The length of the segment.</param>
     /// <returns>A read-only memory block covering the requested segment.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlyMemory<byte> GetSegmentAsMemory(long offset, int length) => _slabs.GetSegmentAsMemory(offset, length);
+    public ReadOnlyMemory<byte> GetSegmentAsMemory(long offset, int length)
+    {
+        var spans = _slabs.AsSpan();
+        if (_lastLookupIndex >= 0 && _lastLookupIndex < spans.Length)
+        {
+            ref readonly var entry = ref spans[_lastLookupIndex];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
+            {
+                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                    throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+                return new ReadOnlyMemory<byte>(entry.Slab.Data, (int)(offset - entry.BaseOffset), length);
+            }
+        }
+
+        int index = _slabs.FindSlabIndex(offset);
+        if (index >= 0)
+        {
+            _lastLookupIndex = index;
+            ref readonly var entry = ref spans[index];
+            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+            return new ReadOnlyMemory<byte>(entry.Slab.Data, (int)(offset - entry.BaseOffset), length);
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+    }
 
     /// <inheritdoc />
     public void Shrink()
@@ -269,6 +318,28 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
         for (int i = 0; i < _slabs.Count; i++)
         {
             _totalCapacity += _slabs[i].Slab.Capacity;
+        }
+    }
+
+    /// <inheritdoc />
+    public void CopyTo(System.IO.Stream destination)
+    {
+        var segments = GetSegments();
+        foreach (var segment in segments)
+        {
+            destination.Write(segment.Span);
+        }
+    }
+
+    /// <inheritdoc />
+    public void CopyTo(Span<byte> destination)
+    {
+        long totalWritten = 0;
+        var segments = GetSegments();
+        foreach (var segment in segments)
+        {
+            segment.Span.CopyTo(destination.Slice((int)totalWritten));
+            totalWritten += segment.Length;
         }
     }
 

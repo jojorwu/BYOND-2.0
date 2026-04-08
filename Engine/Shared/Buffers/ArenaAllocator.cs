@@ -16,9 +16,10 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     private const int DefaultBlockSize = 1024 * 1024; // 1MB
     private SlabList _blocks = new();
     private int _currentBlockIndex;
-    private int _lastLookupIndex;
+    private SlabLookupCache _lookupCache = new();
     private long _baseOffset;
     private long _totalCapacity;
+    private int _nextBlockSize;
     private readonly ISlabAllocator _allocator;
     private readonly IDiagnosticBus? _diagnosticBus;
 
@@ -26,9 +27,10 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     {
         _allocator = allocator ?? new DefaultSlabAllocator();
         _diagnosticBus = diagnosticBus;
-        var firstBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);
+        _nextBlockSize = DefaultBlockSize;
+        var firstBlock = _allocator.Allocate(_nextBlockSize, pinned: false);
         _blocks.Add(firstBlock, 0);
-        _totalCapacity = DefaultBlockSize;
+        _totalCapacity = firstBlock.Capacity;
     }
 
     /// <inheritdoc />
@@ -118,7 +120,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
             // Use current slab's Capacity to define a fixed-size virtual address space.
             long nextBaseOffset = currentEntry.BaseOffset + currentEntry.Slab.Capacity;
 
-            if (sizeHint > DefaultBlockSize)
+            if (sizeHint > _nextBlockSize)
             {
                 var oversized = _allocator.Allocate(sizeHint, pinned: false, isOversized: true);
                 _currentBlockIndex++;
@@ -132,7 +134,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
                 _currentBlockIndex++;
                 if (_currentBlockIndex >= _blocks.Count)
                 {
-                    var newBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);
+                    var newBlock = _allocator.Allocate(_nextBlockSize, pinned: false);
                     _blocks.Add(newBlock, _baseOffset);
                     _totalCapacity += newBlock.Capacity;
                 }
@@ -173,27 +175,13 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Span<byte> GetSegmentInternal(long offset, int length)
     {
-        // Cache-optimized lookup for temporal locality
-        var spans = _blocks.AsSpan();
-        if (_lastLookupIndex >= 0 && _lastLookupIndex < spans.Length)
-        {
-            ref readonly var entry = ref spans[_lastLookupIndex];
-            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
-            {
-                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                    throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
-                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
-            }
-        }
+        if (_lookupCache.TryResolve(offset, length, _blocks, out Span<byte> result)) return result;
 
         int index = _blocks.FindSlabIndex(offset);
         if (index >= 0)
         {
-            _lastLookupIndex = index;
-            ref readonly var entry = ref spans[index];
-            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
-            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+            _lookupCache.Update(index);
+            return _blocks.GetSegmentAsSpan(offset, length);
         }
         throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
     }
@@ -222,9 +210,29 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Reset()
+    public void Reset() => Reset(resizeHeuristics: true);
+
+    /// <summary>
+    /// Resets the allocator, optionally adjusting the initial block size based on current usage.
+    /// </summary>
+    public void Reset(bool resizeHeuristics)
     {
+        if (resizeHeuristics)
+        {
+            if (_blocks.Count > 2)
+            {
+                // Increase next initial size to half of total usage, up to 128MB
+                _nextBlockSize = (int)Math.Clamp(_totalCapacity / 2, DefaultBlockSize, 128 * 1024 * 1024);
+            }
+            else if (_blocks.Count == 1 && _blocks[0].Slab.Offset < DefaultBlockSize / 4)
+            {
+                // Optionally could shrink, but we stay at DefaultBlockSize minimum
+                _nextBlockSize = DefaultBlockSize;
+            }
+        }
+
         _currentBlockIndex = 0;
+        _lookupCache.Reset();
         _baseOffset = 0;
 
         // Prune excessive slabs to prevent memory bloating
@@ -261,9 +269,9 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
         // Ensure at least one block exists
         if (_blocks.Count == 0)
         {
-            var firstBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);
+            var firstBlock = _allocator.Allocate(_nextBlockSize, pinned: false);
             _blocks.Add(firstBlock, 0);
-            _totalCapacity = DefaultBlockSize;
+            _totalCapacity = firstBlock.Capacity;
         }
     }
 

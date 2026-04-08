@@ -212,4 +212,40 @@ public class BufferArchitectureTests
         buffer.CopyTo(destSpan.AsSpan());
         Assert.That(destSpan, Is.EqualTo(data));
     }
+
+    [Test]
+    public void BitWriter_WriteBits_FromReader_Works()
+    {
+        var data = new byte[] { 0xAA, 0xBB, 0xCC };
+        var reader = new BitReader(data);
+        reader.ReadBits(4); // Skip 4 bits (A)
+
+        using var buffer = new SnapshotBuffer(defaultSize: 1024);
+        var writer = new BitWriter(buffer);
+        writer.WriteBits(0xF, 4); // Write F
+        writer.WriteBits(ref reader, 12); // Write remaining A (4) + BB (8)
+        writer.Flush();
+
+        var result = new BitReader(buffer.GetSegments());
+        Assert.That(result.ReadBits(16), Is.EqualTo(0xFABB));
+    }
+
+    [Test]
+    public void SnapshotBuffer_Slice_Works()
+    {
+        using var buffer = new SnapshotBuffer(defaultSize: 4);
+        buffer.Advance(4);
+        buffer.GetSpan(4)[0] = 0x11;
+        buffer.Advance(4);
+        buffer.GetSpan(4)[0] = 0x22;
+        buffer.Advance(4);
+
+        var slice = buffer.Slice(4, 8);
+        Assert.That(slice.Length, Is.EqualTo(8));
+
+        var reader = new BitReader(slice);
+        Assert.That(reader.ReadByte(), Is.EqualTo(0x11));
+        reader.SkipBits(24);
+        Assert.That(reader.ReadByte(), Is.EqualTo(0x22));
+    }
 }

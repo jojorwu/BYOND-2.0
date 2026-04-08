@@ -343,6 +343,39 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
         }
     }
 
+    /// <summary>
+    /// Returns a view of a portion of the buffer as a <see cref="ReadOnlySequence{byte}"/>.
+    /// </summary>
+    /// <param name="offset">The global offset of the first byte.</param>
+    /// <param name="length">The length of the view in bytes.</param>
+    /// <returns>A sequence covering the requested range.</returns>
+    public ReadOnlySequence<byte> Slice(long offset, long length)
+    {
+        if (offset < 0 || length < 0 || offset + length > Position)
+            throw new ArgumentOutOfRangeException();
+
+        var builder = new SequenceBuilder();
+        long remaining = length;
+        long currentOffset = offset;
+
+        while (remaining > 0)
+        {
+            int index = _slabs.FindSlabIndex(currentOffset);
+            if (index < 0) break;
+
+            var entry = _slabs[index];
+            long slabStart = currentOffset - entry.BaseOffset;
+            int take = (int)Math.Min(remaining, entry.Slab.Capacity - slabStart);
+
+            builder.Add(new ReadOnlyMemory<byte>(entry.Slab.Data, (int)slabStart, take));
+
+            remaining -= take;
+            currentOffset += take;
+        }
+
+        return builder.Build();
+    }
+
     /// <inheritdoc />
     public void Reset()
     {

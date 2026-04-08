@@ -419,6 +419,25 @@ public ref struct BitWriter
     }
 
     /// <summary>
+    /// Writes the specified number of bits from a bit reader to the buffer.
+    /// </summary>
+    /// <param name="reader">The reader containing the bits to write.</param>
+    /// <param name="bitCount">The number of bits to transfer.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteBits(ref BitReader reader, int bitCount)
+    {
+        while (bitCount >= 8)
+        {
+            WriteByte(reader.ReadByte());
+            bitCount -= 8;
+        }
+        if (bitCount > 0)
+        {
+            WriteBits(reader.ReadBits(bitCount), bitCount);
+        }
+    }
+
+    /// <summary>
     /// Writes a UTF-8 encoded string to the buffer, prefixed by its byte length as a VarInt.
     /// </summary>
     /// <param name="s">The string to write.</param>

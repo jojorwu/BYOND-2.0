@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Shared.Buffers;
@@ -119,6 +120,63 @@ internal struct SlabList
     /// Returns the entries as a <see cref="ReadOnlySpan{T}"/>.
     /// </summary>
     public ReadOnlySpan<Entry> AsSpan() => CollectionsMarshal.AsSpan(_entries);
+
+    /// <summary>
+    /// Performs a binary search to find the index of the slab containing the specified global offset.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int FindSlabIndex(long offset)
+    {
+        var spans = AsSpan();
+        int low = 0;
+        int high = spans.Length - 1;
+        while (low <= high)
+        {
+            int mid = low + (high - low) / 2;
+            ref readonly var entry = ref spans[mid];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
+                return mid;
+            if (offset < entry.BaseOffset)
+                high = mid - 1;
+            else
+                low = mid + 1;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Resolves a global offset and length to a span within a slab.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetSegmentAsSpan(long offset, int length)
+    {
+        int index = FindSlabIndex(offset);
+        if (index >= 0)
+        {
+            ref readonly var entry = ref CollectionsMarshal.AsSpan(_entries)[index];
+            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+    }
+
+    /// <summary>
+    /// Resolves a global offset and length to a memory block within a slab.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadOnlyMemory<byte> GetSegmentAsMemory(long offset, int length)
+    {
+        int index = FindSlabIndex(offset);
+        if (index >= 0)
+        {
+            ref readonly var entry = ref CollectionsMarshal.AsSpan(_entries)[index];
+            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
+            return new ReadOnlyMemory<byte>(entry.Slab.Data, (int)(offset - entry.BaseOffset), length);
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+    }
 
     public List<Entry>.Enumerator GetEnumerator() => _entries.GetEnumerator();
 }

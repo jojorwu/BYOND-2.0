@@ -163,53 +163,11 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length)
-    {
-        var spans = _blocks.AsSpan();
-        int low = 0;
-        int high = spans.Length - 1;
-        while (low <= high)
-        {
-            int mid = low + (high - low) / 2;
-            ref readonly var entry = ref spans[mid];
-            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
-            {
-                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                    throw new ArgumentException("Segment spans across multiple slabs.");
-                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
-            }
-            if (offset < entry.BaseOffset)
-                high = mid - 1;
-            else
-                low = mid + 1;
-        }
-        throw new ArgumentOutOfRangeException(nameof(offset));
-    }
+    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => _blocks.GetSegmentAsSpan(offset, length);
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetMutableSegmentAsSpan(long offset, int length)
-    {
-        var spans = _blocks.AsSpan();
-        int low = 0;
-        int high = spans.Length - 1;
-        while (low <= high)
-        {
-            int mid = low + (high - low) / 2;
-            ref readonly var entry = ref spans[mid];
-            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
-            {
-                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                    throw new ArgumentException("Segment spans across multiple slabs.");
-                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
-            }
-            if (offset < entry.BaseOffset)
-                high = mid - 1;
-            else
-                low = mid + 1;
-        }
-        throw new ArgumentOutOfRangeException(nameof(offset));
-    }
+    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => _blocks.GetSegmentAsSpan(offset, length);
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -218,8 +176,10 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
         _currentBlockIndex = 0;
         _baseOffset = 0;
 
+        // Prune excessive slabs to prevent memory bloating
         _blocks.Prune(64, _allocator);
 
+        // Remove oversized blocks and reset offsets for pooled blocks
         for (int i = _blocks.Count - 1; i >= 0; i--)
         {
             if (_blocks[i].Slab.IsOversized)
@@ -235,6 +195,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
             }
         }
 
+        // Re-calculate total capacity and reconstruct fixed virtual address space
         _totalCapacity = 0;
         long currentBase = 0;
         for (int i = 0; i < _blocks.Count; i++)
@@ -246,6 +207,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
             currentBase += entry.Slab.Capacity;
         }
 
+        // Ensure at least one block exists
         if (_blocks.Count == 0)
         {
             var firstBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);

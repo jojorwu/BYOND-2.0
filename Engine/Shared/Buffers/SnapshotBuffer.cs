@@ -150,34 +150,11 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length)
-    {
-        // Binary search for the slab containing the offset
-        int index = FindSlabIndex(offset);
-        if (index >= 0)
-        {
-            var entry = _slabs[index];
-            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                throw new ArgumentException("Segment spans across multiple slabs.");
-            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
-        }
-        throw new ArgumentOutOfRangeException(nameof(offset));
-    }
+    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => _slabs.GetSegmentAsSpan(offset, length);
 
     /// <inheritdoc />
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetMutableSegmentAsSpan(long offset, int length)
-    {
-        int index = FindSlabIndex(offset);
-        if (index >= 0)
-        {
-            var entry = _slabs[index];
-            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                throw new ArgumentException("Segment spans across multiple slabs.");
-            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
-        }
-        throw new ArgumentOutOfRangeException(nameof(offset));
-    }
+    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => _slabs.GetSegmentAsSpan(offset, length);
 
     /// <summary>
     /// Returns all written data as a collection of memory segments.
@@ -279,36 +256,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     /// <param name="length">The length of the segment.</param>
     /// <returns>A read-only memory block covering the requested segment.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlyMemory<byte> GetSegmentAsMemory(long offset, int length)
-    {
-        int index = FindSlabIndex(offset);
-        if (index >= 0)
-        {
-            var entry = _slabs[index];
-            return new ReadOnlyMemory<byte>(entry.Slab.Data, (int)(offset - entry.BaseOffset), length);
-        }
-        throw new ArgumentOutOfRangeException(nameof(offset));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int FindSlabIndex(long offset)
-    {
-        var spans = _slabs.AsSpan();
-        int low = 0;
-        int high = spans.Length - 1;
-        while (low <= high)
-        {
-            int mid = low + (high - low) / 2;
-            ref readonly var entry = ref spans[mid];
-            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
-                return mid;
-            if (offset < entry.BaseOffset)
-                high = mid - 1;
-            else
-                low = mid + 1;
-        }
-        return -1;
-    }
+    public ReadOnlyMemory<byte> GetSegmentAsMemory(long offset, int length) => _slabs.GetSegmentAsMemory(offset, length);
 
     /// <inheritdoc />
     public void Shrink()

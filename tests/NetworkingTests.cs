@@ -94,7 +94,7 @@ public class NetworkingTests
         // Serialize
         var writer = new BitWriter(buffer);
         _snapshotService.SerializeBitPackedDelta(ref writer, objects, null);
-        int written = writer.BytesWritten;
+        int written = (int)writer.BytesWritten;
         Assert.That(written, Is.GreaterThan(0));
 
         byte[] data = new byte[written];
@@ -249,7 +249,7 @@ public class NetworkingTests
         writer.WriteByte(inputMsg.MessageTypeId);
         inputMsg.Write(ref writer);
 
-        var data = new ReadOnlyMemory<byte>(buffer, 0, writer.BytesWritten);
+        var data = new ReadOnlyMemory<byte>(buffer, 0, (int)writer.BytesWritten);
         var peerMock = new Mock<INetworkPeer>();
 
         dispatcher.HandleAsync(peerMock.Object, data).Wait();

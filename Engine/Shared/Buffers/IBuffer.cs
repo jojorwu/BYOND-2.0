@@ -2,11 +2,13 @@ using System.Collections.Generic;
 
 namespace Shared.Buffers;
 
+using Shared.Interfaces;
+
 /// <summary>
 /// Defines a standard interface for buffer implementations within the engine.
 /// Provides basic operations for memory lifecycle and tracking.
 /// </summary>
-public interface IBuffer
+public interface IBuffer : IShrinkable
 {
     /// <summary>
     /// Returns diagnostic information about the buffer's current state.
@@ -17,12 +19,12 @@ public interface IBuffer
     /// <summary>
     /// Gets the total capacity of the buffer in bytes.
     /// </summary>
-    int Capacity { get; }
+    long Capacity { get; }
 
     /// <summary>
     /// Gets the current write or read position within the buffer.
     /// </summary>
-    int Position { get; }
+    long Position { get; }
 
     /// <summary>
     /// Gets the number of memory slabs currently allocated by the buffer.
@@ -38,4 +40,20 @@ public interface IBuffer
     /// Resets the buffer to its initial state, typically clearing the position and potentially reclaiming memory.
     /// </summary>
     void Reset();
+
+    /// <summary>
+    /// Returns a <see cref="System.ReadOnlySpan{T}"/> over a previously written segment.
+    /// </summary>
+    /// <param name="offset">The global offset of the segment.</param>
+    /// <param name="length">The length of the segment.</param>
+    /// <returns>A read-only span covering the requested segment.</returns>
+    System.ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length);
+
+    /// <summary>
+    /// Returns a <see cref="System.Span{T}"/> over a previously written segment.
+    /// </summary>
+    /// <param name="offset">The global offset of the segment.</param>
+    /// <param name="length">The length of the segment.</param>
+    /// <returns>A mutable span covering the requested segment.</returns>
+    System.Span<byte> GetMutableSegmentAsSpan(long offset, int length);
 }

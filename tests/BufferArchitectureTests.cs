@@ -128,4 +128,64 @@ public class BufferArchitectureTests
         Assert.That(reader.ReadBits(16), Is.EqualTo(0x3344));
         Assert.That(reader.ReadBits(16), Is.EqualTo(0x5566));
     }
+
+    [Test]
+    public void BitWriter_PatchBits_CrossSegments_Works()
+    {
+        // Use a small default size to force segment transitions
+        using var snapshotBuffer = new SnapshotBuffer(defaultSize: 4);
+        var writer = new BitWriter(snapshotBuffer);
+
+        // Write 4 bits: 1010
+        writer.WriteBits(0xA, 4);
+
+        // Record position for patching (4 bits in)
+        long patchPos = writer.BitsWritten;
+
+        // Write 8 bits placeholder: 0000 0000
+        writer.WriteBits(0, 8);
+
+        // Force a segment transition by writing enough data to fill the 4-byte slab
+        // Current bits: 4 + 8 = 12. Slab has 32 bits.
+        // Write 24 more bits.
+        writer.WriteBits(0xFFFFFF, 24);
+
+        // Now we should be in a new segment
+        Assert.That(snapshotBuffer.SlabCount, Is.GreaterThan(1));
+        // We wrote 12 bits, then EnsureCapacity(24) triggered a byte-aligned Flush() to 16 bits.
+        // Then 24 more bits were written. 16 + 24 = 40.
+        Assert.That(writer.BitsWritten, Is.EqualTo(40));
+
+        // Patch the 8-bit placeholder with 0xBB (1011 1011)
+        writer.PatchBits(patchPos, 0xBB, 8);
+
+        writer.Flush();
+
+        // Verify with reader
+        var reader = new BitReader(snapshotBuffer.GetSegments());
+        Assert.That(reader.ReadBits(4), Is.EqualTo(0xA));
+        Assert.That(reader.ReadBits(8), Is.EqualTo(0xBB));
+
+        // Skip the 4-bit alignment gap (12 to 16)
+        reader.SkipBits(4);
+        Assert.That(reader.ReadBits(24), Is.EqualTo(0xFFFFFF));
+    }
+
+    [Test]
+    public void SnapshotBuffer_FindSlabIndex_WorksAcrossBoundaries()
+    {
+        using var buffer = new SnapshotBuffer(defaultSize: 1024);
+        buffer.AcquireSegment(1024, out _); // Fill first slab
+        buffer.AcquireSegment(1024, out _); // Fill second slab
+
+        // Offset 1023 should be in slab 0
+        // Offset 1024 should be in slab 1
+        // (Assuming BaseOffset 0, 1024)
+
+        var span0 = buffer.GetSegmentAsSpan(1023, 1);
+        var span1 = buffer.GetSegmentAsSpan(1024, 1);
+
+        Assert.That(span0.Length, Is.EqualTo(1));
+        Assert.That(span1.Length, Is.EqualTo(1));
+    }
 }

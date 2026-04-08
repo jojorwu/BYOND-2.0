@@ -16,7 +16,7 @@ public class BinarySnapshotService : EngineService, IShrinkable
 {
     private readonly StringInterner? _interner;
     private readonly ISnapshotSerializer _serializer;
-    private readonly ThreadLocal<Dictionary<long, (int BufferOffset, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (int BufferOffset, int Length, long Version)>(), trackAllValues: true);
+    private readonly ThreadLocal<Dictionary<long, (long BufferOffset, int Length, long Version)>> _deltaCache = new(() => new Dictionary<long, (long BufferOffset, int Length, long Version)>(), trackAllValues: true);
     private readonly SnapshotBuffer _buffer = new();
     private long _bufferVersion = 1;
 
@@ -159,7 +159,7 @@ public class BinarySnapshotService : EngineService, IShrinkable
             return false;
         }
 
-        int slabOffset;
+        long slabOffset;
         var slabSpan = _buffer.AcquireSegment(2048, out slabOffset);
 
         int localOffset = 0;

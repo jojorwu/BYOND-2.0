@@ -24,6 +24,10 @@ internal sealed class SequenceBuilder
     private Segment? _last;
     private long _totalLength;
 
+    /// <summary>
+    /// Adds a memory segment to the sequence.
+    /// </summary>
+    /// <param name="memory">The memory block to add.</param>
     public void Add(ReadOnlyMemory<byte> memory)
     {
         if (memory.IsEmpty) return;
@@ -43,6 +47,10 @@ internal sealed class SequenceBuilder
         _totalLength += memory.Length;
     }
 
+    /// <summary>
+    /// Builds the final <see cref="ReadOnlySequence{byte}"/>.
+    /// </summary>
+    /// <returns>The constructed sequence.</returns>
     public ReadOnlySequence<byte> Build()
     {
         if (_first == null) return ReadOnlySequence<byte>.Empty;

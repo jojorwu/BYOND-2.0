@@ -33,13 +33,11 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
     /// </summary>
     public int Count => _count;
 
-    /// <summary>
-    /// Gets the maximum capacity of the buffer.
-    /// </summary>
-    public int Capacity => _buffer.Length;
+    /// <inheritdoc />
+    public long Capacity => _buffer.Length;
 
     /// <inheritdoc />
-    public int Position => _tail;
+    public long Position => _tail;
 
     /// <inheritdoc />
     public int SlabCount => 1;
@@ -55,9 +53,9 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
     {
         lock (_buffer)
         {
-            if (_count == Capacity)
+            if (_count == (int)Capacity)
             {
-                _head = (_head + 1) % Capacity;
+                _head = (_head + 1) % (int)Capacity;
             }
             else
             {
@@ -65,7 +63,7 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
             }
 
             _buffer[_tail] = item;
-            _tail = (_tail + 1) % Capacity;
+            _tail = (_tail + 1) % (int)Capacity;
         }
     }
 
@@ -79,9 +77,9 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
         {
             foreach (var item in items)
             {
-                if (_count == Capacity)
+                if (_count == (int)Capacity)
                 {
-                    _head = (_head + 1) % Capacity;
+                    _head = (_head + 1) % (int)Capacity;
                 }
                 else
                 {
@@ -89,7 +87,7 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
                 }
 
                 _buffer[_tail] = item;
-                _tail = (_tail + 1) % Capacity;
+                _tail = (_tail + 1) % (int)Capacity;
             }
         }
     }
@@ -110,7 +108,7 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
             }
             item = _buffer[_head];
             _buffer[_head] = default!;
-            _head = (_head + 1) % Capacity;
+            _head = (_head + 1) % (int)Capacity;
             _count--;
             return true;
         }
@@ -141,6 +139,15 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
 
     /// <inheritdoc />
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    /// <inheritdoc />
+    public void Shrink() { }
+
+    /// <inheritdoc />
+    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => throw new NotSupportedException();
+
+    /// <inheritdoc />
+    public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => throw new NotSupportedException();
 
     /// <inheritdoc />
     public void Reset()

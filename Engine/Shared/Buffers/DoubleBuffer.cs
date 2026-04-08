@@ -18,10 +18,10 @@ namespace Shared.Buffers;
         public T Write => Volatile.Read(ref _write);
 
         /// <inheritdoc />
-        public int Capacity => 2;
+        public long Capacity => 2;
 
         /// <inheritdoc />
-        public int Position => 0;
+        public long Position => 0;
 
         /// <inheritdoc />
         public int SlabCount => 2;
@@ -67,6 +67,15 @@ namespace Shared.Buffers;
 
         /// <inheritdoc />
         public void Reset() { }
+
+        /// <inheritdoc />
+        public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length) => throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public Span<byte> GetMutableSegmentAsSpan(long offset, int length) => throw new NotSupportedException();
+
+        /// <inheritdoc />
+        public void Shrink() { }
 
         /// <inheritdoc />
         public IReadOnlyDictionary<string, object> GetDiagnosticInfo()

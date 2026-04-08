@@ -32,7 +32,7 @@ public class NetworkSender : INetworkSender
                 writer.WriteByte(message.MessageTypeId);
                 message.Write(ref writer);
 
-                await peer.SendAsync(new ReadOnlyMemory<byte>(buffer, 0, writer.BytesWritten));
+                await peer.SendAsync(new ReadOnlyMemory<byte>(buffer, 0, (int)writer.BytesWritten));
                 return;
             }
             catch (IndexOutOfRangeException)

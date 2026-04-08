@@ -10,6 +10,8 @@ namespace Shared.Buffers;
 /// </summary>
 public sealed class BufferSlab : IDisposable
 {
+    private bool _isDisposed;
+
     /// <summary>
     /// The underlying byte array for this slab.
     /// </summary>
@@ -87,18 +89,39 @@ public sealed class BufferSlab : IDisposable
     }
 
     /// <summary>
+    /// Finalizer to ensure resources are released if <see cref="Dispose"/> is not called.
+    /// </summary>
+    ~BufferSlab()
+    {
+        Dispose(false);
+    }
+
+    /// <summary>
     /// Reclaims resources used by the slab, returning memory to the pool if applicable.
     /// </summary>
     public void Dispose()
     {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
+        if (_isDisposed) return;
+
         if (_handle.IsAllocated)
         {
             _handle.Free();
         }
 
-        if (IsFromPool)
+        if (disposing)
         {
-            ArrayPool<byte>.Shared.Return(Data);
+            if (IsFromPool)
+            {
+                ArrayPool<byte>.Shared.Return(Data);
+            }
         }
+
+        _isDisposed = true;
     }
 }

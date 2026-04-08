@@ -43,14 +43,14 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
             Writer.WriteVarInt(Shared.Services.ComponentIdRegistry.GetId(comp.GetType()));
 
-            int sizeFieldOffset = Writer.BitsWritten;
+            long sizeFieldOffset = Writer.BitsWritten;
             Writer.WriteInt(0, 16);
 
-            int startBits = Writer.BitsWritten;
+            long startBits = Writer.BitsWritten;
             comp.WriteState(ref Writer);
-            int endBits = Writer.BitsWritten;
+            long endBits = Writer.BitsWritten;
 
-            int payloadBits = endBits - startBits;
+            long payloadBits = endBits - startBits;
             Writer.PatchBits(sizeFieldOffset, (ulong)payloadBits, 16);
             comp.IsDirty = false;
         }

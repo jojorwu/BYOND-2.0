@@ -114,14 +114,18 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void EnsureCapacity(int bitsNeeded)
     {
-        long currentBitPos = _segmentBaseBitOffset + _bitOffset;
-        if (currentBitPos + bitsNeeded > _totalBits)
+        if (BitsRead + bitsNeeded > _totalBits)
         {
-            throw new IndexOutOfRangeException($"BitReader overflow. BitOffset: {currentBitPos}, Requested: {bitsNeeded}, Total Capacity: {_totalBits} bits");
+            throw new IndexOutOfRangeException($"BitReader overflow. BitPosition: {BitsRead}, RequestedBits: {bitsNeeded}, TotalCapacityBits: {_totalBits}");
         }
 
-        // Move to next segment if current is exhausted
-        while (_bitOffset >= _source.Length * 8 && !_sequence.IsEmpty)
+        AdvanceSegmentIfNeeded();
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void AdvanceSegmentIfNeeded()
+    {
+        while (_bitOffset >= (long)_source.Length * 8 && !_sequence.IsEmpty)
         {
             _segmentBaseBitOffset += (long)_source.Length * 8;
             _bitOffset -= _source.Length * 8;
@@ -144,13 +148,9 @@ public ref struct BitReader
         ulong result = 0;
         while (bitCount > 0)
         {
-            // Move to next segment if current bit offset is at the end of the current span
-            if (_bitOffset >= _source.Length * 8 && !_sequence.IsEmpty)
+            if (_bitOffset >= (long)_source.Length * 8)
             {
-                _segmentBaseBitOffset += (long)_source.Length * 8;
-                _bitOffset = 0;
-                _sequence = _sequence.Slice(_source.Length);
-                _source = _sequence.FirstSpan;
+                AdvanceSegmentIfNeeded();
             }
 
             int byteIdx = _bitOffset / 8;
@@ -175,7 +175,16 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SkipBits(int bitCount)
     {
+        if (BitsRead + bitCount > _totalBits)
+        {
+            throw new IndexOutOfRangeException("BitReader skip overflow.");
+        }
+
         _bitOffset += bitCount;
+        if (_bitOffset >= (long)_source.Length * 8)
+        {
+            AdvanceSegmentIfNeeded();
+        }
     }
 
     /// <summary>

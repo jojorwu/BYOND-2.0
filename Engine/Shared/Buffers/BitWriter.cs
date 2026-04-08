@@ -15,7 +15,7 @@ public ref struct BitWriter
     private Span<byte> _destination;
     private int _bitOffset;
     private readonly IBufferWriter<byte>? _writer;
-    private int _globalBaseBitOffset;
+    private long _globalBaseBitOffset;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BitWriter"/> struct with a destination span.
@@ -44,12 +44,12 @@ public ref struct BitWriter
     /// <summary>
     /// Gets the total number of bits written to the buffer.
     /// </summary>
-    public int BitsWritten => _globalBaseBitOffset + _bitOffset;
+    public long BitsWritten => _globalBaseBitOffset + _bitOffset;
 
     /// <summary>
     /// Gets the total number of bytes written to the buffer, rounded up.
     /// </summary>
-    public int BytesWritten => (BitsWritten + 7) / 8;
+    public long BytesWritten => (BitsWritten + 7) / 8;
 
     /// <summary>
     /// Flushes any pending written data to the underlying writer and advances its position.
@@ -82,12 +82,12 @@ public ref struct BitWriter
                 availableBits = _destination.Length * 8;
                 if (bitsNeeded > availableBits)
                 {
-                     throw new IndexOutOfRangeException($"BitWriter overflow. Even after flush, requested {bitsNeeded} bits exceeds available {availableBits} bits.");
+                     throw new IndexOutOfRangeException($"BitWriter overflow. Even after flush and GetSpan, requested bits ({bitsNeeded}) exceeds available segment capacity ({availableBits} bits).");
                 }
             }
             else
             {
-                throw new IndexOutOfRangeException($"BitWriter overflow. BitOffset: {_bitOffset}, Requested: {bitsNeeded}, Total Capacity: {_destination.Length * 8} bits ({_destination.Length} bytes)");
+                throw new IndexOutOfRangeException($"BitWriter overflow. BitPositionInSegment: {_bitOffset}, RequestedBits: {bitsNeeded}, CurrentSegmentCapacityBits: {_destination.Length * 8}");
             }
         }
     }
@@ -105,12 +105,6 @@ public ref struct BitWriter
 
         while (bitCount > 0)
         {
-            if (_bitOffset >= _destination.Length * 8 && _writer != null)
-            {
-                Flush();
-                _destination = _writer.GetSpan();
-            }
-
             int byteIdx = _bitOffset / 8;
             int bitInByteIdx = _bitOffset % 8;
             int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
@@ -132,39 +126,77 @@ public ref struct BitWriter
 
     /// <summary>
     /// Overwrites a previously written sequence of bits at a specific offset.
+    /// Supports cross-segment patching if the underlying writer is an <see cref="IBuffer"/>.
     /// </summary>
     /// <param name="bitOffset">The bit offset where patching should begin.</param>
     /// <param name="value">The new value containing the bits.</param>
     /// <param name="bitCount">The number of bits to overwrite.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void PatchBits(int bitOffset, ulong value, int bitCount)
+    public void PatchBits(long bitOffset, ulong value, int bitCount)
     {
-        if (bitOffset < 0 || bitOffset + bitCount > _bitOffset)
+        if (bitOffset + bitCount > BitsWritten || bitOffset < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(bitOffset), "Cannot patch bits beyond current write offset or before 0.");
+            throw new ArgumentOutOfRangeException(nameof(bitOffset), "Cannot patch bits beyond current write position.");
         }
 
-        int savedOffset = _bitOffset;
-        _bitOffset = bitOffset;
-
-        while (bitCount > 0)
+        // Fast path: patching within the current segment
+        if (bitOffset >= _globalBaseBitOffset)
         {
-            int byteIdx = _bitOffset / 8;
-            int bitInByteIdx = _bitOffset % 8;
-            int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
+            int savedOffset = _bitOffset;
+            _bitOffset = (int)(bitOffset - _globalBaseBitOffset);
 
-            ulong mask = (1UL << bitsToWriteInByte) - 1;
-            ulong bits = (value >> (bitCount - bitsToWriteInByte)) & mask;
+            while (bitCount > 0)
+            {
+                int byteIdx = _bitOffset / 8;
+                int bitInByteIdx = _bitOffset % 8;
+                int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
 
-            byte clearMask = (byte)~(((1 << bitsToWriteInByte) - 1) << (8 - bitInByteIdx - bitsToWriteInByte));
-            _destination[byteIdx] &= clearMask;
-            _destination[byteIdx] |= (byte)(bits << (8 - bitInByteIdx - bitsToWriteInByte));
+                ulong mask = (1UL << bitsToWriteInByte) - 1;
+                ulong bits = (value >> (bitCount - bitsToWriteInByte)) & mask;
 
-            _bitOffset += bitsToWriteInByte;
-            bitCount -= bitsToWriteInByte;
+                byte clearMask = (byte)~(((1 << bitsToWriteInByte) - 1) << (8 - bitInByteIdx - bitsToWriteInByte));
+                _destination[byteIdx] &= clearMask;
+                _destination[byteIdx] |= (byte)(bits << (8 - bitInByteIdx - bitsToWriteInByte));
+
+                _bitOffset += bitsToWriteInByte;
+                bitCount -= bitsToWriteInByte;
+            }
+
+            _bitOffset = savedOffset;
+            return;
         }
 
-        _bitOffset = savedOffset;
+        // Slow path: cross-segment patching using IBuffer random access
+        if (_writer is IBuffer buffer)
+        {
+            long currentBit = bitOffset;
+            while (bitCount > 0)
+            {
+                long byteOffset = currentBit / 8;
+                int bitInByteIdx = (int)(currentBit % 8);
+                int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
+
+                // Acquire the span for exactly one byte to ensure we don't cross slab boundaries blindly
+                var targetSpan = buffer.GetMutableSegmentAsSpan(byteOffset, 1);
+                byte byteVal = targetSpan[0];
+
+                ulong mask = (1UL << bitsToWriteInByte) - 1;
+                ulong bits = (value >> (bitCount - bitsToWriteInByte)) & mask;
+
+                byte clearMask = (byte)~(((1 << bitsToWriteInByte) - 1) << (8 - bitInByteIdx - bitsToWriteInByte));
+                byteVal &= clearMask;
+                byteVal |= (byte)(bits << (8 - bitInByteIdx - bitsToWriteInByte));
+
+                targetSpan[0] = byteVal;
+
+                currentBit += bitsToWriteInByte;
+                bitCount -= bitsToWriteInByte;
+            }
+        }
+        else
+        {
+            throw new NotSupportedException("Cross-segment patching is only supported when the underlying writer implements IBuffer.");
+        }
     }
 
     /// <summary>
@@ -372,11 +404,11 @@ public ref struct BitWriter
         int byteCount = Encoding.UTF8.GetByteCount(s);
         WriteVarInt(byteCount);
 
-        int bitInByteIdx = _bitOffset % 8;
+        int bitInByteIdx = (int)(BitsWritten % 8);
         if (bitInByteIdx == 0)
         {
-            int byteOffset = _bitOffset / 8;
             EnsureCapacity(byteCount * 8);
+            int byteOffset = _bitOffset / 8;
             Encoding.UTF8.GetBytes(s, _destination.Slice(byteOffset));
             _bitOffset += byteCount * 8;
         }

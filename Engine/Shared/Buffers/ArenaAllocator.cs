@@ -11,13 +11,13 @@ namespace Shared.Buffers;
 /// A fast arena-based memory allocator that utilizes multiple slabs of memory.
 /// Suitable for high-frequency allocations that are all reclaimed at once.
 /// </summary>
-public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
+public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDisposable
 {
     private const int DefaultBlockSize = 1024 * 1024; // 1MB
     private SlabList _blocks = new();
     private int _currentBlockIndex;
-    private int _baseOffset;
-    private int _totalCapacity;
+    private long _baseOffset;
+    private long _totalCapacity;
     private readonly ISlabAllocator _allocator;
     private readonly IDiagnosticBus? _diagnosticBus;
 
@@ -31,17 +31,17 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
     }
 
     /// <inheritdoc />
-    public int Capacity
+    public long Capacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _totalCapacity;
     }
 
     /// <inheritdoc />
-    public int Position
+    public long Position
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _baseOffset + _blocks[_currentBlockIndex].Slab.Offset;
+        get => (long)_baseOffset + _blocks[_currentBlockIndex].Slab.Offset;
     }
 
     /// <inheritdoc />
@@ -67,29 +67,148 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
 
         if (alignedOffset + size > currentBlock.Capacity)
         {
-            _baseOffset += currentBlock.Capacity;
-            _currentBlockIndex++;
-            if (_currentBlockIndex >= _blocks.Count)
-            {
-                var newBlock = _allocator.Allocate(Math.Max(DefaultBlockSize, size + alignment), pinned: false);
-                _blocks.Add(newBlock, _baseOffset);
-                _totalCapacity += newBlock.Capacity;
-            }
+            PrepareBlock(size + alignment);
             currentBlock = _blocks[_currentBlockIndex].Slab;
             alignedOffset = (currentBlock.Offset + alignment - 1) & ~(alignment - 1);
-
-            if (alignedOffset + size > currentBlock.Capacity)
-            {
-                 var oversized = _allocator.Allocate(size + alignment, pinned: false, isOversized: true);
-                 _blocks.Insert(_currentBlockIndex, oversized, _baseOffset);
-                 _totalCapacity += oversized.Capacity;
-                 currentBlock = oversized;
-                 alignedOffset = 0;
-            }
         }
+
         var memory = new Memory<byte>(currentBlock.Data, alignedOffset, size);
         currentBlock.Offset = alignedOffset + size;
         return memory;
+    }
+
+    /// <inheritdoc />
+    public void Advance(int count)
+    {
+        if (count == 0) return;
+        if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+
+        var block = _blocks[_currentBlockIndex].Slab;
+        if (block.Offset + count > block.Capacity)
+            throw new InvalidOperationException("Cannot advance past current block capacity.");
+
+        block.Offset += count;
+    }
+
+    /// <inheritdoc />
+    public Memory<byte> GetMemory(int sizeHint = 0)
+    {
+        PrepareBlock(sizeHint);
+        var block = _blocks[_currentBlockIndex].Slab;
+        return block.Data.AsMemory(block.Offset, block.Capacity - block.Offset);
+    }
+
+    /// <inheritdoc />
+    public Span<byte> GetSpan(int sizeHint = 0)
+    {
+        PrepareBlock(sizeHint);
+        var block = _blocks[_currentBlockIndex].Slab;
+        return block.Data.AsSpan(block.Offset, block.Capacity - block.Offset);
+    }
+
+    private void PrepareBlock(int sizeHint)
+    {
+        if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint));
+        if (sizeHint == 0) sizeHint = 1;
+
+        var currentEntry = _blocks[_currentBlockIndex];
+        if (currentEntry.Slab.Offset + sizeHint > currentEntry.Slab.Capacity)
+        {
+            // Use current slab's Capacity to define a fixed-size virtual address space.
+            long nextBaseOffset = currentEntry.BaseOffset + currentEntry.Slab.Capacity;
+
+            if (sizeHint > DefaultBlockSize)
+            {
+                var oversized = _allocator.Allocate(sizeHint, pinned: false, isOversized: true);
+                _currentBlockIndex++;
+                _blocks.Insert(_currentBlockIndex, oversized, nextBaseOffset);
+                _totalCapacity += oversized.Capacity;
+                _baseOffset = nextBaseOffset;
+            }
+            else
+            {
+                _baseOffset = nextBaseOffset;
+                _currentBlockIndex++;
+                if (_currentBlockIndex >= _blocks.Count)
+                {
+                    var newBlock = _allocator.Allocate(DefaultBlockSize, pinned: false);
+                    _blocks.Add(newBlock, _baseOffset);
+                    _totalCapacity += newBlock.Capacity;
+                }
+                else
+                {
+                    var entry = _blocks[_currentBlockIndex];
+                    entry.Slab.Offset = 0;
+                    entry.BaseOffset = _baseOffset;
+                    _blocks[_currentBlockIndex] = entry;
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Shrink()
+    {
+        // Reclaim all blocks beyond the current one
+        _blocks.Prune(_currentBlockIndex + 1, _allocator);
+
+        // Recalculate total capacity
+        _totalCapacity = 0;
+        for (int i = 0; i < _blocks.Count; i++)
+        {
+            _totalCapacity += _blocks[i].Slab.Capacity;
+        }
+    }
+
+    /// <inheritdoc />
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ReadOnlySpan<byte> GetSegmentAsSpan(long offset, int length)
+    {
+        var spans = _blocks.AsSpan();
+        int low = 0;
+        int high = spans.Length - 1;
+        while (low <= high)
+        {
+            int mid = low + (high - low) / 2;
+            ref readonly var entry = ref spans[mid];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
+            {
+                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                    throw new ArgumentException("Segment spans across multiple slabs.");
+                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+            }
+            if (offset < entry.BaseOffset)
+                high = mid - 1;
+            else
+                low = mid + 1;
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset));
+    }
+
+    /// <inheritdoc />
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetMutableSegmentAsSpan(long offset, int length)
+    {
+        var spans = _blocks.AsSpan();
+        int low = 0;
+        int high = spans.Length - 1;
+        while (low <= high)
+        {
+            int mid = low + (high - low) / 2;
+            ref readonly var entry = ref spans[mid];
+            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
+            {
+                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
+                    throw new ArgumentException("Segment spans across multiple slabs.");
+                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+            }
+            if (offset < entry.BaseOffset)
+                high = mid - 1;
+            else
+                low = mid + 1;
+        }
+        throw new ArgumentOutOfRangeException(nameof(offset));
     }
 
     /// <inheritdoc />
@@ -110,17 +229,21 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IDisposable
             }
             else
             {
-                _blocks[i].Slab.Offset = 0;
+                var entry = _blocks[i];
+                entry.Slab.Offset = 0;
+                _blocks[i] = entry;
             }
         }
 
         _totalCapacity = 0;
+        long currentBase = 0;
         for (int i = 0; i < _blocks.Count; i++)
         {
             var entry = _blocks[i];
-            entry.BaseOffset = _totalCapacity;
-            _totalCapacity += entry.Slab.Capacity;
+            entry.BaseOffset = currentBase;
             _blocks[i] = entry;
+            _totalCapacity += entry.Slab.Capacity;
+            currentBase += entry.Slab.Capacity;
         }
 
         if (_blocks.Count == 0)

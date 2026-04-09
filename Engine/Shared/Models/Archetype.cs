@@ -164,8 +164,8 @@ public class Archetype
         _capacity = _capacity == 0 ? 8 : _capacity * 2;
         while (_capacity < required) _capacity *= 2;
 
-        System.Array.Resize(ref _entityIds, _capacity);
-        System.Array.Resize(ref _entities, _capacity);
+        Array.Resize(ref _entityIds, _capacity);
+        Array.Resize(ref _entities, _capacity);
         Array.Resize(ref _xs, _capacity);
         Array.Resize(ref _ys, _capacity);
         Array.Resize(ref _zs, _capacity);
@@ -947,7 +947,7 @@ public class Archetype
             if (_capacity > _count * 2 && _capacity > 8)
             {
                 _capacity = Math.Max(_count, 8);
-                System.Array.Resize(ref _entityIds, _capacity);
+                Array.Resize(ref _entityIds, _capacity);
                 Array.Resize(ref _entities, _capacity);
                 Array.Resize(ref _xs, _capacity);
                 Array.Resize(ref _ys, _capacity);
@@ -1045,8 +1045,8 @@ public class Archetype
 
         public void Resize(int capacity)
         {
-            System.Array.Resize(ref Data, capacity);
-            System.Array.Resize(ref NextData, capacity);
+            Array.Resize(ref Data, capacity);
+            Array.Resize(ref NextData, capacity);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

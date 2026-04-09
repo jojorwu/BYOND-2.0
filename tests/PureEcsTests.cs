@@ -87,7 +87,7 @@ public class PureEcsTests
 public class TestDataSystem : Shared.Models.BaseSystem
 {
     [Shared.Attributes.Query]
-    private EntityQuery<TestDataComponent> _query;
+    private EntityQuery<TestDataComponent> _query = null!;
 
     public override ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb)
     {

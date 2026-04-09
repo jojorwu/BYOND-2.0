@@ -249,7 +249,7 @@ new MyShader()
                         else _configManager.SetCVar(e.Key, e.Value);
                     });
 
-                    var gameState = new GameState();
+                    var gameState = _serviceProvider.GetRequiredService<IGameState>() as GameState ?? throw new InvalidOperationException("Could not resolve GameState");
                     _logicThread = new LogicThread(
                         _connectionPanel.ServerAddress,
                         gameState,

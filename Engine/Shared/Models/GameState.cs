@@ -28,9 +28,6 @@ namespace Shared;
             _objectFactory = objectFactory;
         }
 
-        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, new Shared.Services.MockDiagnosticBus()),
-                                 new Shared.Services.ArchetypeManager(NullLogger<Shared.Services.ArchetypeManager>.Instance, new Shared.Services.MockDiagnosticBus())) { }
-
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 
         public void OnStateChanged(IGameObject obj) => _dirtyObjects.Enqueue(obj);

@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Services;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -36,41 +37,9 @@ class Program
 
     private static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<Shared.Config.IConfigurationManager>(sp => {
-            var manager = new Shared.Config.ConfigurationManager();
-            manager.RegisterFromAssemblies(typeof(Shared.Config.ConfigKeys).Assembly);
-            manager.AddProvider(new Shared.Config.JsonConfigProvider("server_config.json"));
-            manager.AddProvider(new Shared.Config.EnvironmentConfigProvider());
-            manager.LoadAll();
-            return manager;
-        });
-
-        services.AddSingleton<Shared.Config.IConsoleCommandManager>(sp => {
-            var manager = new Shared.Config.ConsoleCommandManager();
-            var config = sp.GetRequiredService<Shared.Config.IConfigurationManager>();
-            var soundApi = sp.GetRequiredService<ISoundApi>();
-            manager.RegisterCommand(new Shared.Config.CVarListCommand(config));
-            manager.RegisterCommand(new Shared.Config.CVarSetCommand(config));
-            var settings = sp.GetRequiredService<ServerSettings>();
-            var playerManager = sp.GetRequiredService<IPlayerManager>();
-            manager.RegisterCommand(new Shared.Config.HelpCommand(manager));
-            manager.RegisterCommand(new Shared.Config.SoundPlayCommand(soundApi));
-            manager.RegisterCommand(new Shared.Config.StatusCommand(settings.ServerName, settings.MaxPlayers, playerManager));
-            manager.RegisterCommand(new Shared.Config.PlayerListCommand(playerManager));
-            return manager;
-        });
-
         services.Configure<ServerSettings>(configuration.GetSection("ServerSettings"));
-        services.AddSingleton(resolver => {
-            var manager = resolver.GetRequiredService<Shared.Config.IConfigurationManager>();
-            return new ServerSettings(manager);
-        });
 
-        services.AddSingleton<IProject>(new Project(".")); // Assume server runs from project root
-
-        services.AddSingleton<Shared.IJsonService, DMCompiler.Json.JsonService>();
-        services.AddSingleton<Shared.ICompilerService, DMCompiler.CompilerService>();
-
+        services.AddSharedBaseServices();
         services.AddCoreServices();
         services.AddServerHostedServices();
     }

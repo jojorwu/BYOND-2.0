@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
+using Shared.Services;
 using Server;
 using System.Text.Json;
 using Core;
@@ -141,6 +142,7 @@ for (int z = 1; z <= 10; z++) {
                     options.Performance.TickRate = 100; // Fast ticks for benchmark
                 });
                 services.AddSingleton<IProject>(new Project("."));
+                services.AddSharedBaseServices();
                 services.AddCoreServices();
                 services.AddServerHostedServices();
 

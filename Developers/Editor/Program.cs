@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Editor.UI;
 using Silk.NET.OpenGL;
@@ -41,6 +42,7 @@ namespace Editor
             services.AddSingleton(launchOptions);
             services.AddSingleton<Shared.IJsonService, DMCompiler.Json.JsonService>();
             services.AddSingleton<Shared.ICompilerService, DMCompiler.CompilerService>();
+            services.AddSharedBaseServices();
             services.AddCoreServices();
             services.AddEditorServices();
             services.AddUiPanels();

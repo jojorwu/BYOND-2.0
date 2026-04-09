@@ -20,8 +20,12 @@ namespace tests
         [SetUp]
         public void SetUp()
         {
-            _gameState = new GameState();
-            _typeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, MockDiagnosticBus.Instance);
+            var diagnosticBus = MockDiagnosticBus.Instance;
+            var spatialGrid = new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, diagnosticBus);
+            var archetypeManager = new ArchetypeManager(NullLogger<ArchetypeManager>.Instance, diagnosticBus);
+
+            _gameState = new GameState(spatialGrid, archetypeManager);
+            _typeManager = new ObjectTypeManager(NullLogger<ObjectTypeManager>.Instance, diagnosticBus);
 
             var settings = Options.Create(new DreamVmConfiguration());
             _vm = new DreamVM(settings, NullLogger<DreamVM>.Instance, new INativeProcProvider[] {

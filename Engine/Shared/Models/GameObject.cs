@@ -17,7 +17,7 @@ namespace Shared;
 [JsonConverter(typeof(GameObjectConverter))]
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
-    private static long nextId = 1;
+    private static long _nextId = 1;
 
     [ThreadStatic]
     private static long _threadIdBase;
@@ -30,16 +30,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         long current;
         do
         {
-            current = nextId;
+            current = _nextId;
             if (current > id) break;
-        } while (Interlocked.CompareExchange(ref nextId, id + 1, current) != current);
+        } while (Interlocked.CompareExchange(ref _nextId, id + 1, current) != current);
     }
 
     private static long AllocateNextId()
     {
         if (_threadIdOffset <= 0)
         {
-            _threadIdBase = Interlocked.Add(ref nextId, IdBlockSize) - IdBlockSize;
+            _threadIdBase = Interlocked.Add(ref _nextId, IdBlockSize) - IdBlockSize;
             _threadIdOffset = IdBlockSize;
         }
         _threadIdOffset--;

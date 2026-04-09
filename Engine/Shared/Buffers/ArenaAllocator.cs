@@ -48,6 +48,24 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     }
 
     /// <inheritdoc />
+    public long Length => Position;
+
+    /// <inheritdoc />
+    public ReadOnlySequence<byte> WrittenSequence
+    {
+        get
+        {
+            var builder = new SequenceBuilder();
+            for (int i = 0; i <= _currentBlockIndex; i++)
+            {
+                var entry = _blocks[i];
+                builder.Add(new ReadOnlyMemory<byte>(entry.Slab.Data, 0, entry.Slab.Offset));
+            }
+            return builder.Build();
+        }
+    }
+
+    /// <inheritdoc />
     public int SlabCount => _blocks.Count;
 
     /// <inheritdoc />
@@ -111,7 +129,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
 
     private void PrepareBlock(int sizeHint)
     {
-        if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint));
+        if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint), "Size hint must be non-negative.");
         if (sizeHint == 0) sizeHint = 1;
 
         var currentEntry = _blocks[_currentBlockIndex];
@@ -123,10 +141,18 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
             if (sizeHint > _nextBlockSize)
             {
                 var oversized = _allocator.Allocate(sizeHint, pinned: false, isOversized: true);
-                _currentBlockIndex++;
-                _blocks.Insert(_currentBlockIndex, oversized, nextBaseOffset);
-                _totalCapacity += oversized.Capacity;
-                _baseOffset = nextBaseOffset;
+                try
+                {
+                    _currentBlockIndex++;
+                    _blocks.Insert(_currentBlockIndex, oversized, nextBaseOffset);
+                    _totalCapacity += oversized.Capacity;
+                    _baseOffset = nextBaseOffset;
+                }
+                catch
+                {
+                    _allocator.Return(oversized);
+                    throw;
+                }
             }
             else
             {
@@ -135,8 +161,16 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
                 if (_currentBlockIndex >= _blocks.Count)
                 {
                     var newBlock = _allocator.Allocate(_nextBlockSize, pinned: false);
-                    _blocks.Add(newBlock, _baseOffset);
-                    _totalCapacity += newBlock.Capacity;
+                    try
+                    {
+                        _blocks.Add(newBlock, _baseOffset);
+                        _totalCapacity += newBlock.Capacity;
+                    }
+                    catch
+                    {
+                        _allocator.Return(newBlock);
+                        throw;
+                    }
                 }
                 else
                 {

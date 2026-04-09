@@ -103,13 +103,15 @@ public ref struct BitWriter
         if (bitCount == 0) return;
         EnsureCapacity(bitCount);
 
-        // Fast path for aligned multi-bit writes (e.g. 8, 16, 32, 64 bits)
+        ref byte destRef = ref MemoryMarshal.GetReference(_destination);
+
+        // Fast path for aligned multi-bit writes
         if ((_bitOffset & 7) == 0)
         {
             int byteIdx = _bitOffset >> 3;
             if (bitCount == 8)
             {
-                _destination[byteIdx] = (byte)value;
+                Unsafe.Add(ref destRef, byteIdx) = (byte)value;
                 _bitOffset += 8;
                 return;
             }
@@ -133,24 +135,25 @@ public ref struct BitWriter
             }
         }
 
+        // General path using word-level shifting
         while (bitCount > 0)
         {
             int byteIdx = _bitOffset >> 3;
-            int bitInByteIdx = _bitOffset & 7;
-            int bitsToWriteInByte = Math.Min(bitCount, 8 - bitInByteIdx);
+            int bitOffsetInByte = _bitOffset & 7;
+            int bitsAvailableInByte = 8 - bitOffsetInByte;
+            int bitsToWrite = Math.Min(bitCount, bitsAvailableInByte);
 
-            ulong mask = (1UL << bitsToWriteInByte) - 1;
-            ulong bits = (value >> (bitCount - bitsToWriteInByte)) & mask;
+            ulong mask = (1UL << bitsToWrite) - 1;
+            ulong bits = (value >> (bitCount - bitsToWrite)) & mask;
 
-            if (bitInByteIdx == 0) _destination[byteIdx] = 0;
+            ref byte b = ref Unsafe.Add(ref destRef, byteIdx);
+            if (bitOffsetInByte == 0) b = 0;
 
-            // Clear the bits we are about to write to handle dirty pooled buffers
-            byte clearMask = (byte)~(((1 << bitsToWriteInByte) - 1) << (8 - bitInByteIdx - bitsToWriteInByte));
-            _destination[byteIdx] &= clearMask;
-            _destination[byteIdx] |= (byte)(bits << (8 - bitInByteIdx - bitsToWriteInByte));
+            byte clearMask = (byte)~(((1 << bitsToWrite) - 1) << (bitsAvailableInByte - bitsToWrite));
+            b = (byte)((b & clearMask) | (byte)(bits << (bitsAvailableInByte - bitsToWrite)));
 
-            _bitOffset += bitsToWriteInByte;
-            bitCount -= bitsToWriteInByte;
+            _bitOffset += bitsToWrite;
+            bitCount -= bitsToWrite;
         }
     }
 
@@ -237,14 +240,16 @@ public ref struct BitWriter
     public void WriteBool(bool value)
     {
         EnsureCapacity(1);
-        int byteIdx = _bitOffset / 8;
-        int bitInByteIdx = _bitOffset % 8;
-        if (bitInByteIdx == 0) _destination[byteIdx] = 0;
+        int byteIdx = _bitOffset >> 3;
+        int bitInByteIdx = _bitOffset & 7;
+
+        ref byte b = ref Unsafe.Add(ref MemoryMarshal.GetReference(_destination), byteIdx);
+        if (bitInByteIdx == 0) b = 0;
 
         // Explicitly clear the bit first to handle dirty pooled buffers
         byte bitMask = (byte)(1 << (7 - bitInByteIdx));
-        if (value) _destination[byteIdx] |= bitMask;
-        else _destination[byteIdx] &= (byte)~bitMask;
+        if (value) b |= bitMask;
+        else b &= (byte)~bitMask;
 
         _bitOffset++;
     }
@@ -366,8 +371,31 @@ public ref struct BitWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryWriteBits(ulong value, int bitCount)
     {
-        if (_bitOffset + bitCount > _destination.Length * 8) return false;
+        int availableBits = (_destination.Length << 3) - _bitOffset;
+        if (bitCount > availableBits && _writer == null) return false;
         WriteBits(value, bitCount);
+        return true;
+    }
+
+    /// <summary>
+    /// Attempts to write a signed 32-bit integer.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryWriteInt(int value, int bitCount)
+    {
+        return TryWriteBits((ulong)value, bitCount);
+    }
+
+    /// <summary>
+    /// Attempts to write a VarInt.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryWriteVarInt(long value)
+    {
+        // Max 10 bytes for 64-bit VarInt
+        int availableBits = (_destination.Length << 3) - _bitOffset;
+        if (availableBits < 80 && _writer == null) return false;
+        WriteVarInt(value);
         return true;
     }
 
@@ -440,7 +468,7 @@ public ref struct BitWriter
     /// <summary>
     /// Writes a UTF-8 encoded string to the buffer, prefixed by its byte length as a VarInt.
     /// </summary>
-    /// <param name="s">The string to write.</param>
+    /// <param name="s">The string to write. Can be null or empty.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteString(string? s)
     {

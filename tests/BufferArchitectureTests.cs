@@ -248,4 +248,31 @@ public class BufferArchitectureTests
         reader.SkipBits(24);
         Assert.That(reader.ReadByte(), Is.EqualTo(0x22));
     }
+
+    [Test]
+    public void BitWriter_UnalignedWriteBits_Works()
+    {
+        var buffer = new byte[16];
+        var writer = new BitWriter(buffer);
+        writer.WriteBits(0, 3); // 3 bits offset
+        writer.WriteBits(0xDEADBEEF_CAFEBABE, 64);
+        writer.Flush();
+
+        var reader = new BitReader(buffer);
+        reader.SkipBits(3);
+        Assert.That(reader.ReadBits(64), Is.EqualTo(0xDEADBEEF_CAFEBABE));
+    }
+
+    [Test]
+    public void BitReader_TryReadMethods_HandleEndCorrectly()
+    {
+        var data = new byte[] { 0x80, 0x01 }; // VarInt 128
+        var reader = new BitReader(data);
+
+        Assert.That(reader.TryReadVarInt(out long val), Is.True);
+        Assert.That(val, Is.EqualTo(128));
+
+        Assert.That(reader.TryReadBool(out _), Is.False);
+        Assert.That(reader.TryReadString(out _), Is.False);
+    }
 }

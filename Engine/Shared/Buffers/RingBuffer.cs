@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using Shared.Interfaces;
@@ -38,6 +39,12 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
 
     /// <inheritdoc />
     public long Position => _tail;
+
+    /// <inheritdoc />
+    public long Length => _count;
+
+    /// <inheritdoc />
+    public ReadOnlySequence<byte> WrittenSequence => throw new NotSupportedException();
 
     /// <inheritdoc />
     public int SlabCount => 1;

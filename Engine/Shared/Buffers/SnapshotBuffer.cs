@@ -15,7 +15,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
 {
     private SlabList _slabs = new();
     private int _currentSlabIndex;
-    private int _lastLookupIndex;
+    private SlabLookupCache _lookupCache = new();
     private readonly int _defaultSlabSize;
     private long _totalCapacity;
     private readonly ISlabAllocator _allocator;
@@ -45,10 +45,21 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     public long Position => (long)_slabs[_currentSlabIndex].BaseOffset + _slabs[_currentSlabIndex].Slab.Offset;
 
     /// <inheritdoc />
+    public long Length => Position;
+
+    /// <inheritdoc />
     public int SlabCount => _slabs.Count;
 
     /// <inheritdoc />
     public long TotalAllocatedBytes => _totalCapacity;
+
+    /// <inheritdoc />
+    public bool IsPinned => true;
+
+    /// <summary>
+    /// Gets the written portion of the buffer as a <see cref="ReadOnlySequence{byte}"/>.
+    /// </summary>
+    public ReadOnlySequence<byte> WrittenSequence => Slice(0, Position);
 
     /// <summary>
     /// Acquires a contiguous segment of the specified length within the buffer.
@@ -74,17 +85,12 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
 
         var entry = _slabs[_currentSlabIndex];
 
-        // Ensure the current slab can accommodate the advance.
-        // We do NOT automatically move to next slab here as per IBufferWriter contract.
-        // The user must call GetSpan/GetMemory to trigger segment switching.
         if (entry.Slab.Offset + count > entry.Slab.Capacity)
         {
             throw new InvalidOperationException($"Cannot advance past current slab capacity. Capacity: {entry.Slab.Capacity}, CurrentOffset: {entry.Slab.Offset}, RequestedAdvance: {count}");
         }
 
         entry.Slab.Offset += count;
-
-        // Update the struct in the list
         _slabs[_currentSlabIndex] = entry;
     }
 
@@ -107,23 +113,29 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void PrepareSlab(int sizeHint)
     {
-        if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint));
+        if (sizeHint < 0) throw new ArgumentOutOfRangeException(nameof(sizeHint), "Size hint must be non-negative.");
         if (sizeHint == 0) sizeHint = 1;
 
         var currentEntry = _slabs[_currentSlabIndex];
 
         if (currentEntry.Slab.Offset + sizeHint > currentEntry.Slab.Capacity)
         {
-            // Use current slab's Capacity to define a fixed-size virtual address space.
-            // This ensures non-overlapping ranges for binary search and random access.
             long nextBaseOffset = currentEntry.BaseOffset + currentEntry.Slab.Capacity;
 
             if (sizeHint > _defaultSlabSize)
             {
                 var giantSlab = _allocator.Allocate(sizeHint, pinned: true, isOversized: true);
-                _currentSlabIndex++;
-                _slabs.Insert(_currentSlabIndex, giantSlab, nextBaseOffset);
-                _totalCapacity += giantSlab.Capacity;
+                try
+                {
+                    _currentSlabIndex++;
+                    _slabs.Insert(_currentSlabIndex, giantSlab, nextBaseOffset);
+                    _totalCapacity += giantSlab.Capacity;
+                }
+                catch
+                {
+                    _allocator.Return(giantSlab);
+                    throw;
+                }
             }
             else
             {
@@ -131,8 +143,16 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
                 if (_currentSlabIndex == _slabs.Count)
                 {
                     var newSlab = _allocator.Allocate(_defaultSlabSize, pinned: true);
-                    _slabs.Add(newSlab, nextBaseOffset);
-                    _totalCapacity += newSlab.Capacity;
+                    try
+                    {
+                        _slabs.Add(newSlab, nextBaseOffset);
+                        _totalCapacity += newSlab.Capacity;
+                    }
+                    catch
+                    {
+                        _allocator.Return(newSlab);
+                        throw;
+                    }
                 }
                 else
                 {
@@ -156,27 +176,13 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Span<byte> GetSegmentInternal(long offset, int length)
     {
-        // Cache-optimized lookup for temporal locality
-        var spans = _slabs.AsSpan();
-        if (_lastLookupIndex >= 0 && _lastLookupIndex < spans.Length)
-        {
-            ref readonly var entry = ref spans[_lastLookupIndex];
-            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
-            {
-                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                    throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
-                return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
-            }
-        }
+        if (_lookupCache.TryResolve(offset, length, _slabs, out Span<byte> result)) return result;
 
         int index = _slabs.FindSlabIndex(offset);
         if (index >= 0)
         {
-            _lastLookupIndex = index;
-            ref readonly var entry = ref spans[index];
-            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
-            return entry.Slab.Data.AsSpan((int)(offset - entry.BaseOffset), length);
+            _lookupCache.Update(index);
+            return _slabs.GetSegmentAsSpan(offset, length);
         }
         throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
     }
@@ -283,26 +289,13 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlyMemory<byte> GetSegmentAsMemory(long offset, int length)
     {
-        var spans = _slabs.AsSpan();
-        if (_lastLookupIndex >= 0 && _lastLookupIndex < spans.Length)
-        {
-            ref readonly var entry = ref spans[_lastLookupIndex];
-            if (offset >= entry.BaseOffset && offset < entry.BaseOffset + entry.Slab.Capacity)
-            {
-                if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                    throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
-                return new ReadOnlyMemory<byte>(entry.Slab.Data, (int)(offset - entry.BaseOffset), length);
-            }
-        }
+        if (_lookupCache.TryResolve(offset, length, _slabs, out ReadOnlyMemory<byte> result)) return result;
 
         int index = _slabs.FindSlabIndex(offset);
         if (index >= 0)
         {
-            _lastLookupIndex = index;
-            ref readonly var entry = ref spans[index];
-            if (offset + length > entry.BaseOffset + entry.Slab.Capacity)
-                throw new ArgumentException("Segment spans across multiple slabs.", nameof(length));
-            return new ReadOnlyMemory<byte>(entry.Slab.Data, (int)(offset - entry.BaseOffset), length);
+            _lookupCache.Update(index);
+            return _slabs.GetSegmentAsMemory(offset, length);
         }
         throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
     }
@@ -310,10 +303,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     /// <inheritdoc />
     public void Shrink()
     {
-        // Reclaim all slabs beyond the current one
         _slabs.Prune(_currentSlabIndex + 1, _allocator);
-
-        // Recalculate total capacity as some slabs might have been removed
         _totalCapacity = 0;
         for (int i = 0; i < _slabs.Count; i++)
         {
@@ -380,11 +370,9 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     public void Reset()
     {
         _currentSlabIndex = 0;
-
-        // Prune excessive slabs
+        _lookupCache.Reset();
         _slabs.Prune(64, _allocator);
 
-        // Handle oversized and clear offsets
         for (int i = _slabs.Count - 1; i >= 0; i--)
         {
             if (_slabs[i].Slab.IsOversized)
@@ -396,12 +384,11 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
             {
                 var entry = _slabs[i];
                 entry.Slab.Offset = 0;
-                entry.BaseOffset = 0; // Reset temporarily, will be recalculated
+                entry.BaseOffset = 0;
                 _slabs[i] = entry;
             }
         }
 
-        // Re-calculate total capacity and base offsets
         _totalCapacity = 0;
         long currentBase = 0;
         for (int i = 0; i < _slabs.Count; i++)
@@ -431,12 +418,23 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     /// <inheritdoc />
     public IReadOnlyDictionary<string, object> GetDiagnosticInfo()
     {
+        long pooledBytes = 0;
+        long unmanagedBytes = 0;
+        foreach (var entry in _slabs)
+        {
+            if (entry.Slab.IsFromPool) pooledBytes += entry.Slab.Capacity;
+            else unmanagedBytes += entry.Slab.Capacity;
+        }
+
         var info = new Dictionary<string, object>
         {
             ["Capacity"] = Capacity,
             ["Position"] = Position,
             ["SlabCount"] = SlabCount,
-            ["TotalAllocatedBytes"] = TotalAllocatedBytes
+            ["TotalAllocatedBytes"] = TotalAllocatedBytes,
+            ["PooledBytes"] = pooledBytes,
+            ["UnmanagedBytes"] = unmanagedBytes,
+            ["IsPinned"] = IsPinned
         };
 
         _diagnosticBus?.Publish("Buffer", "SnapshotBuffer Stats", info, (m, state) =>

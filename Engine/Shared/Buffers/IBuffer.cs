@@ -27,6 +27,16 @@ public interface IBuffer : IShrinkable
     long Position { get; }
 
     /// <summary>
+    /// Gets the current length of the data written to the buffer. Synonym for <see cref="Position"/>.
+    /// </summary>
+    long Length { get; }
+
+    /// <summary>
+    /// Returns the data written to the buffer as a sequence of memory segments.
+    /// </summary>
+    System.Buffers.ReadOnlySequence<byte> WrittenSequence { get; }
+
+    /// <summary>
     /// Gets the number of memory slabs currently allocated by the buffer.
     /// </summary>
     int SlabCount { get; }

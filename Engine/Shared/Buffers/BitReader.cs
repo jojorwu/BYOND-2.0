@@ -1,7 +1,11 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Shared.Buffers;
@@ -145,13 +149,15 @@ public ref struct BitReader
         if (bitCount == 0) return 0;
         EnsureCapacity(bitCount);
 
-        // Fast path for aligned multi-bit reads
+        ref byte sourceRef = ref MemoryMarshal.GetReference(_source);
+
+        // Fast path for aligned multi-bit reads within current segment
         if ((_bitOffset & 7) == 0 && _bitOffset + bitCount <= (long)_source.Length * 8)
         {
             int byteIdx = _bitOffset >> 3;
             if (bitCount == 8)
             {
-                ulong val = _source[byteIdx];
+                ulong val = Unsafe.Add(ref sourceRef, byteIdx);
                 _bitOffset += 8;
                 return val;
             }
@@ -181,19 +187,21 @@ public ref struct BitReader
             if (_bitOffset >= (long)_source.Length * 8)
             {
                 AdvanceSegmentIfNeeded();
+                sourceRef = ref MemoryMarshal.GetReference(_source);
             }
 
             int byteIdx = (int)(_bitOffset >> 3);
-            int bitInByteIdx = (int)(_bitOffset & 7);
-            int bitsToReadInByte = Math.Min(bitCount, 8 - bitInByteIdx);
+            int bitOffsetInByte = _bitOffset & 7;
+            int bitsAvailableInByte = 8 - bitOffsetInByte;
+            int bitsToRead = Math.Min(bitCount, bitsAvailableInByte);
 
-            ulong mask = (1UL << bitsToReadInByte) - 1;
-            ulong bits = (ulong)(_source[byteIdx] >> (8 - bitInByteIdx - bitsToReadInByte)) & mask;
+            ulong mask = (1UL << bitsToRead) - 1;
+            ulong bits = (ulong)(Unsafe.Add(ref sourceRef, byteIdx) >> (bitsAvailableInByte - bitsToRead)) & mask;
 
-            result = (result << bitsToReadInByte) | bits;
+            result = (result << bitsToRead) | bits;
 
-            _bitOffset += bitsToReadInByte;
-            bitCount -= bitsToReadInByte;
+            _bitOffset += bitsToRead;
+            bitCount -= bitsToRead;
         }
         return result;
     }
@@ -274,9 +282,10 @@ public ref struct BitReader
     public bool ReadBool()
     {
         EnsureCapacity(1);
-        int byteIdx = _bitOffset / 8;
-        int bitInByteIdx = _bitOffset % 8;
-        bool result = (_source[byteIdx] & (1 << (7 - bitInByteIdx))) != 0;
+        int byteIdx = _bitOffset >> 3;
+        int bitInByteIdx = _bitOffset & 7;
+
+        bool result = (Unsafe.Add(ref MemoryMarshal.GetReference(_source), byteIdx) & (1 << (7 - bitInByteIdx))) != 0;
         _bitOffset++;
         return result;
     }
@@ -382,7 +391,12 @@ public ref struct BitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool TryReadVarInt(out long result)
     {
-        long initialPos = BitsRead;
+        if (BitsRead + 8 > _totalBits)
+        {
+            result = 0;
+            return false;
+        }
+
         try
         {
             result = ReadVarInt();
@@ -390,11 +404,67 @@ public ref struct BitReader
         }
         catch
         {
-            // Reset position if possible? BitReader is a ref struct,
-            // but we don't have an easy way to rollback segment transitions without more state.
-            // For now, we assume Try methods are used when we expect data.
             result = 0;
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to read a UTF-8 encoded string.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryReadString(out string? result)
+    {
+        if (!TryReadVarInt(out long byteCount))
+        {
+            result = null;
+            return false;
+        }
+
+        if (BitsRead + (byteCount << 3) > _totalBits)
+        {
+            result = null;
+            return false;
+        }
+
+        result = ReadStringInternal((int)byteCount);
+        return true;
+    }
+
+    private string ReadStringInternal(int byteCount)
+    {
+        if (byteCount == 0) return string.Empty;
+
+        // Fast path for aligned reads
+        if ((_bitOffset & 7) == 0 && (_bitOffset >> 3) + byteCount <= _source.Length)
+        {
+            int byteOffset = _bitOffset >> 3;
+            var result = Encoding.UTF8.GetString(_source.Slice(byteOffset, byteCount));
+            _bitOffset += byteCount << 3;
+            return result;
+        }
+        else
+        {
+            // Unaligned or cross-segment read
+            if (byteCount <= 512)
+            {
+                Span<byte> temp = stackalloc byte[byteCount];
+                for (int i = 0; i < temp.Length; i++) temp[i] = ReadByte();
+                return Encoding.UTF8.GetString(temp);
+            }
+            else
+            {
+                byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
+                try
+                {
+                    ReadBytes(temp.AsSpan(0, byteCount));
+                    return Encoding.UTF8.GetString(temp, 0, byteCount);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(temp);
+                }
+            }
         }
     }
 
@@ -408,19 +478,43 @@ public ref struct BitReader
         // Fast path for byte-aligned VarInt
         if ((_bitOffset & 7) == 0)
         {
-            long result = 0;
-            int shift = 0;
-
-            while (true)
+            // SIMD-accelerated boundary detection for aligned VarInt
+            if (Sse2.IsSupported && (_bitOffset >> 3) + 16 <= _source.Length)
             {
-                EnsureCapacity(8);
-                int byteIdx = _bitOffset / 8;
-                byte b = _source[byteIdx];
-                _bitOffset += 8;
-                result |= (long)(b & 0x7F) << shift;
-                if ((b & 0x80) == 0) return result;
-                shift += 7;
-                if (shift >= 64) throw new FormatException("VarInt too long");
+                Vector128<byte> data = Vector128.Create(_source.Slice(_bitOffset >> 3, 16));
+                uint mask = (uint)Sse2.MoveMask(data);
+                if (mask != 0xFFFF)
+                {
+                    // Found at least one byte with MSB=0 (boundary)
+                    int boundaryIdx = BitOperations.TrailingZeroCount(mask ^ 0xFFFF);
+                    // Standard byte-by-byte decode for the found bytes
+                    long result = 0;
+                    int shift = 0;
+                    for (int i = 0; i <= boundaryIdx; i++)
+                    {
+                        byte b = _source[(_bitOffset >> 3) + i];
+                        result |= (long)(b & 0x7F) << shift;
+                        shift += 7;
+                    }
+                    _bitOffset += (boundaryIdx + 1) << 3;
+                    return result;
+                }
+            }
+
+            {
+                long result = 0;
+                int shift = 0;
+                while (true)
+                {
+                    EnsureCapacity(8);
+                    int byteIdx = _bitOffset >> 3;
+                    byte b = _source[byteIdx];
+                    _bitOffset += 8;
+                    result |= (long)(b & 0x7F) << shift;
+                    if ((b & 0x80) == 0) return result;
+                    shift += 7;
+                    if (shift >= 64) throw new FormatException("VarInt too long");
+                }
             }
         }
 
@@ -456,40 +550,6 @@ public ref struct BitReader
     public string ReadString()
     {
         int byteCount = (int)ReadVarInt();
-        if (byteCount == 0) return string.Empty;
-
-        EnsureCapacity(byteCount << 3);
-
-        // Fast path for aligned reads
-        if ((_bitOffset & 7) == 0 && (_bitOffset >> 3) + byteCount <= _source.Length)
-        {
-            int byteOffset = _bitOffset >> 3;
-            var result = Encoding.UTF8.GetString(_source.Slice(byteOffset, byteCount));
-            _bitOffset += byteCount << 3;
-            return result;
-        }
-        else
-        {
-            // Unaligned or cross-segment read
-            if (byteCount <= 512)
-            {
-                Span<byte> temp = stackalloc byte[byteCount];
-                for (int i = 0; i < temp.Length; i++) temp[i] = ReadByte();
-                return Encoding.UTF8.GetString(temp);
-            }
-            else
-            {
-                byte[] temp = ArrayPool<byte>.Shared.Rent(byteCount);
-                try
-                {
-                    ReadBytes(temp.AsSpan(0, byteCount));
-                    return Encoding.UTF8.GetString(temp, 0, byteCount);
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(temp);
-                }
-            }
-        }
+        return ReadStringInternal(byteCount);
     }
 }

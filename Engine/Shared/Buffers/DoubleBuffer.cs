@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Threading;
 using Shared.Interfaces;
@@ -22,6 +23,12 @@ namespace Shared.Buffers;
 
         /// <inheritdoc />
         public long Position => 0;
+
+        /// <inheritdoc />
+        public long Length => 0;
+
+        /// <inheritdoc />
+        public ReadOnlySequence<byte> WrittenSequence => ReadOnlySequence<byte>.Empty;
 
         /// <inheritdoc />
         public int SlabCount => 2;

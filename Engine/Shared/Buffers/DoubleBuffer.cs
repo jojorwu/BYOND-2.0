@@ -36,6 +36,9 @@ namespace Shared.Buffers;
         /// <inheritdoc />
         public long TotalAllocatedBytes => 0; // Managed objects, size unknown
 
+        /// <inheritdoc />
+        public bool IsPinned => false;
+
         public DoubleBuffer(T initialState, IDiagnosticBus? diagnosticBus = null)
         {
             _read = initialState ?? throw new ArgumentNullException(nameof(initialState));

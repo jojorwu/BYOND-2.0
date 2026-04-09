@@ -22,6 +22,11 @@ internal struct SlabList
         public BufferSlab Slab;
 
         /// <summary>
+        /// The optional reference counting wrapper.
+        /// </summary>
+        public RefCountedBufferSlab? RefCountedSlab;
+
+        /// <summary>
         /// The global base offset of this slab within the buffer.
         /// </summary>
         public long BaseOffset;
@@ -57,6 +62,14 @@ internal struct SlabList
     public void Add(BufferSlab slab, long baseOffset)
     {
         _entries.Add(new Entry { Slab = slab, BaseOffset = baseOffset });
+    }
+
+    /// <summary>
+    /// Adds a reference-counted slab to the end of the list.
+    /// </summary>
+    public void Add(RefCountedBufferSlab slab, long baseOffset)
+    {
+        _entries.Add(new Entry { Slab = slab.Slab, RefCountedSlab = slab, BaseOffset = baseOffset });
     }
 
     /// <summary>
@@ -110,7 +123,9 @@ internal struct SlabList
         {
             for (int i = maxCount; i < _entries.Count; i++)
             {
-                allocator.Return(_entries[i].Slab);
+                var entry = _entries[i];
+                if (entry.RefCountedSlab != null) entry.RefCountedSlab.Dispose();
+                else allocator.Return(entry.Slab);
             }
             _entries.RemoveRange(maxCount, _entries.Count - maxCount);
         }

@@ -184,7 +184,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
             _lookupCache.Update(index);
             return _slabs.GetSegmentAsSpan(offset, length);
         }
-        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+        throw new InvalidBufferOffsetException($"Offset {offset} is outside of the buffer's address space.");
     }
 
     /// <summary>
@@ -195,6 +195,50 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     public SegmentProvider GetSegments()
     {
         return new SegmentProvider(_slabs, _currentSlabIndex);
+    }
+
+    /// <summary>
+    /// Returns the slabs used by this buffer as reference-counted objects.
+    /// </summary>
+    public IReadOnlyList<RefCountedBufferSlab> GetRefCountedSlabs()
+    {
+        var result = new List<RefCountedBufferSlab>(_slabs.Count);
+        for (int i = 0; i < _slabs.Count; i++)
+        {
+            var entry = _slabs[i];
+            if (entry.RefCountedSlab == null)
+            {
+                entry.RefCountedSlab = new RefCountedBufferSlab(entry.Slab, _allocator);
+                _slabs[i] = entry;
+            }
+            entry.RefCountedSlab.AddRef();
+            result.Add(entry.RefCountedSlab);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Attaches an existing reference-counted slab to the end of the buffer.
+    /// </summary>
+    /// <param name="slab">The slab to attach.</param>
+    public void AttachSlab(RefCountedBufferSlab slab)
+    {
+        long nextBaseOffset = 0;
+        if (_slabs.Count > 0)
+        {
+            var last = _slabs[_slabs.Count - 1];
+            nextBaseOffset = last.BaseOffset + last.Slab.Capacity;
+        }
+
+        slab.AddRef();
+        _slabs.Add(slab, nextBaseOffset);
+        _totalCapacity += slab.Slab.Capacity;
+
+        // Advance current slab index if we were at the end
+        if (_currentSlabIndex == _slabs.Count - 2 && _slabs[_currentSlabIndex].Slab.Offset == _slabs[_currentSlabIndex].Slab.Capacity)
+        {
+             _currentSlabIndex++;
+        }
     }
 
     /// <summary>
@@ -411,7 +455,11 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        foreach (var entry in _slabs) _allocator.Return(entry.Slab);
+        foreach (var entry in _slabs)
+        {
+            if (entry.RefCountedSlab != null) entry.RefCountedSlab.Dispose();
+            else _allocator.Return(entry.Slab);
+        }
         _slabs.Clear();
     }
 
@@ -430,6 +478,7 @@ public sealed class SnapshotBuffer : IBuffer, IBufferWriter<byte>, IDisposable
         {
             ["Capacity"] = Capacity,
             ["Position"] = Position,
+            ["Length"] = Length,
             ["SlabCount"] = SlabCount,
             ["TotalAllocatedBytes"] = TotalAllocatedBytes,
             ["PooledBytes"] = pooledBytes,

@@ -71,6 +71,9 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     /// <inheritdoc />
     public long TotalAllocatedBytes => _totalCapacity;
 
+    /// <inheritdoc />
+    public bool IsPinned => false;
+
     /// <summary>
     /// Allocates a contiguous block of memory of the specified size.
     /// </summary>
@@ -217,7 +220,7 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
             _lookupCache.Update(index);
             return _blocks.GetSegmentAsSpan(offset, length);
         }
-        throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside of the buffer's address space.");
+        throw new InvalidBufferOffsetException($"Offset {offset} is outside of the buffer's address space.");
     }
 
     /// <inheritdoc />
@@ -313,19 +316,29 @@ public class ArenaAllocator : IBuffer, IArenaAllocator, IBufferWriter<byte>, IDi
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose()
     {
-        foreach (var entry in _blocks) _allocator.Return(entry.Slab);
+        foreach (var entry in _blocks)
+        {
+            if (entry.RefCountedSlab != null) entry.RefCountedSlab.Dispose();
+            else _allocator.Return(entry.Slab);
+        }
         _blocks.Clear();
     }
 
     /// <inheritdoc />
     public IReadOnlyDictionary<string, object> GetDiagnosticInfo()
     {
+        long pooledBytes = 0;
+        foreach (var entry in _blocks) if (entry.Slab.IsFromPool) pooledBytes += entry.Slab.Capacity;
+
         var info = new Dictionary<string, object>
         {
             ["Capacity"] = Capacity,
             ["Position"] = Position,
+            ["Length"] = Length,
             ["SlabCount"] = SlabCount,
-            ["TotalAllocatedBytes"] = TotalAllocatedBytes
+            ["TotalAllocatedBytes"] = TotalAllocatedBytes,
+            ["PooledBytes"] = pooledBytes,
+            ["IsPinned"] = IsPinned
         };
 
         _diagnosticBus?.Publish("Buffer", "ArenaAllocator Stats", info, (m, state) =>

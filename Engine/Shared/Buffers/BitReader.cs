@@ -120,7 +120,7 @@ public ref struct BitReader
     {
         if (BitsRead + bitsNeeded > _totalBits)
         {
-            throw new IndexOutOfRangeException($"BitReader overflow. BitPosition: {BitsRead}, RequestedBits: {bitsNeeded}, TotalCapacityBits: {_totalBits}");
+            throw new BufferUnderflowException($"BitReader overflow. BitPosition: {BitsRead}, RequestedBits: {bitsNeeded}, TotalCapacityBits: {_totalBits}");
         }
 
         AdvanceSegmentIfNeeded();
@@ -215,7 +215,7 @@ public ref struct BitReader
     {
         if (BitsRead + bitCount > _totalBits)
         {
-            throw new IndexOutOfRangeException("BitReader skip overflow.");
+            throw new BufferUnderflowException("BitReader skip overflow.");
         }
 
         _bitOffset += bitCount;

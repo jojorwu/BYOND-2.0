@@ -52,6 +52,9 @@ public class RingBuffer<T> : IBuffer, IEnumerable<T>
     /// <inheritdoc />
     public long TotalAllocatedBytes => 0; // Managed objects
 
+    /// <inheritdoc />
+    public bool IsPinned => false;
+
     /// <summary>
     /// Adds an item to the end of the buffer. If the buffer is full, the oldest item is overwritten.
     /// </summary>

@@ -82,12 +82,12 @@ public ref struct BitWriter
                 availableBits = _destination.Length * 8;
                 if (bitsNeeded > availableBits)
                 {
-                     throw new IndexOutOfRangeException($"BitWriter overflow. Even after flush and GetSpan, requested bits ({bitsNeeded}) exceeds available segment capacity ({availableBits} bits).");
+                     throw new BufferOverflowException($"BitWriter overflow. Even after flush and GetSpan, requested bits ({bitsNeeded}) exceeds available segment capacity ({availableBits} bits).");
                 }
             }
             else
             {
-                throw new IndexOutOfRangeException($"BitWriter overflow. BitPositionInSegment: {_bitOffset}, RequestedBits: {bitsNeeded}, CurrentSegmentCapacityBits: {_destination.Length * 8}");
+                throw new BufferOverflowException($"BitWriter overflow. BitPositionInSegment: {_bitOffset}, RequestedBits: {bitsNeeded}, CurrentSegmentCapacityBits: {_destination.Length << 3}");
             }
         }
     }

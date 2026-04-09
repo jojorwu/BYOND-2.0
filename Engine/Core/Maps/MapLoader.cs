@@ -9,9 +9,11 @@ using System.Threading.Tasks;
 using Shared.Interfaces;
 using Shared.Services;
 using Microsoft.Extensions.Logging;
+using Shared.Attributes;
 
 namespace Core.Maps
 {
+    [EngineService(typeof(IMapLoader))]
     public class MapLoader : EngineService, IMapLoader
     {
         public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectTypeManager), typeof(IObjectFactory) };

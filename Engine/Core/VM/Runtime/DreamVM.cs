@@ -9,9 +9,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Shared.Attributes;
 
 namespace Core.VM.Runtime
 {
+    [EngineService(typeof(IDreamVM))]
     public class DreamVM : EngineService, IDreamVM, IDisposable
     {
         public DreamVMContext Context { get; } = new();

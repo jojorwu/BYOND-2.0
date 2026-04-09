@@ -142,7 +142,6 @@ for (int z = 1; z <= 10; z++) {
                     options.Performance.TickRate = 100; // Fast ticks for benchmark
                 });
                 services.AddSingleton<IProject>(new Project("."));
-                services.AddSharedBaseServices();
                 services.AddCoreServices();
                 services.AddServerHostedServices();
 

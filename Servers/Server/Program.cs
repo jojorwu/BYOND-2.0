@@ -39,7 +39,6 @@ class Program
     {
         services.Configure<ServerSettings>(configuration.GetSection("ServerSettings"));
 
-        services.AddSharedBaseServices();
         services.AddCoreServices();
         services.AddServerHostedServices();
     }

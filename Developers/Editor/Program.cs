@@ -42,7 +42,6 @@ namespace Editor
             services.AddSingleton(launchOptions);
             services.AddSingleton<Shared.IJsonService, DMCompiler.Json.JsonService>();
             services.AddSingleton<Shared.ICompilerService, DMCompiler.CompilerService>();
-            services.AddSharedBaseServices();
             services.AddCoreServices();
             services.AddEditorServices();
             services.AddUiPanels();

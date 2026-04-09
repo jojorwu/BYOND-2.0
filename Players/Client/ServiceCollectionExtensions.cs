@@ -11,10 +11,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddClientServices(this IServiceCollection services)
     {
-        services.AddSharedEngineServices();
-        services.AddSingleton<Game>();
-        services.AddSingleton<IClientObjectManager, ClientObjectManager>();
-
-        return services;
+        return services
+            .AddSharedEngineServices()
+            .AddEngineModule<ClientModule>();
     }
 }

@@ -6,8 +6,10 @@ using System.Threading;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared;
+    [EngineService(typeof(IGameState))]
     public class GameState : Shared.Services.EngineService, IGameState, IEngineUpdateListener
     {
         public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory), typeof(Shared.Services.IArchetypeManager) };

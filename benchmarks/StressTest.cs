@@ -115,7 +115,6 @@ Console.WriteLine(""C# Stress script loaded."");
                     options.HttpServer.Enabled = false;
                 });
                 services.AddSingleton<IProject>(new Project(Directory.GetCurrentDirectory()));
-                services.AddSharedBaseServices();
                 services.AddCoreServices();
                 services.AddServerHostedServices();
                 services.AddSingleton<Shared.IMap, Shared.Map>();

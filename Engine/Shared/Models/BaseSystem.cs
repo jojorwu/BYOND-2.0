@@ -39,8 +39,24 @@ public abstract class BaseSystem : ISystem
     public virtual void PreTick() { }
     public abstract void Tick(IEntityCommandBuffer ecb);
     public virtual void Tick(Archetype archetype, IEntityCommandBuffer ecb) { }
-    public virtual ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb) => ValueTask.CompletedTask;
     public virtual void PostTick() { }
+
+    public virtual ValueTask TickAsync(IEntityCommandBuffer ecb)
+    {
+        Tick(ecb);
+        return ValueTask.CompletedTask;
+    }
+
+    public virtual ValueTask TickAsync(Archetype archetype, IEntityCommandBuffer ecb)
+    {
+        Tick(archetype, ecb);
+        return ValueTask.CompletedTask;
+    }
+
+    public virtual ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb)
+    {
+        return ValueTask.CompletedTask;
+    }
 
     public virtual IEnumerable<IJob> CreateJobs() => Array.Empty<IJob>();
     public virtual IEnumerable<string> Dependencies => Array.Empty<string>();

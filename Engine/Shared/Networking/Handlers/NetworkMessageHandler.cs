@@ -4,6 +4,7 @@ using Shared.Networking;
 using Shared.Networking.Messages;
 using Microsoft.Extensions.DependencyInjection;
 
+using Shared.Buffers;
 namespace Shared.Networking.Handlers;
 
 public class NetworkMessageHandler : IPacketHandler
@@ -31,7 +32,7 @@ public class NetworkMessageHandler : IPacketHandler
         if (_handlers.TryGetValue(messageTypeId, out var handler))
         {
             // Pass the remaining data to the specific handler
-            var payload = data.Slice(reader.BitsRead / 8);
+            var payload = data.Slice((int)(reader.BitsRead / 8));
             await handler.HandleAsync(peer, payload);
         }
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Shared.Utils;
 
+using Shared.Buffers;
 namespace Shared.Interfaces;
 
 /// <summary>

@@ -9,6 +9,7 @@ using Shared.Interfaces;
 using Shared.Services;
 using Shared.Utils;
 
+using Shared.Buffers;
 namespace Core
 {
     public class GameStateSnapshotter : EngineService, IGameStateSnapshotter
@@ -102,7 +103,7 @@ namespace Core
                             {
                                 var writer = new BitWriter(buffer);
                                 _binarySnapshotService.SerializeBitPackedDelta(ref writer, batch, null);
-                                segmentTasks[b] = buffer.AsSpan(0, writer.BytesWritten).ToArray();
+                                segmentTasks[b] = buffer.AsSpan(0, (int)writer.BytesWritten).ToArray();
                             }
                             finally { ArrayPool<byte>.Shared.Return(buffer); }
                         }).GetAwaiter().GetResult();
@@ -129,7 +130,7 @@ namespace Core
                             var array = new GameObject[actualCount];
                             Array.Copy(objects, 0, array, 0, actualCount);
                             _binarySnapshotService.SerializeBitPackedDelta(ref writer, array, null);
-                            return buffer.AsSpan(0, writer.BytesWritten).ToArray();
+                            return buffer.AsSpan(0, (int)writer.BytesWritten).ToArray();
                         }
                         catch (IndexOutOfRangeException)
                         {
@@ -186,7 +187,7 @@ namespace Core
                     {
                         var writer = new BitWriter(buffer);
                         _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
-                        return buffer.AsSpan(0, writer.BytesWritten).ToArray();
+                        return buffer.AsSpan(0, (int)writer.BytesWritten).ToArray();
                     }
                     catch (IndexOutOfRangeException)
                     {
@@ -214,7 +215,7 @@ namespace Core
                     {
                         var writer = new BitWriter(buffer);
                         _binarySnapshotService.SerializeBitPackedDelta(ref writer, objects, null);
-                        return buffer.AsSpan(0, writer.BytesWritten).ToArray();
+                        return buffer.AsSpan(0, (int)writer.BytesWritten).ToArray();
                     }
                     catch (IndexOutOfRangeException)
                     {

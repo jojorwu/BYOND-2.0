@@ -8,6 +8,7 @@ using Shared.Networking.Messages;
 using System.Linq;
 using Shared.Attributes;
 
+using Shared.Buffers;
 namespace Shared.Services;
 
 [EngineService(typeof(ISnapshotSerializer))]

@@ -10,6 +10,7 @@ using Shared.Interfaces;
 using Shared.Networking.FieldHandlers;
 using Core;
 
+using Shared.Buffers;
 namespace Benchmarks;
 
 public class LargeObjectUpdateBenchmark

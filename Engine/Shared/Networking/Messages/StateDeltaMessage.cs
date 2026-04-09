@@ -4,6 +4,7 @@ using Shared.Interfaces;
 using Shared.Utils;
 using Shared.Services;
 
+using Shared.Buffers;
 namespace Shared.Networking.Messages;
 
 public class StateDeltaMessage : INetworkMessage

@@ -4,6 +4,7 @@ using Shared.Utils;
 using Shared.Models;
 using System.Linq;
 
+using Shared.Buffers;
 namespace Shared.Networking.FieldHandlers;
 
 public class ComponentsFieldHandler : INetworkFieldHandler
@@ -42,14 +43,14 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
             Writer.WriteVarInt(Shared.Services.ComponentIdRegistry.GetId(comp.GetType()));
 
-            int sizeFieldOffset = Writer.BitsWritten;
+            long sizeFieldOffset = Writer.BitsWritten;
             Writer.WriteInt(0, 16);
 
-            int startBits = Writer.BitsWritten;
+            long startBits = Writer.BitsWritten;
             comp.WriteState(ref Writer);
-            int endBits = Writer.BitsWritten;
+            long endBits = Writer.BitsWritten;
 
-            int payloadBits = endBits - startBits;
+            long payloadBits = endBits - startBits;
             Writer.PatchBits(sizeFieldOffset, (ulong)payloadBits, 16);
             comp.IsDirty = false;
         }
@@ -68,10 +69,10 @@ public class ComponentsFieldHandler : INetworkFieldHandler
 
             if (finder.Found != null)
             {
-                int startBits = reader.BitsRead;
+                long startBits = reader.BitsRead;
                 finder.Found.ReadState(ref reader);
-                int actualRead = reader.BitsRead - startBits;
-                if (actualRead < payloadBits) reader.SkipBits(payloadBits - actualRead);
+                long actualRead = reader.BitsRead - startBits;
+                if (actualRead < payloadBits) reader.SkipBits((int)(payloadBits - actualRead));
             }
             else
             {

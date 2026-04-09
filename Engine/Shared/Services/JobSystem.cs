@@ -9,6 +9,7 @@ using Shared.Models;
 using Shared.Attributes;
 using Microsoft.Extensions.Logging;
 
+using Shared.Buffers;
 namespace Shared.Services;
 
 [EngineService(typeof(IJobSystem))]

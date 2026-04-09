@@ -30,8 +30,6 @@ public class ChunkedQueryBenchmark
 
     public class MovementSystem : BaseSystem {
         public override string Name => "MovementSystem";
-        [Shared.Attributes.Query]
-        private EntityQuery<PositionComponent> _query = null!;
 
         public override ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb) {
             if (chunk is ArchetypeChunk<PositionComponent> pChunk) {

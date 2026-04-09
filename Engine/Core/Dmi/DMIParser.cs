@@ -272,7 +272,7 @@ public static class DmiParser
 
     private static ParsedDMIDescription ParseDMIBmp(Stream stream, int? mapFormat = null) {
         stream.Seek(14, SeekOrigin.Begin);
-        var reader = new BinaryReader(stream);
+        using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         var headerSize = reader.ReadUInt32();
         uint width, height;
         if (headerSize == 12) { // Old DIB header
@@ -293,7 +293,7 @@ public static class DmiParser
     }
 
     private static ParsedDMIDescription ParseDMIPng(Stream stream, int? mapFormat = null) {
-        var reader = new BinaryReader(stream);
+        using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         Vector2u? imageSize = null;
 
         while (stream.Position < stream.Length) {
@@ -325,14 +325,12 @@ public static class DmiParser
                         if (chunkType == "zTXt") {
                             stream.Seek(2, SeekOrigin.Current); //Skip the first 2 bytes in the zlib format
 
-                            DeflateStream deflateStream = new DeflateStream(stream, CompressionMode.Decompress);
-                            MemoryStream uncompressedDataStream = new MemoryStream();
+                            using var deflateStream = new DeflateStream(stream, CompressionMode.Decompress, leaveOpen: true);
+                            using var uncompressedDataStream = new MemoryStream();
 
-                            deflateStream.CopyTo(uncompressedDataStream, (int)chunkLength - keyword.Length - 2);
+                            deflateStream.CopyTo(uncompressedDataStream);
 
-                            uncompressedData = new byte[uncompressedDataStream.Length];
-                            uncompressedDataStream.Seek(0, SeekOrigin.Begin);
-                            uncompressedDataStream.ReadExactly(uncompressedData);
+                            uncompressedData = uncompressedDataStream.ToArray();
                         } else {
                             //The text is not compressed so nothing fancy is required
                             uncompressedData = reader.ReadBytes((int) chunkLength - keyword.Length - 1);

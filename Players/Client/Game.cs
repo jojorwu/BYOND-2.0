@@ -17,7 +17,6 @@ using Shared.Messaging;
 using Shared;
 using Shared.Config;
 using Shared.Enums;
-using Shared.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -67,7 +66,6 @@ namespace Client
         private readonly ClientLaunchOptions _launchOptions;
 
         private ClientState _clientState = ClientState.Connecting;
-        private GameState _previousState = null!;
         private GameState _currentState = null!;
         private GameObject? _playerObject;
         private double _accumulator;

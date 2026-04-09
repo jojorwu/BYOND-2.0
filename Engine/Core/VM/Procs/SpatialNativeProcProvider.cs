@@ -16,7 +16,8 @@ namespace Core.VM.Procs
 
             procs["range"] = new NativeProc("range", (thread, src, args) =>
             {
-                var api = thread.Context.GameApi;
+                var context = thread.Context!;
+                var api = context.GameApi;
                 if (api == null) return DreamValue.Null;
 
                 int dist = 5;
@@ -55,14 +56,15 @@ namespace Core.VM.Procs
                 }
 
                 var results = api.StdLib.Range(dist, centerX, centerY, centerZ);
-                var list = new DreamList(thread.Context.ListType);
+                var list = new DreamList(context.ListType);
                 foreach (var obj in results) list.AddValue(new DreamValue(obj));
                 return new DreamValue(list);
             });
 
             procs["view"] = new NativeProc("view", (thread, src, args) =>
             {
-                var api = thread.Context.GameApi;
+                var context = thread.Context!;
+                var api = context.GameApi;
                 if (api == null) return DreamValue.Null;
 
                 int dist = 5;
@@ -82,17 +84,18 @@ namespace Core.VM.Procs
                 }
 
                 viewer ??= (thread.Usr ?? src) as GameObject;
-                if (viewer == null) return new DreamValue(new DreamList(thread.Context.ListType));
+                if (viewer == null) return new DreamValue(new DreamList(context.ListType));
 
                 var results = api.StdLib.View(dist, viewer);
-                var list = new DreamList(thread.Context.ListType);
+                var list = new DreamList(context.ListType);
                 foreach (var obj in results) list.AddValue(new DreamValue(obj));
                 return new DreamValue(list);
             });
 
             procs["step"] = new NativeProc("step", (thread, src, args) =>
             {
-                var api = thread.Context.GameApi;
+                var context = thread.Context!;
+                var api = context.GameApi;
                 if (api == null || args.Length < 2) return new DreamValue(0f);
                 if (args[0].TryGetValueAsGameObject(out var obj) && obj is GameObject gameObj)
                 {
@@ -105,7 +108,8 @@ namespace Core.VM.Procs
 
             procs["step_to"] = new NativeProc("step_to", (thread, src, args) =>
             {
-                var api = thread.Context.GameApi;
+                var context = thread.Context!;
+                var api = context.GameApi;
                 if (api == null || args.Length < 2) return new DreamValue(0f);
                 if (args[0].TryGetValueAsGameObject(out var obj) && obj is GameObject gameObj &&
                     args[1].TryGetValueAsGameObject(out var target) && target is GameObject targetObj)

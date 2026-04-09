@@ -321,7 +321,7 @@ public class ArchetypeManager : EngineService, IArchetypeManager, IShrinkable
                         (_, existing) =>
                         {
                             var updated = new Archetype[existing.Length + 1];
-                            System.Array.Copy(existing, updated, existing.Length);
+                            Array.Copy(existing, updated, existing.Length);
                             updated[existing.Length] = targetArchetype;
                             return updated;
                         });

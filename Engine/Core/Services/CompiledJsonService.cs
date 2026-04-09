@@ -83,6 +83,7 @@ namespace Core
             }
 
             // Load types and their properties
+            if (json.Types == null) throw new Exception("Compiled JSON is missing type definitions");
             var objectTypes = new ObjectType[json.Types.Length];
             for (int i = 0; i < json.Types.Length; i++)
             {

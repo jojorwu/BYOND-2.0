@@ -34,7 +34,14 @@ public partial class DreamThread
         {
             var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
             pc += 4;
-            return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
+            if (nameId < 0 || nameId >= Context.Strings.Count)
+                throw new ScriptRuntimeException($"String index out of bounds: {nameId}", null, pc, this);
+
+            var name = Context.Strings[nameId];
+            if (name == null)
+                throw new ScriptRuntimeException($"Null string at index: {nameId}", null, pc, this);
+
+            return new DMReference { RefType = refType, Name = name };
         }
 
         return new DMReference { RefType = refType };

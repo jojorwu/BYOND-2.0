@@ -12,7 +12,7 @@ public interface ICompiledJson {
 /// This is the data transfer object (DTO) that decouples Core from the Compiler.
 /// </summary>
 public sealed class CompiledJson : ICompiledJson {
-    public required List<string> Strings { get; set; }
+    public required List<string?> Strings { get; set; }
     public required DreamTypeJson[] Types { get; set; }
     public required ProcDefinitionJson[] Procs { get; set; }
     public GlobalListJson? Globals { get; set; }

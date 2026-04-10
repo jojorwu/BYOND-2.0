@@ -85,8 +85,8 @@ public readonly struct ArchetypeChunk<T>
 /// </summary>
 public class Archetype
 {
-    private long[] _entityIds = System.Array.Empty<long>();
-    private IGameObject[] _entities = System.Array.Empty<IGameObject>();
+    private long[] _entityIds = Array.Empty<long>();
+    private IGameObject[] _entities = Array.Empty<IGameObject>();
     private long[] _xs = Array.Empty<long>();
     private long[] _ys = Array.Empty<long>();
     private long[] _zs = Array.Empty<long>();
@@ -164,8 +164,8 @@ public class Archetype
         _capacity = _capacity == 0 ? 8 : _capacity * 2;
         while (_capacity < required) _capacity *= 2;
 
-        System.Array.Resize(ref _entityIds, _capacity);
-        System.Array.Resize(ref _entities, _capacity);
+        Array.Resize(ref _entityIds, _capacity);
+        Array.Resize(ref _entities, _capacity);
         Array.Resize(ref _xs, _capacity);
         Array.Resize(ref _ys, _capacity);
         Array.Resize(ref _zs, _capacity);
@@ -534,7 +534,7 @@ public class Archetype
             var array = _componentArrays[id];
             if (array != null) return GetArrayFromComponentArray<T>(array);
         }
-        return System.Array.Empty<T>();
+        return Array.Empty<T>();
     }
 
     internal IComponentArray? GetComponentsInternal(int id)
@@ -720,7 +720,7 @@ public class Archetype
             count = _count;
             // We must copy the array because elements might be swapped or cleared during iteration
             data = new T[count];
-            System.Array.Copy(originalData, data, count);
+            Array.Copy(originalData, data, count);
         }
         return data;
     }
@@ -947,7 +947,7 @@ public class Archetype
             if (_capacity > _count * 2 && _capacity > 8)
             {
                 _capacity = Math.Max(_count, 8);
-                System.Array.Resize(ref _entityIds, _capacity);
+                Array.Resize(ref _entityIds, _capacity);
                 Array.Resize(ref _entities, _capacity);
                 Array.Resize(ref _xs, _capacity);
                 Array.Resize(ref _ys, _capacity);
@@ -1037,16 +1037,16 @@ public class Archetype
 
     private class ComponentArray<T> : IComponentArray where T : class, IComponent
     {
-        public T[] Data = System.Array.Empty<T>();
-        public T[] NextData = System.Array.Empty<T>();
+        public T[] Data = Array.Empty<T>();
+        public T[] NextData = Array.Empty<T>();
         private bool _isUpdating = false;
 
         public Array GetRawArray() => Data;
 
         public void Resize(int capacity)
         {
-            System.Array.Resize(ref Data, capacity);
-            System.Array.Resize(ref NextData, capacity);
+            Array.Resize(ref Data, capacity);
+            Array.Resize(ref NextData, capacity);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1103,7 +1103,7 @@ public class Archetype
         public void BeginUpdate(int count)
         {
             _isUpdating = true;
-            System.Array.Copy(Data, NextData, count);
+            Array.Copy(Data, NextData, count);
             for (int i = 0; i < count; i++) NextData[i]?.BeginUpdate();
         }
 
@@ -1114,7 +1114,7 @@ public class Archetype
             (Data, NextData) = (NextData, Data);
             // After swap, we also need to update the new NextData to match the new Data
             // to ensure future incremental updates starting from BeginUpdate are correct.
-            System.Array.Copy(Data, NextData, count);
+            Array.Copy(Data, NextData, count);
         }
     }
 
@@ -1158,7 +1158,20 @@ public class Archetype
         using (_lock.EnterScope())
         {
             long usage = _entityIds.Length * sizeof(long);
-            usage += _entities.Length * Unsafe.SizeOf<IntPtr>(); // Approximate object references
+            usage += _entities.Length * Unsafe.SizeOf<IntPtr>();
+            usage += _xs.Length * sizeof(long);
+            usage += _ys.Length * sizeof(long);
+            usage += _zs.Length * sizeof(long);
+            usage += _dirs.Length * sizeof(int);
+            usage += _alphas.Length * sizeof(double);
+            usage += _layers.Length * sizeof(double);
+            usage += _pixelXs.Length * sizeof(double);
+            usage += _pixelYs.Length * sizeof(double);
+            usage += _colors.Length * Unsafe.SizeOf<IntPtr>();
+            usage += _icons.Length * Unsafe.SizeOf<IntPtr>();
+            usage += _iconStates.Length * Unsafe.SizeOf<IntPtr>();
+            usage += _rotations.Length * sizeof(float);
+            usage += _opacities.Length * sizeof(double);
 
             // Dictionary overhead (approximate: entries * (size of long + int + next pointer + padding))
             usage += _entityIdToIndex.Count * (sizeof(long) + sizeof(int) + sizeof(int) + 8);
@@ -1166,8 +1179,16 @@ public class Archetype
             var arrays = _activeArrays;
             for (int i = 0; i < arrays.Length; i++)
             {
-                usage += _capacity * Unsafe.SizeOf<IntPtr>(); // Approximate component references
+                usage += _capacity * Unsafe.SizeOf<IntPtr>();
             }
+
+            var dataArrays = _activeDataArrays;
+            for (int i = 0; i < dataArrays.Length; i++)
+            {
+                // We don't know the exact struct size here easily, but we can approximate
+                usage += _capacity * 16;
+            }
+
             return usage;
         }
     }

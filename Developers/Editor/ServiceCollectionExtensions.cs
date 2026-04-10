@@ -39,6 +39,7 @@ namespace Editor
             services.AddSingleton<AssetManager>();
             services.AddSingleton<SelectionManager>();
             services.AddSingleton<HistoryManager>();
+            services.AddSingleton<ISceneFactory, SceneFactory>();
             services.AddSingleton<ToolManager>();
             services.AddSingleton<BuildService>();
             services.AddSingleton<SpriteRenderer>();
@@ -90,6 +91,7 @@ namespace Editor
             services.AddSingleton<MenuBarPanel>(provider =>
                 new MenuBarPanel(
                     provider.GetRequiredService<IGameApi>(),
+                    provider.GetRequiredService<ISceneFactory>(),
                     provider.GetRequiredService<EditorContext>(),
                     provider.GetRequiredService<BuildService>(),
                     provider.GetRequiredService<IDmmService>(),

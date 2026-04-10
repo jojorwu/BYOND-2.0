@@ -102,5 +102,5 @@ public class ZipVfsSource : IVfsSource
         _archive.Dispose();
     }
 
-    public event Action<string>? FileChanged;
+    public event Action<string>? FileChanged { add { } remove { } }
 }

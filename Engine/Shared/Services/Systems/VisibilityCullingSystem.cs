@@ -26,9 +26,6 @@ public class VisibilityCullingSystem : BaseSystem
         _profiling = profiling;
     }
 
-    [Shared.Attributes.Query]
-    private EntityQuery<IComponent> _visualQuery = null!;
-
     public override async ValueTask TickAsync<T>(ArchetypeChunk<T> chunk, IEntityCommandBuffer ecb)
     {
         using (_profiling.Measure("VisibilityCulling.ProcessChunk"))

@@ -6,8 +6,10 @@ using System.Threading;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Shared;
+    [EngineService(typeof(IGameState))]
     public class GameState : Shared.Services.EngineService, IGameState, IEngineUpdateListener
     {
         public override IEnumerable<Type> Dependencies => new[] { typeof(IObjectFactory), typeof(Shared.Services.IArchetypeManager) };
@@ -27,9 +29,6 @@ namespace Shared;
             ArchetypeManager = archetypeManager;
             _objectFactory = objectFactory;
         }
-
-        public GameState() : this(new SpatialGrid(NullLogger<SpatialGrid>.Instance, TimeProvider.System, new Shared.Services.MockDiagnosticBus()),
-                                 new Shared.Services.ArchetypeManager(NullLogger<Shared.Services.ArchetypeManager>.Instance, new Shared.Services.MockDiagnosticBus())) { }
 
         IDictionary<long, GameObject> IGameState.GameObjects => GameObjects;
 

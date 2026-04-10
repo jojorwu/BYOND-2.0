@@ -100,7 +100,7 @@ namespace DMCompiler
             }).ToArray();
 
             var compiledJson = new CompiledJson {
-                Strings = compiler.DMObjectTree.StringTable,
+                Strings = compiler.DMObjectTree.StringTable.Select(s => (string?)s).ToList(),
                 Types = publicTypes,
                 Procs = publicProcs,
                 Globals = new GlobalListJson {

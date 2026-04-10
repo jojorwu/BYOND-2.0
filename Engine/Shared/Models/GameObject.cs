@@ -17,7 +17,7 @@ namespace Shared;
 [JsonConverter(typeof(GameObjectConverter))]
 public class GameObject : DreamObject, IGameObject, IPoolable
 {
-    private static long nextId = 1;
+    private static long _nextId = 1;
 
     [ThreadStatic]
     private static long _threadIdBase;
@@ -30,16 +30,16 @@ public class GameObject : DreamObject, IGameObject, IPoolable
         long current;
         do
         {
-            current = nextId;
+            current = _nextId;
             if (current > id) break;
-        } while (Interlocked.CompareExchange(ref nextId, id + 1, current) != current);
+        } while (Interlocked.CompareExchange(ref _nextId, id + 1, current) != current);
     }
 
     private static long AllocateNextId()
     {
         if (_threadIdOffset <= 0)
         {
-            _threadIdBase = Interlocked.Add(ref nextId, IdBlockSize) - IdBlockSize;
+            _threadIdBase = Interlocked.Add(ref _nextId, IdBlockSize) - IdBlockSize;
             _threadIdOffset = IdBlockSize;
         }
         _threadIdOffset--;
@@ -439,7 +439,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     }
 
     protected readonly System.Threading.Lock _contentsLock = new();
-    protected volatile IGameObject[] _contents = System.Array.Empty<IGameObject>();
+    protected volatile IGameObject[] _contents = Array.Empty<IGameObject>();
 
     public virtual IEnumerable<IGameObject> Contents => _contents;
 
@@ -454,7 +454,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             if (!System.Array.Exists(_contents, x => x == obj))
             {
                 var newContents = new IGameObject[_contents.Length + 1];
-                System.Array.Copy(_contents, newContents, _contents.Length);
+                Array.Copy(_contents, newContents, _contents.Length);
                 newContents[_contents.Length] = obj;
                 _contents = newContents;
             }
@@ -470,8 +470,8 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             if (index != -1)
             {
                 var newContents = new IGameObject[_contents.Length - 1];
-                System.Array.Copy(_contents, 0, newContents, 0, index);
-                System.Array.Copy(_contents, index + 1, newContents, index, _contents.Length - index - 1);
+                Array.Copy(_contents, 0, newContents, 0, index);
+                Array.Copy(_contents, index + 1, newContents, index, _contents.Length - index - 1);
                 _contents = newContents;
             }
         }
@@ -747,7 +747,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
             }
             return components;
         }
-        return _componentManager?.GetAllComponents(this) ?? System.Array.Empty<IComponent>();
+        return _componentManager?.GetAllComponents(this) ?? Array.Empty<IComponent>();
     }
 
     public void VisitComponents<T>(ref T visitor) where T : struct, IComponentVisitor, allows ref struct {

@@ -68,22 +68,5 @@ namespace tests
             _playerManagerMock.Verify(pm => pm.RemovePlayer(peerMock.Object), Times.Once);
         }
 
-        [Test]
-        public void CommandReceived_ExecutesCommand()
-        {
-            // Arrange
-            var peerMock = new Mock<INetworkPeer>();
-            var command = "test_command";
-            _commandManagerMock.Setup(c => c.ExecuteCommand(command)).ReturnsAsync("success");
-
-            // Act
-            _networkServiceMock.Raise(ns => ns.CommandReceived += null, peerMock.Object, command);
-
-            // Assert
-            // Use a small delay since it runs in Task.Run
-            Thread.Sleep(100);
-            _commandManagerMock.Verify(c => c.ExecuteCommand(command), Times.Once);
-            peerMock.Verify(p => p.SendAsync("success"), Times.Once);
-        }
     }
 }

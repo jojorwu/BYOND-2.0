@@ -32,9 +32,17 @@ public partial class DreamThread
 
         if (refType >= DMReference.Type.Field && refType <= DMReference.Type.SrcField)
         {
+            var context = Context!;
             var nameId = BinaryPrimitives.ReadInt32LittleEndian(bytecode.Slice(pc));
             pc += 4;
-            return new DMReference { RefType = refType, Name = Context.Strings[nameId] };
+            if (nameId < 0 || nameId >= context.Strings.Count)
+                throw new ScriptRuntimeException($"String index out of bounds: {nameId}", null, pc, this);
+
+            var name = context.Strings[nameId];
+            if (name == null)
+                throw new ScriptRuntimeException($"Null string at index: {nameId}", null, pc, this);
+
+            return new DMReference { RefType = refType, Name = name };
         }
 
         return new DMReference { RefType = refType };
@@ -57,6 +65,7 @@ public partial class DreamThread
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public DreamValue GetReferenceValue(DMReference reference, ref CallFrame frame, int stackOffset = 0)
     {
+        var context = Context!;
         switch (reference.RefType)
         {
             case DMReference.Type.NoRef:
@@ -67,11 +76,11 @@ public partial class DreamThread
             case DMReference.Type.Usr:
                 return Usr != null ? new DreamValue(Usr) : DreamValue.Null;
             case DMReference.Type.World:
-                return Context.World != null ? new DreamValue(Context.World) : DreamValue.Null;
+                return context.World != null ? new DreamValue(context.World) : DreamValue.Null;
             case DMReference.Type.Args:
                 {
                     if (frame.ArgsList != null) return new DreamValue(frame.ArgsList);
-                    var list = new DreamList(Context.ListType);
+                    var list = new DreamList(context.ListType);
                     for (int i = 0; i < frame.Proc.Arguments.Length; i++)
                     {
                         list.AddValue(_stack[frame.StackBase + i]);
@@ -81,7 +90,7 @@ public partial class DreamThread
                     return new DreamValue(list);
                 }
             case DMReference.Type.Global:
-                return Context.GetGlobal(reference.Index);
+                return context.GetGlobal(reference.Index);
             case DMReference.Type.Argument:
                 if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);
                 return _stack[frame.ArgumentBase + reference.Index];
@@ -132,10 +141,11 @@ public partial class DreamThread
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetReferenceValue(DMReference reference, ref CallFrame frame, DreamValue value, int stackOffset = 0)
     {
+        var context = Context!;
         switch (reference.RefType)
         {
             case DMReference.Type.Global:
-                Context.SetGlobal(reference.Index, value);
+                context.SetGlobal(reference.Index, value);
                 break;
             case DMReference.Type.Argument:
                 if (reference.Index < 0 || reference.Index >= frame.Proc.Arguments.Length) throw new ScriptRuntimeException("Argument index out of bounds", frame.Proc, 0, this);

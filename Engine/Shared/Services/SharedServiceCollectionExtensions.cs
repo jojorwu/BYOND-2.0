@@ -93,12 +93,13 @@ public static class SharedServiceCollectionExtensions
         services.AddEngineService<Shared.Config.ConsoleCommandManager>(typeof(Shared.Config.IConsoleCommandManager));
         // Manual registrations below are now redundant if they were marked with [EngineService]
         // But we keep some groups for organization or specialized factory logic.
+        services.AddSharedBaseServices();
         services.AddEcsServices();
         services.AddNetworkingServices();
         services.AddJobSystem();
         return services;
     }
-    public static IServiceCollection AddCoreServices(this IServiceCollection services)
+    public static IServiceCollection AddSharedBaseServices(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<ISlabAllocator, DefaultSlabAllocator>();

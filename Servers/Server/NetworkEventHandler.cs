@@ -31,7 +31,6 @@ namespace Server
         {
             _networkService.PeerConnected += OnPeerConnected;
             _networkService.PeerDisconnected += OnPeerDisconnected;
-            _networkService.CommandReceived += OnCommandReceived;
         }
 
         private void OnPeerConnected(INetworkPeer peer)
@@ -72,7 +71,6 @@ namespace Server
         {
             _networkService.PeerConnected -= OnPeerConnected;
             _networkService.PeerDisconnected -= OnPeerDisconnected;
-            _networkService.CommandReceived -= OnCommandReceived;
         }
     }
 }

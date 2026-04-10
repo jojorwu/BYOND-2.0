@@ -28,7 +28,6 @@ namespace Server
 
         public event Action<INetworkPeer>? PeerConnected;
         public event Action<INetworkPeer, DisconnectInfo>? PeerDisconnected;
-        public event Action<INetworkPeer, string>? CommandReceived;
 
         public NetworkService(IServerContext context, ILogger<NetworkService> logger, NetDataWriterPool writerPool)
         {

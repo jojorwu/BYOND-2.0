@@ -79,7 +79,7 @@ namespace Shared.Interfaces;
         /// <summary>
         /// Creates jobs for parallel execution during the current tick.
         /// </summary>
-        IEnumerable<IJob> CreateJobs() => System.Array.Empty<IJob>();
+        IEnumerable<IJob> CreateJobs() => Array.Empty<IJob>();
 
         /// <summary>
         /// Gets the execution phase of the system.
@@ -95,7 +95,7 @@ namespace Shared.Interfaces;
         /// <summary>
         /// Systems that must be executed before this system.
         /// </summary>
-        IEnumerable<string> Dependencies => System.Array.Empty<string>();
+        IEnumerable<string> Dependencies => Array.Empty<string>();
 
         /// <summary>
         /// The group this system belongs to.
@@ -116,11 +116,11 @@ namespace Shared.Interfaces;
         /// Types of resources this system reads from.
         /// Used for safe parallel scheduling.
         /// </summary>
-        IEnumerable<System.Type> ReadResources => System.Array.Empty<System.Type>();
+        IEnumerable<System.Type> ReadResources => Array.Empty<System.Type>();
 
         /// <summary>
         /// Types of resources this system writes to.
         /// Used for safe parallel scheduling.
         /// </summary>
-        IEnumerable<System.Type> WriteResources => System.Array.Empty<System.Type>();
+        IEnumerable<System.Type> WriteResources => Array.Empty<System.Type>();
     }

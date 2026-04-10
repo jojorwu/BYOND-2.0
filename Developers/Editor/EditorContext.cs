@@ -12,15 +12,16 @@ namespace Editor
         public GameState GameState { get; }
         public bool IsDirty { get; set; } = false;
 
-        public Scene(string filePath)
+        public Scene(string filePath, GameState gameState)
         {
             FilePath = filePath;
-            GameState = new GameState();
+            GameState = gameState;
         }
     }
 
     public class EditorContext
     {
+        private readonly ISceneFactory _sceneFactory;
         public string ProjectRoot { get; set; } = Directory.GetCurrentDirectory();
         public ObjectType? SelectedObjectType { get; set; }
         public int CurrentZLevel { get; set; } = 0;
@@ -31,8 +32,9 @@ namespace Editor
         public int ActiveSceneIndex { get; set; } = -1;
         public List<string> RecentProjects { get; } = new List<string>();
 
-        public EditorContext()
+        public EditorContext(ISceneFactory sceneFactory)
         {
+            _sceneFactory = sceneFactory;
             LoadRecentProjects();
         }
 
@@ -67,7 +69,7 @@ namespace Editor
                 return;
             }
 
-            var newScene = new Scene(path);
+            var newScene = _sceneFactory.CreateScene(path);
             OpenScenes.Add(newScene);
             ActiveSceneIndex = OpenScenes.Count - 1;
         }

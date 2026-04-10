@@ -10,7 +10,7 @@ namespace Launcher
             var services = new ServiceCollection();
 
             services.AddSharedEngineServices();
-            services.AddSingleton<Launcher>();
+            services.AddEngineModule<LauncherModule>();
 
             var serviceProvider = services.BuildServiceProvider();
 

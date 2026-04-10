@@ -5,12 +5,16 @@ using System.Threading.Tasks;
 using NativeFileDialogNET;
 using Core.Maps;
 using Editor.History;
+using Microsoft.Extensions.DependencyInjection;
+using Core;
+using Core.Api;
 
 namespace Editor.UI
 {
     public class MenuBarPanel
     {
         private readonly IGameApi _gameApi;
+        private readonly ISceneFactory _sceneFactory;
         private readonly EditorContext _editorContext;
         private readonly BuildService _buildService;
         private readonly IDmmService _dmmService;
@@ -25,6 +29,7 @@ namespace Editor.UI
 
         public MenuBarPanel(
             IGameApi gameApi,
+            ISceneFactory sceneFactory,
             EditorContext editorContext,
             BuildService buildService,
             IDmmService dmmService,
@@ -36,6 +41,7 @@ namespace Editor.UI
             HistoryManager historyManager)
         {
             _gameApi = gameApi;
+            _sceneFactory = sceneFactory;
             _editorContext = editorContext;
             _buildService = buildService;
             _dmmService = dmmService;
@@ -80,11 +86,9 @@ namespace Editor.UI
                 {
                     if (ImGui.MenuItem(_localizationManager.GetString("New Scene")))
                     {
-                        var newScene = new Scene("New Scene " + (_editorContext.OpenScenes.Count + 1))
-                        {
-                            GameState = { Map = new Map() },
-                            IsDirty = true
-                        };
+                        var newScene = _sceneFactory.CreateScene("New Scene " + (_editorContext.OpenScenes.Count + 1));
+                        newScene.IsDirty = true;
+                        newScene.GameState.Map = new Map();
                         _editorContext.OpenScenes.Add(newScene);
                         _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
                     }
@@ -273,12 +277,10 @@ namespace Editor.UI
 
             if (map != null)
             {
-                var newScene = new Scene(System.IO.Path.GetFileName(path))
-                {
-                    FilePath = path,
-                    GameState = { Map = map },
-                    IsDirty = false
-                };
+                var newScene = _sceneFactory.CreateScene(System.IO.Path.GetFileName(path));
+                newScene.FilePath = path;
+                newScene.IsDirty = false;
+                newScene.GameState.Map = map;
                 _editorContext.OpenScenes.Add(newScene);
                 _editorContext.ActiveSceneIndex = _editorContext.OpenScenes.Count - 1;
             }

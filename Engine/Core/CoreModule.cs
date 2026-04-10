@@ -26,13 +26,7 @@ namespace Core
 
         private void AddCoreStateServices(IServiceCollection services)
         {
-            services.AddSingleton<GameState>();
-            services.AddSingleton<IGameState>(p => p.GetRequiredService<GameState>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<GameState>());
-
-            services.AddSingleton<MapLoader>();
-            services.AddSingleton<IMapLoader>(p => p.GetRequiredService<MapLoader>());
-            services.AddSingleton<IEngineService>(p => p.GetRequiredService<MapLoader>());
+            // GameState and MapLoader are auto-registered via [EngineService] attribute
 
             services.AddSingleton<IPlayerManager, PlayerManager>();
 
@@ -101,9 +95,8 @@ namespace Core
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.MathNativeProcProvider>();
             services.AddSingleton<INativeProcProvider, Core.VM.Procs.SpatialNativeProcProvider>();
             services.AddSingleton<INativeProcProvider>(p => new Core.VM.Procs.SystemNativeProcProvider(p.GetService<ISoundApi>(), p.GetService<IScriptBridge>()));
-            services.AddSingleton<DreamVM>();
-            services.AddSingleton<IDreamVM>(provider => provider.GetRequiredService<DreamVM>());
-            services.AddSingleton<IEngineService>(provider => provider.GetRequiredService<DreamVM>());
+
+            // DreamVM is auto-registered via [EngineService] attribute
 
             services.AddSingleton<ITypeSystemPopulator, TypeSystemPopulator>();
             services.AddSingleton<CompiledJsonService>();

@@ -16,6 +16,12 @@ namespace Core.Projects
             _logger = logger;
         }
 
+        public IProject? LoadProject(string path)
+        {
+            if (!System.IO.Directory.Exists(path)) return null;
+            return new Project(path);
+        }
+
         public async Task<bool> CreateProjectAsync(string projectName, string projectPath)
         {
             try

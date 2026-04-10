@@ -1,39 +1,70 @@
 using System.Collections.Generic;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
+using ImGuiNET;
 
-namespace Editor
+namespace Editor;
+
+public interface IEditorUIService
 {
-    public interface IEditorUIService
+    void Initialize(GL gl, IWindow window);
+    void Render(float dt);
+    void RegisterPanel(IEditorPanel panel);
+}
+
+public interface IEditorPanel
+{
+    string Title { get; }
+    void Render();
+}
+
+/// <summary>
+/// Orchestrates the ImGui-based Editor UI with docking support.
+/// </summary>
+public class EditorUIService : IEditorUIService
+{
+    private readonly List<IEditorPanel> _panels = new();
+
+    public EditorUIService(
+        MenuBarPanel menuBar,
+        HierarchyPanel hierarchy,
+        InspectorPanel inspector,
+        AssetBrowserPanel assetBrowser,
+        ViewportPanel viewport,
+        IToolManager toolManager,
+        SelectionTool selectionTool,
+        PaintTool paintTool)
     {
-        void Initialize(GL gl, IWindow window);
-        void Render(float dt);
-        void RegisterPanel(IEditorPanel panel);
+        _panels.Add(menuBar);
+        _panels.Add(hierarchy);
+        _panels.Add(inspector);
+        _panels.Add(assetBrowser);
+        _panels.Add(viewport);
+
+        toolManager.RegisterTool(selectionTool);
+        toolManager.RegisterTool(paintTool);
+        toolManager.ActiveTool = selectionTool;
     }
 
-    public interface IEditorPanel
+    public void Initialize(GL gl, IWindow window)
     {
-        string Title { get; }
-        void Render();
+        var io = ImGui.GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
     }
 
-    public class EditorUIService : IEditorUIService
+    public void RegisterPanel(IEditorPanel panel) => _panels.Add(panel);
+
+    public void Render(float dt)
     {
-        private readonly List<IEditorPanel> _panels = new();
+        ImGui.DockSpaceOverViewport();
 
-        public void Initialize(GL gl, IWindow window)
+        foreach (var panel in _panels)
         {
-            // Initialize ImGui here in a real implementation
-        }
-
-        public void RegisterPanel(IEditorPanel panel) => _panels.Add(panel);
-
-        public void Render(float dt)
-        {
-            foreach (var panel in _panels)
+            if (ImGui.Begin(panel.Title))
             {
                 panel.Render();
             }
+            ImGui.End();
         }
     }
 }

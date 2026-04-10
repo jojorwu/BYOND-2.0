@@ -1,78 +1,93 @@
-using Shared;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Shared.Config;
-using Shared.Attributes;
 using Shared.Interfaces;
 using Shared.Services;
-using Microsoft.Extensions.Logging;
 using Silk.NET.Windowing;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
-using System.Threading;
-using System.Threading.Tasks;
+using Silk.NET.OpenGL.Extensions.ImGui;
 
-namespace Editor
+namespace Editor;
+
+/// <summary>
+/// The main entry point for the Editor application lifecycle.
+/// </summary>
+public class EditorApplication : EngineApplication
 {
-    public class EditorApplication : EngineApplication
+    private IWindow? _window;
+    private GL? _gl;
+    private ImGuiController? _imGui;
+    private readonly IConfigurationManager _config;
+    private readonly IEditorUIService _uiService;
+
+    public EditorApplication(
+        ILogger<EditorApplication> logger,
+        IEnumerable<IEngineService> services,
+        IEnumerable<IEngineModule> modules,
+        IEnumerable<ITickable> tickables,
+        IEnumerable<IShrinkable> shrinkables,
+        IEnumerable<IEngineLifecycle> lifecycles,
+        IDiagnosticBus diagnosticBus,
+        ILifecycleOrchestrator orchestrator,
+        IConfigurationManager config,
+        IEditorUIService uiService)
+        : base(logger, services, modules, tickables, shrinkables, lifecycles, diagnosticBus)
     {
-        private IWindow _window = null!;
-        private GL _gl = null!;
-        private readonly IConfigurationManager _config;
+        _config = config;
+        _uiService = uiService;
+        SetOrchestrator(orchestrator);
+    }
 
-        public EditorApplication(
-            ILogger<EditorApplication> logger,
-            IEnumerable<IEngineService> services,
-            IEnumerable<IEngineModule> modules,
-            IEnumerable<ITickable> tickables,
-            IEnumerable<IShrinkable> shrinkables,
-            IEnumerable<IEngineLifecycle> lifecycles,
-            IDiagnosticBus diagnosticBus,
-            ILifecycleOrchestrator orchestrator,
-            IConfigurationManager config)
-            : base(logger, services, modules, tickables, shrinkables, lifecycles, diagnosticBus)
-        {
-            _config = config;
-            SetOrchestrator(orchestrator);
-        }
+    protected override Task OnStartAsync(CancellationToken cancellationToken)
+    {
+        var options = WindowOptions.Default;
+        options.Title = "BYOND 2.0 Editor";
+        options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
 
-        protected override Task OnStartAsync(CancellationToken cancellationToken)
-        {
-            var options = WindowOptions.Default;
-            options.Title = "BYOND 2.0 Editor";
-            options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
+        _window = Window.Create(options);
+        _window.Load += OnLoad;
+        _window.Update += OnUpdate;
+        _window.Render += OnRender;
 
-            _window = Window.Create(options);
-            _window.Load += OnLoad;
-            _window.Update += OnUpdate;
-            _window.Render += OnRender;
+        // Window Run usually blocks, but EngineApplication lifecycle expected to be async.
+        _ = Task.Run(() => _window.Run(), cancellationToken);
 
-            // Run on a separate thread to not block the DI startup if needed,
-            // but usually we want to block here until the window closes.
-            _ = Task.Run(() => _window.Run(), cancellationToken);
+        return Task.CompletedTask;
+    }
 
-            return Task.CompletedTask;
-        }
+    private void OnLoad()
+    {
+        if (_window == null) return;
 
-        private void OnLoad()
-        {
-            _gl = GL.GetApi(_window);
-            _logger.LogInformation("Editor Window Loaded.");
-        }
+        _gl = GL.GetApi(_window);
+        var input = _window.CreateInput();
+        _imGui = new ImGuiController(_gl, _window, input);
+        _uiService.Initialize(_gl, _window);
+        _logger.LogInformation("Editor Window Loaded.");
+    }
 
-        private void OnUpdate(double dt)
-        {
-            // Update logic moved to TickAsync
-        }
+    private void OnUpdate(double dt)
+    {
+        _imGui?.Update((float)dt);
+    }
 
-        private void OnRender(double dt)
-        {
-            _gl.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-            _gl.Clear(ClearBufferMask.ColorBufferBit);
-        }
+    private void OnRender(double dt)
+    {
+        if (_gl == null) return;
 
-        protected override Task OnStopAsync(CancellationToken cancellationToken)
-        {
-            _window?.Close();
-            return Task.CompletedTask;
-        }
+        _gl.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        _gl.Clear(ClearBufferMask.ColorBufferBit);
+
+        _uiService.Render((float)dt);
+        _imGui?.Render();
+    }
+
+    protected override Task OnStopAsync(CancellationToken cancellationToken)
+    {
+        _window?.Close();
+        return Task.CompletedTask;
     }
 }

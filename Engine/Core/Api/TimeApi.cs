@@ -1,10 +1,12 @@
 using Shared;
+using Shared.Attributes;
 using System;
 using System.Threading.Tasks;
 using Shared.Interfaces;
 
 namespace Core.Api;
 
+[EngineService(typeof(ITimeApi))]
 public class TimeApi : ITimeApi
 {
     public string Name => "Time";

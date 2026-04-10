@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Robust.Shared.Maths;
 using Shared;
+using Shared.Attributes;
 using Microsoft.Extensions.Options;
 
 namespace Core.Regions
 {
+    [EngineService(typeof(IRegionActivationStrategy))]
     public class PlayerBasedActivationStrategy : IRegionActivationStrategy
     {
         private readonly IPlayerManager _playerManager;

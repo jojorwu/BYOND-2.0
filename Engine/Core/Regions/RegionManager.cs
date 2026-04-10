@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Robust.Shared.Maths;
 using Shared;
+using Shared.Attributes;
 using Microsoft.Extensions.Options;
 
 namespace Core.Regions
 {
+    [EngineService(typeof(IRegionManager))]
     public class RegionManager : IRegionManager
     {
         private readonly IMap _map;

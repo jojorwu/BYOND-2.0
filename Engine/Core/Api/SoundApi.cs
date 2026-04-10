@@ -1,9 +1,11 @@
 using Shared;
+using Shared.Attributes;
 using Shared.Interfaces;
 using Robust.Shared.Maths;
 
 namespace Core.Api;
 
+[EngineService(typeof(ISoundApi))]
 public class SoundApi : ISoundApi
 {
     public string Name => "Sounds";

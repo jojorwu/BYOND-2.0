@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Config;
 using NUnit.Framework;
 using Core;
 using System;
@@ -66,7 +67,10 @@ namespace tests
             var standardLibraryApi = new StandardLibraryApi(spatialQueryApi, mapApi);
             var soundApi = new Mock<ISoundApi>().Object;
             var soundRegistry = new Shared.Config.SoundRegistry();
-            var commandManager = new Shared.Config.ConsoleCommandManager();
+            var configMock = new Mock<IConfigurationManager>();
+            var playerManagerMock = new Mock<IPlayerManager>();
+            var settings = new ServerSettings();
+            var commandManager = new Shared.Config.ConsoleCommandManager(configMock.Object, soundApi, playerManagerMock.Object, settings);
             var timeApi = new Mock<ITimeApi>().Object;
             var eventApi = new Mock<IEventApi>().Object;
 

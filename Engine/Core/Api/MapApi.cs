@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Attributes;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -6,6 +7,7 @@ using Robust.Shared.Maths;
 
 namespace Core.Api
 {
+    [EngineService(typeof(IMapApi))]
     public class MapApi : IMapApi
     {
         public string Name => "Map";

@@ -1,4 +1,5 @@
 using Shared;
+using Shared.Attributes;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -6,6 +7,7 @@ using Shared.Api;
 
 namespace Core.Api
 {
+    [EngineService(typeof(IStandardLibraryApi))]
     public class StandardLibraryApi : IStandardLibraryApi
     {
         public string Name => "StandardLibrary";

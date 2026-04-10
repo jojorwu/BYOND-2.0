@@ -11,58 +11,101 @@ using Shared.Buffers;
 namespace Shared.Services;
 public static class SharedServiceCollectionExtensions
 {
-    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services, params Type[] interfaceTypes)
-        where TImplementation : class, IEngineService
+    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services, ServiceLifetime lifetime = ServiceLifetime.Singleton, bool autoRegisterInterfaces = true, params Type[] interfaceTypes)
+        where TImplementation : class
     {
-        services.AddSingleton<TImplementation>();
-        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<TImplementation>());
+        var descriptor = new ServiceDescriptor(typeof(TImplementation), typeof(TImplementation), lifetime);
+        services.Add(descriptor);
+
+        if (typeof(IEngineService).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.Add(new ServiceDescriptor(typeof(IEngineService), sp => sp.GetRequiredService<TImplementation>(), lifetime));
+        }
+
         if (typeof(IEngineLifecycle).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<IEngineLifecycle>(sp => (IEngineLifecycle)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(IEngineLifecycle), sp => (IEngineLifecycle)sp.GetRequiredService<TImplementation>(), lifetime));
         }
         if (typeof(ITickable).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<ITickable>(sp => (ITickable)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(ITickable), sp => (ITickable)sp.GetRequiredService<TImplementation>(), lifetime));
         }
         if (typeof(IShrinkable).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(IShrinkable), sp => (IShrinkable)sp.GetRequiredService<TImplementation>(), lifetime));
         }
         if (typeof(IFreezable).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<IFreezable>(sp => (IFreezable)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(IFreezable), sp => (IFreezable)sp.GetRequiredService<TImplementation>(), lifetime));
         }
-        foreach (var type in interfaceTypes)
+
+        var allInterfaces = new HashSet<Type>(interfaceTypes);
+        if (autoRegisterInterfaces)
         {
-            services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
+            foreach (var i in typeof(TImplementation).GetInterfaces())
+            {
+                if (i.Namespace != null && (i.Namespace.StartsWith("Shared") || i.Namespace.StartsWith("Core")))
+                {
+                    allInterfaces.Add(i);
+                }
+            }
+        }
+
+        foreach (var type in allInterfaces)
+        {
+            if (type == typeof(IEngineService) || type == typeof(IEngineLifecycle) || type == typeof(ITickable) || type == typeof(IShrinkable) || type == typeof(IFreezable))
+                continue;
+
+            services.Add(new ServiceDescriptor(type, sp => sp.GetRequiredService<TImplementation>(), lifetime));
         }
         return services;
     }
 
-    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services, Func<IServiceProvider, TImplementation> factory, params Type[] interfaceTypes)
-        where TImplementation : class, IEngineService
+    public static IServiceCollection AddEngineService<TImplementation>(this IServiceCollection services, Func<IServiceProvider, TImplementation> factory, ServiceLifetime lifetime = ServiceLifetime.Singleton, bool autoRegisterInterfaces = true, params Type[] interfaceTypes)
+        where TImplementation : class
     {
-        services.AddSingleton<TImplementation>(factory);
-        services.AddSingleton<IEngineService>(sp => sp.GetRequiredService<TImplementation>());
+        services.Add(new ServiceDescriptor(typeof(TImplementation), factory, lifetime));
+
+        if (typeof(IEngineService).IsAssignableFrom(typeof(TImplementation)))
+        {
+            services.Add(new ServiceDescriptor(typeof(IEngineService), sp => sp.GetRequiredService<TImplementation>(), lifetime));
+        }
+
         if (typeof(IEngineLifecycle).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<IEngineLifecycle>(sp => (IEngineLifecycle)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(IEngineLifecycle), sp => (IEngineLifecycle)sp.GetRequiredService<TImplementation>(), lifetime));
         }
         if (typeof(ITickable).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<ITickable>(sp => (ITickable)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(ITickable), sp => (ITickable)sp.GetRequiredService<TImplementation>(), lifetime));
         }
         if (typeof(IShrinkable).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<IShrinkable>(sp => (IShrinkable)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(IShrinkable), sp => (IShrinkable)sp.GetRequiredService<TImplementation>(), lifetime));
         }
         if (typeof(IFreezable).IsAssignableFrom(typeof(TImplementation)))
         {
-            services.AddSingleton<IFreezable>(sp => (IFreezable)sp.GetRequiredService<TImplementation>());
+            services.Add(new ServiceDescriptor(typeof(IFreezable), sp => (IFreezable)sp.GetRequiredService<TImplementation>(), lifetime));
         }
-        foreach (var type in interfaceTypes)
+
+        var allInterfaces = new HashSet<Type>(interfaceTypes);
+        if (autoRegisterInterfaces)
         {
-            services.AddSingleton(type, sp => sp.GetRequiredService<TImplementation>());
+            foreach (var i in typeof(TImplementation).GetInterfaces())
+            {
+                if (i.Namespace != null && (i.Namespace.StartsWith("Shared") || i.Namespace.StartsWith("Core")))
+                {
+                    allInterfaces.Add(i);
+                }
+            }
+        }
+
+        foreach (var type in allInterfaces)
+        {
+            if (type == typeof(IEngineService) || type == typeof(IEngineLifecycle) || type == typeof(ITickable) || type == typeof(IShrinkable) || type == typeof(IFreezable))
+                continue;
+
+            services.Add(new ServiceDescriptor(type, sp => sp.GetRequiredService<TImplementation>(), lifetime));
         }
         return services;
     }
@@ -77,10 +120,10 @@ public static class SharedServiceCollectionExtensions
         {
             var method = typeof(SharedServiceCollectionExtensions)
                 .GetMethods()
-                .First(m => m.Name == nameof(AddEngineService) && m.IsGenericMethod && m.GetParameters().Length == 2);
+                .First(m => m.Name == nameof(AddEngineService) && m.IsGenericMethod && m.GetParameters().Length == 4);
 
             var generic = method.MakeGenericMethod(x.Type);
-            generic.Invoke(null, new object[] { services, x.Attribute!.Interfaces });
+            generic.Invoke(null, new object[] { services, x.Attribute!.Lifetime, x.Attribute!.AutoRegisterInterfaces, x.Attribute!.Interfaces });
         }
         return services;
     }
@@ -89,8 +132,7 @@ public static class SharedServiceCollectionExtensions
     {
         services.AddAutoRegisteredServices(typeof(SharedServiceCollectionExtensions).Assembly);
 
-        services.AddEngineService<Shared.Config.ConfigurationManager>(typeof(Shared.Config.IConfigurationManager));
-        services.AddEngineService<Shared.Config.ConsoleCommandManager>(typeof(Shared.Config.IConsoleCommandManager));
+        // ConfigurationManager and ConsoleCommandManager are now auto-registered via [EngineService]
         // Manual registrations below are now redundant if they were marked with [EngineService]
         // But we keep some groups for organization or specialized factory logic.
         services.AddSharedBaseServices();
@@ -109,8 +151,8 @@ public static class SharedServiceCollectionExtensions
     }
     public static IServiceCollection AddEcsServices(this IServiceCollection services)
     {
-        services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), typeof(IObjectPool<GameObject>), typeof(IShrinkable));
-        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IJobSystem>())), typeof(IObjectPool<EntityCommandBuffer>), typeof(IShrinkable));
+        services.AddEngineService<SharedPool<GameObject>>(sp => new SharedPool<GameObject>(() => new GameObject()), ServiceLifetime.Singleton, true, typeof(IObjectPool<GameObject>), typeof(IShrinkable));
+        services.AddEngineService<SharedPool<EntityCommandBuffer>>(sp => new SharedPool<EntityCommandBuffer>(() => new EntityCommandBuffer(sp.GetRequiredService<IObjectFactory>(), sp.GetRequiredService<IComponentManager>(), sp.GetRequiredService<IJobSystem>())), ServiceLifetime.Singleton, true, typeof(IObjectPool<EntityCommandBuffer>), typeof(IShrinkable));
         services.AddSystem<Systems.StateCommitSystem>();
         services.AddTransient<IEntityCommandBuffer, EntityCommandBuffer>();
         return services;

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Shared;
 using Shared.Interfaces;
+using Shared.Attributes;
 
 namespace Client.Services;
 
@@ -11,6 +12,7 @@ public interface IClientObjectManager
     void RemoveObject(long id);
 }
 
+[EngineService(typeof(IClientObjectManager))]
 public class ClientObjectManager : IClientObjectManager
 {
     private readonly IGameState _gameState;

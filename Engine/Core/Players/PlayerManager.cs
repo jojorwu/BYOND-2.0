@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using Robust.Shared.Maths;
 using Shared;
+using Shared.Attributes;
 using Microsoft.Extensions.Options;
 
 namespace Core.Players
 {
+    [EngineService(typeof(IPlayerManager))]
     public class PlayerManager : IPlayerManager
     {
         private readonly Dictionary<INetworkPeer, IGameObject> _players = new();

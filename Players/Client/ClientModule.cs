@@ -11,7 +11,8 @@ namespace Client
         public void RegisterServices(IServiceCollection services)
         {
             services.AddSingleton<Game>();
-            services.AddSingleton<IClientObjectManager, ClientObjectManager>();
+
+            // ClientObjectManager is now auto-registered via [EngineService]
 
             // Register other client-specific services here as they are identified
         }

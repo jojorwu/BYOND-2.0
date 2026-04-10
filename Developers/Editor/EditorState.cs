@@ -1,29 +1,33 @@
-namespace Core
-{
-    /// <summary>
-    /// Represents the available tools in the editor.
-    /// </summary>
-    public enum EditorTool
-    {
-        /// <summary>
-        /// The selection tool for manipulating objects.
-        /// </summary>
-        Selection,
+using Shared.Attributes;
+using Shared.Services;
 
-        /// <summary>
-        /// The eyedropper tool for selecting assets from the map.
-        /// </summary>
-        Eyedropper
+namespace Editor
+{
+    [EngineService]
+    public class EditorState : EngineService
+    {
+        public string? CurrentProjectPath { get; set; }
+        public bool IsDirty { get; set; }
+
+        // Selection state
+        public long SelectedEntityId { get; set; } = -1;
     }
 
-    /// <summary>
-    /// Manages the overall state of the editor.
-    /// </summary>
-    public class EditorState
+    [EngineService]
+    public class EditorContext : EngineService
     {
-        /// <summary>
-        /// Gets or sets the currently selected editor tool.
-        /// </summary>
-        public EditorTool CurrentTool { get; set; } = EditorTool.Selection;
+        private readonly EditorState _state;
+
+        public EditorContext(EditorState state)
+        {
+            _state = state;
+        }
+
+        // Business logic for editor actions
+        public void LoadProject(string path)
+        {
+            _state.CurrentProjectPath = path;
+            _state.IsDirty = false;
+        }
     }
 }

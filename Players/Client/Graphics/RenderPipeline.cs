@@ -16,6 +16,7 @@ namespace Client.Graphics
         public Matrix4x4 Projection { get; }
         public int Width { get; }
         public int Height { get; }
+        public double DeltaTime { get; set; }
 
         public RenderContext(GL gl, GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection, int width, int height)
         {

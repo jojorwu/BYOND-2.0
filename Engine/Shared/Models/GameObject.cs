@@ -56,6 +56,7 @@ public class GameObject : DreamObject, IGameObject, IPoolable
     public List<IScriptThread>? ActiveThreads { get; set; }
     public object? LastDeltaBatch { get; set; }
     public long LastDeltaBatchTick { get; set; }
+    public object? CustomMaterial { get; set; }
 
     private IEngineUpdateListener? _updateListener;
     public void SetUpdateListener(IEngineUpdateListener listener) => _updateListener = listener;

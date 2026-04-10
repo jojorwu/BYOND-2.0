@@ -182,4 +182,10 @@ namespace Shared;
         /// The tick version of the cached DeltaBatch.
         /// </summary>
         long LastDeltaBatchTick { get; set; }
+
+        /// <summary>
+        /// Gets or sets a custom material for this object.
+        /// Primarily used on the client for custom shaders.
+        /// </summary>
+        object? CustomMaterial { get; set; }
     }

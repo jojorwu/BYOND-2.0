@@ -345,6 +345,7 @@ new MyShader()
                         _window.FramebufferSize.X,
                         _window.FramebufferSize.Y
                     );
+                    renderContext.DeltaTime = deltaTime;
 
                     _renderPipeline.Execute(renderContext);
                 }

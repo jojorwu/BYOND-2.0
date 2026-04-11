@@ -13,7 +13,7 @@ namespace Editor;
 /// Foundation for Editor-specific world rendering, grids, and gizmos.
 /// </summary>
 [EngineService]
-public class EditorRenderer : EngineService, IDisposable
+public class EditorRenderer : EngineService
 {
     private GL? _gl;
     private readonly IGameState _gameState;
@@ -82,9 +82,10 @@ public class EditorRenderer : EngineService, IDisposable
         // TODO: Implement selection highlighting
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         _worldRenderer?.Dispose();
         _viewportBuffer?.Dispose();
+        base.Dispose();
     }
 }

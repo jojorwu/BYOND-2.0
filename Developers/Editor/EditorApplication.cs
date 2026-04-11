@@ -5,11 +5,11 @@ using Microsoft.Extensions.Logging;
 using Shared.Config;
 using Shared.Interfaces;
 using Shared.Services;
-using Client.Graphics;
 using Silk.NET.Windowing;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Silk.NET.OpenGL.Extensions.ImGui;
+using Client.Graphics;
 
 namespace Editor;
 

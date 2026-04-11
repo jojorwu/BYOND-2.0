@@ -183,4 +183,10 @@ public abstract class EngineService : IEngineService
 
         return Task.FromResult(new HealthResult(status, $"Service is in {Status} state"));
     }
+
+    /// <inheritdoc />
+    public virtual void Dispose()
+    {
+        GC.SuppressFinalize(this);
+    }
 }

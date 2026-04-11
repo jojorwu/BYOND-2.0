@@ -22,31 +22,31 @@ namespace Client.Graphics
     public class CSharpShaderManager : EngineService
     {
         private readonly ILogger<CSharpShaderManager> _logger;
-        private readonly IResourceSystem _resourceSystem;
+    private readonly IResourceSystem _resourceSystem;
         private GL? _gl;
         private readonly Dictionary<string, ICSharpShader> _compiledShaders = new();
-        private readonly Dictionary<ICSharpShader, Shader> _glShaders = new();
+    private readonly Dictionary<ICSharpShader, Shader> _glShaders = new();
 
-        public CSharpShaderManager(ILogger<CSharpShaderManager> logger, IResourceSystem resourceSystem)
+    public CSharpShaderManager(ILogger<CSharpShaderManager> logger, IResourceSystem resourceSystem)
         {
             _logger = logger;
-            _resourceSystem = resourceSystem;
-        }
+        _resourceSystem = resourceSystem;
+    }
 
-        protected override Task OnInitializeAsync()
-        {
-            _resourceSystem.RegisterLoader(new ShaderLoader(this));
-            _resourceSystem.ResourceReloaded += OnResourceReloaded;
-            return Task.CompletedTask;
-        }
+    protected override Task OnInitializeAsync()
+    {
+        _resourceSystem.RegisterLoader(new ShaderLoader(this));
+        _resourceSystem.ResourceReloaded += OnResourceReloaded;
+        return Task.CompletedTask;
+    }
 
-        private async void OnResourceReloaded(string path)
+    private async void OnResourceReloaded(string path)
+    {
+        if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
         {
-            if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogInformation("Reloading shader: {Path}", path);
-                await _resourceSystem.LoadResourceAsync<ICSharpShader>(path);
-            }
+            _logger.LogInformation("Reloading shader: {Path}", path);
+            await _resourceSystem.LoadResourceAsync<ICSharpShader>(path);
+        }
         }
 
         public void SetGL(GL gl)
@@ -73,27 +73,28 @@ namespace Client.Graphics
             }
         }
 
-        public Shader GetGlShader(ICSharpShader csharpShader)
+    public Shader CreateGlShader(ICSharpShader csharpShader)
         {
             if (_gl == null) throw new InvalidOperationException("CSharpShaderManager not initialized with GL context.");
 
-            if (_glShaders.TryGetValue(csharpShader, out var shader))
-            {
-                return shader;
-            }
-
-            shader = new Shader(_gl, csharpShader.GetVertexSource(), csharpShader.GetFragmentSource());
-            _glShaders[csharpShader] = shader;
+        if (_glShaders.TryGetValue(csharpShader, out var shader))
+        {
             return shader;
         }
 
-        public void Dispose()
+        shader = new Shader(_gl, csharpShader.GetVertexSource(), csharpShader.GetFragmentSource());
+        _glShaders[csharpShader] = shader;
+        return shader;
+    }
+
+    public override void Dispose()
+    {
+        foreach (var shader in _glShaders.Values)
         {
-            foreach (var shader in _glShaders.Values)
-            {
-                shader.Dispose();
-            }
-            _glShaders.Clear();
+            shader.Dispose();
+        }
+        _glShaders.Clear();
+        base.Dispose();
         }
     }
 }

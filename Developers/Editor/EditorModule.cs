@@ -26,6 +26,7 @@ public class EditorModule : IEngineModule
         services.AddSingleton<IToolManager, ToolManager>();
         services.AddSingleton<SelectionTool>();
         services.AddSingleton<PaintTool>();
+        services.AddSingleton<EraserTool>();
 
         // Application
         services.AddSingleton<EditorApplication>();

@@ -212,7 +212,7 @@ new MyShader()
 ";
             try {
                 _sampleCSharpShader = await _csharpShaderManager.CompileShaderAsync(code);
-                _sampleGlShader = _csharpShaderManager.CreateGlShader(_sampleCSharpShader);
+                _sampleGlShader = _csharpShaderManager.GetGlShader(_sampleCSharpShader);
             } catch (Exception ex) {
                 Console.WriteLine($"Failed to load C# shader: {ex.Message}");
             }

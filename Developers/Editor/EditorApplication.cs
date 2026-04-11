@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Shared.Config;
 using Shared.Interfaces;
 using Shared.Services;
+using Client.Graphics;
 using Silk.NET.Windowing;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
@@ -23,6 +24,9 @@ public class EditorApplication : EngineApplication
     private readonly IConfigurationManager _config;
     private readonly IEditorUIService _uiService;
 
+    private readonly EditorRenderer _renderer;
+    private readonly GraphicsResourceManager _resourceManager;
+
     public EditorApplication(
         ILogger<EditorApplication> logger,
         IEnumerable<IEngineService> services,
@@ -33,11 +37,15 @@ public class EditorApplication : EngineApplication
         IDiagnosticBus diagnosticBus,
         ILifecycleOrchestrator orchestrator,
         IConfigurationManager config,
-        IEditorUIService uiService)
+        IEditorUIService uiService,
+        EditorRenderer renderer,
+        GraphicsResourceManager resourceManager)
         : base(logger, services, modules, tickables, shrinkables, lifecycles, diagnosticBus)
     {
         _config = config;
         _uiService = uiService;
+        _renderer = renderer;
+        _resourceManager = resourceManager;
         SetOrchestrator(orchestrator);
     }
 
@@ -66,6 +74,7 @@ public class EditorApplication : EngineApplication
         var input = _window.CreateInput();
         _imGui = new ImGuiController(_gl, _window, input);
         _uiService.Initialize(_gl, _window);
+        _renderer.Initialize(_gl, _resourceManager);
         _logger.LogInformation("Editor Window Loaded.");
     }
 
@@ -77,6 +86,8 @@ public class EditorApplication : EngineApplication
     private void OnRender(double dt)
     {
         if (_gl == null) return;
+
+        _renderer.Render((float)dt);
 
         _gl.ClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         _gl.Clear(ClearBufferMask.ColorBufferBit);

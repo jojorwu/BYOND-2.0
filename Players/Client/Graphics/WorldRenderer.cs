@@ -31,6 +31,7 @@ namespace Client.Graphics
             public Color Color;
             public float Layer;
             public int ArrayLayer;
+            public Material? CustomMaterial;
         }
 
         /// <summary>
@@ -103,7 +104,7 @@ void main() {
             _mainTextureArray = new TextureArray(_gl, 32, 32, 2048);
         }
 
-        public void Render(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
+        public void Render(double deltaTime, GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             ProcessPendingUploads();
             UpdateVisibleChunks(cullRect);
@@ -130,26 +131,27 @@ void main() {
                 chunk.Draw();
             }
 
-            RenderDynamicObjects(previousState, currentState, alpha, cullRect, view, projection);
+            RenderDynamicObjects(deltaTime, previousState, currentState, alpha, cullRect, view, projection);
         }
 
         /// <summary>
         /// Optimized rendering of dynamic objects using Hybrid Spatial-SoA approach and layer bucketing.
         /// Uses SpatialGrid for fast culling and Archetype SoA for zero-allocation data access.
         /// </summary>
+        /// <param name="deltaTime">Time since last frame.</param>
         /// <param name="previousState">The state from the previous tick.</param>
         /// <param name="currentState">The current simulation state.</param>
         /// <param name="alpha">Interpolation factor between frames.</param>
         /// <param name="cullRect">The visible world bounds in tile coordinates.</param>
         /// <param name="view">The view matrix.</param>
         /// <param name="projection">The projection matrix.</param>
-        private void RenderDynamicObjects(GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
+        private void RenderDynamicObjects(double deltaTime, GameState? previousState, GameState currentState, float alpha, Box2 cullRect, Matrix4x4 view, Matrix4x4 projection)
         {
             _instancedRenderer.Begin();
 
             ClearBuckets();
             PopulateBuckets(currentState, cullRect);
-            DrawBuckets();
+            DrawBuckets(deltaTime, view, projection);
 
             _instancedRenderer.Flush(view, projection);
         }
@@ -211,14 +213,15 @@ void main() {
                             Uv = uv,
                             Color = color,
                             Layer = (float)layer,
-                            ArrayLayer = 0 // Fixed for demo
+                            ArrayLayer = 0, // Fixed for demo
+                            CustomMaterial = obj.CustomMaterial as Material
                         });
                     }
                 }
             }
         }
 
-        private void DrawBuckets()
+        private void DrawBuckets(double deltaTime, Matrix4x4 view, Matrix4x4 projection)
         {
             for (int i = 0; i < _layerBuckets.Length; i++)
             {
@@ -227,7 +230,18 @@ void main() {
                 for (int j = 0; j < items.Length; j++)
                 {
                     ref readonly var item = ref items[j];
-                    _instancedRenderer.Draw(_mainTextureArray!.Id, item.ArrayLayer, item.Position, item.Size, item.Uv, item.Color);
+                    if (item.CustomMaterial != null)
+                    {
+                        // Custom material rendering (bypasses instanced renderer for now)
+                        _instancedRenderer.Flush(view, projection); // Ensure order
+                        item.CustomMaterial.Apply((float)deltaTime);
+                        _instancedRenderer.Draw(_mainTextureArray!.Id, item.ArrayLayer, item.Position, item.Size, item.Uv, item.Color);
+                        _instancedRenderer.Flush(view, projection);
+                    }
+                    else
+                    {
+                        _instancedRenderer.Draw(_mainTextureArray!.Id, item.ArrayLayer, item.Position, item.Size, item.Uv, item.Color);
+                    }
                 }
             }
         }

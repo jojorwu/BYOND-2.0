@@ -6,9 +6,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using Shared.Services;
+using Shared.Attributes;
 
 namespace Shared.Config;
 
+[EngineService(typeof(IConfigurationManager))]
 public class ConfigurationManager : EngineService, IConfigurationManager
 {
     private readonly ConcurrentDictionary<string, CVarInfo> _cvars = new();
@@ -299,4 +301,13 @@ public class ConfigurationManager : EngineService, IConfigurationManager
     }
 
     public IEnumerable<CVarInfo> GetRegisteredCVars() => _cvars.Values;
+
+    protected override Task OnInitializeAsync()
+    {
+        RegisterFromAssemblies(typeof(ConfigKeys).Assembly);
+        AddProvider(new JsonConfigProvider("server_config.json"));
+        AddProvider(new EnvironmentConfigProvider());
+        LoadAll();
+        return Task.CompletedTask;
+    }
 }

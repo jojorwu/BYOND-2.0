@@ -26,12 +26,7 @@ namespace Core
 
         private void AddCoreStateServices(IServiceCollection services)
         {
-            // GameState and MapLoader are auto-registered via [EngineService] attribute
-
-            services.AddSingleton<IPlayerManager, PlayerManager>();
-
-            services.AddSingleton<IRegionActivationStrategy, PlayerBasedActivationStrategy>();
-            services.AddSingleton<IRegionManager, RegionManager>();
+            // GameState, MapLoader, PlayerManager, RegionManager, and ActivationStrategy are auto-registered via [EngineService] attribute
         }
 
         private void AddCoreApiServices(IServiceCollection services)
@@ -39,35 +34,9 @@ namespace Core
             services.AddSingleton<Shared.Config.ISoundRegistry, Shared.Config.SoundRegistry>();
             services.AddSingleton<IApiRegistry, ApiRegistry>();
 
-            services.AddSingleton<MapApi>();
-            services.AddSingleton<IMapApi>(sp => sp.GetRequiredService<MapApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<MapApi>());
-
-            services.AddSingleton<ObjectApi>();
-            services.AddSingleton<IObjectApi>(sp => sp.GetRequiredService<ObjectApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<ObjectApi>());
-
-            services.AddSingleton<ScriptApi>();
-            services.AddSingleton<IScriptApi>(sp => sp.GetRequiredService<ScriptApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<ScriptApi>());
-
-            services.AddSingleton<StandardLibraryApi>();
-            services.AddSingleton<IStandardLibraryApi>(sp => sp.GetRequiredService<StandardLibraryApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<StandardLibraryApi>());
+            // API services are now auto-registered via [EngineService] attribute
 
             services.AddSingleton<Shared.Api.ISpatialQueryApi, SpatialQueryApi>();
-
-            services.AddSingleton<TimeApi>();
-            services.AddSingleton<ITimeApi>(sp => sp.GetRequiredService<TimeApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<TimeApi>());
-
-            services.AddSingleton<EventApi>();
-            services.AddSingleton<IEventApi>(sp => sp.GetRequiredService<EventApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<EventApi>());
-
-            services.AddSingleton<SoundApi>();
-            services.AddSingleton<ISoundApi>(sp => sp.GetRequiredService<SoundApi>());
-            services.AddSingleton<IApiProvider>(sp => sp.GetRequiredService<SoundApi>());
 
             services.AddSingleton<IGameApi>(sp =>
             {
@@ -80,8 +49,6 @@ namespace Core
                     sp.GetRequiredService<Shared.Config.IConsoleCommandManager>()
                 );
             });
-
-            services.AddSingleton<IRegionApi, RegionApi>();
         }
 
         private void AddCoreVmServices(IServiceCollection services)

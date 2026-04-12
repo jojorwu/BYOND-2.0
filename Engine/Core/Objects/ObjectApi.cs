@@ -1,8 +1,10 @@
 using Shared;
+using Shared.Attributes;
 namespace Core.Api
 {
     using Shared.Interfaces;
 
+    [EngineService(typeof(IObjectApi))]
     public class ObjectApi : IObjectApi
     {
         public string Name => "Objects";

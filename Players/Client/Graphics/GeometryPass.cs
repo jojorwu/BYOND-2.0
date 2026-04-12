@@ -28,7 +28,7 @@ namespace Client.Graphics
             context.GL.Enable(EnableCap.DepthTest);
             context.GL.DepthFunc(DepthFunction.Lequal);
 
-            _worldRenderer.Render(context.PreviousState, context.CurrentState, context.Alpha, context.CullRect, context.View, context.Projection);
+            _worldRenderer.Render(context.DeltaTime, context.PreviousState, context.CurrentState, context.Alpha, context.CullRect, context.View, context.Projection);
 
             context.GL.Disable(EnableCap.DepthTest);
 

@@ -1,53 +1,22 @@
-using System;
-using System.IO;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Shared.Attributes;
+using Shared.Services;
+using Shared.Config;
 
-namespace Editor
+namespace Editor;
+
+/// <summary>
+/// Manages Editor-specific configuration settings.
+/// </summary>
+[EngineService]
+public class EditorSettingsManager : EngineService
 {
-    public class EditorSettingsManager : IEditorSettingsManager
+    private readonly IConfigurationManager _config;
+
+    public EditorSettingsManager(IConfigurationManager config)
     {
-        private const string SettingsFileName = "editor_settings.json";
-        private static readonly string SettingsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "BYOND2.0", SettingsFileName);
-
-        public EditorSettings Settings { get; private set; } = new();
-
-        public EditorSettingsManager()
-        {
-            Load();
-        }
-
-        private void Load()
-        {
-            if (File.Exists(SettingsFilePath))
-            {
-                try
-                {
-                    var json = File.ReadAllText(SettingsFilePath);
-                    Settings = JsonSerializer.Deserialize<EditorSettings>(json) ?? new EditorSettings();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Failed to load editor settings: {e.Message}");
-                    Settings = new EditorSettings();
-                }
-            }
-            else
-            {
-                Settings = new EditorSettings();
-            }
-        }
-
-        public void Save()
-        {
-            var options = new JsonSerializerOptions { WriteIndented = true };
-            var json = JsonSerializer.Serialize(Settings, options);
-            var directory = Path.GetDirectoryName(SettingsFilePath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-            File.WriteAllText(SettingsFilePath, json);
-        }
+        _config = config;
     }
+
+    public T GetSetting<T>(string key) => _config.GetCVar<T>(key);
+    public void SetSetting<T>(string key, T value) => _config.SetCVar(key, value);
 }

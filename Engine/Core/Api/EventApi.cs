@@ -1,10 +1,12 @@
 using Shared;
+using Shared.Attributes;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace Core.Api;
 
+[EngineService(typeof(IEventApi))]
 public class EventApi : IEventApi
 {
     public string Name => "Events";

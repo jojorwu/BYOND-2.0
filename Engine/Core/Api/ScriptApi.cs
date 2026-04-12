@@ -1,10 +1,12 @@
 using Shared;
+using Shared.Attributes;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
 namespace Core.Api
 {
+    [EngineService(typeof(IScriptApi))]
     public class ScriptApi : IScriptApi
     {
         public string Name => "Scripts";

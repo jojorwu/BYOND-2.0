@@ -74,7 +74,9 @@ namespace tests
 
             var configManager = new Shared.Config.ConfigurationManager();
             var replicator = new CVarReplicator(configManager, new NetDataWriterPool(), new Mock<IPlayerManager>().Object);
-            var commandManager = new Shared.Config.ConsoleCommandManager();
+            var soundApi = new Mock<ISoundApi>().Object;
+            var playerManagerMock = new Mock<IPlayerManager>();
+            var commandManager = new Shared.Config.ConsoleCommandManager(configManager, soundApi, playerManagerMock.Object, settings);
 
             var app = new ServerApplication(
                 loggerMock.Object,

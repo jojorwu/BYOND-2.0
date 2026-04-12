@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Services;
+using Shared.Interfaces;
 
 namespace Client.Graphics
 {
@@ -21,12 +22,31 @@ namespace Client.Graphics
     public class CSharpShaderManager : EngineService
     {
         private readonly ILogger<CSharpShaderManager> _logger;
+    private readonly IResourceSystem _resourceSystem;
         private GL? _gl;
         private readonly Dictionary<string, ICSharpShader> _compiledShaders = new();
+    private readonly Dictionary<ICSharpShader, Shader> _glShaders = new();
 
-        public CSharpShaderManager(ILogger<CSharpShaderManager> logger)
+    public CSharpShaderManager(ILogger<CSharpShaderManager> logger, IResourceSystem resourceSystem)
         {
             _logger = logger;
+        _resourceSystem = resourceSystem;
+    }
+
+    protected override Task OnInitializeAsync()
+    {
+        _resourceSystem.RegisterLoader(new ShaderLoader(this));
+        _resourceSystem.ResourceReloaded += OnResourceReloaded;
+        return Task.CompletedTask;
+    }
+
+    private async void OnResourceReloaded(string path)
+    {
+        if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Reloading shader: {Path}", path);
+            await _resourceSystem.LoadResourceAsync<ICSharpShader>(path);
+        }
         }
 
         public void SetGL(GL gl)
@@ -53,10 +73,28 @@ namespace Client.Graphics
             }
         }
 
-        public Shader CreateGlShader(ICSharpShader csharpShader)
+    public Shader CreateGlShader(ICSharpShader csharpShader)
         {
             if (_gl == null) throw new InvalidOperationException("CSharpShaderManager not initialized with GL context.");
-            return new Shader(_gl, csharpShader.GetVertexSource(), csharpShader.GetFragmentSource());
+
+        if (_glShaders.TryGetValue(csharpShader, out var shader))
+        {
+            return shader;
+        }
+
+        shader = new Shader(_gl, csharpShader.GetVertexSource(), csharpShader.GetFragmentSource());
+        _glShaders[csharpShader] = shader;
+        return shader;
+    }
+
+    public override void Dispose()
+    {
+        foreach (var shader in _glShaders.Values)
+        {
+            shader.Dispose();
+        }
+        _glShaders.Clear();
+        base.Dispose();
         }
     }
 }

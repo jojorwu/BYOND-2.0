@@ -13,4 +13,9 @@ namespace Shared;
         /// <param name="projectPath">The absolute path where the project directory will be created.</param>
         /// <returns>True if the project was created successfully, false otherwise.</returns>
         Task<bool> CreateProjectAsync(string projectName, string projectPath);
+
+        /// <summary>
+        /// Loads an existing project from the specified path.
+        /// </summary>
+        IProject? LoadProject(string path);
     }

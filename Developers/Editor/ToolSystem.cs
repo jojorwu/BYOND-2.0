@@ -33,43 +33,96 @@ public class ToolManager : IToolManager
 
 public class SelectionTool : ITool
 {
+    private readonly EditorContext _context;
     private readonly EditorState _state;
     private readonly IGameState _gameState;
+    private bool _isDragging;
+    private long _dragStartX, _dragStartY;
+    private GameObject? _draggingObject;
 
-    public SelectionTool(EditorState state, IGameState gameState)
+    public SelectionTool(EditorContext context, EditorState state, IGameState gameState)
     {
+        _context = context;
         _state = state;
         _gameState = gameState;
     }
 
     public string Name => "Select";
     public void OnSelected() { }
+
     public void OnMouseDown(float x, float y)
     {
-        // Simple picking
         _state.SelectedEntityId = -1;
+        _draggingObject = null;
+        _isDragging = false;
+
         foreach (var obj in _gameState.GetAllGameObjects())
         {
-            if (obj.X == (long)x && obj.Y == (long)y)
+            // Simplified hit detection
+            if (Math.Abs(obj.X - x) < 16 && Math.Abs(obj.Y - y) < 16)
             {
                 _state.SelectedEntityId = obj.Id;
+                _draggingObject = (GameObject)obj;
+                _dragStartX = _draggingObject.X;
+                _dragStartY = _draggingObject.Y;
+                _isDragging = true;
                 break;
             }
         }
     }
-    public void OnMouseMove(float x, float y) { }
-    public void OnMouseUp(float x, float y) { }
+
+    public void OnMouseMove(float x, float y)
+    {
+        if (_isDragging && _draggingObject != null)
+        {
+            long targetX = (long)x;
+            long targetY = (long)y;
+
+            if (_state.SnapToGrid)
+            {
+                targetX = (long)Math.Round(x / _state.GridSize) * _state.GridSize;
+                targetY = (long)Math.Round(y / _state.GridSize) * _state.GridSize;
+            }
+
+            _draggingObject.SetPosition(targetX, targetY, _draggingObject.Z);
+        }
+    }
+
+    public void OnMouseUp(float x, float y)
+    {
+        if (_isDragging && _draggingObject != null)
+        {
+            if (_draggingObject.X != _dragStartX || _draggingObject.Y != _dragStartY)
+            {
+                var command = new MoveObjectCommand(_draggingObject, _draggingObject.X, _draggingObject.Y, _draggingObject.Z);
+                // We actually want to "finalize" the move.
+                // Since we've been moving it live, we should probably have captured the initial state better.
+                // For now, just push it to history (Execute does nothing if already there, but we need to fix Undo).
+
+                // Hack: restore old pos so Execute moves it again properly in history
+                var finalX = _draggingObject.X;
+                var finalY = _draggingObject.Y;
+                _draggingObject.SetPosition(_dragStartX, _dragStartY, _draggingObject.Z);
+
+                _context.History.Execute(new MoveObjectCommand(_draggingObject, finalX, finalY, _draggingObject.Z));
+            }
+        }
+        _isDragging = false;
+        _draggingObject = null;
+    }
 }
 
 public class PaintTool : ITool
 {
     private readonly EditorContext _context;
+    private readonly EditorState _state;
     private readonly IGameState _gameState;
     private readonly IObjectTypeManager _typeManager;
 
-    public PaintTool(EditorContext context, IGameState gameState, IObjectTypeManager typeManager)
+    public PaintTool(EditorContext context, EditorState state, IGameState gameState, IObjectTypeManager typeManager)
     {
         _context = context;
+        _state = state;
         _gameState = gameState;
         _typeManager = typeManager;
     }
@@ -78,11 +131,19 @@ public class PaintTool : ITool
     public void OnSelected() { }
     public void OnMouseDown(float x, float y)
     {
-        // Simple placement for now. In real editor we'd use world coordinates from viewport.
-        var type = _typeManager.GetObjectType("obj"); // Example type
+        long targetX = (long)x;
+        long targetY = (long)y;
+
+        if (_state.SnapToGrid)
+        {
+            targetX = (long)Math.Round(x / _state.GridSize) * _state.GridSize;
+            targetY = (long)Math.Round(y / _state.GridSize) * _state.GridSize;
+        }
+
+        var type = _typeManager.GetObjectType("obj"); // Example
         if (type != null)
         {
-            var command = new PlaceObjectCommand(_gameState, type, (long)x, (long)y, 0);
+            var command = new PlaceObjectCommand(_gameState, type, targetX, targetY, 0);
             _context.History.Execute(command);
         }
     }
@@ -93,11 +154,13 @@ public class PaintTool : ITool
 public class EraserTool : ITool
 {
     private readonly EditorContext _context;
+    private readonly EditorState _state;
     private readonly IGameState _gameState;
 
-    public EraserTool(EditorContext context, IGameState gameState)
+    public EraserTool(EditorContext context, EditorState state, IGameState gameState)
     {
         _context = context;
+        _state = state;
         _gameState = gameState;
     }
 
@@ -105,10 +168,18 @@ public class EraserTool : ITool
     public void OnSelected() { }
     public void OnMouseDown(float x, float y)
     {
-        // Simple deletion.
+        long targetX = (long)x;
+        long targetY = (long)y;
+
+        if (_state.SnapToGrid)
+        {
+            targetX = (long)Math.Round(x / _state.GridSize) * _state.GridSize;
+            targetY = (long)Math.Round(y / _state.GridSize) * _state.GridSize;
+        }
+
         foreach (var obj in _gameState.GetAllGameObjects())
         {
-            if (obj.X == (long)x && obj.Y == (long)y)
+            if (obj.X == targetX && obj.Y == targetY)
             {
                 var command = new DeleteObjectCommand(_gameState, (GameObject)obj);
                 _context.History.Execute(command);

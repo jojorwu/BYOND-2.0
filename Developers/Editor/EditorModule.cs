@@ -12,6 +12,7 @@ public class EditorModule : IEngineModule
     public void RegisterServices(IServiceCollection services)
     {
         services.AddSingleton<EditorState>();
+        services.AddSingleton<CommandHistory>();
         services.AddSingleton<EditorContext>();
 
         // UI Services
@@ -21,6 +22,7 @@ public class EditorModule : IEngineModule
         services.AddSingleton<InspectorPanel>();
         services.AddSingleton<AssetBrowserPanel>();
         services.AddSingleton<ViewportPanel>();
+        services.AddSingleton<ConsolePanel>();
 
         // Tools
         services.AddSingleton<IToolManager, ToolManager>();

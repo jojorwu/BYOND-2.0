@@ -105,7 +105,6 @@ public class DeleteObjectCommand : IEditorCommand
 {
     private readonly IGameState _gameState;
     private readonly GameObject _target;
-    private readonly long _x, _y, _z;
 
     public string Name => $"Delete {_target.ObjectType?.Name ?? "Object"}";
 
@@ -113,9 +112,6 @@ public class DeleteObjectCommand : IEditorCommand
     {
         _gameState = gameState;
         _target = target;
-        _x = target.X;
-        _y = target.Y;
-        _z = target.Z;
     }
 
     public void Execute()
@@ -126,5 +122,35 @@ public class DeleteObjectCommand : IEditorCommand
     public void Undo()
     {
         _gameState.AddGameObject(_target);
+    }
+}
+
+public class MoveObjectCommand : IEditorCommand
+{
+    private readonly GameObject _target;
+    private readonly long _oldX, _oldY, _oldZ;
+    private readonly long _newX, _newY, _newZ;
+
+    public string Name => $"Move {_target.ObjectType?.Name ?? "Object"}";
+
+    public MoveObjectCommand(GameObject target, long newX, long newY, long newZ)
+    {
+        _target = target;
+        _oldX = target.X;
+        _oldY = target.Y;
+        _oldZ = target.Z;
+        _newX = newX;
+        _newY = newY;
+        _newZ = newZ;
+    }
+
+    public void Execute()
+    {
+        _target.SetPosition(_newX, _newY, _newZ);
+    }
+
+    public void Undo()
+    {
+        _target.SetPosition(_oldX, _oldY, _oldZ);
     }
 }

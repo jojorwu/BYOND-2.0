@@ -31,18 +31,22 @@ public class EditorUIService : IEditorUIService
         InspectorPanel inspector,
         AssetBrowserPanel assetBrowser,
         ViewportPanel viewport,
+        ConsolePanel console,
         IToolManager toolManager,
         SelectionTool selectionTool,
-        PaintTool paintTool)
+        PaintTool paintTool,
+        EraserTool eraserTool)
     {
         _panels.Add(menuBar);
         _panels.Add(hierarchy);
         _panels.Add(inspector);
         _panels.Add(assetBrowser);
         _panels.Add(viewport);
+        _panels.Add(console);
 
         toolManager.RegisterTool(selectionTool);
         toolManager.RegisterTool(paintTool);
+        toolManager.RegisterTool(eraserTool);
         toolManager.ActiveTool = selectionTool;
     }
 

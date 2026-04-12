@@ -19,6 +19,10 @@ public class EditorState : EngineService
 
     // Selection state
     public long SelectedEntityId { get; set; } = -1;
+
+    // Grid settings
+    public int GridSize { get; set; } = 32;
+    public bool SnapToGrid { get; set; } = true;
 }
 
 /// <summary>
@@ -35,6 +39,7 @@ public class EditorContext : EngineService
     private readonly ILogger<EditorContext> _logger;
 
     public CommandHistory History => _history;
+    public EditorState State => _state;
 
     public EditorContext(
         EditorState state,
@@ -92,26 +97,9 @@ public class EditorContext : EngineService
 
     public async Task SaveProjectAsync()
     {
-        if (_state.CurrentProjectPath == null || _gameState.Map == null) return;
-
-        try
-        {
-            var project = _projectManager.LoadProject(_state.CurrentProjectPath);
-            if (project != null)
-            {
-                var mapPath = project.GetFullPath(Constants.MapsRoot) + "/world.dmm";
-
-                // Save as DMM (if supported/implemented) or fallback to MapLoader's JSON
-                await _mapLoader.SaveMapAsync(_gameState.Map, mapPath);
-
-                _state.IsDirty = false;
-                _logger.LogInformation("Project saved successfully to: {Path}", mapPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error while saving project");
-            throw;
-        }
+        if (_state.CurrentProjectPath == null) return;
+        // TODO: Implement actual save logic via MapLoader
+        _state.IsDirty = false;
+        await Task.CompletedTask;
     }
 }

@@ -19,10 +19,7 @@ public class EditorState : EngineService
 
     // Selection state
     public long SelectedEntityId { get; set; } = -1;
-
-    // Grid settings
-    public int GridSize { get; set; } = 32;
-    public bool SnapToGrid { get; set; } = true;
+    public string? SelectedTypeName { get; set; }
 }
 
 /// <summary>
@@ -32,25 +29,19 @@ public class EditorState : EngineService
 public class EditorContext : EngineService
 {
     private readonly EditorState _state;
-    private readonly CommandHistory _history;
     private readonly IProjectManager _projectManager;
     private readonly IMapLoader _mapLoader;
     private readonly IGameState _gameState;
     private readonly ILogger<EditorContext> _logger;
 
-    public CommandHistory History => _history;
-    public EditorState State => _state;
-
     public EditorContext(
         EditorState state,
-        CommandHistory history,
         IProjectManager projectManager,
         IMapLoader mapLoader,
         IGameState gameState,
         ILogger<EditorContext> logger)
     {
         _state = state;
-        _history = history;
         _projectManager = projectManager;
         _mapLoader = mapLoader;
         _gameState = gameState;

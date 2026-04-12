@@ -18,6 +18,7 @@ public interface IToolManager
 {
     ITool? ActiveTool { get; set; }
     void RegisterTool(ITool tool);
+    IReadOnlyList<ITool> Tools { get; }
 }
 
 /// <summary>
@@ -27,6 +28,7 @@ public class ToolManager : IToolManager
 {
     private readonly List<ITool> _tools = new();
     public ITool? ActiveTool { get; set; }
+    public IReadOnlyList<ITool> Tools => _tools;
 
     public void RegisterTool(ITool tool) => _tools.Add(tool);
 }
@@ -58,7 +60,6 @@ public class SelectionTool : ITool
 
         foreach (var obj in _gameState.GetAllGameObjects())
         {
-            // Simplified hit detection
             if (Math.Abs(obj.X - x) < 16 && Math.Abs(obj.Y - y) < 16)
             {
                 _state.SelectedEntityId = obj.Id;
@@ -94,12 +95,6 @@ public class SelectionTool : ITool
         {
             if (_draggingObject.X != _dragStartX || _draggingObject.Y != _dragStartY)
             {
-                var command = new MoveObjectCommand(_draggingObject, _draggingObject.X, _draggingObject.Y, _draggingObject.Z);
-                // We actually want to "finalize" the move.
-                // Since we've been moving it live, we should probably have captured the initial state better.
-                // For now, just push it to history (Execute does nothing if already there, but we need to fix Undo).
-
-                // Hack: restore old pos so Execute moves it again properly in history
                 var finalX = _draggingObject.X;
                 var finalY = _draggingObject.Y;
                 _draggingObject.SetPosition(_dragStartX, _dragStartY, _draggingObject.Z);
@@ -131,6 +126,8 @@ public class PaintTool : ITool
     public void OnSelected() { }
     public void OnMouseDown(float x, float y)
     {
+        if (string.IsNullOrEmpty(_state.SelectedTypeName)) return;
+
         long targetX = (long)x;
         long targetY = (long)y;
 
@@ -140,7 +137,7 @@ public class PaintTool : ITool
             targetY = (long)Math.Round(y / _state.GridSize) * _state.GridSize;
         }
 
-        var type = _typeManager.GetObjectType("obj"); // Example
+        var type = _typeManager.GetObjectType(_state.SelectedTypeName);
         if (type != null)
         {
             var command = new PlaceObjectCommand(_gameState, type, targetX, targetY, 0);

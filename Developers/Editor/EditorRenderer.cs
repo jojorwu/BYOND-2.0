@@ -94,7 +94,7 @@ public class EditorRenderer : EngineService
 
         _worldRenderer.Render(dt, null, (GameState)_gameState, 1.0f, cullRect, view, projection);
 
-        RenderGrid(_state.GridSize, 0.2f);
+        RenderGrid(32, 0.2f);
         RenderGizmos();
 
         _viewportBuffer.Unbind();
@@ -147,12 +147,47 @@ public class EditorRenderer : EngineService
 
     public void RenderGizmos()
     {
-        // TODO: Implement gizmo rendering
+        if (_state.SelectedEntityId != -1)
+        {
+            HighlightSelection(_state.SelectedEntityId);
+        }
     }
 
     public void HighlightSelection(long entityId)
     {
-        // TODO: Implement selection highlighting
+        if (_gl == null || _gridShader == null || _viewportBuffer == null) return;
+        if (!_gameState.GameObjects.TryGetValue(entityId, out var obj)) return;
+
+        _gridShader.Use();
+        _gridShader.SetCameraMatrices(_camera.GetViewMatrix(), _camera.GetProjectionMatrix(_viewportBuffer.Width, _viewportBuffer.Height));
+        _gridShader.SetUniform("uColor", new Vector4(1.0f, 1.0f, 0.0f, 1.0f)); // Yellow
+
+        float halfSize = 16.5f; // Slightly larger than 32x32
+        float x = obj.X;
+        float y = obj.Y;
+
+        float[] vertices = {
+            x - halfSize, y - halfSize, 10.0f,
+            x + halfSize, y - halfSize, 10.0f,
+            x + halfSize, y + halfSize, 10.0f,
+            x - halfSize, y + halfSize, 10.0f,
+            x - halfSize, y - halfSize, 10.0f
+        };
+
+        _gl.BindVertexArray(_gridVao);
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _gridVbo);
+        unsafe
+        {
+            fixed (float* v = vertices)
+            {
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(vertices.Length * sizeof(float)), v, BufferUsageARB.StreamDraw);
+            }
+            _gl.EnableVertexAttribArray(0);
+            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 3 * sizeof(float), (void*)0);
+        }
+
+        _gl.DrawArrays(PrimitiveType.LineStrip, 0, (uint)(vertices.Length / 3));
+        _gl.BindVertexArray(0);
     }
 
     public override void Dispose()

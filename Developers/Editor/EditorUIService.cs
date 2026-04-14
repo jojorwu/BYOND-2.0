@@ -27,22 +27,18 @@ public class EditorUIService : IEditorUIService
 
     public EditorUIService(
         MenuBarPanel menuBar,
-        ToolbarPanel toolbar,
         HierarchyPanel hierarchy,
         InspectorPanel inspector,
         AssetBrowserPanel assetBrowser,
-        TypePalettePanel typePalette,
         ViewportPanel viewport,
         IToolManager toolManager,
         SelectionTool selectionTool,
         PaintTool paintTool)
     {
         _panels.Add(menuBar);
-        _panels.Add(toolbar);
         _panels.Add(hierarchy);
         _panels.Add(inspector);
         _panels.Add(assetBrowser);
-        _panels.Add(typePalette);
         _panels.Add(viewport);
 
         toolManager.RegisterTool(selectionTool);

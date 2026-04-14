@@ -19,7 +19,6 @@ public class EditorState : EngineService
 
     // Selection state
     public long SelectedEntityId { get; set; } = -1;
-    public string? SelectedTypeName { get; set; }
 }
 
 /// <summary>

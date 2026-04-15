@@ -9,6 +9,7 @@ using Silk.NET.Windowing;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Silk.NET.OpenGL.Extensions.ImGui;
+using Client.Graphics;
 
 namespace Editor;
 

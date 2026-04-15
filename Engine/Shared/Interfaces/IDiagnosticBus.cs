@@ -27,10 +27,10 @@ public interface IMetricsBuilder
 /// </summary>
 public sealed class DiagnosticEvent : IMetricsBuilder
 {
-    public string Source { get; internal set; } = string.Empty;
-    public string Message { get; internal set; } = string.Empty;
-    public DiagnosticSeverity Severity { get; internal set; } = DiagnosticSeverity.Info;
-    public string[]? Tags { get; internal set; }
+    public string Source { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public DiagnosticSeverity Severity { get; set; } = DiagnosticSeverity.Info;
+    public string[]? Tags { get; set; }
 
     private readonly Dictionary<string, object> _metrics = new(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, object> Metrics => _metrics;

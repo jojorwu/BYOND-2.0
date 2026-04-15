@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Shared.Services;
+using Shared.Interfaces;
 
 namespace Client.Graphics
 {
@@ -72,7 +73,7 @@ namespace Client.Graphics
             }
         }
 
-    public Shader GetGlShader(ICSharpShader csharpShader)
+    public Shader CreateGlShader(ICSharpShader csharpShader)
         {
             if (_gl == null) throw new InvalidOperationException("CSharpShaderManager not initialized with GL context.");
 

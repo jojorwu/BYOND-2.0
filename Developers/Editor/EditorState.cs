@@ -19,6 +19,11 @@ public class EditorState : EngineService
 
     // Selection state
     public long SelectedEntityId { get; set; } = -1;
+    public string? SelectedTypeName { get; set; }
+
+    // Grid settings
+    public int GridSize { get; set; } = 32;
+    public bool SnapToGrid { get; set; } = true;
 }
 
 /// <summary>
@@ -28,19 +33,25 @@ public class EditorState : EngineService
 public class EditorContext : EngineService
 {
     private readonly EditorState _state;
+    private readonly CommandHistory _history;
     private readonly IProjectManager _projectManager;
     private readonly IMapLoader _mapLoader;
     private readonly IGameState _gameState;
     private readonly ILogger<EditorContext> _logger;
 
+    public CommandHistory History => _history;
+    public EditorState State => _state;
+
     public EditorContext(
         EditorState state,
+        CommandHistory history,
         IProjectManager projectManager,
         IMapLoader mapLoader,
         IGameState gameState,
         ILogger<EditorContext> logger)
     {
         _state = state;
+        _history = history;
         _projectManager = projectManager;
         _mapLoader = mapLoader;
         _gameState = gameState;
@@ -87,9 +98,26 @@ public class EditorContext : EngineService
 
     public async Task SaveProjectAsync()
     {
-        if (_state.CurrentProjectPath == null) return;
-        // TODO: Implement actual save logic via MapLoader
-        _state.IsDirty = false;
-        await Task.CompletedTask;
+        if (_state.CurrentProjectPath == null || _gameState.Map == null) return;
+
+        try
+        {
+            var project = _projectManager.LoadProject(_state.CurrentProjectPath);
+            if (project != null)
+            {
+                var mapPath = project.GetFullPath(Constants.MapsRoot) + "/world.dmm";
+
+                // Save the current game state map
+                await _mapLoader.SaveMapAsync(_gameState.Map, mapPath);
+
+                _state.IsDirty = false;
+                _logger.LogInformation("Project saved successfully to: {Path}", mapPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while saving project");
+            throw;
+        }
     }
 }
